@@ -4,8 +4,6 @@
 #include <string>
 #include <vector>
 
-
-
 namespace gollnlp {
 
   class goSCACOPFData {
