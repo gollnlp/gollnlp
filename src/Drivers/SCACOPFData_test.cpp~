@@ -1,0 +1,11 @@
+#include "goSCACOPFData.hpp"
+
+int main()
+{
+
+  {
+    goSCACOPFData data;
+    data.readinstance(
+  }
+  return 0;
+}

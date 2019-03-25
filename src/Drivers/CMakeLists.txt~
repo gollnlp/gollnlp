@@ -1,0 +1,2 @@
+add_executable(test_scacopfdata.exe nlpDenseCons_ex1.cpp nlpDenseCons_ex1_driver.cpp)
+target_link_libraries(nlpDenseCons_ex1.exe hiop ${LAPACK_LIBRARIES})
