@@ -58,6 +58,8 @@ namespace gollnlp {
 		 VVStr& switchedshunts);
     bool readROP(const std::string& raw_file, VVStr& generatordsp, VVStr& activedsptables, 
 		 VInt& costcurves_ltbl, VStr& costcurves_label, VVDou& costcurves_xi, VVDou& costcurves_yi);
+    bool readINL(const std::string& raw_file, VVStr& governorresponse);
+
   };
 } //end namespace
 

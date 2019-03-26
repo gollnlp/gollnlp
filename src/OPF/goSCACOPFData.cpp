@@ -53,10 +53,19 @@ static inline bool isEndOrStartOfSection(const string& l)
 {
   if(l.size()==0) return false;
   if(l[0] != '0' && l[0] != ' ') return false;
-  if(l.size() == 1 && l[1] == '0') return true;
+  if(l.size() == 1 && l[0] == '0') return true;
+  if(l.size() == 2 && l[0] == '0' && l[1] =='\r') return true;
   if(l.size() >= 2 && l[0] == '0' && l[1] == ' ') return true;
   if(l.size() >= 3 && l[0] == ' ' && l[1] == '0' && l[0] == ' ') return true;
   return false;
+}
+
+static inline bool mygetline(ifstream& file, string& line)
+{
+  if(!getline(file,line)) return false;
+  if(line.size()==0) return true;
+  string::iterator last = line.end()-1;
+  if(*last=='\r') line.erase(last);
 }
 
 bool goSCACOPFData::
@@ -72,7 +81,9 @@ readinstance(const std::string& raw, const std::string& rop, const std::string& 
 	      costcurves_ltbl, costcurves_label, costcurves_xi, costcurves_yicostcurves))
     return false;
 
-  
+  VVStr governorresponse;
+  if(!readINL(inl, governorresponse)) return false;
+
   return true;
 }
 
@@ -112,10 +123,10 @@ readRAW(const std::string& raw, double& MVAbase,
 	buses[i].push_back(line.substr(0,pos));
 	line.erase(0, pos+delimiter.length());
       } else {
+	assert(i==12);
 	buses[i].push_back(line);
       }
     }
-    assert(i==13);
   }
 #ifdef DEBUG
   int n=buses[0].size();
@@ -138,6 +149,7 @@ readRAW(const std::string& raw, double& MVAbase,
 	loads[i].push_back(line.substr(0,pos));
 	line.erase(0, pos+delimiter.length());
       } else {
+	assert(i==13);
 	loads[i].push_back(line);
       }
     }
@@ -165,6 +177,7 @@ readRAW(const std::string& raw, double& MVAbase,
 	fixedbusshunts[i].push_back(line.substr(0,pos));
 	line.erase(0, pos+delimiter.length());
       } else {
+	assert(i==4);
 	fixedbusshunts[i].push_back(line);
       }
     }
@@ -193,6 +206,7 @@ readRAW(const std::string& raw, double& MVAbase,
 	generators[i].push_back(line.substr(0,pos));
 	line.erase(0, pos+delimiter.length());
       } else {
+	assert(i==27);
 	generators[i].push_back(line);
       }
     }
@@ -220,6 +234,7 @@ readRAW(const std::string& raw, double& MVAbase,
 	ntbranches[i].push_back(line.substr(0,pos));
 	line.erase(0, pos+delimiter.length());
       } else {
+	assert(i==23);
 	ntbranches[i].push_back(line);
       }
     }
@@ -249,6 +264,7 @@ readRAW(const std::string& raw, double& MVAbase,
 	tbranches[i].push_back(line.substr(0,pos));
 	line.erase(0, pos+delimiter.length());
       } else {
+	assert(i==20);
 	tbranches[i].push_back(line);
       }
     }
@@ -260,6 +276,7 @@ readRAW(const std::string& raw, double& MVAbase,
 	tbranches[i].push_back(line.substr(0,pos));
 	line.erase(0, pos+delimiter.length());
       } else {
+	assert(i==23);
 	tbranches[i].push_back(line);
       }
     }
@@ -271,6 +288,7 @@ readRAW(const std::string& raw, double& MVAbase,
 	tbranches[i].push_back(line.substr(0,pos));
 	line.erase(0, pos+delimiter.length());
       } else {
+	assert(i==40);
 	tbranches[i].push_back(line);
       }
     }
@@ -282,6 +300,7 @@ readRAW(const std::string& raw, double& MVAbase,
 	tbranches[i].push_back(line.substr(0,pos));
 	line.erase(0, pos+delimiter.length());
       } else {
+	assert(i==42);
 	tbranches[i].push_back(line);
       }
     }
@@ -321,6 +340,7 @@ readRAW(const std::string& raw, double& MVAbase,
 	switchedshunts[i].push_back(line.substr(0,pos));
 	line.erase(0, pos+delimiter.length());
       } else {
+	assert(i==25);
 	switchedshunts[i].push_back(line);
       }
     }
@@ -373,6 +393,7 @@ readROP(const std::string& rop, VVStr& generatordsp, VVStr& activedsptables,
 	    generatordsp[i].push_back(line.substr(0,pos));
 	    line.erase(0, pos+delimiter.length());
 	  } else {
+	    assert(i==3);
 	    generatordsp[i].push_back(line);
 	  }
 	}
@@ -401,6 +422,7 @@ readROP(const std::string& rop, VVStr& generatordsp, VVStr& activedsptables,
 	    activedsptables[i].push_back(line.substr(0,pos));
 	    line.erase(0, pos+delimiter.length());
 	  } else {
+	    assert(i==6);
 	    activedsptables[i].push_back(line);
 	  }
 	}
@@ -429,8 +451,6 @@ readROP(const std::string& rop, VVStr& generatordsp, VVStr& activedsptables,
 
 	assert(line.find(delimiter)==string::npos);
 
-	//cout<<"|"<<costcurves_ltbl.back() <<"|" << costcurves_label.back() <<"|";
-
 	npairs = atoi(line.c_str());
         costcurves_xi.push_back(vector<double>()); costcurves_yi.push_back(vector<double>());
 	for(p=0; p<npairs; p++) {
@@ -442,9 +462,11 @@ readROP(const std::string& rop, VVStr& generatordsp, VVStr& activedsptables,
 	  assert(line.find(delimiter)==string::npos);
 	  costcurves_yi.back().push_back(atof(line.c_str()));
 
-	  //cout <<"||"<< costcurves_xi.back().back() <<" " << costcurves_yi.back().back();
+#ifdef DEBUG
+	  if(p>0 && costcurves_xi.back().back() <= costcurves_xi.back()[p-1])
+	    log.printf(hovWarning, "!!!! nonmonotone linear cost coeff !?!? check this\n");
+#endif
 	}
-	//cout << endl;
       }
       log.printf(hovSummary, "loaded Piece-wise Linear Cost data for %d generators\n", costcurves_ltbl.size());
       continue;
@@ -455,4 +477,39 @@ readROP(const std::string& rop, VVStr& generatordsp, VVStr& activedsptables,
   }
   return true;
 }
+
+bool goSCACOPFData::
+readINL(const std::string& inl, VVStr& governorresponse)
+{
+  ifstream file(inl.c_str());
+  if(!file.is_open()) {
+    log.printf(hovError, "failed to load inl file %s\n", inl.c_str());
+    return false;
+  }
+  int i,n; string delimiter=","; size_t pos; 
+  for(i=0; i<7; i++) governorresponse.push_back(vector<string>());
+
+  bool ret; string line; 
+
+  while(true) {
+    ret = getline(file, line); assert(ret);
+    if(isEndOrStartOfSection(line)) break;
+
+    for(i=0; i<7; i++) {
+      if( (pos = line.find(delimiter)) != string::npos ) {
+	governorresponse[i].push_back(line.substr(0,pos));
+	line.erase(0, pos+delimiter.length());
+      } else {
+	assert(i==6);
+	governorresponse[i].push_back(line);
+      }
+    }
+  } // end of while
+
+  log.printf(hovSummary, "loaded governor response data for %d generators\n", governorresponse[0].size());
+
+  return true;
+}
+
+
 }//end namespace
