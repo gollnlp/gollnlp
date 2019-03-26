@@ -11,6 +11,9 @@
 #include <algorithm>
 using namespace std;
 
+#include <cmath>
+#include "blasdefs.hpp"
+
 namespace gollnlp {
 
 //temporary log object
@@ -80,12 +83,28 @@ static inline bool mygetline(ifstream& file, string& line)
   if(*last=='\r') line.erase(last);
 }
 
+template<class T> inline void hardclear(vector<T> in) { vector<T>().swap(in); }
+
+enum Bheader{BI=0,BNAME,BBASKV,BIDE,BAREA,BZONE,BOWNER,BVM,BVA,BNVHI,BNVLO,BEVHI,BEVLO};
+
 bool goSCACOPFData::
 readinstance(const std::string& raw, const std::string& rop, const std::string& inl, const std::string& con)
 {
   double MVAbase;
   VVStr buses, loads,  fixedbusshunts, generators, ntbranches, tbranches, switchedshunts;
   if(!readRAW(raw, MVAbase, buses, loads,  fixedbusshunts, generators, ntbranches, tbranches, switchedshunts)) return false;
+
+  int n, one=1; double scale=M_PI/180;
+
+  convert(buses[BI],    N_Bus); 
+  convert(buses[BAREA], N_Area);   hardclear(buses[BAREA]);
+  convert(buses[BNVLO], N_Vlb);    hardclear(buses[BNVLO]);
+  convert(buses[BNVHI], N_Vub);    hardclear(buses[BNVHI]);
+  convert(buses[BEVLO], N_EVlb);   hardclear(buses[BEVLO]); 
+  convert(buses[BEVHI], N_EVub);   hardclear(buses[BEVHI]);
+  convert(buses[BVM],   N_v0);     hardclear(buses[BVM]);
+  convert(buses[BVA],   N_theta0); hardclear(buses[BVA]);
+  n=N_theta0.size(); DSCAL(&n, &scale, N_theta0.data(), &one);
 
   VVStr generatordsp, activedsptables;
   VInt costcurves_ltbl; VStr costcurves_label; VVDou costcurves_xi; VVDou costcurves_yicostcurves;
@@ -579,6 +598,19 @@ bool goSCACOPFData::readCON(const string& con,
   return true;
 }
 
-
+void goSCACOPFData::convert(const VStr& src, VInt& dest)
+{
+  size_t sz = src.size();
+  dest.resize(sz);
+  for(int i=0; i<sz; i++)
+    dest[i] = atoi(src[i].c_str());
+}
+void goSCACOPFData::convert(const VStr& src, VDou& dest)
+{
+  size_t sz = src.size();
+  dest.resize(sz);
+  for(int i=0; i<sz; i++)
+    dest[i] = atof(src[i].c_str());
+}
 
 }//end namespace

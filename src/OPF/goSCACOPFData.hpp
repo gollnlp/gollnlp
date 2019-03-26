@@ -66,6 +66,7 @@ namespace gollnlp {
     typedef std::vector<std::vector<double> > VVDou;
     typedef std::vector<std::string> VStr;
     typedef std::vector<int> VInt;
+    typedef std::vector<double> VDou;
     bool readRAW(const std::string& raw_file, double& MVAbase,
 		 VVStr& buses,  VVStr& loads, VVStr& fixedbusshunts,
 		 VVStr& generators, VVStr& ntbranches, VVStr& tbranches,
@@ -79,6 +80,9 @@ namespace gollnlp {
 		 VStr& contingencies_label, 
 		 std::vector<ContingencyType>& contingencies_type,
 		 std::vector<Contingency>& contingencies_con);
+
+    void convert(const VStr& src, VInt& dest);
+    void convert(const VStr& src, VDou& dest);
 };//end of class
 } //end namespace
 

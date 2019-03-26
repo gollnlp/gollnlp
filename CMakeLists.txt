@@ -6,8 +6,8 @@ enable_language(Fortran)
 add_compile_options("$<$<CONFIG:DEBUG>:-DDEBUG>")
 
 # Create header for Fortran name mangling
-#include(FortranCInterface)
-#FortranCInterface_HEADER(FortranCInterface.hpp MACRO_NAMESPACE "FC_")
+include(FortranCInterface)
+FortranCInterface_HEADER(FortranCInterface.hpp MACRO_NAMESPACE "FC_")
 
 option(GOLLNLP_USE_MPI "Build with MPI support" ON)
 
