@@ -39,13 +39,25 @@ static inline void trim(std::string &s) {
     rtrim(s);
 }
 
-static vector<string> split (const string &s, char delim) {
+static vector<string> split(const string &s, char delim) {
   vector<string> result;
   stringstream ss(s);
   string item;
   
-  while (getline (ss, item, delim)) result.push_back (item);
+  while(getline(ss, item, delim)) result.push_back (item);
   
+  return result;
+}
+
+static vector<string> split_skipempty(const string &s, char delim) {
+  vector<string> result;
+  stringstream ss(s);
+  string item;
+  
+  while(getline(ss, item, delim)) {
+    if(!item.empty())
+      result.push_back(item);
+  }
   return result;
 }
 
@@ -83,6 +95,13 @@ readinstance(const std::string& raw, const std::string& rop, const std::string& 
 
   VVStr governorresponse;
   if(!readINL(inl, governorresponse)) return false;
+
+
+  VStr contingencies_label;
+  std::vector<ContingencyType> contingencies_type;
+  std::vector<Contingency> contingencies_con;
+  if(!readCON(con, contingencies_label, contingencies_type, contingencies_con)) return false;
+
 
   return true;
 }
@@ -510,6 +529,56 @@ readINL(const std::string& inl, VVStr& governorresponse)
 
   return true;
 }
+
+bool goSCACOPFData::readCON(const string& con,
+			     VStr& contingencies_label, 
+			     std::vector<ContingencyType>& contingencies_type,
+			     std::vector<Contingency>& contingencies_con)
+{
+  ifstream file(con.c_str());
+  if(!file.is_open()) {
+    log.printf(hovError, "failed to load con file %s\n", con.c_str());
+    return false;
+  }
+  int i,n; string delimiter=" "; char cDelimiter=delimiter[0];
+  size_t pos; bool ret; string line; 
+
+  while(true) {
+    ret = getline(file, line); assert(ret);
+    if(line.substr(0,3)=="END") break;
+
+    assert(line.substr(0,11)=="CONTINGENCY");
+    
+    pos = line.find(delimiter); assert(pos != string::npos );
+    contingencies_label.push_back(line.substr(pos+1));
+
+    ret = getline(file, line); assert(ret);
+    VStr tokens = split_skipempty(line, cDelimiter);
+
+    assert(tokens.size()>=6);
+    if(tokens[0]=="REMOVE") {
+      contingencies_type.push_back(cGenerator);
+      assert(tokens.size()==6);
+      contingencies_con.push_back(GeneratorContingency(atoi(tokens[5].c_str()), tokens[2]));
+    } else if(tokens[0]=="OPEN") {
+       contingencies_type.push_back(cBranch);
+      assert(tokens.size()==10);
+      contingencies_con.push_back(TransmissionContingency(atoi(tokens[4].c_str()), 
+							  atoi(tokens[7].c_str()), 
+							  tokens[2]));
+    } else {
+      log.printf(hovWarning, "expected REMOVE or OPEN in line=[%s]\n", line.c_str());
+      assert(false && "expected REMOVE or OPEN");
+    }    
+
+    ret = getline(file, line); assert(ret);
+    assert(line.substr(0,3)=="END");
+
+  } // end of while
+  log.printf(hovSummary, "loaded  %d contingencies\n", contingencies_con.size());
+  return true;
+}
+
 
 
 }//end namespace

@@ -38,14 +38,28 @@ namespace gollnlp {
     std::vector<std::vector<double> > G_CostPi, G_CostCi;
 
     //contingencies
-    enum ContingencyType{Generator, Line, Transformer};
+    enum KType{kGenerator, kLine, kTransformer};
     std::vector<int> K_Contingency, K_IDout;
-    std::vector<ContingencyType> K_ConType;
+    std::vector<KType> K_ConType;
 
     //penalties
     enum PenaltyType{P=0, Q=1, S=2};
     std::vector<std::vector<double> > P_Quantities, P_Penalties;
 
+  protected:
+    struct Contingency{};
+
+    struct GeneratorContingency : Contingency {
+      int Bus; std::string unit;
+      GeneratorContingency(int B, const std::string& u) : Bus(B), unit(u) {};
+    };
+
+    struct TransmissionContingency : Contingency {
+      int FromBus; int ToBus; std::string Ckt;
+      TransmissionContingency(int F, int T, const std::string& C)
+	: FromBus(F), ToBus(T), Ckt(C) {};
+    };
+    enum ContingencyType{cGenerator, cBranch};
 
   protected:
     typedef std::vector<std::vector<std::string> > VVStr;
@@ -56,11 +70,16 @@ namespace gollnlp {
 		 VVStr& buses,  VVStr& loads, VVStr& fixedbusshunts,
 		 VVStr& generators, VVStr& ntbranches, VVStr& tbranches,
 		 VVStr& switchedshunts);
-    bool readROP(const std::string& raw_file, VVStr& generatordsp, VVStr& activedsptables, 
+    bool readROP(const std::string& rop_file, VVStr& generatordsp, VVStr& activedsptables, 
 		 VInt& costcurves_ltbl, VStr& costcurves_label, VVDou& costcurves_xi, VVDou& costcurves_yi);
-    bool readINL(const std::string& raw_file, VVStr& governorresponse);
+    bool readINL(const std::string& inl_file, VVStr& governorresponse);
 
-  };
+    //here contingency type = 0 <-generator or 1 <- branch
+    bool readCON(const std::string& con_file, 
+		 VStr& contingencies_label, 
+		 std::vector<ContingencyType>& contingencies_type,
+		 std::vector<Contingency>& contingencies_con);
+};//end of class
 } //end namespace
 
 #endif
