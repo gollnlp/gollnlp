@@ -49,7 +49,7 @@ static vector<string> split (const string &s, char delim) {
   return result;
 }
 
-inline bool isEndOfSection(const string& l)
+static inline bool isEndOrStartOfSection(const string& l)
 {
   if(l.size()==0) return false;
   if(l[0] != '0' && l[0] != ' ') return false;
@@ -63,19 +63,24 @@ bool goSCACOPFData::
 readinstance(const std::string& raw, const std::string& rop, const std::string& inl, const std::string& con)
 {
   double MVAbase;
-  StrVec buses, loads,  fixedbusshunts, generators, ntbranches, tbranches, switchedshunts;
-  if(!readRAW(raw, MVAbase, buses, loads,  fixedbusshunts, generators, ntbranches, tbranches, switchedshunts)) {
-    return false;
-  }
+  VVStr buses, loads,  fixedbusshunts, generators, ntbranches, tbranches, switchedshunts;
+  if(!readRAW(raw, MVAbase, buses, loads,  fixedbusshunts, generators, ntbranches, tbranches, switchedshunts)) return false;
 
+  VVStr generatordsp, activedsptables;
+  VInt costcurves_ltbl; VStr costcurves_label; VVDou costcurves_xi; VVDou costcurves_yicostcurves;
+  if(!readROP(rop, generatordsp, activedsptables, 
+	      costcurves_ltbl, costcurves_label, costcurves_xi, costcurves_yicostcurves))
+    return false;
+
+  
   return true;
 }
 
 bool goSCACOPFData::
 readRAW(const std::string& raw, double& MVAbase,
-	StrVec& buses,  StrVec& loads, StrVec& fixedbusshunts,
-	StrVec& generators, StrVec& ntbranches, StrVec& tbranches,
-	StrVec& switchedshunts)
+	VVStr& buses,  VVStr& loads, VVStr& fixedbusshunts,
+	VVStr& generators, VVStr& ntbranches, VVStr& tbranches,
+	VVStr& switchedshunts)
 {
   ifstream rawfile(raw.c_str());
   if(!rawfile.is_open()) {
@@ -90,7 +95,7 @@ readRAW(const std::string& raw, double& MVAbase,
   ret = getline(rawfile, line); assert(ret);
   ret = getline(rawfile, line); assert(ret);
 
-  string token; size_t pos; string delimiter=","; int i;
+  size_t pos; string delimiter=","; int i;
 
   //
   //bus data
@@ -100,7 +105,7 @@ readRAW(const std::string& raw, double& MVAbase,
   
   while(true) {
     ret = getline(rawfile, line); assert(ret);
-    if(isEndOfSection(line)) break;
+    if(isEndOrStartOfSection(line)) break;
     
     for(i=0; i<=12; i++) {
       if( (pos = line.find(delimiter)) != string::npos ) {
@@ -126,7 +131,7 @@ readRAW(const std::string& raw, double& MVAbase,
   for(int i=0; i<14; i++) loads.push_back(vector<string>());
   while(true) {
     ret = getline(rawfile, line); assert(ret);
-    if(isEndOfSection(line)) break;
+    if(isEndOrStartOfSection(line)) break;
     
     for(i=0; i<14; i++) {
       if( (pos = line.find(delimiter)) != string::npos ) {
@@ -153,7 +158,7 @@ readRAW(const std::string& raw, double& MVAbase,
   for(int i=0; i<5; i++) fixedbusshunts.push_back(vector<string>());
   while(true) {
     ret = getline(rawfile, line); assert(ret);
-    if(isEndOfSection(line)) break;
+    if(isEndOrStartOfSection(line)) break;
     
     for(i=0; i<5; i++) {
       if( (pos = line.find(delimiter)) != string::npos ) {
@@ -181,7 +186,7 @@ readRAW(const std::string& raw, double& MVAbase,
   for(int i=0; i<28; i++) generators.push_back(vector<string>());
   while(true) {
     ret = getline(rawfile, line); assert(ret);
-    if(isEndOfSection(line)) break;
+    if(isEndOrStartOfSection(line)) break;
     
     for(i=0; i<28; i++) {
       if( (pos = line.find(delimiter)) != string::npos ) {
@@ -208,7 +213,7 @@ readRAW(const std::string& raw, double& MVAbase,
   for(i=0; i<24; i++) ntbranches.push_back(vector<string>());
   while(true) {
     ret = getline(rawfile, line); assert(ret);
-    if(isEndOfSection(line)) break;
+    if(isEndOrStartOfSection(line)) break;
     
     for(i=0; i<24; i++) {
       if( (pos = line.find(delimiter)) != string::npos ) {
@@ -237,7 +242,7 @@ readRAW(const std::string& raw, double& MVAbase,
   for(i=0; i<43; i++) tbranches.push_back(vector<string>());
   while(true) {
     ret = getline(rawfile, line); assert(ret);
-    if(isEndOfSection(line)) break;
+    if(isEndOrStartOfSection(line)) break;
 
     for(i=0; i<21; i++) {
       if( (pos = line.find(delimiter)) != string::npos ) {
@@ -249,7 +254,7 @@ readRAW(const std::string& raw, double& MVAbase,
     }
     //line 2
     ret = getline(rawfile, line); assert(ret);
-    assert(!isEndOfSection(line));
+    assert(!isEndOrStartOfSection(line));
     for(i=21; i<24; i++) {
       if( (pos = line.find(delimiter)) != string::npos ) {
 	tbranches[i].push_back(line.substr(0,pos));
@@ -260,7 +265,7 @@ readRAW(const std::string& raw, double& MVAbase,
     }
     //line 3
     ret = getline(rawfile, line); assert(ret);
-    assert(!isEndOfSection(line));
+    assert(!isEndOrStartOfSection(line));
     for(i=24; i<41; i++) {
       if( (pos = line.find(delimiter)) != string::npos ) {
 	tbranches[i].push_back(line.substr(0,pos));
@@ -271,7 +276,7 @@ readRAW(const std::string& raw, double& MVAbase,
     }
     //line 4
     ret = getline(rawfile, line); assert(ret);
-    assert(!isEndOfSection(line));
+    assert(!isEndOrStartOfSection(line));
     for(i=41; i<43; i++) {
       if( (pos = line.find(delimiter)) != string::npos ) {
 	tbranches[i].push_back(line.substr(0,pos));
@@ -296,7 +301,7 @@ readRAW(const std::string& raw, double& MVAbase,
   int section=8;
   while(section<18) {
     ret = getline(rawfile, line); assert(ret);
-    if(isEndOfSection(line)) section++;
+    if(isEndOrStartOfSection(line)) section++;
   }
 #ifdef DEBUG
   std::transform(line.begin(), line.end(), line.begin(), ::toupper);
@@ -309,7 +314,7 @@ readRAW(const std::string& raw, double& MVAbase,
   for(i=0; i<26; i++) switchedshunts.push_back(vector<string>());
   while(true) {
     ret = getline(rawfile, line); assert(ret);
-    if(isEndOfSection(line)) break;
+    if(isEndOrStartOfSection(line)) break;
     
     for(i=0; i<26; i++) {
       if( (pos = line.find(delimiter)) != string::npos ) {
@@ -330,5 +335,56 @@ readRAW(const std::string& raw, double& MVAbase,
   return true;
 }
 
+bool goSCACOPFData::
+readROP(const std::string& rop, VVStr& generatordsp, VVStr& activedsptables, 
+	VInt& costcurves_ltbl, VStr& costcurves_label, VVDou& costcurves_xi, VVDou& costcurves_yi)
+{
+  ifstream file(rop.c_str());
+  if(!file.is_open()) {
+    log.printf(hovError, "failed to load rop file %s\n", rop.c_str());
+    return false;
+  }
+  int i,n; string delimiter=","; size_t pos; 
+  for(i=0; i<4; i++) generatordsp.push_back(vector<string>());
+  for(i=0; i<7; i++) activedsptables.push_back(vector<string>());
 
+  bool ret; string line; 
+  bool isGenDispSec=false, isCostCurvesSec=false, isPowerDispSec=false;
+  while(getline(file, line)) {
+    if(isEndOrStartOfSection(line)) {
+        std::transform(line.begin(), line.end(), line.begin(), ::tolower);
+      if(line.find("generator dispatch") != string::npos) isGenDispSec=true;
+      else if(line.find("active power dispatch") != string::npos) isPowerDispSec=true;
+      else if(line.find("piece-wise linear cost")!= string::npos) isCostCurvesSec=true;
+    }
+    
+    if(isGenDispSec) {
+      while(true) {
+	ret = getline(file, line); assert(ret);
+	if(isEndOrStartOfSection(line)) {
+	  isGenDispSec=false;
+	  break;
+	}
+	for(i=0; i<4; i++) {
+	  if( (pos = line.find(delimiter)) != string::npos ) {
+	    generatordsp[i].push_back(line.substr(0,pos));
+	    line.erase(0, pos+delimiter.length());
+	  } else {
+	    generatordsp[i].push_back(line);
+	  }
+	}
+      }
+#ifdef DEBUG
+      n=generatordsp[0].size();
+      for(i=1; i<4; i++) {
+	assert(generatordsp[i].size()==n);
+      }
+#endif
+      log.printf(hovSummary, "loaded dispatch data for %d generators\n", generatordsp[0].size());
+    }//end if(isGenDispSec)
+    
+  }
+
+  return true;
+}
 }//end namespace

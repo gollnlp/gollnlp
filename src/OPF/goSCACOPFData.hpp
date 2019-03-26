@@ -48,11 +48,16 @@ namespace gollnlp {
 
 
   protected:
-    typedef std::vector<std::vector<std::string> > StrVec;
+    typedef std::vector<std::vector<std::string> > VVStr;
+    typedef std::vector<std::vector<double> > VVDou;
+    typedef std::vector<std::string> VStr;
+    typedef std::vector<int> VInt;
     bool readRAW(const std::string& raw_file, double& MVAbase,
-		 StrVec& buses,  StrVec& loads, StrVec& fixedbusshunts,
-		 StrVec& generators, StrVec& ntbranches, StrVec& tbranches,
-		 StrVec& switchedshunts);
+		 VVStr& buses,  VVStr& loads, VVStr& fixedbusshunts,
+		 VVStr& generators, VVStr& ntbranches, VVStr& tbranches,
+		 VVStr& switchedshunts);
+    bool readROP(const std::string& raw_file, VVStr& generatordsp, VVStr& activedsptables, 
+		 VInt& costcurves_ltbl, VStr& costcurves_label, VVDou& costcurves_xi, VVDou& costcurves_yi);
   };
 } //end namespace
 
