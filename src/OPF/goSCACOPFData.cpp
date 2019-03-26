@@ -349,20 +349,23 @@ readROP(const std::string& rop, VVStr& generatordsp, VVStr& activedsptables,
   for(i=0; i<7; i++) activedsptables.push_back(vector<string>());
 
   bool ret; string line; 
-  bool isGenDispSec=false, isCostCurvesSec=false, isPowerDispSec=false;
-  while(getline(file, line)) {
+  bool isGenDispSec=false, isCostCurvesSec=false, isActiveDispSec=false;
+  bool loadedGenDispSec, loadedCostCurvesSec=false, loadedActiveDispSec=false;
+  ret = getline(file, line); assert(ret);
+  while(ret) {
     if(isEndOrStartOfSection(line)) {
         std::transform(line.begin(), line.end(), line.begin(), ::tolower);
-      if(line.find("generator dispatch") != string::npos) isGenDispSec=true;
-      else if(line.find("active power dispatch") != string::npos) isPowerDispSec=true;
-      else if(line.find("piece-wise linear cost")!= string::npos) isCostCurvesSec=true;
+      if(line.find("generator dispatch")!=string::npos && !loadedGenDispSec) isGenDispSec=true;
+      if(line.find("active power dispatch")!=string::npos && !loadedActiveDispSec) isActiveDispSec=true;
+      if(line.find("piece-wise linear cost")!=string::npos && !loadedCostCurvesSec) isCostCurvesSec=true;
     }
-    
+    ////////////////////////////////////////////////////////////////////////////////////
     if(isGenDispSec) {
       while(true) {
 	ret = getline(file, line); assert(ret);
 	if(isEndOrStartOfSection(line)) {
 	  isGenDispSec=false;
+	  loadedGenDispSec=true;
 	  break;
 	}
 	for(i=0; i<4; i++) {
@@ -381,10 +384,75 @@ readROP(const std::string& rop, VVStr& generatordsp, VVStr& activedsptables,
       }
 #endif
       log.printf(hovSummary, "loaded dispatch data for %d generators\n", generatordsp[0].size());
+      continue;
     }//end if(isGenDispSec)
-    
-  }
 
+    ////////////////////////////////////////////////////////////////////////////////////
+    if(isActiveDispSec) {
+      while(true) {
+	ret = getline(file, line); assert(ret);
+	if(isEndOrStartOfSection(line)) {
+	  isActiveDispSec=false;
+	  loadedActiveDispSec=true;
+	  break;
+	}
+	for(i=0; i<7; i++) {
+	  if( (pos = line.find(delimiter)) != string::npos ) {
+	    activedsptables[i].push_back(line.substr(0,pos));
+	    line.erase(0, pos+delimiter.length());
+	  } else {
+	    activedsptables[i].push_back(line);
+	  }
+	}
+      }
+      log.printf(hovSummary, "loaded active power dispatch data for %d generators\n", activedsptables[0].size());
+      continue;
+    } //end if(isActiveDispSec)
+    
+    ////////////////////////////////////////////////////////////////////////////////////
+    if(isCostCurvesSec) {
+      int npairs, p; 
+      while(true) {
+	ret = getline(file, line); assert(ret);
+	if(isEndOrStartOfSection(line)) {
+	  isCostCurvesSec=false;
+	  loadedCostCurvesSec=true;
+	  break;
+	}
+	//parse the first line -> 3 items: bus id, label, numpairs
+	pos = line.find(delimiter); assert(pos!=string::npos);
+	costcurves_ltbl.push_back(atoi(line.substr(0,pos).c_str()));
+	line.erase(0, pos+delimiter.length());
+	pos = line.find(delimiter); assert(pos!=string::npos);
+	costcurves_label.push_back(line.substr(0,pos));
+	line.erase(0, pos+delimiter.length());
+
+	assert(line.find(delimiter)==string::npos);
+
+	//cout<<"|"<<costcurves_ltbl.back() <<"|" << costcurves_label.back() <<"|";
+
+	npairs = atoi(line.c_str());
+        costcurves_xi.push_back(vector<double>()); costcurves_yi.push_back(vector<double>());
+	for(p=0; p<npairs; p++) {
+	  ret = getline(file, line); assert(ret);
+	  assert(!isEndOrStartOfSection(line));
+	  pos = line.find(delimiter); assert(pos!=string::npos);
+	  costcurves_xi.back().push_back(atof(line.substr(0,pos).c_str()));
+	  line.erase(0, pos+delimiter.length());
+	  assert(line.find(delimiter)==string::npos);
+	  costcurves_yi.back().push_back(atof(line.c_str()));
+
+	  //cout <<"||"<< costcurves_xi.back().back() <<" " << costcurves_yi.back().back();
+	}
+	//cout << endl;
+      }
+      log.printf(hovSummary, "loaded Piece-wise Linear Cost data for %d generators\n", costcurves_ltbl.size());
+      continue;
+    }// if(isCostCurvesSec)
+    
+    assert(!isGenDispSec && !isActiveDispSec && !isCostCurvesSec);
+    ret = getline(file, line); 
+  }
   return true;
 }
 }//end namespace
