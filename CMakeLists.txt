@@ -2,8 +2,10 @@ cmake_minimum_required (VERSION 2.8)
 project (goSpecCpp)
 # enable Fortran for Fortran name mangling
 enable_language(Fortran)
+set (CMAKE_CXX_STANDARD 11)
 
 add_compile_options("$<$<CONFIG:DEBUG>:-DDEBUG>")
+add_compile_options("-std=c++11")
 
 # Create header for Fortran name mangling
 include(FortranCInterface)
@@ -20,7 +22,6 @@ if(GOLLNLP_USE_MPI)
     set(CMAKE_CXX_COMPILER ${MPI_CXX_COMPILER})
   endif(NOT DEFINED MPI_CXX_COMPILER)
 endif(GOLLNLP_USE_MPI)
-
 
 find_package(OpenMP)
 

@@ -21,7 +21,8 @@ namespace gollnlp {
     std::vector<double> N_Pd, N_Qd, N_Gsh, N_Bsh, N_Vlb, N_Vub, N_EVlb, N_EVub, N_v0, N_theta0;
 
     //lines
-    std::vector<int> L_Line, L_From, L_To, L_CktID;
+    std::vector<int> L_Line, L_From, L_To;
+    std::vector<std::string> L_CktID;
     std::vector<double> L_G, L_B, L_Bch, L_RateBase, L_RateEmer;
 
     //transformers

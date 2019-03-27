@@ -9,6 +9,7 @@
 #include <sstream>
 #include <string>
 #include <algorithm>
+#include <numeric>
 using namespace std;
 
 #include <cmath>
@@ -83,20 +84,77 @@ static inline bool mygetline(ifstream& file, string& line)
   if(*last=='\r') line.erase(last);
 }
 
-template<class T> inline void hardclear(vector<T> in) { vector<T>().swap(in); }
+template<class T> inline void hardclear(vector<T>& in) { vector<T>().swap(in); };
+
+template<class T> inline void printvec(const vector<T>& v, const string& msg="") 
+{ 
+  cout.precision(6); 
+  cout << msg << " size:" << v.size() << endl;
+  cout << scientific;
+  typename vector<T>::const_iterator it=v.begin();
+  for(;it!=v.end(); ++it) cout << (*it) << " ";
+  cout << endl;
+}
+
+// for entries of 'v' that are not present in 'in', the indexes will be set to -1
+template<class T> inline vector<int> indexin(vector<T>& v, vector<T>& in)
+{
+  vector<int> vIdx(v.size());
+  iota(vIdx.begin(), vIdx.end(), 0);
+  //sort permutation for v
+  sort(vIdx.begin(), vIdx.end(), [&](const int& a, const int& b) { return (v[a] < v[b]); } );
+
+  vector<int> inIdx(in.size());
+  iota(inIdx.begin(), inIdx.end(), 0);
+  //sort permutation for in
+  sort(inIdx.begin(), inIdx.end(), [&](const int& a, const int& b) { return (in[a] < in[b]); } );
+
+  size_t szv=v.size(), szin=in.size();
+  vector<int> idxs(szv, -1);
+  
+  T *vv = v.data(), *vin = in.data();
+  for(int iv=0, iin=0, *div=vIdx.data(), *diin=inIdx.data(), *didxs=idxs.data(); iv<szv && iin<szin;) {
+    //cout << "iv=" << iv << "  iin=" << iin << " | " << div[iv] << " " << diin[iin] << endl;
+    if(vv[div[iv]]==vin[diin[iin]]) {
+      didxs[div[iv]]=diin[iin];
+      iin++; iv++;
+    } else vv[div[iv]]>vin[diin[iin]]? iin++: iv++;
+  }
+  return idxs;
+}
+
+vector<int> findall(const vector<int>& v, std::function<bool(const int&)> pred)
+{
+  vector<int> ret; int count=0;
+  for(auto& it : v) {
+    if(pred(it)) ret.push_back(count);
+    count++;
+  }
+  return ret;
+}
+
+template<class T> vector<T> select(vector<T>& v, const vector<int>& idx)
+{
+  vector<T> ret;
+  for(auto& keep: idx) ret.push_back(v[keep]);
+  return ret;
+}
 
 enum Bheader{BI=0,BNAME,BBASKV,BIDE,BAREA,BZONE,BOWNER,BVM,BVA,BNVHI,BNVLO,BEVHI,BEVLO};
-
+enum Lheader{LI=0,LID,LSTATUS,LAREA,LZONE,LPL,LQL,LIP,LIQ,LYP,LYQ,LOWNER,LSCALE,LINTRPT};
+enum FSheader{FSI=0,FSID,FSSTATUS,FSGL,FSBL}; //fixedbusshunts
+enum NTBheader{NTBI=0,NTBJ,NTBCKT,NTBR,NTBX,NTBB,NTBRATEA,NTBRATEB,NTBRATEC,NTBGI,NTBBI,NTBGJ,NTBBJ,NTBST,NTBMET,NTBLEN,
+	 NTBO1,NTBF1,NTBO2,NTBF2,NTBO3,NTBF3,NTBO4,NTBF4};
 bool goSCACOPFData::
 readinstance(const std::string& raw, const std::string& rop, const std::string& inl, const std::string& con)
 {
   double MVAbase;
   VVStr buses, loads,  fixedbusshunts, generators, ntbranches, tbranches, switchedshunts;
-  if(!readRAW(raw, MVAbase, buses, loads,  fixedbusshunts, generators, ntbranches, tbranches, switchedshunts)) return false;
+  if(!readRAW(raw, MVAbase, buses, loads, fixedbusshunts, generators, ntbranches, tbranches, switchedshunts)) return false;
 
-  int n, one=1; double scale=M_PI/180;
+  int n, one=1; double scale=M_PI/180.;
 
-  convert(buses[BI],    N_Bus); 
+  convert(buses[BI],    N_Bus);    hardclear(buses[BI]);
   convert(buses[BAREA], N_Area);   hardclear(buses[BAREA]);
   convert(buses[BNVLO], N_Vlb);    hardclear(buses[BNVLO]);
   convert(buses[BNVHI], N_Vub);    hardclear(buses[BNVHI]);
@@ -105,6 +163,74 @@ readinstance(const std::string& raw, const std::string& rop, const std::string& 
   convert(buses[BVM],   N_v0);     hardclear(buses[BVM]);
   convert(buses[BVA],   N_theta0); hardclear(buses[BVA]);
   n=N_theta0.size(); DSCAL(&n, &scale, N_theta0.data(), &one);
+
+  //initialize rest of N_ members
+  N_Pd = vector<double>(n, 0.);
+  N_Qd = vector<double>(n, 0.);
+  N_Gsh= vector<double>(n, 0.);
+  N_Bsh= vector<double>(n, 0.);
+
+  //loads 
+  vector<int> loads_I, loads_status; 
+  vector<double> loads_PL, loads_QL;
+  convert(loads[LI], loads_I);           hardclear(loads[LI]);
+  convert(loads[LSTATUS], loads_status); hardclear(loads[LSTATUS]);
+  convert(loads[LPL], loads_PL);         hardclear(loads[LPL]);
+  convert(loads[LQL], loads_QL);         hardclear(loads[LQL]);
+  {
+    vector<int> BusLoad = indexin(loads_I, N_Bus);
+    for(int l=0; l<loads_I.size(); l++) {
+      assert(BusLoad[l]>=0);
+      if(loads_status[l]==1) {
+	N_Pd[BusLoad[l]] += loads_PL[l]/MVAbase;
+	N_Qd[BusLoad[l]] += loads_QL[l]/MVAbase;
+      }
+    }
+  }
+  //fixedbusshunts
+  vector<int> fixedbusshunts_I, fixedbusshunts_GL, fixedbusshunts_BL, fixedbusshunts_status;
+  convert(fixedbusshunts[FSI], fixedbusshunts_I);   hardclear(fixedbusshunts[FSI]);
+  convert(fixedbusshunts[FSGL], fixedbusshunts_GL); hardclear(fixedbusshunts[FSGL]);
+  convert(fixedbusshunts[FSBL], fixedbusshunts_BL); hardclear(fixedbusshunts[FSBL]);
+  convert(fixedbusshunts[FSSTATUS], fixedbusshunts_status); hardclear(fixedbusshunts[FSSTATUS]);
+  {
+    vector<int> BusShunt = indexin(fixedbusshunts_I, N_Bus);
+    for(int fbsh=0; fbsh<fixedbusshunts_I.size(); fbsh++) {
+      assert(BusShunt[fbsh]>=0);
+      if(fixedbusshunts_status[fbsh]==1) {
+	N_Gsh[BusShunt[fbsh]] += fixedbusshunts_GL[fbsh] / MVAbase;
+	N_Bsh[BusShunt[fbsh]] += fixedbusshunts_BL[fbsh] / MVAbase;
+      }
+    }
+  }
+
+  //non-transformer branches
+  vector<int> ntbranches_ST;
+  convert(ntbranches[NTBST], ntbranches_ST); hardclear(ntbranches[NTBST]);
+  L_Line = findall(ntbranches_ST, [](int val) {return val!=0;});
+  convert(ntbranches[NTBI], L_From); hardclear(ntbranches[NTBI]);
+  convert(ntbranches[NTBJ], L_To);   hardclear(ntbranches[NTBJ]);
+  L_From = select(L_From,L_Line);
+  L_To = select(L_To, L_Line);
+
+  L_CktID = select(ntbranches[NTBCKT], L_Line); hardclear(ntbranches[NTBCKT]);
+
+  vector<double> R, X;
+  convert(ntbranches[NTBR], R); hardclear(ntbranches[NTBR]);
+  convert(ntbranches[NTBX], X); hardclear(ntbranches[NTBX]);
+  X = select(X, L_Line); R = select(R, L_Line);
+  int nlines = X.size(); double aux;
+  L_G = L_B = vector<double>(nlines);
+  for(int i=0; i<nlines; i++) {
+    aux = R[i]*R[i]+X[i]*X[i];
+    L_G[i] =  R[i]/aux; 
+    L_B[i] = -X[i]/aux;
+  }
+  convert(ntbranches[NTBB], L_Bch);  hardclear(ntbranches[NTBB]);
+  L_Bch = select(L_Bch, L_Line);
+
+  printvec(L_G, "L_G");
+  printvec(L_B);
 
   VVStr generatordsp, activedsptables;
   VInt costcurves_ltbl; VStr costcurves_label; VVDou costcurves_xi; VVDou costcurves_yicostcurves;
@@ -124,6 +250,8 @@ readinstance(const std::string& raw, const std::string& rop, const std::string& 
 
   return true;
 }
+
+
 
 bool goSCACOPFData::
 readRAW(const std::string& raw, double& MVAbase,
@@ -408,11 +536,11 @@ readROP(const std::string& rop, VVStr& generatordsp, VVStr& activedsptables,
 
   bool ret; string line; 
   bool isGenDispSec=false, isCostCurvesSec=false, isActiveDispSec=false;
-  bool loadedGenDispSec, loadedCostCurvesSec=false, loadedActiveDispSec=false;
+  bool loadedGenDispSec=false, loadedCostCurvesSec=false, loadedActiveDispSec=false;
   ret = getline(file, line); assert(ret);
   while(ret) {
     if(isEndOrStartOfSection(line)) {
-        std::transform(line.begin(), line.end(), line.begin(), ::tolower);
+      std::transform(line.begin(), line.end(), line.begin(), ::tolower);
       if(line.find("generator dispatch")!=string::npos && !loadedGenDispSec) isGenDispSec=true;
       if(line.find("active power dispatch")!=string::npos && !loadedActiveDispSec) isActiveDispSec=true;
       if(line.find("piece-wise linear cost")!=string::npos && !loadedCostCurvesSec) isCostCurvesSec=true;
