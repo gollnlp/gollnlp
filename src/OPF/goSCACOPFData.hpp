@@ -26,15 +26,16 @@ namespace gollnlp {
     std::vector<double> L_G, L_B, L_Bch, L_RateBase, L_RateEmer;
 
     //transformers
-    std::vector<int> T_Transformer, T_From, T_To, T_CktID;
+    std::vector<int> T_Transformer, T_From, T_To;
+    std::vector<std::string> T_CktID;
     std::vector<double> T_Gm, T_Bm, T_G, T_B, T_Tau, T_Theta, T_RateBase, T_RateEmer;
 
     //switched shunts
-    std::vector<int> SSh_SShunt, SSh_bus;
+    std::vector<int> SSh_SShunt, SSh_Bus;
     std::vector<double> SSh_Blb, SSh_Bub, SSh_B0;
 
     //generators
-    std::vector<int> G_Generator, G_bus, G_BusUnitNum;
+    std::vector<int> G_Generator, G_Bus, G_BusUnitNum;
     std::vector<double> G_Plb, G_Pub, G_Qlb, G_Qub, G_p0, G_q0;
     std::vector<std::vector<double> > G_CostPi, G_CostCi;
 

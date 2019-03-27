@@ -123,6 +123,7 @@ template<class T> inline vector<int> indexin(vector<T>& v, vector<T>& in)
   return idxs;
 }
 
+// returns the indexes 'i' in 'v', for which 'v[i]' satisfies (unary) predicate
 vector<int> findall(const vector<int>& v, std::function<bool(const int&)> pred)
 {
   vector<int> ret; int count=0;
@@ -143,14 +144,42 @@ template<class T> vector<T> select(vector<T>& v, const vector<int>& idx)
 enum Bheader{BI=0,BNAME,BBASKV,BIDE,BAREA,BZONE,BOWNER,BVM,BVA,BNVHI,BNVLO,BEVHI,BEVLO};
 enum Lheader{LI=0,LID,LSTATUS,LAREA,LZONE,LPL,LQL,LIP,LIQ,LYP,LYQ,LOWNER,LSCALE,LINTRPT};
 enum FSheader{FSI=0,FSID,FSSTATUS,FSGL,FSBL}; //fixedbusshunts
-enum NTBheader{NTBI=0,NTBJ,NTBCKT,NTBR,NTBX,NTBB,NTBRATEA,NTBRATEB,NTBRATEC,NTBGI,NTBBI,NTBGJ,NTBBJ,NTBST,NTBMET,NTBLEN,
-	 NTBO1,NTBF1,NTBO2,NTBF2,NTBO3,NTBF3,NTBO4,NTBF4};
+enum NTBheader{NTBI=0,NTBJ,NTBCKT,NTBR,NTBX,NTBB,NTBRATEA,NTBRATEB,NTBRATEC,
+	       NTBGI,NTBBI,NTBGJ,NTBBJ,NTBST,NTBMET,NTBLEN,
+	       NTBO1,NTBF1,NTBO2,NTBF2,NTBO3,NTBF3,NTBO4,NTBF4}; //non-transformer branches
+enum TBheader{TBI=0,TBJ,TBK,TBCKT,TBCW,TBCZ,TBCM,TBMAG1,TBMAG2,
+	      TBNMETR,TBNAME,TBSTAT,TBO1,TBF1,TBO2,TBF2,TBO3,TBF3,TBO4,TBF4,
+	      TBVECGRP,TBR12,TBX12, TBSBASE12,TBWINDV1,TBNOMV1,TBANG1,
+	      TBRATA1,TBRATB1,TBRATC1,TBCOD1,TBCONT1,TBRMA1,
+	      TBRMI1,TBVMA1,TBVMI1,TBNTP1,TBTAB1,TBCR1,TBCX1,
+	      TBCNXA1,TBWINDV2,TBNOMV2}; // transformer branches
+enum SShheader{SSI,SSMODSW,SSADJM,SSSTAT,SSVSWHI,SSVSWLO,SSSWREM,SSRMPCT,
+	       SSRMIDNT,SSBINIT,SSN1,SSB1,SSN2,SSB2,SSN3,SSB3,SSN4,SSB4,
+	       SSN5,SSB5,SSN6,SSB6,SSN7,SSB7,SSN8,SSB8};
+enum Gheader{GI=0,GID,GPG,GQG,GQT,GQB,GVS,GIREG,GMBASE,GZR,GZX,GRT,GXT,
+	     GGTAP,GSTAT,GRMPCT, GPT,GPB,GO1,GF1,GO2,GF2,GO3,GF3,GO4,
+	     GF4,GWMOD,GWPF}; //generators
+
 bool goSCACOPFData::
 readinstance(const std::string& raw, const std::string& rop, const std::string& inl, const std::string& con)
 {
   double MVAbase;
   VVStr buses, loads,  fixedbusshunts, generators, ntbranches, tbranches, switchedshunts;
   if(!readRAW(raw, MVAbase, buses, loads, fixedbusshunts, generators, ntbranches, tbranches, switchedshunts)) return false;
+
+  //here we (should) deallocate columns that are not currently used
+  //for example
+  vector<int> cols = {TBK,TBCW,TBCZ,TBCM, TBNMETR,TBNAME,TBO1,TBF1,TBO2,TBF2,TBO3,TBF3,TBO4,TBF4,
+		      TBVECGRP,TBSBASE12,TBNOMV1,
+		      TBRATB1,TBCOD1,TBCONT1,TBRMA1,
+		      TBRMI1,TBVMA1,TBVMI1,TBNTP1,TBTAB1,TBCR1,TBCX1,
+		      TBCNXA1,TBNOMV2};
+  for(auto c: cols) hardclear(tbranches[c]);
+
+  cols = {NTBRATEB,NTBGI,NTBBI,NTBGJ,NTBBJ,NTBST,NTBMET,NTBLEN,
+	       NTBO1,NTBF1,NTBO2,NTBF2,NTBO3,NTBF3,NTBO4,NTBF4};
+  for(auto c: cols) hardclear(ntbranches[c]);
+  //end of deallocation
 
   int n, one=1; double scale=M_PI/180.;
 
@@ -204,39 +233,141 @@ readinstance(const std::string& raw, const std::string& rop, const std::string& 
     }
   }
 
-  //non-transformer branches
+  // non-transformer branches
   vector<int> ntbranches_ST;
   convert(ntbranches[NTBST], ntbranches_ST); hardclear(ntbranches[NTBST]);
   L_Line = findall(ntbranches_ST, [](int val) {return val!=0;});
   convert(ntbranches[NTBI], L_From); hardclear(ntbranches[NTBI]);
   convert(ntbranches[NTBJ], L_To);   hardclear(ntbranches[NTBJ]);
-  L_From = select(L_From,L_Line);
-  L_To = select(L_To, L_Line);
-
+  L_From = select(L_From, L_Line);
+  L_To   = select(L_To,   L_Line);
   L_CktID = select(ntbranches[NTBCKT], L_Line); hardclear(ntbranches[NTBCKT]);
-
-  vector<double> R, X;
-  convert(ntbranches[NTBR], R); hardclear(ntbranches[NTBR]);
-  convert(ntbranches[NTBX], X); hardclear(ntbranches[NTBX]);
-  X = select(X, L_Line); R = select(R, L_Line);
-  int nlines = X.size(); double aux;
-  L_G = L_B = vector<double>(nlines);
-  for(int i=0; i<nlines; i++) {
-    aux = R[i]*R[i]+X[i]*X[i];
-    L_G[i] =  R[i]/aux; 
-    L_B[i] = -X[i]/aux;
+  {
+    vector<double> R, X;
+    convert(ntbranches[NTBR], R); hardclear(ntbranches[NTBR]);
+    convert(ntbranches[NTBX], X); hardclear(ntbranches[NTBX]);
+    X = select(X, L_Line); R = select(R, L_Line);
+    int nlines = X.size(); double aux;
+    L_G = L_B = vector<double>(nlines);
+    for(int i=0; i<nlines; i++) {
+      aux = R[i]*R[i]+X[i]*X[i];
+      L_G[i] =  R[i]/aux; 
+      L_B[i] = -X[i]/aux;
+    }
   }
   convert(ntbranches[NTBB], L_Bch);  hardclear(ntbranches[NTBB]);
   L_Bch = select(L_Bch, L_Line);
 
-  printvec(L_G, "L_G");
-  printvec(L_B);
+  convert(ntbranches[NTBRATEA], L_RateBase); hardclear(ntbranches[NTBRATEA]);
+  convert(ntbranches[NTBRATEC], L_RateEmer); hardclear(ntbranches[NTBRATEC]);
+  L_RateBase = select(L_RateBase, L_Line);
+  L_RateEmer = select(L_RateEmer, L_Line);  
+  n=L_Line.size(); scale = 1/MVAbase;
+  DSCAL(&n, &scale, L_RateBase.data(), &one);
+  DSCAL(&n, &scale, L_RateEmer.data(), &one);
 
+  // transformer branches
+  convert(tbranches[TBSTAT], T_Transformer); hardclear(tbranches[TBSTAT]);
+  T_Transformer = findall(T_Transformer, [](int val) {return val!=0;});
+  convert(tbranches[TBI], T_From); hardclear(tbranches[TBI]);
+  convert(tbranches[TBJ], T_To);   hardclear(tbranches[TBJ]);
+  T_From = select(T_From, T_Transformer);
+  T_To   = select(T_To,   T_Transformer);
+  T_CktID = select(tbranches[TBCKT], T_Transformer); hardclear(tbranches[TBCKT]);
+  convert(tbranches[TBMAG1], T_Gm); hardclear(tbranches[TBMAG1]);
+  convert(tbranches[TBMAG2], T_Bm); hardclear(tbranches[TBMAG2]);
+  T_Gm = select(T_Gm, T_Transformer); T_Bm = select(T_Bm, T_Transformer); 
+  n=T_Transformer.size(); double aux;
+  {
+    vector<double> R12, X12;
+    convert(tbranches[TBR12], R12); hardclear(tbranches[TBR12]);
+    convert(tbranches[TBX12], X12); hardclear(tbranches[TBX12]);
+    R12 = select(R12, T_Transformer); X12 = select(X12, T_Transformer); assert(n==R12.size());
+    T_G = T_B = vector<double>(n);
+    for(int i=0; i<n; i++) {
+      aux = R12[i]*R12[i] + X12[i]*X12[i];
+      T_G[i] = R12[i]/aux; T_B[i] = -X12[i]/aux;
+    }
+  }
+  {
+    vector<double> WINDV1, WINDV2;
+    convert(tbranches[TBWINDV1], WINDV1); hardclear(tbranches[TBWINDV1]);
+    convert(tbranches[TBWINDV2], WINDV2); hardclear(tbranches[TBWINDV2]);
+    WINDV1 = select(WINDV1, T_Transformer); WINDV2 = select(WINDV2, T_Transformer); 
+    T_Tau = vector<double>(n);
+    for(int i=0; i<n; i++) T_Tau[i] = WINDV1[i]/WINDV2[i];
+  }
+  convert(tbranches[TBANG1], T_Theta); hardclear(tbranches[TBANG1]);
+  T_Theta = select(T_Theta, T_Transformer);
+  scale = M_PI/180; DSCAL(&n, &scale, T_Theta.data(), &one);
+
+  convert(tbranches[TBRATA1], T_RateBase); hardclear(tbranches[TBRATA1]);
+  convert(tbranches[TBRATC1], T_RateEmer); hardclear(tbranches[TBRATC1]);
+  T_RateBase = select(T_RateBase, T_Transformer);
+  T_RateEmer = select(T_RateEmer, T_Transformer);
+  scale = 1/MVAbase;
+  DSCAL(&n, &scale, T_RateBase.data(), &one);
+  DSCAL(&n, &scale, T_RateEmer.data(), &one);
+
+  // switched shunts
+  convert(switchedshunts[SSSTAT], SSh_SShunt); hardclear(switchedshunts[SSSTAT]);
+  SSh_SShunt = findall(SSh_SShunt, [](int val) {return val!=0;});
+  convert(switchedshunts[SSI], SSh_Bus); hardclear(switchedshunts[SSI]);
+  SSh_Bus = select(SSh_Bus, SSh_SShunt);
+  convert(switchedshunts[SSBINIT], SSh_B0); hardclear(switchedshunts[SSBINIT]);
+  SSh_B0 = select(SSh_B0, SSh_SShunt);
+  scale = 1/MVAbase; n=SSh_B0.size(); DSCAL(&n, &scale, SSh_B0.data(), &one);
+ 
+  SSh_Blb = SSh_Bub = vector<double>(n);
+  double Blb, Bub;
+  for(int ssh=0; ssh<n; ssh++) {
+    Blb = Bub = 0;
+    for(int i=1; i<=8; i++) {
+      aux = stod(switchedshunts[8+2*i][SSh_SShunt[ssh]]) 
+	* stod(switchedshunts[9+2*i][SSh_SShunt[ssh]]) 
+	/ MVAbase;
+      aux < 0 ? Blb+=aux : Bub+= aux; 
+    }
+    SSh_Blb[ssh] = Blb; SSh_Bub[ssh]=Bub;
+  }
+
+  //generators - RAW
+  convert(generators[GSTAT], G_Generator); hardclear(generators[GSTAT]);
+  G_Generator = findall(G_Generator, [](int val) {return val!=0;});
+  convert(generators[GI], G_Bus); hardclear(generators[GI]);
+  G_Bus = select(G_Bus, G_Generator);
+  convert(generators[GID], G_BusUnitNum); hardclear(generators[GID]);
+  convert(generators[GPB], G_Plb); hardclear(generators[GPB]);
+  convert(generators[GPT], G_Pub); hardclear(generators[GPT]);
+  convert(generators[GQB], G_Qlb); hardclear(generators[GQB]);
+  convert(generators[GQT], G_Qub); hardclear(generators[GQT]);
+  convert(generators[GPG], G_p0);  hardclear(generators[GPG]);
+  convert(generators[GQG], G_q0);  hardclear(generators[GQG]);
+
+  G_Plb = select(G_Plb, G_Generator); G_Pub = select(G_Pub, G_Generator); 
+  G_Qlb = select(G_Qlb, G_Generator); G_Qub = select(G_Qub, G_Generator); 
+  G_p0  = select(G_p0,  G_Generator); G_q0  = select(G_q0,  G_Generator); 
+
+  n = G_Generator.size(); scale = 1/MVAbase;
+  DSCAL(&n, &scale, G_Plb.data(), &one);
+  DSCAL(&n, &scale, G_Pub.data(), &one);
+  DSCAL(&n, &scale, G_Qlb.data(), &one);
+  DSCAL(&n, &scale, G_Qub.data(), &one);
+  DSCAL(&n, &scale, G_p0.data(),  &one);
+  DSCAL(&n, &scale, G_q0.data(),  &one);
+
+  
   VVStr generatordsp, activedsptables;
   VInt costcurves_ltbl; VStr costcurves_label; VVDou costcurves_xi; VVDou costcurves_yicostcurves;
   if(!readROP(rop, generatordsp, activedsptables, 
 	      costcurves_ltbl, costcurves_label, costcurves_xi, costcurves_yicostcurves))
     return false;
+
+  // generators - ROP
+
+
+  printvec(G_q0);
+
 
   VVStr governorresponse;
   if(!readINL(inl, governorresponse)) return false;
