@@ -43,6 +43,16 @@ static inline void trim(std::string &s) {
     rtrim(s);
 }
 
+// //trim with return / copy
+// inline std::string trim(const std::string &s)
+// {
+//   auto wsfront=std::find_if_not(s.begin(),s.end(),[](int c){return std::isspace(c);});
+//   return std::string(wsfront,
+// 		     std::find_if_not(s.rbegin(),
+// 				      std::string::const_reverse_iterator(wsfront),
+// 				      [](int c){return std::isspace(c);}).base());
+// }
+
 static vector<string> split(const string &s, char delim) {
   vector<string> result;
   stringstream ss(s);
@@ -96,6 +106,18 @@ template<class T> inline void printvec(const vector<T>& v, const string& msg="")
   cout << endl;
 }
 
+  template<class T> inline void printvecvec(const vector<vector<T> >& v, const string& msg="") 
+{ 
+  cout.precision(6); 
+  cout << msg << " size:" << v.size() << endl;
+  cout << scientific;
+  for(auto& l: v) {
+    for(auto& c: l) cout << c << " ";
+    cout << endl;
+  }
+}
+
+
 // for entries of 'v' that are not present in 'in', the indexes will be set to -1
 template<class T> inline vector<int> indexin(vector<T>& v, vector<T>& in)
 {
@@ -112,14 +134,22 @@ template<class T> inline vector<int> indexin(vector<T>& v, vector<T>& in)
   size_t szv=v.size(), szin=in.size();
   vector<int> idxs(szv, -1);
   
-  T *vv = v.data(), *vin = in.data();
-  for(int iv=0, iin=0, *div=vIdx.data(), *diin=inIdx.data(), *didxs=idxs.data(); iv<szv && iin<szin;) {
-    //cout << "iv=" << iv << "  iin=" << iin << " | " << div[iv] << " " << diin[iin] << endl;
-    if(vv[div[iv]]==vin[diin[iin]]) {
-      didxs[div[iv]]=diin[iin];
-      iin++; iv++;
-    } else vv[div[iv]]>vin[diin[iin]]? iin++: iv++;
+  for(int iv=0, iin=0; iv<szv && iin<szin;) {
+    //cout << iv << "|" << iin << "  " << v[vIdx[iv]] <<"|" << in[inIdx[iin]] << endl;
+    if(v[vIdx[iv]]==in[inIdx[iin]]) {
+	idxs[vIdx[iv]]=inIdx[iin];
+	iin++; iv++;
+      } else v[vIdx[iv]]>in[inIdx[iin]] ? iin++: iv++;
   }
+
+  // T *vv = v.data(), *vin = in.data();
+  // for(int iv=0, iin=0, *div=vIdx.data(), *diin=inIdx.data(), *didxs=idxs.data(); iv<szv && iin<szin;) {
+  //   cout << "iv=" << iv << "  iin=" << iin << " | " << div[iv] << " " << diin[iin] << endl;
+  //   if(vv[div[iv]]==vin[diin[iin]]) {
+  //     didxs[div[iv]]=diin[iin];
+  //     iin++; iv++;
+  //   } else vv[div[iv]]>vin[diin[iin]]? iin++: iv++;
+  // }
   return idxs;
 }
 
@@ -159,6 +189,11 @@ enum SShheader{SSI,SSMODSW,SSADJM,SSSTAT,SSVSWHI,SSVSWLO,SSSWREM,SSRMPCT,
 enum Gheader{GI=0,GID,GPG,GQG,GQT,GQB,GVS,GIREG,GMBASE,GZR,GZX,GRT,GXT,
 	     GGTAP,GSTAT,GRMPCT, GPT,GPB,GO1,GF1,GO2,GF2,GO3,GF3,GO4,
 	     GF4,GWMOD,GWPF}; //generators
+enum GDSPheader{GDBUS=0,GDGENID,GDDISP,GDDSPTBL}; //generator dispatch tables
+
+enum GADSPheader{GADSPTBL=0,GADSPPMAX,GADSPPMIN,GADSPFUELCOST,
+		 GADSPCTYP,GADSPSTATUS,GADSPCTBL}; //generator active dispatch 
+enum GORheader{GORI,GORID,GORH,GORPMAX,GORPMIN,GORR,GORD}; //governor response
 
 bool goSCACOPFData::
 readinstance(const std::string& raw, const std::string& rop, const std::string& inl, const std::string& con)
@@ -356,28 +391,121 @@ readinstance(const std::string& raw, const std::string& rop, const std::string& 
   DSCAL(&n, &scale, G_p0.data(),  &one);
   DSCAL(&n, &scale, G_q0.data(),  &one);
 
-  
-  VVStr generatordsp, activedsptables;
-  VInt costcurves_ltbl; VStr costcurves_label; VVDou costcurves_xi; VVDou costcurves_yicostcurves;
-  if(!readROP(rop, generatordsp, activedsptables, 
-	      costcurves_ltbl, costcurves_label, costcurves_xi, costcurves_yicostcurves))
-    return false;
-
   // generators - ROP
 
+  VVStr generatordsp, activedsptables;
+  VInt costcurves_ltbl; VStr costcurves_label; VVDou costcurves_xi; VVDou costcurves_yi;
+  if(!readROP(rop, generatordsp, activedsptables, 
+	      costcurves_ltbl, costcurves_label, costcurves_xi, costcurves_yi))
+    return false;
 
-  printvec(G_q0);
+  vector<string> vBBUN = vector<string>(n); //G[:Bus], ":", G[:BusUnitNum]
+  for(int i=0; i<n; i++) {
+    vBBUN[i] = to_string(G_Bus[i]) + ":" + to_string(G_BusUnitNum[i]);
+  }
+  {
+    assert(n<=generatordsp[GDBUS].size());
+    
+    n = generatordsp[GDBUS].size();
+    vector<string> vBGEN = vector<string>(n);
+    for(int i=0; i<n; i++) {
+      trim(generatordsp[GDBUS][i]);
+      trim(generatordsp[GDGENID][i]);
+      vBGEN[i] = generatordsp[GDBUS][i] + ":" + generatordsp[GDGENID][i];
+    }
+    auto gdspix = indexin(vBBUN, vBGEN);
+    vector<string> gdsptbl = select(generatordsp[GDDSPTBL], gdspix);
+    
+    for(auto& s:activedsptables[GADSPTBL]) trim(s);
+    
+    auto gctblidx = indexin(gdsptbl, activedsptables[GADSPTBL]);
+    auto gctbl = select(activedsptables[GADSPCTBL], gctblidx);
+    vector<int> gctbl_int; convert(gctbl, gctbl_int); hardclear(gctbl);
+    gctblidx = indexin(gctbl_int, costcurves_ltbl);
+    assert(gctblidx.end() == find(gctblidx.begin(), gctblidx.end(), -1) 
+	   && "there seems to be missing cost curves for generators");
+    
+    n = G_Generator.size(); int dim;
+    assert(n == gctblidx.size());
+    G_CostPi = G_CostCi = VVDou(n);
+    for(int g=0; g<n; g++) {
+      G_CostPi[g] = costcurves_xi[gctblidx[g]];
+      scale = 1/MVAbase; dim=G_CostPi[g].size();
+      DSCAL(&dim, &scale, G_CostPi[g].data(), &one);
+      
+      G_CostCi[g] = costcurves_yi[gctblidx[g]];
+    }
 
+    // fixing infeasible initial solutions fixing bad bounds in cost functions
+    string sgen_inf="", sgen_mod="";
+    for(int g=0; g<n; g++) {
+      if(G_p0[g] < G_Plb[g] || G_p0[g] > G_Pub[g]) {
+	G_p0[g] = 0.5*(G_Plb[g] + G_Pub[g]);
+	sgen_inf += to_string(G_Generator[g]) + " ";
+      }
+      if(G_q0[g] < G_Qlb[g] || G_q0[g] > G_Qub[g]) {
+	G_q0[g] = 0.5*(G_Qlb[g] + G_Qub[g]);
+	sgen_inf += to_string(G_Generator[g]) + " ";
+      }
+      VDou& xi = G_CostPi[g], yi = G_CostCi[g];
+      size_t nn = xi.size();
+      assert(nn>=2); 
+      assert(yi.size()==nn);
+      nn--;
+      if(xi[0] > G_Plb[g]) {
+	yi[0] = yi[0] + (yi[1] - yi[0])/(xi[1] - xi[0])*(G_Plb[g] - xi[0]);
+	xi[0] = G_Plb[g];
+	sgen_mod += to_string(G_Generator[g]) + " ";
+      }
+      if(xi[nn] < G_Pub[g]) {
+	yi[nn] = yi[nn] + (yi[nn] - yi[nn-1])/(xi[nn] - xi[nn-1])*(G_Pub[g] - xi[nn]);
+	xi[nn] = G_Pub[g];
+	sgen_mod += to_string(G_Generator[g]) + " ";
+      }
+    }
+    if(sgen_inf.size()>0) cout << "generators with infeasible starting points: " << sgen_inf << endl;
+    if(sgen_mod.size()>0) cout << "generators with with inconsistent cost functions: " << sgen_mod << endl;
 
-  VVStr governorresponse;
-  if(!readINL(inl, governorresponse)) return false;
+    //printvecvec(G_CostPi, "Pi");
+    //printvecvec(G_CostCi, "Ci");
+    //printvec(G_q0);
+  }
 
+  // generators -- INL
+  {
+    n = G_Generator.size();
+    VVStr governorresponse;
+    if(!readINL(inl, governorresponse)) return false;
+    int ngov = governorresponse[GORI].size();
+    assert(n<=ngov);
+    assert(ngov == governorresponse[GORID].size());
 
-  VStr contingencies_label;
-  std::vector<ContingencyType> contingencies_type;
-  std::vector<Contingency> contingencies_con;
-  if(!readCON(con, contingencies_label, contingencies_type, contingencies_con)) return false;
+    //vBBUN
+    vector<string> vGIID(ngov);
+    for(int i=0; i<ngov; i++) {
+      trim(governorresponse[GORI][i]);
+      trim(governorresponse[GORID][i]);
+      vGIID[i] = governorresponse[GORI][i] + ":" + governorresponse[GORID][i];
+    }
+    auto ggovrespix = indexin(vBBUN, vGIID);
+    assert(ggovrespix.end() == find(ggovrespix.begin(), ggovrespix.end(), -1) 
+	   && "there seems to be missing participation factors for generators");
 
+    convert(select(governorresponse[GORR], ggovrespix), G_alpha);
+
+    
+
+    printvec(G_alpha);
+  }
+
+  // contingencies
+  {
+    VStr contingencies_label;
+    std::vector<ContingencyType> contingencies_type;
+    std::vector<Contingency> contingencies_con;
+    if(!readCON(con, contingencies_label, contingencies_type, contingencies_con)) return false;
+
+  }
 
   return true;
 }
@@ -508,9 +636,12 @@ readRAW(const std::string& raw, double& MVAbase,
       }
     }
     //j. generators[:ID] = strip.(string.(generators[:ID]))
-    trim(generators[1].back());
+    string& s = generators[1].back(); trim(s);
+    //also remove quotes
+    s.erase(remove(s.begin(), s.end(),'\''), s.end());
     assert(i==28);
   }
+
 #ifdef DEBUG
   n=generators[0].size();
   for(i=1; i<28; i++) {
@@ -691,6 +822,9 @@ readROP(const std::string& rop, VVStr& generatordsp, VVStr& activedsptables,
 	    line.erase(0, pos+delimiter.length());
 	  } else {
 	    assert(i==3);
+	    //trim and remove '\r'
+	    line.erase(remove(line.begin(), line.end(),'\r'), line.end());
+	    trim(line);
 	    generatordsp[i].push_back(line);
 	  }
 	}
@@ -720,6 +854,8 @@ readROP(const std::string& rop, VVStr& generatordsp, VVStr& activedsptables,
 	    line.erase(0, pos+delimiter.length());
 	  } else {
 	    assert(i==6);
+	    line.erase(remove(line.begin(), line.end(),'\r'), line.end());
+	    trim(line);
 	    activedsptables[i].push_back(line);
 	  }
 	}

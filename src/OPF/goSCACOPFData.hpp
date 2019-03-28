@@ -36,7 +36,7 @@ namespace gollnlp {
 
     //generators
     std::vector<int> G_Generator, G_Bus, G_BusUnitNum;
-    std::vector<double> G_Plb, G_Pub, G_Qlb, G_Qub, G_p0, G_q0;
+    std::vector<double> G_Plb, G_Pub, G_Qlb, G_Qub, G_p0, G_q0, G_alpha;
     std::vector<std::vector<double> > G_CostPi, G_CostCi;
 
     //contingencies
