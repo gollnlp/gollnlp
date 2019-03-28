@@ -154,7 +154,8 @@ template<class T> inline vector<int> indexin(vector<T>& v, vector<T>& in)
 }
 
 // returns the indexes 'i' in 'v', for which 'v[i]' satisfies (unary) predicate
-vector<int> findall(const vector<int>& v, std::function<bool(const int&)> pred)
+template<class T>
+vector<int> findall(const vector<T>& v, std::function<bool(const int&)> pred)
 {
   vector<int> ret; int count=0;
   for(auto& it : v) {
@@ -193,7 +194,8 @@ enum GDSPheader{GDBUS=0,GDGENID,GDDISP,GDDSPTBL}; //generator dispatch tables
 
 enum GADSPheader{GADSPTBL=0,GADSPPMAX,GADSPPMIN,GADSPFUELCOST,
 		 GADSPCTYP,GADSPSTATUS,GADSPCTBL}; //generator active dispatch 
-enum GORheader{GORI,GORID,GORH,GORPMAX,GORPMIN,GORR,GORD}; //governor response
+enum GORheader{GORI=0,GORID,GORH,GORPMAX,GORPMIN,GORR,GORD}; //governor response
+  //enum Contheader{COLABEL=0, COCTYPE, COCON}; //contingencies
 
 bool goSCACOPFData::
 readinstance(const std::string& raw, const std::string& rop, const std::string& inl, const std::string& con)
@@ -211,7 +213,7 @@ readinstance(const std::string& raw, const std::string& rop, const std::string& 
 		      TBCNXA1,TBNOMV2};
   for(auto c: cols) hardclear(tbranches[c]);
 
-  cols = {NTBRATEB,NTBGI,NTBBI,NTBGJ,NTBBJ,NTBST,NTBMET,NTBLEN,
+  cols = {NTBRATEB,NTBGI,NTBBI,NTBGJ,NTBBJ,NTBMET,NTBLEN,
 	       NTBO1,NTBF1,NTBO2,NTBF2,NTBO3,NTBF3,NTBO4,NTBF4};
   for(auto c: cols) hardclear(ntbranches[c]);
   //end of deallocation
@@ -277,6 +279,8 @@ readinstance(const std::string& raw, const std::string& rop, const std::string& 
   L_From = select(L_From, L_Line);
   L_To   = select(L_To,   L_Line);
   L_CktID = select(ntbranches[NTBCKT], L_Line); hardclear(ntbranches[NTBCKT]);
+  for(auto& s: L_CktID) s.erase(remove(s.begin(), s.end(),'\''), s.end());
+
   {
     vector<double> R, X;
     convert(ntbranches[NTBR], R); hardclear(ntbranches[NTBR]);
@@ -309,6 +313,7 @@ readinstance(const std::string& raw, const std::string& rop, const std::string& 
   T_From = select(T_From, T_Transformer);
   T_To   = select(T_To,   T_Transformer);
   T_CktID = select(tbranches[TBCKT], T_Transformer); hardclear(tbranches[TBCKT]);
+  for(auto& s: T_CktID) s.erase(remove(s.begin(), s.end(),'\''), s.end());
   convert(tbranches[TBMAG1], T_Gm); hardclear(tbranches[TBMAG1]);
   convert(tbranches[TBMAG2], T_Bm); hardclear(tbranches[TBMAG2]);
   T_Gm = select(T_Gm, T_Transformer); T_Bm = select(T_Bm, T_Transformer); 
@@ -480,7 +485,6 @@ readinstance(const std::string& raw, const std::string& rop, const std::string& 
     assert(n<=ngov);
     assert(ngov == governorresponse[GORID].size());
 
-    //vBBUN
     vector<string> vGIID(ngov);
     for(int i=0; i<ngov; i++) {
       trim(governorresponse[GORI][i]);
@@ -492,25 +496,97 @@ readinstance(const std::string& raw, const std::string& rop, const std::string& 
 	   && "there seems to be missing participation factors for generators");
 
     convert(select(governorresponse[GORR], ggovrespix), G_alpha);
-
-    
-
-    printvec(G_alpha);
   }
 
   // contingencies
   {
     VStr contingencies_label;
     std::vector<ContingencyType> contingencies_type;
-    std::vector<Contingency> contingencies_con;
+    std::vector<Contingency*> contingencies_con;
     if(!readCON(con, contingencies_label, contingencies_type, contingencies_con)) return false;
+    
+    int ncont = contingencies_type.size();
+    assert(contingencies_con.size() == ncont);
 
-  }
+    K_ConType = vector<KType>(ncont, kNotInit);
+    K_IDout   = vector<int>  (ncont, -1);
+
+    K_Contingency =  vector<int>(ncont);  iota(K_Contingency.begin(), K_Contingency.end(), 0);
+
+    // -> generators
+    auto gencon = findall(contingencies_type, [](int val) {return val==cGenerator;});
+    int ngencon = gencon.size();
+
+    vector<string> searchstr(ngencon); int idx;
+    for(int i=0; i<ngencon; i++) {
+      idx = gencon[i];
+      assert(contingencies_type[idx]==cGenerator);   
+      GeneratorContingency& gcont = dynamic_cast<GeneratorContingency&>(*contingencies_con[idx]);
+      searchstr[i] = to_string(gcont.Bus) + ":" + gcont.unit;
+    }
+
+    auto gix = indexin(searchstr, vBBUN);
+    for(int i=0; i<ngencon; i++) {
+      if(gix[i] != -1) {
+	K_ConType[gencon[i]] = kGenerator;
+	K_IDout[gencon[i]] = G_Generator[gix[i]];
+      }
+    }
+
+    // -> line and transformers
+    auto txcon = findall(contingencies_type, [](int val) {return val==cBranch;});
+    int ntxcon=txcon.size(); assert(ntxcon+ngencon==ncont);
+    
+    searchstr.resize(ntxcon);
+    for(int i=0; i<ntxcon; i++) {
+      idx = txcon[i];
+      assert(contingencies_type[idx]==cBranch);   
+      TransmissionContingency& tcont = dynamic_cast<TransmissionContingency&>(*contingencies_con[idx]);
+      searchstr[i] = to_string(tcont.FromBus) + ":" + to_string(tcont.ToBus) + ":" + tcont.Ckt;
+    }
+    vector<string> lstr(L_Line.size()), tstr(T_Transformer.size());
+    for(int i=0; i<lstr.size(); i++) 
+      lstr[i] = to_string(L_From[i]) + ":" + to_string(L_To[i]) + ":" + L_CktID[i];
+    for(int i=0; i<tstr.size(); i++) 
+      tstr[i] = to_string(T_From[i]) + ":" + to_string(T_To[i]) + ":" + T_CktID[i];
+
+    auto lix = indexin(searchstr, lstr);
+    auto trix= indexin(searchstr, tstr);
+
+    //printvec(searchstr, "searchstr");
+    //printvec(lstr, "lstr");
+    //printvec(tstr, "tstr");
+
+    for(int i=0; i<ntxcon; i++) {
+      if(lix[i]!=-1) {
+	assert(trix[i]==-1);
+	K_ConType[txcon[i]] = kLine;
+	K_IDout[txcon[i]] = L_Line[lix[i]];
+      } else if(trix[i]!=-1){
+	assert(lix[i]==-1);
+	K_ConType[txcon[i]] = kTransformer;
+	K_IDout[txcon[i]] = T_Transformer[trix[i]];
+      } else assert(false && "something went wrong");
+    }
+    assert(K_IDout.end() ==  find(K_IDout.begin(), K_IDout.end(), -1));
+
+    for(auto& i: contingencies_con) delete i;
+
+    //printvec(K_ConType, "contype");
+    //printvec(K_IDout, "idout");
+  } // end of contingencies
+
+  // penalties
+  P_Quantities = P_Penalties = VVDou(3);
+  P_Quantities[pP] = {2/MVAbase, 50/MVAbase, 1e+22/MVAbase};
+  P_Quantities[pQ] = {2/MVAbase, 50/MVAbase, 1e+22/MVAbase};
+  P_Quantities[pS] = {2/MVAbase, 50/MVAbase, 1e+22/MVAbase};
+  P_Penalties[pP] = {1E3*MVAbase, 5E3*MVAbase, 1E6*MVAbase};
+  P_Penalties[pQ] = {1E3*MVAbase, 5E3*MVAbase, 1E6*MVAbase};
+  P_Penalties[pS] = {1E3*MVAbase, 5E3*MVAbase, 1E6*MVAbase};
 
   return true;
 }
-
-
 
 bool goSCACOPFData::
 readRAW(const std::string& raw, double& MVAbase,
@@ -947,7 +1023,7 @@ readINL(const std::string& inl, VVStr& governorresponse)
 bool goSCACOPFData::readCON(const string& con,
 			     VStr& contingencies_label, 
 			     std::vector<ContingencyType>& contingencies_type,
-			     std::vector<Contingency>& contingencies_con)
+			     std::vector<Contingency*>& contingencies_con)
 {
   ifstream file(con.c_str());
   if(!file.is_open()) {
@@ -959,6 +1035,7 @@ bool goSCACOPFData::readCON(const string& con,
 
   while(true) {
     ret = getline(file, line); assert(ret);
+
     if(line.substr(0,3)=="END") break;
 
     assert(line.substr(0,11)=="CONTINGENCY");
@@ -966,20 +1043,22 @@ bool goSCACOPFData::readCON(const string& con,
     pos = line.find(delimiter); assert(pos != string::npos );
     contingencies_label.push_back(line.substr(pos+1));
 
-    ret = getline(file, line); assert(ret);
+    ret = mygetline(file, line); assert(ret);
     VStr tokens = split_skipempty(line, cDelimiter);
 
     assert(tokens.size()>=6);
     if(tokens[0]=="REMOVE") {
       contingencies_type.push_back(cGenerator);
       assert(tokens.size()==6);
-      contingencies_con.push_back(GeneratorContingency(atoi(tokens[5].c_str()), tokens[2]));
+
+      contingencies_con.push_back(new GeneratorContingency(stoi(tokens[5]), tokens[2]));
+
     } else if(tokens[0]=="OPEN") {
        contingencies_type.push_back(cBranch);
       assert(tokens.size()==10);
-      contingencies_con.push_back(TransmissionContingency(atoi(tokens[4].c_str()), 
-							  atoi(tokens[7].c_str()), 
-							  tokens[2]));
+      contingencies_con.push_back(new TransmissionContingency(stoi(tokens[4]), 
+							      stoi(tokens[7]), 
+							      tokens[9]));
     } else {
       log.printf(hovWarning, "expected REMOVE or OPEN in line=[%s]\n", line.c_str());
       assert(false && "expected REMOVE or OPEN");

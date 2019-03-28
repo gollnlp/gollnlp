@@ -4,6 +4,8 @@
 #include <string>
 #include <vector>
 
+#include <iostream>
+
 namespace gollnlp {
 
   class goSCACOPFData {
@@ -13,6 +15,7 @@ namespace gollnlp {
 
     bool readinstance(const std::string& raw, const std::string& rop, const std::string& inl, const std::string& con);
 
+    void buildindexsets();
   public:
     double MVAbase;
 
@@ -40,26 +43,37 @@ namespace gollnlp {
     std::vector<std::vector<double> > G_CostPi, G_CostCi;
 
     //contingencies
-    enum KType{kGenerator, kLine, kTransformer};
+    enum KType{kNotInit=-1, kGenerator, kLine, kTransformer};
     std::vector<int> K_Contingency, K_IDout;
     std::vector<KType> K_ConType;
 
     //penalties
-    enum PenaltyType{P=0, Q=1, S=2};
+    enum PenaltyType{pP=0, pQ=1, pS=2};
     std::vector<std::vector<double> > P_Quantities, P_Penalties;
 
+    // -- index sets for efficient iteration 
   protected:
-    struct Contingency{};
+    struct Contingency{
+      virtual ~Contingency() {}; 
+    };
 
     struct GeneratorContingency : Contingency {
+    public:
       int Bus; std::string unit;
       GeneratorContingency(int B, const std::string& u) : Bus(B), unit(u) {};
+      friend std::ostream& operator<<(std::ostream& os, const GeneratorContingency& o)
+      {
+	os << o.Bus << ":" << o.unit;
+      }
+      virtual ~GeneratorContingency() {};
     };
 
     struct TransmissionContingency : Contingency {
+    public:
       int FromBus; int ToBus; std::string Ckt;
       TransmissionContingency(int F, int T, const std::string& C)
 	: FromBus(F), ToBus(T), Ckt(C) {};
+      virtual ~TransmissionContingency() {};
     };
     enum ContingencyType{cGenerator, cBranch};
 
@@ -81,7 +95,7 @@ namespace gollnlp {
     bool readCON(const std::string& con_file, 
 		 VStr& contingencies_label, 
 		 std::vector<ContingencyType>& contingencies_type,
-		 std::vector<Contingency>& contingencies_con);
+		 std::vector<Contingency*>& contingencies_con);
 
     void convert(const VStr& src, VInt& dest);
     void convert(const VStr& src, VDou& dest);
