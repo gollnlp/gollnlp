@@ -138,7 +138,7 @@ template<class T> inline vector<int> indexin(vector<T>& v, vector<T>& in)
     //cout << iv << "|" << iin << "  " << v[vIdx[iv]] <<"|" << in[inIdx[iin]] << endl;
     if(v[vIdx[iv]]==in[inIdx[iin]]) {
 	idxs[vIdx[iv]]=inIdx[iin];
-	iin++; iv++;
+	iv++; 
       } else v[vIdx[iv]]>in[inIdx[iin]] ? iin++: iv++;
   }
 
@@ -585,7 +585,48 @@ readinstance(const std::string& raw, const std::string& rop, const std::string& 
   P_Penalties[pQ] = {1E3*MVAbase, 5E3*MVAbase, 1E6*MVAbase};
   P_Penalties[pS] = {1E3*MVAbase, 5E3*MVAbase, 1E6*MVAbase};
 
+
   return true;
+}
+
+void goSCACOPFData::buildindexsets()
+{
+  size_t nbus = N_Bus.size(), nline=L_From.size(), ntran=T_From.size();
+  L_Nidx = VVInt(2);
+  L_Nidx[0] = indexin(L_From, N_Bus);
+  L_Nidx[1] = indexin(L_To, N_Bus);
+
+  T_Nidx = VVInt(2);
+  T_Nidx[0] = indexin(T_From, N_Bus);
+  T_Nidx[1] = indexin(T_To, N_Bus);
+
+  SSh_Nidx = indexin(SSh_Bus, N_Bus);
+  G_Nidx = indexin(G_Bus, N_Bus);
+
+  Lidxn = Lin = VVInt(nbus, VInt());
+  for(size_t l=0; l<nline; l++) for(size_t i=0; i<2; i++) {
+      Lidxn[L_Nidx[i][l]].push_back(l);
+      Lin[L_Nidx[i][l]].push_back(i);
+  }
+
+  Tidxn = Tin = VVInt(nbus, VInt());
+  for(size_t t=0; t<ntran; t++) for(size_t i=0; i<2; i++) {
+      Tidxn[T_Nidx[i][t]].push_back(t);
+      Tin[T_Nidx[i][t]].push_back(i);
+  }
+  
+
+  size_t nssh = SSh_SShunt.size(); assert(nssh==SSh_Bus.size());
+  SShn = VVInt(nbus, VInt(0));
+  for(size_t s=0; s<nssh; s++) SShn[SSh_Nidx[s]].push_back(s);
+
+  size_t ngen = G_Generator.size(); assert(ngen==G_Bus.size());
+  Gn = VVInt(nbus, VInt());
+  for(size_t g=0; g<ngen; g++) Gn[G_Nidx[g]].push_back(g);
+
+
+  printvecvec(SShn, "SShn");
+  printvecvec(Gn, "Gn");
 }
 
 bool goSCACOPFData::
