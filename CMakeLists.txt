@@ -41,8 +41,7 @@ add_subdirectory(src/Utils)
 add_subdirectory(src/OPF)
 add_subdirectory(src/Drivers)
 
-add_library(gollnlp STATIC $<TARGET_OBJECTS:goSCACOPF>
-                        $<TARGET_OBJECTS:goUtils>)
+add_library(gollnlp STATIC $<TARGET_OBJECTS:goSCACOPF> $<TARGET_OBJECTS:goUtils>)
 
 
 ##########################################################
@@ -50,5 +49,5 @@ add_library(gollnlp STATIC $<TARGET_OBJECTS:goSCACOPF>
 ##########################################################
 if (GOLLNLP_WITH_MAKETEST)
   enable_testing()
-  #add_test(NAME NlpDenseCons1_5H  COMMAND $<TARGET_FILE:nlpDenseCons_ex1.exe>   500 1.0 -selfcheck)
+  add_test(NAME SCACOPFData COMMAND $<TARGET_FILE:test_scacopfdata.exe>   ${PROJECT_SOURCE_DIR}/test_instanceslist.txt )
 endif(GOLLNLP_WITH_MAKETEST)

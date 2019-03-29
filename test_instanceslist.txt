@@ -1,0 +1,54 @@
+../../goinstances/challenge1/Original_Dataset_1-4/Original_Dataset_Real-Time_Edition_1/Network_01R-10
+scenario_1/case.raw
+case.rop
+case.inl
+scenario_1/case.con
+aaa aaa 
+../../goinstances/challenge1/Original_Dataset_1-4/Original_Dataset_Real-Time_Edition_1/Network_10R-10
+scenario_1/case.raw
+case.rop
+scenario_1/case.inl
+scenario_1/case.con
+bbb bbb 
+../../goinstances/challenge1/Original_Dataset_1-4/Original_Dataset_Real-Time_Edition_1/Network_10R-10
+scenario_8/case.raw
+case.rop
+scenario_8/case.inl
+scenario_8/case.con
+bbb bbb 
+../../goinstances/challenge1/Original_Dataset_1-4/Original_Dataset_Offline_Edition_1/Network_10O-10
+scenario_1/case.raw
+case.rop
+scenario_1/case.inl
+scenario_1/case.con
+bbb bbb 
+../../goinstances/challenge1/Original_Dataset_1-4/Original_Dataset_Real-Time_Edition_1/Network_03R-10
+scenario_1/case.raw
+case.rop
+case.inl
+scenario_1/case.con
+aaa aaa 
+../../goinstances/challenge1/Original_Dataset_1-4/Original_Dataset_Offline_Edition_1/Network_03O-10
+scenario_9/case.raw
+case.rop
+case.inl
+scenario_9/case.con
+ccc ccc
+../../goinstances/challenge1/Original_Dataset_1-4/Original_Dataset_Offline_Edition_1/Network_05O-10
+scenario_2/case.raw
+case.rop
+case.inl
+scenario_2/case.con
+ddd ddd
+../../goinstances/challenge1/Original_Dataset_1-4/Original_Dataset_Offline_Edition_1/Network_07O-10
+scenario_2/case.raw
+case.rop
+case.inl
+scenario_2/case.con
+ddd ddd
+../../goinstances/challenge1/Original_Dataset_1-4/Original_Dataset_Real-Time_Edition_1/Network_05R-10
+scenario_7/case.raw
+case.rop
+case.inl
+scenario_7/case.con
+aaa aaa
