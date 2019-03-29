@@ -1,15 +1,10 @@
 #include "goSCACOPFData.hpp"
-
+#include "goUtils.hpp"
 #include "goLogger.hpp"
 #include <cstdlib>
 #include <cassert>
-
-#include <fstream>
-#include <iostream>
-#include <sstream>
-#include <string>
-#include <algorithm>
 #include <numeric>
+
 using namespace std;
 
 #include <cmath>
@@ -20,59 +15,9 @@ namespace gollnlp {
 //temporary log object
 goLogger log(stdout);
 
-goSCACOPFData::goSCACOPFData()
+goSCACOPFData::goSCACOPFData() 
 {
   
-}
-
-// trim from start (in place)
-static inline void ltrim(std::string &s) {
-    s.erase(s.begin(), std::find_if(s.begin(), s.end(),
-            std::not1(std::ptr_fun<int, int>(std::isspace))));
-}
-
-// trim from end (in place)
-static inline void rtrim(std::string &s) {
-    s.erase(std::find_if(s.rbegin(), s.rend(),
-            std::not1(std::ptr_fun<int, int>(std::isspace))).base(), s.end());
-}
-
-// trim from both ends (in place)
-static inline void trim(std::string &s) {
-    ltrim(s);
-    rtrim(s);
-}
-
-// //trim with return / copy
-// inline std::string trim(const std::string &s)
-// {
-//   auto wsfront=std::find_if_not(s.begin(),s.end(),[](int c){return std::isspace(c);});
-//   return std::string(wsfront,
-// 		     std::find_if_not(s.rbegin(),
-// 				      std::string::const_reverse_iterator(wsfront),
-// 				      [](int c){return std::isspace(c);}).base());
-// }
-
-static vector<string> split(const string &s, char delim) {
-  vector<string> result;
-  stringstream ss(s);
-  string item;
-  
-  while(getline(ss, item, delim)) result.push_back (item);
-  
-  return result;
-}
-
-static vector<string> split_skipempty(const string &s, char delim) {
-  vector<string> result;
-  stringstream ss(s);
-  string item;
-  
-  while(getline(ss, item, delim)) {
-    if(!item.empty())
-      result.push_back(item);
-  }
-  return result;
 }
 
 static inline bool isEndOrStartOfSection(const string& l)
@@ -82,94 +27,8 @@ static inline bool isEndOrStartOfSection(const string& l)
   if(l.size() == 1 && l[0] == '0') return true;
   if(l.size() == 2 && l[0] == '0' && l[1] =='\r') return true;
   if(l.size() >= 2 && l[0] == '0' && l[1] == ' ') return true;
-  if(l.size() >= 3 && l[0] == ' ' && l[1] == '0' && l[0] == ' ') return true;
+  if(l.size() >= 3 && l[0] == ' ' && l[1] == '0' && l[2] == ' ') return true;
   return false;
-}
-
-static inline bool mygetline(ifstream& file, string& line)
-{
-  if(!getline(file,line)) return false;
-  if(line.size()==0) return true;
-  string::iterator last = line.end()-1;
-  if(*last=='\r') line.erase(last);
-}
-
-template<class T> inline void hardclear(vector<T>& in) { vector<T>().swap(in); };
-
-template<class T> inline void printvec(const vector<T>& v, const string& msg="") 
-{ 
-  cout.precision(6); 
-  cout << msg << " size:" << v.size() << endl;
-  cout << scientific;
-  typename vector<T>::const_iterator it=v.begin();
-  for(;it!=v.end(); ++it) cout << (*it) << " ";
-  cout << endl;
-}
-
-  template<class T> inline void printvecvec(const vector<vector<T> >& v, const string& msg="") 
-{ 
-  cout.precision(6); 
-  cout << msg << " size:" << v.size() << endl;
-  cout << scientific;
-  for(auto& l: v) {
-    for(auto& c: l) cout << c << " ";
-    cout << endl;
-  }
-}
-
-
-// for entries of 'v' that are not present in 'in', the indexes will be set to -1
-template<class T> inline vector<int> indexin(vector<T>& v, vector<T>& in)
-{
-  vector<int> vIdx(v.size());
-  iota(vIdx.begin(), vIdx.end(), 0);
-  //sort permutation for v
-  sort(vIdx.begin(), vIdx.end(), [&](const int& a, const int& b) { return (v[a] < v[b]); } );
-
-  vector<int> inIdx(in.size());
-  iota(inIdx.begin(), inIdx.end(), 0);
-  //sort permutation for in
-  sort(inIdx.begin(), inIdx.end(), [&](const int& a, const int& b) { return (in[a] < in[b]); } );
-
-  size_t szv=v.size(), szin=in.size();
-  vector<int> idxs(szv, -1);
-  
-  for(int iv=0, iin=0; iv<szv && iin<szin;) {
-    //cout << iv << "|" << iin << "  " << v[vIdx[iv]] <<"|" << in[inIdx[iin]] << endl;
-    if(v[vIdx[iv]]==in[inIdx[iin]]) {
-	idxs[vIdx[iv]]=inIdx[iin];
-	iv++; 
-      } else v[vIdx[iv]]>in[inIdx[iin]] ? iin++: iv++;
-  }
-
-  // T *vv = v.data(), *vin = in.data();
-  // for(int iv=0, iin=0, *div=vIdx.data(), *diin=inIdx.data(), *didxs=idxs.data(); iv<szv && iin<szin;) {
-  //   cout << "iv=" << iv << "  iin=" << iin << " | " << div[iv] << " " << diin[iin] << endl;
-  //   if(vv[div[iv]]==vin[diin[iin]]) {
-  //     didxs[div[iv]]=diin[iin];
-  //     iin++; iv++;
-  //   } else vv[div[iv]]>vin[diin[iin]]? iin++: iv++;
-  // }
-  return idxs;
-}
-
-// returns the indexes 'i' in 'v', for which 'v[i]' satisfies (unary) predicate
-template<class T>
-vector<int> findall(const vector<T>& v, std::function<bool(const int&)> pred)
-{
-  vector<int> ret; int count=0;
-  for(auto& it : v) {
-    if(pred(it)) ret.push_back(count);
-    count++;
-  }
-  return ret;
-}
-
-template<class T> vector<T> select(vector<T>& v, const vector<int>& idx)
-{
-  vector<T> ret;
-  for(auto& keep: idx) ret.push_back(v[keep]);
-  return ret;
 }
 
 enum Bheader{BI=0,BNAME,BBASKV,BIDE,BAREA,BZONE,BOWNER,BVM,BVA,BNVHI,BNVLO,BEVHI,BEVLO};
@@ -276,16 +135,19 @@ readinstance(const std::string& raw, const std::string& rop, const std::string& 
   L_Line = findall(ntbranches_ST, [](int val) {return val!=0;});
   convert(ntbranches[NTBI], L_From); hardclear(ntbranches[NTBI]);
   convert(ntbranches[NTBJ], L_To);   hardclear(ntbranches[NTBJ]);
-  L_From = select(L_From, L_Line);
-  L_To   = select(L_To,   L_Line);
-  L_CktID = select(ntbranches[NTBCKT], L_Line); hardclear(ntbranches[NTBCKT]);
-  for(auto& s: L_CktID) s.erase(remove(s.begin(), s.end(),'\''), s.end());
-
+  L_From = selectfrom(L_From, L_Line);
+  L_To   = selectfrom(L_To,   L_Line);
+  L_CktID = selectfrom(ntbranches[NTBCKT], L_Line); hardclear(ntbranches[NTBCKT]);
+  for(auto& s: L_CktID) {
+    s.erase(remove(s.begin(), s.end(),'\''), s.end());
+    trim(s); 
+  }
+  
   {
     vector<double> R, X;
     convert(ntbranches[NTBR], R); hardclear(ntbranches[NTBR]);
     convert(ntbranches[NTBX], X); hardclear(ntbranches[NTBX]);
-    X = select(X, L_Line); R = select(R, L_Line);
+    X = selectfrom(X, L_Line); R = selectfrom(R, L_Line);
     int nlines = X.size(); double aux;
     L_G = L_B = vector<double>(nlines);
     for(int i=0; i<nlines; i++) {
@@ -295,12 +157,12 @@ readinstance(const std::string& raw, const std::string& rop, const std::string& 
     }
   }
   convert(ntbranches[NTBB], L_Bch);  hardclear(ntbranches[NTBB]);
-  L_Bch = select(L_Bch, L_Line);
+  L_Bch = selectfrom(L_Bch, L_Line);
 
   convert(ntbranches[NTBRATEA], L_RateBase); hardclear(ntbranches[NTBRATEA]);
   convert(ntbranches[NTBRATEC], L_RateEmer); hardclear(ntbranches[NTBRATEC]);
-  L_RateBase = select(L_RateBase, L_Line);
-  L_RateEmer = select(L_RateEmer, L_Line);  
+  L_RateBase = selectfrom(L_RateBase, L_Line);
+  L_RateEmer = selectfrom(L_RateEmer, L_Line);  
   n=L_Line.size(); scale = 1/MVAbase;
   DSCAL(&n, &scale, L_RateBase.data(), &one);
   DSCAL(&n, &scale, L_RateEmer.data(), &one);
@@ -310,19 +172,23 @@ readinstance(const std::string& raw, const std::string& rop, const std::string& 
   T_Transformer = findall(T_Transformer, [](int val) {return val!=0;});
   convert(tbranches[TBI], T_From); hardclear(tbranches[TBI]);
   convert(tbranches[TBJ], T_To);   hardclear(tbranches[TBJ]);
-  T_From = select(T_From, T_Transformer);
-  T_To   = select(T_To,   T_Transformer);
-  T_CktID = select(tbranches[TBCKT], T_Transformer); hardclear(tbranches[TBCKT]);
-  for(auto& s: T_CktID) s.erase(remove(s.begin(), s.end(),'\''), s.end());
+  T_From = selectfrom(T_From, T_Transformer);
+  T_To   = selectfrom(T_To,   T_Transformer);
+  T_CktID = selectfrom(tbranches[TBCKT], T_Transformer); hardclear(tbranches[TBCKT]);
+
+  for(auto& s: T_CktID) {
+    s.erase(remove(s.begin(), s.end(),'\''), s.end());
+    trim(s);
+  }
   convert(tbranches[TBMAG1], T_Gm); hardclear(tbranches[TBMAG1]);
   convert(tbranches[TBMAG2], T_Bm); hardclear(tbranches[TBMAG2]);
-  T_Gm = select(T_Gm, T_Transformer); T_Bm = select(T_Bm, T_Transformer); 
+  T_Gm = selectfrom(T_Gm, T_Transformer); T_Bm = selectfrom(T_Bm, T_Transformer); 
   n=T_Transformer.size(); double aux;
   {
     vector<double> R12, X12;
     convert(tbranches[TBR12], R12); hardclear(tbranches[TBR12]);
     convert(tbranches[TBX12], X12); hardclear(tbranches[TBX12]);
-    R12 = select(R12, T_Transformer); X12 = select(X12, T_Transformer); assert(n==R12.size());
+    R12 = selectfrom(R12, T_Transformer); X12 = selectfrom(X12, T_Transformer); assert(n==R12.size());
     T_G = T_B = vector<double>(n);
     for(int i=0; i<n; i++) {
       aux = R12[i]*R12[i] + X12[i]*X12[i];
@@ -333,18 +199,18 @@ readinstance(const std::string& raw, const std::string& rop, const std::string& 
     vector<double> WINDV1, WINDV2;
     convert(tbranches[TBWINDV1], WINDV1); hardclear(tbranches[TBWINDV1]);
     convert(tbranches[TBWINDV2], WINDV2); hardclear(tbranches[TBWINDV2]);
-    WINDV1 = select(WINDV1, T_Transformer); WINDV2 = select(WINDV2, T_Transformer); 
+    WINDV1 = selectfrom(WINDV1, T_Transformer); WINDV2 = selectfrom(WINDV2, T_Transformer); 
     T_Tau = vector<double>(n);
     for(int i=0; i<n; i++) T_Tau[i] = WINDV1[i]/WINDV2[i];
   }
   convert(tbranches[TBANG1], T_Theta); hardclear(tbranches[TBANG1]);
-  T_Theta = select(T_Theta, T_Transformer);
+  T_Theta = selectfrom(T_Theta, T_Transformer);
   scale = M_PI/180; DSCAL(&n, &scale, T_Theta.data(), &one);
 
   convert(tbranches[TBRATA1], T_RateBase); hardclear(tbranches[TBRATA1]);
   convert(tbranches[TBRATC1], T_RateEmer); hardclear(tbranches[TBRATC1]);
-  T_RateBase = select(T_RateBase, T_Transformer);
-  T_RateEmer = select(T_RateEmer, T_Transformer);
+  T_RateBase = selectfrom(T_RateBase, T_Transformer);
+  T_RateEmer = selectfrom(T_RateEmer, T_Transformer);
   scale = 1/MVAbase;
   DSCAL(&n, &scale, T_RateBase.data(), &one);
   DSCAL(&n, &scale, T_RateEmer.data(), &one);
@@ -353,9 +219,9 @@ readinstance(const std::string& raw, const std::string& rop, const std::string& 
   convert(switchedshunts[SSSTAT], SSh_SShunt); hardclear(switchedshunts[SSSTAT]);
   SSh_SShunt = findall(SSh_SShunt, [](int val) {return val!=0;});
   convert(switchedshunts[SSI], SSh_Bus); hardclear(switchedshunts[SSI]);
-  SSh_Bus = select(SSh_Bus, SSh_SShunt);
+  SSh_Bus = selectfrom(SSh_Bus, SSh_SShunt);
   convert(switchedshunts[SSBINIT], SSh_B0); hardclear(switchedshunts[SSBINIT]);
-  SSh_B0 = select(SSh_B0, SSh_SShunt);
+  SSh_B0 = selectfrom(SSh_B0, SSh_SShunt);
   scale = 1/MVAbase; n=SSh_B0.size(); DSCAL(&n, &scale, SSh_B0.data(), &one);
  
   SSh_Blb = SSh_Bub = vector<double>(n);
@@ -370,13 +236,14 @@ readinstance(const std::string& raw, const std::string& rop, const std::string& 
     }
     SSh_Blb[ssh] = Blb; SSh_Bub[ssh]=Bub;
   }
-
   //generators - RAW
   convert(generators[GSTAT], G_Generator); hardclear(generators[GSTAT]);
   G_Generator = findall(G_Generator, [](int val) {return val!=0;});
   convert(generators[GI], G_Bus); hardclear(generators[GI]);
-  G_Bus = select(G_Bus, G_Generator);
+  G_Bus = selectfrom(G_Bus, G_Generator);
   convert(generators[GID], G_BusUnitNum); hardclear(generators[GID]);
+  G_BusUnitNum = selectfrom(G_BusUnitNum, G_Generator);
+
   convert(generators[GPB], G_Plb); hardclear(generators[GPB]);
   convert(generators[GPT], G_Pub); hardclear(generators[GPT]);
   convert(generators[GQB], G_Qlb); hardclear(generators[GQB]);
@@ -384,9 +251,9 @@ readinstance(const std::string& raw, const std::string& rop, const std::string& 
   convert(generators[GPG], G_p0);  hardclear(generators[GPG]);
   convert(generators[GQG], G_q0);  hardclear(generators[GQG]);
 
-  G_Plb = select(G_Plb, G_Generator); G_Pub = select(G_Pub, G_Generator); 
-  G_Qlb = select(G_Qlb, G_Generator); G_Qub = select(G_Qub, G_Generator); 
-  G_p0  = select(G_p0,  G_Generator); G_q0  = select(G_q0,  G_Generator); 
+  G_Plb = selectfrom(G_Plb, G_Generator); G_Pub = selectfrom(G_Pub, G_Generator); 
+  G_Qlb = selectfrom(G_Qlb, G_Generator); G_Qub = selectfrom(G_Qub, G_Generator); 
+  G_p0  = selectfrom(G_p0,  G_Generator); G_q0  = selectfrom(G_q0,  G_Generator); 
 
   n = G_Generator.size(); scale = 1/MVAbase;
   DSCAL(&n, &scale, G_Plb.data(), &one);
@@ -412,19 +279,21 @@ readinstance(const std::string& raw, const std::string& rop, const std::string& 
     assert(n<=generatordsp[GDBUS].size());
     
     n = generatordsp[GDBUS].size();
-    vector<string> vBGEN = vector<string>(n);
+    vector<string> vBGEN = vector<string>(n); 
     for(int i=0; i<n; i++) {
       trim(generatordsp[GDBUS][i]);
       trim(generatordsp[GDGENID][i]);
-      vBGEN[i] = generatordsp[GDBUS][i] + ":" + generatordsp[GDGENID][i];
+      string&sid=generatordsp[GDGENID][i];
+      sid.erase(remove(sid.begin(), sid.end(),'\''), sid.end());
+      vBGEN[i] = generatordsp[GDBUS][i] + ":" + sid;
     }
     auto gdspix = indexin(vBBUN, vBGEN);
-    vector<string> gdsptbl = select(generatordsp[GDDSPTBL], gdspix);
-    
+    vector<string> gdsptbl = selectfrom(generatordsp[GDDSPTBL], gdspix);
+
     for(auto& s:activedsptables[GADSPTBL]) trim(s);
     
     auto gctblidx = indexin(gdsptbl, activedsptables[GADSPTBL]);
-    auto gctbl = select(activedsptables[GADSPCTBL], gctblidx);
+    auto gctbl = selectfrom(activedsptables[GADSPCTBL], gctblidx);
     vector<int> gctbl_int; convert(gctbl, gctbl_int); hardclear(gctbl);
     gctblidx = indexin(gctbl_int, costcurves_ltbl);
     assert(gctblidx.end() == find(gctblidx.begin(), gctblidx.end(), -1) 
@@ -446,11 +315,11 @@ readinstance(const std::string& raw, const std::string& rop, const std::string& 
     for(int g=0; g<n; g++) {
       if(G_p0[g] < G_Plb[g] || G_p0[g] > G_Pub[g]) {
 	G_p0[g] = 0.5*(G_Plb[g] + G_Pub[g]);
-	sgen_inf += to_string(G_Generator[g]) + " ";
+	sgen_inf += to_string(G_BusUnitNum[g]) + "/" + to_string(G_Bus[g]) + " ";
       }
       if(G_q0[g] < G_Qlb[g] || G_q0[g] > G_Qub[g]) {
 	G_q0[g] = 0.5*(G_Qlb[g] + G_Qub[g]);
-	sgen_inf += to_string(G_Generator[g]) + " ";
+	sgen_inf += to_string(G_BusUnitNum[g]) + "/" + to_string(G_Bus[g]) + " ";
       }
       VDou& xi = G_CostPi[g], yi = G_CostCi[g];
       size_t nn = xi.size();
@@ -460,12 +329,12 @@ readinstance(const std::string& raw, const std::string& rop, const std::string& 
       if(xi[0] > G_Plb[g]) {
 	yi[0] = yi[0] + (yi[1] - yi[0])/(xi[1] - xi[0])*(G_Plb[g] - xi[0]);
 	xi[0] = G_Plb[g];
-	sgen_mod += to_string(G_Generator[g]) + " ";
+	sgen_mod += to_string(G_BusUnitNum[g]) + "/" + to_string(G_Bus[g]) + " ";
       }
       if(xi[nn] < G_Pub[g]) {
 	yi[nn] = yi[nn] + (yi[nn] - yi[nn-1])/(xi[nn] - xi[nn-1])*(G_Pub[g] - xi[nn]);
 	xi[nn] = G_Pub[g];
-	sgen_mod += to_string(G_Generator[g]) + " ";
+	sgen_mod += to_string(G_BusUnitNum[g]) + "/" + to_string(G_Bus[g]) + " ";
       }
     }
     if(sgen_inf.size()>0) cout << "generators with infeasible starting points: " << sgen_inf << endl;
@@ -495,7 +364,7 @@ readinstance(const std::string& raw, const std::string& rop, const std::string& 
     assert(ggovrespix.end() == find(ggovrespix.begin(), ggovrespix.end(), -1) 
 	   && "there seems to be missing participation factors for generators");
 
-    convert(select(governorresponse[GORR], ggovrespix), G_alpha);
+    convert(selectfrom(governorresponse[GORR], ggovrespix), G_alpha);
   }
 
   // contingencies
@@ -623,10 +492,8 @@ void goSCACOPFData::buildindexsets()
   size_t ngen = G_Generator.size(); assert(ngen==G_Bus.size());
   Gn = VVInt(nbus, VInt());
   for(size_t g=0; g<ngen; g++) Gn[G_Nidx[g]].push_back(g);
-
-
-  printvecvec(SShn, "SShn");
-  printvecvec(Gn, "Gn");
+  //printvecvec(SShn, "SShn");
+  //printvecvec(Gn, "Gn");
 }
 
 bool goSCACOPFData::
@@ -869,7 +736,7 @@ readRAW(const std::string& raw, double& MVAbase,
   }
 #ifdef DEBUG
   std::transform(line.begin(), line.end(), line.begin(), ::toupper);
-  assert(string::npos != line.find("BEGIN SWITCHED SHUNT"));
+  //assert(string::npos != line.find("BEGIN SWITCHED SHUNT"));
 #endif
 
   //
@@ -1095,8 +962,8 @@ bool goSCACOPFData::readCON(const string& con,
       contingencies_con.push_back(new GeneratorContingency(stoi(tokens[5]), tokens[2]));
 
     } else if(tokens[0]=="OPEN") {
-       contingencies_type.push_back(cBranch);
-      assert(tokens.size()==10);
+      contingencies_type.push_back(cBranch);
+      assert(tokens.size()>=10);
       contingencies_con.push_back(new TransmissionContingency(stoi(tokens[4]), 
 							      stoi(tokens[7]), 
 							      tokens[9]));
