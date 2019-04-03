@@ -34,14 +34,16 @@ message("LAPACK/BLAS libs: ${LAPACK_LIBRARIES}")
 # include build directory for Fortran name mangling header
 include_directories(${CMAKE_BINARY_DIR})
 
-include_directories(src/Utils)
+include_directories(src/Abstract)
 include_directories(src/OPF)
+include_directories(src/Utils)
 
+add_subdirectory(src/Abstract)
 add_subdirectory(src/Utils)
 add_subdirectory(src/OPF)
 add_subdirectory(src/Drivers)
 
-add_library(gollnlp STATIC $<TARGET_OBJECTS:goSCACOPF> $<TARGET_OBJECTS:goUtils>)
+add_library(gollnlp STATIC $<TARGET_OBJECTS:goSCACOPF> $<TARGET_OBJECTS:goUtils> $<TARGET_OBJECTS:goOptimiz>)
 
 
 ##########################################################
