@@ -58,9 +58,8 @@ public:
 // Holds objective terms to be minimized
 class OptObjectiveTerm : public OptDerivativeEval {
 public:
-  OptObjectiveTerm() : sense(1) {};
-  // +1 min, -1 max
-  int sense; 
+  OptObjectiveTerm() : id(0) {};
+
   int id;
   virtual ~OptObjectiveTerm();
   virtual bool eval_body (const OptVariables& x, double* body);
