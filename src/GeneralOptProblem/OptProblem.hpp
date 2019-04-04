@@ -18,6 +18,8 @@ public:
   struct OptVarsBlock {
     OptVarsBlock(const int& n_, const std::string& id_);
     OptVarsBlock(const int& n_, const std::string& id_, double* lb, double* ub=NULL);
+    //all lb and ub are set to lb_ and ub_
+    OptVarsBlock(const int& n_, const std::string& id_, double lb_, double ub_);
     virtual ~OptVarsBlock();
     //number of vars in the block
     int n; 
@@ -30,6 +32,8 @@ public:
     //lower and upper vector bounds -> these are allocated and deallocated by this class
     double *lb, *ub;
   };
+  
+  OptVarsBlock* get_block(const std::string& id);
   // appends b to list of blocks; updates this->n and b->index
   bool append_varsblock(OptVarsBlock* b);
 
