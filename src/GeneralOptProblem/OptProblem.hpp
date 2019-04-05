@@ -1,11 +1,15 @@
 #ifndef GOLLNLP_OPTPROB
 #define GOLLNLP_OPTPROB
 
+#include "NlpSolver.hpp"
+
 #include <string>
 #include <cassert>
 #include <vector>
 #include <map>
 namespace gollnlp {
+
+
 
 class OptVariablesBlock {
 public:
@@ -26,10 +30,35 @@ public:
   double *lb, *ub;
   //pointer/reference to the first elem in NLP solver's "x" that corresponds to this block
   //handled by attach_to
-  double* xref;
+  const double* xref;
 };
   
  
+
+// a collection of blocks of variables
+// This class needs NOT be specialized/derived.
+class OptVariables {
+public:
+  OptVariables();
+  ~OptVariables();
+
+  OptVariablesBlock* get_block(const std::string& id);
+  //total number of vars
+  int n();
+
+  friend class OptProblem;
+private:
+  // "list" of pointers to blocks
+  std::vector<OptVariablesBlock*> m_vblocks;
+  // "dict" with the pointers for quick lookups by name
+  std::map<std::string, OptVariablesBlock*> m_mblocks;
+
+  // appends b to list of blocks; updates this->n and b->index
+  bool append_varsblock(OptVariablesBlock* b);
+  virtual void attach_to(const double* xfromsolver);
+};
+
+
 class OptDerivativeEval {
 public:
   virtual bool eval_body (const OptVariables& x, double* body) = 0;
@@ -57,6 +86,8 @@ public:
   }
   virtual bool eval_Hess(const OptVariables& x, const int& nnz, int* i, int* j, double* M);
 };
+
+
 
 class OptConstraintsBlock : public OptDerivativeEval {
 public:
@@ -92,29 +123,6 @@ public:
   double *lb, *ub;
 };
 
-// a collection of blocks of variables
-// This class needs NOT be specialized/derived.
-class OptVariables {
-public:
-  OptVariables();
-  ~OptVariables();
-
-  OptVariablesBlock* get_block(const std::string& id);
-  //total number of vars
-  int n();
-
-  friend class OptProblem;
-private:
-  // "list" of pointers to blocks
-  std::vector<OptVariablesBlock*> m_vblocks;
-  // "dict" with the pointers for quick lookups by name
-  std::map<std::string, OptVariablesBlock*> m_mblocks;
-
-  // appends b to list of blocks; updates this->n and b->index
-  bool append_varsblock(OptVariablesBlock* b);
-  virtual void attach_to(double* xfromsolver);
-};
-
 // A collection of (summable) OptObjTerms
 // This class needs NOT be specialized/derived.
 class OptObjective {
@@ -132,6 +140,7 @@ private:
   // "dict" with the pointers for quick lookups by name
   std::map<std::string, OptObjectiveTerm*> mblocks;
 };
+
 
 // A collection of constraints blocks
 // This class should NOT be specialized/derived.
@@ -153,7 +162,10 @@ private:
   std::vector<OptConstraintsBlock*> vblocks;
   // "dict" with the pointers for quick lookups by id
   std::map<std::string, OptConstraintsBlock*> mblocks;
-}
+};
+
+
+
 
 class OptProblem {
 public:
@@ -177,7 +189,7 @@ public:
     if(con) {
       cons->append_consblock(con);
       
-      m_vars_primal->append_varsblock(con->create_varsblock());
+      vars_primal->append_varsblock(con->create_varsblock());
       obj->append_objterm(con->create_objterm());
     } else assert(con);
   }
@@ -217,22 +229,25 @@ public:
   // This method is called by NlpSolver instance after each iteration (if supported by the solver)
   // Derive a class from OptProblem to hook your code
   virtual bool iterate_callback() {return true;}
-private:
+public:
   //
   // internal NLP functions evaluators fed to the NLP solver
   // these are not to be used by the user and not to be overriden
   //
-  bool eval_obj     (double* x, bool new_x, double& obj);
-  bool eval_cons    (double* x, bool new_x, double* cons);
-  bool eval_gradobj (double* x, bool new_x, double* grad);
-  bool eval_Jaccons (double* x, const int& nnz, int* i, int* j, double* M);
+  bool eval_obj     (const double* x, bool new_x, double& obj);
+  bool eval_cons    (const double* x, bool new_x, double* cons);
+  bool eval_gradobj (const double* x, bool new_x, double* grad);
+  bool eval_Jaccons (const double* x, bool new_x, const int& nnz, int* i, int* j, double* M);
   //! multipliers
-  virtual bool eval_HessLagr(double* x, const int& nnz, int* i, int* j, double* M);
+  virtual bool eval_HessLagr(const double* x, bool new_x, const int& nnz, int* i, int* j, double* M);
+
+  int get_nnzJaccons();
+  int get_nnzHessLagr();
 
 
 private:
   OptProblem() {};
-  };
+};
   
 } //end namespace
 
