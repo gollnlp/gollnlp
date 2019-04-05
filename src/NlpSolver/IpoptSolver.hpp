@@ -1,54 +1,16 @@
 #ifndef GOLLNLP_IPOPTSOLVER
 #define GOLLNLP_IPOPTSOLVER
 
+#include "OptProblem.hpp"
 #include "NlpSolver.hpp"
+
+#include "IpIpoptApplication.hpp"
 #include "IpTNLP.hpp"
 
+using namespace Ipopt;
+
+
 namespace gollnlp {
-
-//forward definition, class defined below
-class IpoptNlp;
-
-class IpoptSolver :: public NlpSolver {
-public:
-  IpoptSolver(OptProblem* p_);
-  virtual ~IpoptSolver();
-
-  bool set_starting_point(OptVariables* v);
-
-  virtual bool initialize() {
-    app = Ipopt::IpoptApplicationFactory();
-    // Intialize the IpoptApplication and process the options
-    Ipopt::ApplicationReturnStatus status = app->Initialize();
-    if (status != Ipopt::Solve_Succeeded) {
-      printf("\n\n*** Error during initialization!\n");
-      return false;
-    }
-    return true;
-  }
-
-  virtual int optimize() {
-    Ipopt::SmartPtr<Ipopt::TNLP> ipopt_nlp_spec = new gollnlp::IpoptNlp(prob);
-
-    // Ask Ipopt to solve the problem
-    Ipopt::ApplicationReturnStatus status status = app->OptimizeTNLP(ipopt_nlp_spec);
-
-    if (status == Ipopt::Solve_Succeeded) {
-      printf("\n\n*** The problem solved!\n");
-      return true;
-    }
-    else {
-      printf("\n\n*** The problem FAILED!\n");
-      return false;
-    }
-  }
-
-private:
-  OptProblem* prob;
-  Ipopt::SmartPtr<Ipopt::IpoptApplication> app;
-};
-
- 
 
 class IpoptNlp : public Ipopt::TNLP
 {
@@ -63,7 +25,7 @@ public:
   //@{
   /** Method to return some info about the nlp */
   virtual bool get_nlp_info(Ipopt::Index& n, Ipopt::Index& m, Ipopt::Index& nnz_jac_g,
-                            Ipopt::Index& nnz_h_lag, Ipopt::IndexStyleEnum& index_style)
+                            Ipopt::Index& nnz_h_lag, IndexStyleEnum& index_style)
   {
     n = prob->get_num_variables();
     m = prob->get_num_constraints();
@@ -94,12 +56,12 @@ public:
   /** Method to return the objective value */
   virtual bool eval_f(Ipopt::Index n, const Number* x, bool new_x, Number& obj_value) {
     assert(prob->get_num_variables() == n);
-    return prob->eval_obj(x, obj_value);
+    return prob->eval_obj(x, new_x, obj_value);
   }
 
   /** Method to return the gradient of the objective */
   virtual bool eval_grad_f(Ipopt::Index n, const Number* x, bool new_x, Number* grad_f) {
-    return prob->eval_gradobj(x, grad_f);
+    return prob->eval_gradobj(x, new_x, grad_f);
   }
 
   /** Method to return the constraint residuals */
@@ -117,7 +79,7 @@ public:
                           Ipopt::Index m, Ipopt::Index nele_jac, Ipopt::Index* iRow, Ipopt::Index *jCol,
                           Number* values)
   {
-    if(values) return prob->eval_Jaccons(x, newx, nele_jac, iRow, jCol, values);
+    if(values) return prob->eval_Jaccons(x, new_x, nele_jac, iRow, jCol, values);
     else {
       assert(false);
     }
@@ -165,3 +127,45 @@ private:
   IpoptNlp& operator=(const IpoptNlp&);
   //@}
 };
+
+class IpoptSolver : public NlpSolver {
+public:
+  IpoptSolver(OptProblem* p_);
+  virtual ~IpoptSolver();
+
+  bool set_starting_point(OptVariables* v);
+
+  virtual bool initialize() {
+    app = IpoptApplicationFactory();
+    // Intialize the IpoptApplication and process the options
+    ApplicationReturnStatus status = app->Initialize();
+    if (status != Ipopt::Solve_Succeeded) {
+      printf("\n\n*** Error during initialization!\n");
+      return false;
+    }
+    return true;
+  }
+
+  virtual int optimize() {
+    Ipopt::SmartPtr<Ipopt::TNLP> ipopt_nlp_spec = new gollnlp::IpoptNlp(prob);
+
+    // Ask Ipopt to solve the problem
+    ApplicationReturnStatus status = app->OptimizeTNLP(ipopt_nlp_spec);
+
+    if (status == Ipopt::Solve_Succeeded) {
+      printf("\n\n*** The problem solved!\n");
+      return true;
+    }
+    else {
+      printf("\n\n*** The problem FAILED!\n");
+      return false;
+    }
+  }
+
+private:
+  OptProblem* prob;
+  Ipopt::SmartPtr<Ipopt::IpoptApplication> app;
+};
+
+} //endnamespace
+#endif
