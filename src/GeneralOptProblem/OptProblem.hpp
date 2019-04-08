@@ -9,8 +9,6 @@
 #include <map>
 namespace gollnlp {
 
-
-
 class OptVariablesBlock {
 public:
   OptVariablesBlock(const int& n_, const std::string& id_);
@@ -33,10 +31,12 @@ public:
   const double* xref;
 };
   
- 
-
+////////////////////////////////////////////////////////////
+// OptVariables
+//
 // a collection of blocks of variables
 // This class needs NOT be specialized/derived.
+////////////////////////////////////////////////////////////
 class OptVariables {
 public:
   OptVariables();
@@ -44,20 +44,22 @@ public:
 
   OptVariablesBlock* get_block(const std::string& id);
   //total number of vars
-  int n();
+  inline int n() 
+  {
+    return  vblocks.size()>0 ? vblocks.back()->index + vblocks.back()->n : 0;
+  }
 
   friend class OptProblem;
 private:
   // "list" of pointers to blocks
-  std::vector<OptVariablesBlock*> m_vblocks;
+  std::vector<OptVariablesBlock*> vblocks;
   // "dict" with the pointers for quick lookups by name
-  std::map<std::string, OptVariablesBlock*> m_mblocks;
+  std::map<std::string, OptVariablesBlock*> mblocks;
 
   // appends b to list of blocks; updates this->n and b->index
   bool append_varsblock(OptVariablesBlock* b);
   virtual void attach_to(const double* xfromsolver);
 };
-
 
 class OptDerivativeEval {
 public:
@@ -73,7 +75,7 @@ public:
 class OptObjectiveTerm : public OptDerivativeEval {
 public:
   OptObjectiveTerm(const std::string& id_) : id(id_) {};
-  virtual ~OptObjectiveTerm();
+  virtual ~OptObjectiveTerm() {};
   int index;
   std::string id;
   
@@ -91,8 +93,8 @@ public:
 
 class OptConstraintsBlock : public OptDerivativeEval {
 public:
-  OptConstraintsBlock();
-  virtual ~OptConstraintsBlock();
+  OptConstraintsBlock(const std::string& id_) : id(id_) {};
+  virtual ~OptConstraintsBlock() {};
 
   // Some constraints create additional variables (e.g., slacks).
   // This method is called by OptProblem (in 'append_constraints') to get and add
@@ -123,8 +125,12 @@ public:
   double *lb, *ub;
 };
 
+//////////////////////////////////////////////////////
+// OptObjective
+//
 // A collection of (summable) OptObjTerms
 // This class needs NOT be specialized/derived.
+//////////////////////////////////////////////////////
 class OptObjective {
   OptObjective() {};
   ~OptObjective();
@@ -138,19 +144,23 @@ private:
   // "list" of pointers to terms
   std::vector<OptObjectiveTerm*> vterms;
   // "dict" with the pointers for quick lookups by name
-  std::map<std::string, OptObjectiveTerm*> mblocks;
+  std::map<std::string, OptObjectiveTerm*> mterms;
 };
 
-
+//////////////////////////////////////////////////////////
+// OptConstraints
+//
 // A collection of constraints blocks
-// This class should NOT be specialized/derived.
+// This class needs NOT be specialized/derived.
+/////////////////////////////////////////////////////////
 class OptConstraints 
 {
   OptConstraints();
   ~OptConstraints();
 
   OptConstraintsBlock* get_block(const std::string& id);
-  inline int m() {
+  inline int m() 
+  {
     return  vblocks.size()>0 ? vblocks.back()->index + vblocks.back()->n : 0;
   }
 
@@ -165,11 +175,12 @@ private:
 };
 
 
-
-
+//////////////////////////////////////////////////////////
+// OptProblem
+/////////////////////////////////////////////////////////
 class OptProblem {
 public:
-  OptProblem(OptVariables* vars);
+  OptProblem();
   virtual ~OptProblem();
 
   inline int get_num_constraints() const { return cons->m(); }
@@ -184,8 +195,12 @@ protected:
   OptVariables*    vars_duals_cons;
 
 public:
-
-  inline void append_constraints(OptConstraintsBlock* con) { 
+  inline void append_variables(OptVariablesBlock* vars)
+  {
+    vars_primal->append_varsblock(vars);
+  }
+  inline void append_constraints(OptConstraintsBlock* con) 
+  { 
     if(con) {
       cons->append_consblock(con);
       
@@ -193,10 +208,9 @@ public:
       obj->append_objterm(con->create_objterm());
     } else assert(con);
   }
-  inline void append_objterm(OptObjectiveTerm* objterm) { 
-    if(obj) {
-      obj->append_objterm(objterm);
-    } 
+  inline void append_objterm(OptObjectiveTerm* objterm) 
+  { 
+    obj->append_objterm(objterm);
   }
 
   virtual OptVariables* new_duals_vec_cons();
@@ -211,7 +225,7 @@ public:
   virtual bool set_solver_option(const std::string& name, double value);
   virtual bool set_solver_option(const std::string& name, const std::string& value);
 
-  virtual void optimize(const std::string& nlpsolver);
+  virtual bool optimize(const std::string& nlpsolver);
 
   //getters -> copy to x; x should be allocated
   void fill_primal_vars(double* x);
@@ -246,7 +260,6 @@ public:
 
 
 private:
-  OptProblem() {};
 };
   
 } //end namespace

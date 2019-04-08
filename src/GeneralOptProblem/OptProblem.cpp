@@ -8,23 +8,32 @@ using namespace std;
 
 namespace gollnlp {
 
-OptProblem::OptProblem(OptVariables* vars)
+OptProblem::OptProblem()
 {
+  vars_primal = new OptVariables();
+  cons = new OptConstraints();
+  obj = new OptObjective();
+
+  vars_duals_bounds = NULL;
+  vars_duals_cons = NULL;
 }
+
 
 OptProblem::~OptProblem()
 {
-  //for(auto& t: m_objterms) delete t;
-  //for(auto& c: m_conblocks) delete c;
-  //delete m_vars; 
+  delete obj;
+  delete cons;
+  delete vars_duals_bounds;
+  delete vars_duals_cons;
+  delete vars_primal;
 }
 
 bool OptProblem::eval_obj(const double* x, bool new_x, double& obj_val)
 {
-  //vars_primal->attach_to(x);
-  // for(auto& obj: m_objterms) 
-  //   if (!obj->eval_body(*m_vars, &obj_val) )
-  //     return false;
+  vars_primal->attach_to(x);
+  for(auto& ot: obj->vterms) 
+    if (!ot->eval_body(*vars_primal, &obj_val) )
+       return false;
   return true;
 }
 bool OptProblem::eval_cons    (const double* x, bool new_x, double* cons)
@@ -67,33 +76,81 @@ bool OptProblem::eval_HessLagr(const double* x, bool new_x, const int& nnz, int*
   return true;
 }
 
+OptVariables*  OptProblem::new_duals_vec_cons()
+{
+  OptVariables* duals = new OptVariables();
+  for(auto b: cons->vblocks) {
+    duals->append_varsblock(new OptVariablesBlock(b->n, string("duals_") + b->id));
+  }
+  return duals;
+}
+OptVariables*  OptProblem::new_duals_vec_bounds()
+{
+  OptVariables* duals = new OptVariables();
+  for(auto b: vars_primal->vblocks) {
+    duals->append_varsblock(new OptVariablesBlock(b->n, string("duals_bnd_") + b->id));
+  }
+  return duals;
+}
+
+bool OptProblem::use_nlp_solver(const std::string& nlpsolver)
+{
+  assert(false);
+  return true;
+}
+//these setters return false if the option is not recognized by the NLP solver
+bool OptProblem::set_solver_option(const std::string& name, int value)
+{
+  assert(false);
+  return true;
+}
+bool OptProblem::set_solver_option(const std::string& name, double value)
+{
+  assert(false);
+  return true;
+}
+bool OptProblem::set_solver_option(const std::string& name, const std::string& value)
+{
+  assert(false);
+  return true;
+}
+bool OptProblem::optimize(const std::string& nlpsolver)
+{
+  assert(false);
+  return true;
+}
+
+/////////////////////////////////////////
+// OptVariables
+/////////////////////////////////////////
+
 OptVariables::OptVariables()
 {
 }
 
-
 OptVariables::~OptVariables()
 {
-  for(auto b: m_vblocks)
+  for(auto b: vblocks)
     delete b;
 }
 bool OptVariables::append_varsblock(OptVariablesBlock* b)
 {
   if(b) {
-    if(m_mblocks.find(b->id)!= m_mblocks.end()) {
+    if(mblocks.find(b->id)!= mblocks.end()) {
       cerr << "appendVarsBlock:  block (name) already exists" << endl;
       assert(false);
       return false;
     }
-    m_vblocks.push_back(b);
-    m_mblocks[b->id] = b;
     b->index=this->n();
+    vblocks.push_back(b);
+    mblocks[b->id] = b;
   }
+  return true;
 }
 
 void OptVariables::attach_to(const double *x)
 {
-  for(auto b: m_vblocks) b->xref = x + b->index;
+  for(auto b: vblocks) b->xref = x + b->index;
 }
 
 OptVariablesBlock::OptVariablesBlock(const int& n_, const std::string& id_)
@@ -148,11 +205,71 @@ OptVariablesBlock::OptVariablesBlock(const int& n_, const std::string& id_, doub
   for(i=0; i<n; i++) ub[i] = ub_;
 }
 
-  OptVariablesBlock::~OptVariablesBlock()
+OptVariablesBlock::~OptVariablesBlock()
 {
   delete[] x;
   delete[] lb;
   delete[] ub;
+}
+
+/////////////////////////////////////////
+// OptConstraints
+/////////////////////////////////////////
+OptConstraints::OptConstraints()
+{
+}
+OptConstraints::~OptConstraints()
+{
+  for(auto b: vblocks)
+    delete b;
+}
+
+OptConstraintsBlock* OptConstraints::get_block(const std::string& id)
+{
+  auto it = mblocks.find(id);
+  if(it!=mblocks.end()) {
+    return it->second;
+  } else {
+    cerr << "constraints block " << id << " was not found" << endl;
+    return NULL;
+  }
+}
+
+bool OptConstraints::append_consblock(OptConstraintsBlock* b)
+{
+  if(b) {
+    if(mblocks.find(b->id)!= mblocks.end()) {
+      cerr << "append_consblock:  block " << b->id << "already exists." << endl;
+      assert(false);
+      return false;
+    }
+    b->index=this->m();
+    vblocks.push_back(b);
+    mblocks[b->id] = b;
+  }
+  return true;
+}
+
+//////////////////////////////////////////////////////
+// OptObjective
+//////////////////////////////////////////////////////
+OptObjective::~OptObjective()
+{
+  for(auto t: vterms)
+    delete t;
+}
+bool OptObjective::append_objterm(OptObjectiveTerm* term)
+{
+  if(term) {
+    if(mterms.find(term->id) != mterms.end()) {
+      cerr << "append_objterm:  term " << term->id << " already exists." << endl;
+      assert(false);
+      return false;
+    }
+    vterms.push_back(term);
+    mterms[term->id] = term;
+  }
+  return true;
 }
 
 } //end of namespace

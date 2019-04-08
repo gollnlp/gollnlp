@@ -44,6 +44,8 @@ include_directories(src/GeneralOptProblem)
 include_directories(src/OPF)
 include_directories(src/Utils)
 include_directories(src/NlpSolver)
+include_directories(src/Ex1OptProblem)
+
 
 add_subdirectory(src/GeneralOptProblem)
 
