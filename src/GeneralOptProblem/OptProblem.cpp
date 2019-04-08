@@ -30,49 +30,54 @@ OptProblem::~OptProblem()
 
 bool OptProblem::eval_obj(const double* x, bool new_x, double& obj_val)
 {
-  vars_primal->attach_to(x);
+  
+  if(new_x) vars_primal->attach_to(x);
   for(auto& ot: obj->vterms) 
-    if (!ot->eval_body(*vars_primal, &obj_val) )
+    if (!ot->eval_f(*vars_primal, new_x, obj_val) )
        return false;
   return true;
 }
-bool OptProblem::eval_cons    (const double* x, bool new_x, double* cons)
+bool OptProblem::eval_cons    (const double* x, bool new_x, double* g)
 {
-  // //! we need to accumulate in 'cons' in eval_body
-  // m_vars->attach_to(x);
-  // for(auto& con: m_conblocks)
-  //   if(!con->eval_body(*m_vars, cons))
-  //     return false;
+  if(new_x) vars_primal->attach_to(x);
+  for(auto& con: cons->vblocks)
+    if(!con->eval_body(*vars_primal, new_x, g))
+      return false;
   return true;
 }
 bool OptProblem::eval_gradobj (const double* x, bool new_x, double* grad)
 {
-  // m_vars->attach_to(x);
-  // for(auto& obj: m_objterms)
-  //   if(!obj->eval_deriv(*m_vars, grad))
-  //     return false;
+  if(new_x) vars_primal->attach_to(x);
+  for(auto& ot: obj->vterms)
+    if(!ot->eval_grad(*vars_primal, new_x, grad))
+      return false;
   return true;
 }
 bool OptProblem::eval_Jaccons (const double* x, bool new_x, const int& nnz, int* i, int* j, double* M)
 {
-  // m_vars->attach_to(x);
-  // //! here we need to call eval_deriv with correct jumps in i,j, and M
-  // for(auto& con: m_conblocks)
-  //   if(!con->eval_deriv(*m_vars, nnz, i,j,M))
-  //     return false;
+  if(new_x) vars_primal->attach_to(x);
+  for(auto& con: cons->vblocks)
+    if(!con->eval_Jac(*vars_primal, new_x, nnz, i,j,M))
+      return false;
   return true;
 }
-//! mulipliers
-bool OptProblem::eval_HessLagr(const double* x, bool new_x, const int& nnz, int* i, int* j, double* M)
+bool OptProblem::
+eval_HessLagr(const double* x, bool new_x, 
+	      const double& obj_factor, 
+	      const double* lambda, bool new_lambda,
+	      const int& nnz, int* i, int* j, double* M)
 {
-  //!
-  // m_vars->attach_to(x);
-  // for(auto& con: m_conblocks)
-  //   if(!con->eval_Hess (*m_vars, nnz, i,j,M))
-  //     return false;
-  // for(auto& obj: m_objterms) 
-  //   if (!obj->eval_Hess(*m_vars, nnz, i,j,M))
-  //     return false;
+  if(new_x) vars_primal->attach_to(x);
+  for(auto& ot: obj->vterms)
+    if(!ot->eval_HessLagr(*vars_primal, new_x, obj_factor, nnz,i,j,M))
+      return false;
+
+  if(new_lambda) vars_duals_cons->attach_to(lambda);
+
+  for(auto& con: cons->vblocks)
+    if(!con->eval_HessLagr(*vars_primal, new_x, *vars_duals_cons, new_lambda, nnz,i,j,M))
+      return false;
+
   return true;
 }
 

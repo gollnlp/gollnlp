@@ -42,7 +42,13 @@ public:
   OptVariables();
   ~OptVariables();
 
-  OptVariablesBlock* get_block(const std::string& id);
+  const OptVariablesBlock* get_block(const std::string& id) const
+  {
+    auto it = mblocks.find(id);
+    if(it != mblocks.end())
+      return it->second;
+    return NULL;
+  }
   //total number of vars
   inline int n() 
   {
@@ -61,37 +67,77 @@ private:
   virtual void attach_to(const double* xfromsolver);
 };
 
-class OptDerivativeEval {
+struct OptSparseEntry
+{
+  OptSparseEntry(int i_, int j_, int* p) : i(i_), j(j_), idx(p) { };
+  int i,j;
+  //Memory address where the index of (i,j) in the FINAL Hessian/Jacobian should be put by OptProblem
+  //Only OptProblem and its subsidiaries write in this address.
+  //
+  //idx==NULL means that the implementer (Objective or Constraints evaluator) does not need the nz 
+  //of (i,j). This is the case when the implementer can compute it cheaply on the fly.
+  int* idx; 
+private:
+  OptSparseEntry() {};
+};
+
+class OptObjectiveEvaluator {
 public:
-  virtual bool eval_body (const OptVariables& x, double* body) = 0;
-  virtual bool eval_deriv(const OptVariables& x, double* grad) = 0;
-  virtual bool eval_deriv(const OptVariables& x, const int& nnz, 
-			  int* i, int* j, double* M) = 0;
-  virtual bool eval_Hess(const OptVariables& x, const int& nnz, 
-			 int* i, int* j, double* M) = 0;
+  // all these functions 
+  //  - should add their contribution to the result (obj_val, grad, or M)
+  //  - return false if an error occurs in the evaluation
+  virtual bool eval_f(const OptVariables& x, bool new_x, double& obj_val) = 0;
+  virtual bool eval_grad(const OptVariables& x, bool new_x, double* grad) = 0;
+  virtual bool eval_HessLagr(const OptVariables& x, bool new_x, 
+			     const double& obj_factor,
+			     const int& nnz, int* i, int* j, double* M) = 0;
+
+  // methods that need to be implemented to specify the sparsity pattern of the 
+  // implementer's contribution to the sparse derivatives
+  virtual int get_HessLagr_nnz() { return 0; }
+
+  // (i,j) entries in the HessLagr to which the implementer's contributes to
+  // this is only called once
+  // push_back in vij 
+  virtual bool get_HessLagr_ij(std::vector<OptSparseEntry>& vij) { return true; }
+};
+
+class OptConstraintsEvaluator {
+public:
+  // all these functions 
+  //  - should add their contribution to the output
+  //  - return false if an error occurs in the evaluation
+  virtual bool eval_body (const OptVariables& x, bool new_x, double* body) = 0;
+  virtual bool eval_Jac(const OptVariables& x, bool new_x, 
+			const int& nnz, int* i, int* j, double* M) = 0;
+  virtual bool eval_HessLagr(const OptVariables& x, bool new_x, 
+			     const OptVariables& lambda, bool new_lambda,
+			     const int& nnz, int* i, int* j, double* M) = 0;
+
+  // methods that need to be implemented to specify the sparsity pattern of the 
+  // implementer's contribution to the sparse derivatives
+  virtual int get_HessLagr_nnz() { return 0; }
+  virtual int get_Jacob_nnz() = 0; 
+
+  // (i,j) entries in the HessLagr to which the implementer's contributes to
+  // this is only called once
+  // push_back in vij 
+  virtual bool get_HessLagr_ij(std::vector<OptSparseEntry>& vij) { return true; }
+  virtual bool get_Jacob_ij(std::vector<OptSparseEntry>& vij) = 0; 
 };
 
 // holds one objective terms to be minimized
-class OptObjectiveTerm : public OptDerivativeEval {
+class OptObjectiveTerm : public OptObjectiveEvaluator {
 public:
   OptObjectiveTerm(const std::string& id_) : id(id_) {};
   virtual ~OptObjectiveTerm() {};
   int index;
   std::string id;
-  
-  virtual bool eval_body (const OptVariables& x, double* body);
-  virtual bool eval_deriv(const OptVariables& x, double* grad);
-  virtual bool eval_deriv(const OptVariables& x, const int& nnz, int* i, int* j, double* M)
-  {
-    assert(false && "objective cannot provide Jacobians");
-    return false;
-  }
-  virtual bool eval_Hess(const OptVariables& x, const int& nnz, int* i, int* j, double* M);
 };
 
 
 
-class OptConstraintsBlock : public OptDerivativeEval {
+class OptConstraintsBlock : public OptConstraintsEvaluator {
 public:
   OptConstraintsBlock(const std::string& id_) : id(id_) {};
   virtual ~OptConstraintsBlock() {};
@@ -106,14 +152,6 @@ public:
   //term (e.g., penalization) that OptConstraintsBlock may need
   virtual OptObjectiveTerm* create_objterm() { return NULL; }
 
-  virtual bool eval_body (const OptVariables& x, double* body);
-  virtual bool eval_deriv(const OptVariables& x, double* grad)
-  {
-    assert(false && "constraints cannot provide dense derivatives");
-    return false;
-  }
-  virtual bool eval_deriv(const OptVariables& x, const int& nnz, int* i, int* j, double* M);
-  virtual bool eval_Hess(const OptVariables& x, const int& nnz,  int* i, int* j, double* M);
 public: 
   // number of constraints
   int n;
@@ -252,8 +290,10 @@ public:
   bool eval_cons    (const double* x, bool new_x, double* cons);
   bool eval_gradobj (const double* x, bool new_x, double* grad);
   bool eval_Jaccons (const double* x, bool new_x, const int& nnz, int* i, int* j, double* M);
-  //! multipliers
-  virtual bool eval_HessLagr(const double* x, bool new_x, const int& nnz, int* i, int* j, double* M);
+  bool eval_HessLagr(const double* x, bool new_x, 
+		     const double& obj_factor, 
+		     const double* lambda, bool new_lambda,
+		     const int& nnz, int* i, int* j, double* M);
 
   int get_nnzJaccons();
   int get_nnzHessLagr();
