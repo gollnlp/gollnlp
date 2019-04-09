@@ -10,8 +10,8 @@ class OptProblem;
 
 class NlpSolver {
 public:
-  NlpSolver(OptProblem* p_);
-  virtual ~NlpSolver();
+  NlpSolver(OptProblem* p_) : prob(p_) {};
+  virtual ~NlpSolver() {};
 
   //any NlpSolver specific init and finalize
   virtual bool initialize() {};

@@ -51,7 +51,11 @@ public:
   virtual bool get_starting_point(Ipopt::Index n, bool init_x, Number* x,
                                   bool init_z, Number* z_L, Number* z_U,
                                   Ipopt::Index m, bool init_lambda,
-                                  Number* lambda);
+                                  Number* lambda)
+  {
+    assert(false);
+    return true;
+  }
 
   /** Method to return the objective value */
   virtual bool eval_f(Ipopt::Index n, const Number* x, bool new_x, Number& obj_value) {
@@ -79,10 +83,7 @@ public:
                           Ipopt::Index m, Ipopt::Index nele_jac, Ipopt::Index* iRow, Ipopt::Index *jCol,
                           Number* values)
   {
-    if(values) return prob->eval_Jaccons(x, new_x, nele_jac, iRow, jCol, values);
-    else {
-      assert(false);
-    }
+    return prob->eval_Jaccons(x, new_x, nele_jac, iRow, jCol, values);
   }
 
   /** Method to return:
@@ -92,7 +93,10 @@ public:
   virtual bool eval_h(Ipopt::Index n, const Number* x, bool new_x,
                       Number obj_factor, Ipopt::Index m, const Number* lambda,
                       bool new_lambda, Ipopt::Index nele_hess, Ipopt::Index* iRow,
-                      Ipopt::Index* jCol, Number* values);
+                      Ipopt::Index* jCol, Number* values)
+  {
+    return true;
+  }
 
   //@}
 
@@ -104,7 +108,12 @@ public:
                                  Ipopt::Index m, const Number* g, const Number* lambda,
                                  Number obj_value,
 				 const IpoptData* ip_data,
-				 IpoptCalculatedQuantities* ip_cq);
+				 IpoptCalculatedQuantities* ip_cq)
+
+  {
+    return ;
+  }
+
   
   virtual bool intermediate_callback(AlgorithmMode mode,
 				     Ipopt::Index iter, Number obj_value,
@@ -114,7 +123,12 @@ public:
 				     Number alpha_du, Number alpha_pr,
 				     Ipopt::Index ls_trials,
 				     const IpoptData* ip_data,
-				     IpoptCalculatedQuantities* ip_cq);
+				     IpoptCalculatedQuantities* ip_cq)
+
+  {
+    return true;
+  }
+
   //@}
 
 private:
@@ -130,10 +144,14 @@ private:
 
 class IpoptSolver : public NlpSolver {
 public:
-  IpoptSolver(OptProblem* p_);
-  virtual ~IpoptSolver();
+  IpoptSolver(OptProblem* p_) : NlpSolver(p_) {}
+  virtual ~IpoptSolver() {}
 
-  bool set_starting_point(OptVariables* v);
+  bool set_starting_point(OptVariables* v) 
+  {
+    assert(false);
+    return true;
+  }
 
   virtual bool initialize() {
     app = IpoptApplicationFactory();
@@ -163,7 +181,6 @@ public:
   }
 
 private:
-  OptProblem* prob;
   Ipopt::SmartPtr<Ipopt::IpoptApplication> app;
 };
 

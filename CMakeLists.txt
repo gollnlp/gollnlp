@@ -31,11 +31,12 @@ if(NOT DEFINED LAPACK_LIBRARIES)
 endif(NOT DEFINED LAPACK_LIBRARIES)
 message("LAPACK/BLAS libs: ${LAPACK_LIBRARIES}")
 
-set(IPOPT_DIR "/home/petra1/work/installs/Ipopt-3.12.5/Ipopt" CACHE PATH "path to ipopt directory")
+set(IPOPT_DIR "/home/petra1/work/installs/Ipopt-3.12.5/" CACHE PATH "path to ipopt directory")
 message("Using Ipopt dir ${IPOPT_DIR}")
 include_directories("${IPOPT_DIR}/include/coin")
 link_directories("${IPOPT_DIR}/lib")
-set(IPOPT_LIBS "-lipopt")
+#set (CMAKE_SHARED_LINKER_FLAGS "${CMAKE_SHARED_LINKER_FLAGS} -Wl,--rpath -Wl,${IPOPT_DIR}/lib")
+set(IPOPT_LIBS "-lipopt -lm  -ldl")
 
 # include build directory for Fortran name mangling header
 include_directories(${CMAKE_BINARY_DIR})
