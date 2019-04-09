@@ -1,5 +1,5 @@
 #include "OptProblem.hpp"
-
+#include "IpoptSolver.hpp"
 #include <iostream>
 
 #include "blasdefs.hpp"
@@ -16,8 +16,9 @@ OptProblem::OptProblem()
 
   vars_duals_bounds = NULL;
   vars_duals_cons = NULL;
-}
 
+  nnz_Jac = nnz_Hess = -1;
+}
 
 OptProblem::~OptProblem()
 {
@@ -81,6 +82,86 @@ eval_HessLagr(const double* x, bool new_x,
   return true;
 }
 
+static int inline uniquely_indexise(vector<OptSparseEntry>& ij)
+{
+  int nnz = ij.size();
+  if(nnz==0) return 0;
+
+  std::sort(ij.begin(), ij.end());
+  int nnz_unique = 0;
+  for(int nz=1; nz<nnz; nz++) {
+    if( ij[nz-1] < ij[nz] ) nnz_unique++;
+    else assert(ij[nz-1].i == ij[nz].i && ij[nz-1].j == ij[nz].j);
+    if(ij[nz].idx) *(ij[nz].idx) = nnz_unique;	
+  }
+  assert(nnz_unique<nnz);
+  return nnz_unique+1;
+}
+int OptProblem::get_nnzJaccons()
+{
+  if(nnz_Jac<0) {
+    vector<OptSparseEntry> ij;
+    for(auto& con: cons->vblocks)
+      con->get_Jacob_ij(ij);
+    nnz_Jac = uniquely_indexise(ij);
+  }
+  return nnz_Jac;
+}
+int OptProblem::get_nnzHessLagr()
+{
+  if(nnz_Hess<0) {
+    vector<OptSparseEntry> ij;
+
+    for(auto& ot: obj->vterms) 
+      ot->get_HessLagr_ij(ij);
+    for(auto& con: cons->vblocks)
+      con->get_HessLagr_ij(ij);
+    nnz_Hess = uniquely_indexise(ij);
+  }
+  return nnz_Hess;
+}
+
+void OptProblem::fill_primal_vars(double* x) 
+{
+  int one=1;
+  for(auto b: vars_primal->vblocks) {
+    DCOPY(&(b->n), b->x, &one, x + b->index, &one);
+  }
+}
+void OptProblem::fill_vars_lower_bounds(double* lb)
+{
+  int one=1;
+  for(auto b: vars_primal->vblocks) {
+    DCOPY(&(b->n), b->lb, &one, lb + b->index, &one);
+  }
+}
+void OptProblem::fill_vars_upper_bounds(double* ub)
+{
+  int one=1;
+  for(auto b: vars_primal->vblocks) {
+    DCOPY(&(b->n), b->ub, &one, ub + b->index, &one);
+  }
+}
+void OptProblem::fill_cons_lower_bounds(double* lb)
+{
+  int one=1;
+  for(auto b: cons->vblocks) {
+    cout << b->id << endl;
+    assert(b->n>=0);
+    assert(b->index>=0);
+    assert(b->lb!=NULL && b->n>0);
+    DCOPY(&(b->n), b->lb, &one, lb + b->index, &one);
+  }
+}
+void OptProblem::fill_cons_upper_bounds(double* ub)
+{
+  int one=1;
+  for(auto b: cons->vblocks) {
+    assert(b->ub!=NULL && b->n>0);
+    DCOPY(&(b->n), b->ub, &one, ub + b->index, &one);
+  }
+}
+
 OptVariables*  OptProblem::new_duals_vec_cons()
 {
   OptVariables* duals = new OptVariables();
@@ -121,7 +202,12 @@ bool OptProblem::set_solver_option(const std::string& name, const std::string& v
 }
 bool OptProblem::optimize(const std::string& nlpsolver)
 {
-  assert(false);
+  IpoptSolver solver(this);
+  solver.initialize();
+
+  solver.optimize();
+
+  solver.finalize();
   return true;
 }
 
@@ -159,7 +245,7 @@ void OptVariables::attach_to(const double *x)
 }
 
 OptVariablesBlock::OptVariablesBlock(const int& n_, const std::string& id_)
-  : n(n_), id(id_), index(-1)
+  : n(n_), id(id_), index(-1), xref(NULL)
 {
   assert(n>=0);
   int i;
@@ -171,12 +257,10 @@ OptVariablesBlock::OptVariablesBlock(const int& n_, const std::string& id_)
 
   ub = new double[n];
   for(i=0; i<n; i++) ub[i] = +1e+20;
-
-  assert(false);
 }
 
 OptVariablesBlock::OptVariablesBlock(const int& n_, const std::string& id_, double* lb_, double* ub_)
-  : n(n_), id(id_), index(-1)
+  : n(n_), id(id_), index(-1), xref(NULL)
 {
   assert(n>=0);
 
@@ -196,7 +280,7 @@ OptVariablesBlock::OptVariablesBlock(const int& n_, const std::string& id_, doub
     for(i=0; i<n; i++) ub[i] = +1e+20;
 }
 OptVariablesBlock::OptVariablesBlock(const int& n_, const std::string& id_, double lb_, double ub_)
-  : n(n_), id(id_), index(-1)
+  : n(n_), id(id_), index(-1), xref(NULL)
 {
   assert(n>=0);
 

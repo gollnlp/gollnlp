@@ -77,6 +77,13 @@ struct OptSparseEntry
   //idx==NULL means that the implementer (Objective or Constraints evaluator) does not need the nz 
   //of (i,j). This is the case when the implementer can compute it cheaply on the fly.
   int* idx; 
+
+  inline bool operator<(const OptSparseEntry& b) const
+  {
+    if(i < b.i) return true;
+    if(i > b.i) return false;
+    return j<b.j;
+  }
 private:
   OptSparseEntry() {};
 };
@@ -139,8 +146,17 @@ public:
 
 class OptConstraintsBlock : public OptConstraintsEvaluator {
 public:
-  OptConstraintsBlock(const std::string& id_) : id(id_) {};
-  virtual ~OptConstraintsBlock() {};
+  OptConstraintsBlock(const std::string& id_, int num) 
+    : n(num), index(-1), id(id_)
+  {
+    lb = new double[n];
+    ub = new double[n];
+  }
+  virtual ~OptConstraintsBlock() 
+  {
+    delete[] lb;
+    delete[] ub;
+  };
 
   // Some constraints create additional variables (e.g., slacks).
   // This method is called by OptProblem (in 'append_constraints') to get and add
@@ -298,8 +314,8 @@ public:
   int get_nnzJaccons();
   int get_nnzHessLagr();
 
-
 private:
+  int nnz_Jac, nnz_Hess;
 };
   
 } //end namespace

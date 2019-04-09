@@ -116,8 +116,8 @@ private:
 class Ex1SumOfSquaresConstraints : public OptConstraintsBlock {
 public:
   Ex1SumOfSquaresConstraints(const std::string& id_, OptVariablesBlock* x_) 
-    : OptConstraintsBlock(id_), x(x_), H_nz_idxs(NULL), J_nz_start(-1)
-  {};
+    : OptConstraintsBlock(id_,x_->n), x(x_), H_nz_idxs(NULL), J_nz_start(-1)
+  { };
   virtual ~Ex1SumOfSquaresConstraints() 
   {
     if(H_nz_idxs)
@@ -127,18 +127,31 @@ public:
   // all these functions 
   //  - should add their contribution to the output
   //  - return false if an error occurs in the evaluation
-  virtual bool eval_body (const OptVariables& x, bool new_x, double* body)
+  virtual bool eval_body (const OptVariables& vars_primal, bool new_x, double* body)
   {
     assert(false);
     return true;
   };
-  virtual bool eval_Jac(const OptVariables& x, bool new_x, 
+  virtual bool eval_Jac(const OptVariables& primal_vars, bool new_x, 
 			const int& nnz, int* i, int* j, double* M)
   {
-    assert(false);
+    if(NULL==M) {
+      //we have (i0,j0), (i0,j1), ..., (i0, jn), where 
+      // i0 = this->index
+      // j0 = x->index
+      // n  = x->n
+      //we put these starting at this->J_nz_start
+      int *ip = i+this->J_nz_start, *jp = j+this->J_nz_start, it;
+      for(it=0; it<x->n; it++) *(ip++) = this->index;
+      for(it=0; it<x->n; it++) *(jp++) = x->index+it;      
+    } else {
+      //starting at this->J_nz_start
+      double *Mp = M+this->J_nz_start, *xp = x->x;
+      for(int it=0; it<x->n; it++) *(Mp++) = *(xp++) *2;
+    }
     return true;
   };
-  virtual bool eval_HessLagr(const OptVariables& x_in, bool new_x, 
+  virtual bool eval_HessLagr(const OptVariables& vars_primal, bool new_x, 
 			     const OptVariables& lambda_vars, bool new_lambda,
 			     const int& nnz, int* i, int* j, double* M)
   {
@@ -202,16 +215,17 @@ public:
   Ex1Constraint2(const std::string& id_, 
 		 OptVariablesBlock* x_, OptVariablesBlock *z_, OptVariablesBlock* y_,
 		 bool useSlacks=false) 
-    : OptConstraintsBlock(id), x(x_), y(y_), z(z_)
+    : OptConstraintsBlock(id, x_->n), x(x_), y(y_), z(z_)
   {};
   // one can also receives the entire set of variables and initialize variables
   // block used by this constraint block by looking up x, y, z in 'vars'
   Ex1Constraint2(const std::string& id, OptVariables* vars, bool useSlacks=false) 
-    : OptConstraintsBlock(id), use_slacks(useSlacks) 
+    : OptConstraintsBlock(id,0), use_slacks(useSlacks) 
   {
     x = vars->get_block("x"); assert(x);
     y = vars->get_block("y"); assert(y);
     z = vars->get_block("z"); assert(z);
+    this->n = x->n;
   };
 
    

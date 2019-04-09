@@ -18,5 +18,7 @@ int main()
   prob.append_constraints(new Ex1SumOfSquaresConstraints("sumxsquare", x));
   //prob.append_constraints(new Ex1Constraint2("constraint2", x, y, z));
 
+  bool bret = prob.optimize("ipopt");
+
   return 0;
 }
