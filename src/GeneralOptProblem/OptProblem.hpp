@@ -16,6 +16,11 @@ public:
   //all lb and ub are set to lb_ and ub_
   OptVariablesBlock(const int& n_, const std::string& id_, double lb_, double ub_);
   virtual ~OptVariablesBlock();
+
+  void set_start_to(const double& scalar);
+  void set_start_to(const double* values);
+  void set_start_to(const OptVariablesBlock& block);
+
   //number of vars in the block
   int n; 
   // index at which the block starts within OptVariables
@@ -29,6 +34,7 @@ public:
   //pointer/reference to the first elem in NLP solver's "x" that corresponds to this block
   //handled by attach_to
   const double* xref;
+  bool providesStartingPoint;
 };
   
 ////////////////////////////////////////////////////////////
@@ -142,8 +148,10 @@ public:
   std::string id;
 };
 
-
-
+///////////////////////////////////////////////////////////////
+//OptConstraintsBlock
+//
+///////////////////////////////////////////////////////////////
 class OptConstraintsBlock : public OptConstraintsEvaluator {
 public:
   OptConstraintsBlock(const std::string& id_, int num) 
@@ -240,14 +248,6 @@ public:
   inline int get_num_constraints() const { return cons->m(); }
   inline int get_num_variables() const { return vars_primal->n(); }
 
-protected:
-  OptVariables*    vars_primal;
-  OptConstraints*  cons;
-  OptObjective*    obj;
-
-  OptVariables*    vars_duals_bounds;
-  OptVariables*    vars_duals_cons;
-
 public:
   inline void append_variables(OptVariablesBlock* vars)
   {
@@ -267,9 +267,6 @@ public:
     obj->append_objterm(objterm);
   }
 
-  virtual OptVariables* new_duals_vec_cons();
-  virtual OptVariables* new_duals_vec_bounds();
-
   //
   // optimization and NLP solver related stuff
   //
@@ -279,24 +276,18 @@ public:
   virtual bool set_solver_option(const std::string& name, double value);
   virtual bool set_solver_option(const std::string& name, const std::string& value);
 
+
+  //Starting points - 'vars_primals' and 'vars_duals_xxx' are used when optimize and reoptimize
+  //More specifically, OptProblem will check if any of the blocks 'b' in the primal and dual
+  //variables has b.providesStartingPoint==true and will use exactly b.x; otherwise will use zeros
+
+  // NLP optimization
   virtual bool optimize(const std::string& nlpsolver);
-
-  //getters -> copy to x; x should be allocated
-  void fill_primal_vars(double* x);
-  void fill_vars_lower_bounds(double* lb);
-  void fill_vars_upper_bounds(double* ub);
-  void fill_cons_lower_bounds(double* lb);
-  void fill_cons_upper_bounds(double* ub);
-
-  //DUALS -> for constraints
-  void fill_dual_vars_con(double*x);
-  //for bounds
-  void fill_dual_vars_bounds(double*x);
 
   // Callbacks
   // This method is called by NlpSolver instance after each iteration (if supported by the solver)
   // Derive a class from OptProblem to hook your code
-  virtual bool iterate_callback() {return true;}
+  //virtual bool iterate_callback() {return true;}
 public:
   //
   // internal NLP functions evaluators fed to the NLP solver
@@ -310,12 +301,43 @@ public:
 		     const double& obj_factor, 
 		     const double* lambda, bool new_lambda,
 		     const int& nnz, int* i, int* j, double* M);
+  //getters -> copy to x; x should be allocated
+  void fill_primal_vars(double* x);
+  void fill_vars_lower_bounds(double* lb);
+  void fill_vars_upper_bounds(double* ub);
+  void fill_cons_lower_bounds(double* lb);
+  void fill_cons_upper_bounds(double* ub);
+
+  //DUALS -> for constraints
+  void fill_dual_vars_con(double*x);
+  //for bounds
+  void fill_dual_vars_bounds(double*x);
+
+  // other internal NLP-related methods
+  bool fill_primal_start(double* x);
+  bool fill_dual_bounds_start(double* z_L, double* z_U);
+  bool fill_dual_cons_start(double* lambda);
+
+  //other internal methods
+  virtual OptVariables* new_duals_vec_cons();
+  virtual OptVariables* new_duals_vec_bounds();
 
   int get_nnzJaccons();
   int get_nnzHessLagr();
 
-private:
+protected:
+  OptVariables*    vars_primal;
+  OptConstraints*  cons;
+  OptObjective*    obj;
+
+  OptVariables*    vars_duals_bounds;
+  OptVariables*    vars_duals_cons;
+
   int nnz_Jac, nnz_Hess;
+  bool haveStartingPt;
+
+  //these two vectors have limited storage lifetime
+  std::vector<OptSparseEntry> ij_Jac, ij_Hess;
 };
   
 } //end namespace

@@ -9,6 +9,7 @@
 
 using namespace Ipopt;
 
+#include <iostream>
 
 namespace gollnlp {
 
@@ -53,7 +54,13 @@ public:
                                   Ipopt::Index m, bool init_lambda,
                                   Number* lambda)
   {
-    assert(false);
+    //std::cout << init_x << " " << init_z << " " << init_lambda << std::endl;
+    if(init_x)
+      if(!prob->fill_primal_start(x)) return false;
+    if(init_z)
+      if(!prob->fill_dual_bounds_start(z_L, z_U)) return false;
+    if(init_lambda)
+      if(!prob->fill_dual_cons_start(lambda)) return false;	
     return true;
   }
 
@@ -95,7 +102,7 @@ public:
                       bool new_lambda, Ipopt::Index nele_hess, Ipopt::Index* iRow,
                       Ipopt::Index* jCol, Number* values)
   {
-    return true;
+    return prob->eval_HessLagr(x, new_x, obj_factor, lambda, new_lambda, nele_hess, iRow, jCol, values);
   }
 
   //@}
