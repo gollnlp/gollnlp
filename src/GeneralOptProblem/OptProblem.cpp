@@ -201,13 +201,36 @@ int OptProblem::get_nnzJaccons()
   }
   return nnz_Jac;
 }
+
+#ifdef DEBUG
+static bool check_is_upper(const vector<OptSparseEntry>& ij)
+{
+  for(auto& e: ij) if(e.j<e.i) return false;
+  return true;
+}
+#endif
+  
 int OptProblem::get_nnzHessLagr()
 {
   if(nnz_Hess<0) {
-    for(auto& ot: obj->vterms) 
+    for(auto& ot: obj->vterms) {
       ot->get_HessLagr_ij(ij_Hess);
-    for(auto& con: cons->vblocks)
+#ifdef DEBUG
+      if(false==check_is_upper(ij_Hess)) {
+	printf("[Warning] Objective term %s returned nonzero elements in the lower triangular part of the Hessian.", ot->id.c_str());
+	//assert(false);
+      }
+#endif
+    }
+    for(auto& con: cons->vblocks) {
       con->get_HessLagr_ij(ij_Hess);
+#ifdef DEBUG
+      if(false==check_is_upper(ij_Hess)) {
+	printf("[Warning] Constraint term %s returned nonzero elements in the lower triangular part of the Hessian.", con->id.c_str());
+	//assert(false);
+      }
+#endif      
+    }
     nnz_Hess = uniquely_indexise(ij_Hess);
   }
   return nnz_Hess;
