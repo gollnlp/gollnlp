@@ -5,9 +5,9 @@
 int main()
 {
   OptProblem prob;
-  int nx=200, nyz=nx/5;
+  int nx=100000, nyz=nx/5;
   OptVariablesBlock* x = new OptVariablesBlock(nx, "x");
-  OptVariablesBlock* y = new OptVariablesBlock(nyz, "y", 0, 10);
+  OptVariablesBlock* y = new OptVariablesBlock(nyz, "y", 0.5, 10);
   OptVariablesBlock* z = new OptVariablesBlock(nyz, "z", -1e+20, 5);
 
   //by default variables blocks have no starting values attached
@@ -27,6 +27,8 @@ int main()
   prob.append_constraints(new Ex1Constraint2("constraint2", x, y, z));
 
   bool bret = prob.optimize("ipopt");
+
+  bret = prob.reoptimize(OptProblem::primalDualRestart);
 
   return 0;
 }

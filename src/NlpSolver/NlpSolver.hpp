@@ -17,8 +17,7 @@ public:
   virtual bool initialize() {};
   virtual bool finalize() {};
 
-  virtual bool set_starting_point(OptVariables* v) = 0;
-
+  virtual bool set_start_type(OptProblem::RestartType t)=0;
 
   // solves the problem and return success (0) or error codes (tbd)
   virtual int optimize() = 0;

@@ -6,6 +6,7 @@
 
 #include "IpIpoptApplication.hpp"
 #include "IpTNLP.hpp"
+#include "IpIpoptData.hpp"
 
 using namespace Ipopt;
 
@@ -54,7 +55,7 @@ public:
                                   Ipopt::Index m, bool init_lambda,
                                   Number* lambda)
   {
-    //std::cout << init_x << " " << init_z << " " << init_lambda << std::endl;
+    std::cout << init_x << " " << init_z << " " << init_lambda << std::endl;
     if(init_x)
       if(!prob->fill_primal_start(x)) return false;
     if(init_z)
@@ -118,7 +119,11 @@ public:
 				 IpoptCalculatedQuantities* ip_cq)
 
   {
-    return ;
+    //SmartPtr< const IteratesVector > a = 	ip_data->curr () ;
+    //IteratesVector b = *a;
+    prob->set_primal_vars(x);
+    prob->set_duals_vars_bounds(z_L, z_U);
+    prob->set_duals_vars_cons(lambda);
   }
 
   
@@ -134,6 +139,14 @@ public:
 
   {
     return true;
+  }
+
+  virtual bool get_warm_start_iterate(IteratesVector& warm_start_iterate)
+  {
+    // really advanced primal-dual start -> warm_start_entire_iterate
+    // https://github.com/coin-or/Bonmin/blob/master/Bonmin/src/Interfaces/BonTMINLP2TNLP.cpp
+    // https://list.coin-or.org/pipermail/ipopt/2011-April/002428.html
+    return false;
   }
 
   //@}
@@ -154,9 +167,15 @@ public:
   IpoptSolver(OptProblem* p_) : NlpSolver(p_) {}
   virtual ~IpoptSolver() {}
 
-  bool set_starting_point(OptVariables* v) 
+  virtual bool set_start_type(OptProblem::RestartType t)
   {
-    assert(false);
+    if(t==OptProblem::primalDualRestart)
+      app->Options()->SetStringValue("warm_start_init_point", "yes");
+    else
+      if(t==OptProblem::primalRestart)
+	app->Options()->SetStringValue("warm_start_init_point", "no");
+      else
+	assert("not yet implemented");
     return true;
   }
 
@@ -168,11 +187,13 @@ public:
       printf("\n\n*** Error during initialization!\n");
       return false;
     }
+
+    ipopt_nlp_spec = new gollnlp::IpoptNlp(prob);
+
     return true;
   }
 
   virtual int optimize() {
-    Ipopt::SmartPtr<Ipopt::TNLP> ipopt_nlp_spec = new gollnlp::IpoptNlp(prob);
 
     // Ask Ipopt to solve the problem
     ApplicationReturnStatus status = app->OptimizeTNLP(ipopt_nlp_spec);
@@ -189,7 +210,10 @@ public:
 
 private:
   Ipopt::SmartPtr<Ipopt::IpoptApplication> app;
+  Ipopt::SmartPtr<Ipopt::TNLP> ipopt_nlp_spec;
 };
+
+
 
 } //endnamespace
 #endif

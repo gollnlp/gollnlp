@@ -4,6 +4,7 @@
 
 #include "blasdefs.hpp"
 #include "goUtils.hpp"
+#include "goTimer.hpp"
 
 #include <string.h> //for memcpy
 
@@ -42,6 +43,7 @@ OptProblem::~OptProblem()
   delete vars_duals_bounds;
   delete vars_duals_cons;
   delete vars_primal;
+  delete nlp_solver;
 }
 
 bool OptProblem::eval_obj(const double* x, bool new_x, double& obj_val)
@@ -100,7 +102,7 @@ bool OptProblem::eval_Jaccons (const double* x, bool new_x, const int& nnz, int*
 {
   if(M==NULL) {
     //fill in i and j based on ij_Hess
-
+    
     //in some case, e.g. derivative checking, eval_Jaccons is called more than one time with M==NULL
     //re-uniqueize and display a warning
     if(nnz>ij_Jac.size()) {
@@ -112,6 +114,7 @@ bool OptProblem::eval_Jaccons (const double* x, bool new_x, const int& nnz, int*
     }
     uniqueize(ij_Jac, nnz, i, j);
     hardclear(ij_Jac);
+
     return true;
   }
 
@@ -195,9 +198,15 @@ static int inline uniquely_indexise(vector<OptSparseEntry>& ij)
 int OptProblem::get_nnzJaccons()
 {
   if(nnz_Jac<0) {
+    goTimer tm; tm.start();
+
     for(auto& con: cons->vblocks)
       con->get_Jacob_ij(ij_Jac);
+
     nnz_Jac = uniquely_indexise(ij_Jac);
+
+    tm.stop();
+    printf("Jacobian structure %g sec\n", tm.getElapsedTime());
   }
   return nnz_Jac;
 }
@@ -213,6 +222,8 @@ static bool check_is_upper(const vector<OptSparseEntry>& ij)
 int OptProblem::get_nnzHessLagr()
 {
   if(nnz_Hess<0) {
+    goTimer tm; tm.start();
+
     for(auto& ot: obj->vterms) {
       ot->get_HessLagr_ij(ij_Hess);
 #ifdef DEBUG
@@ -232,17 +243,29 @@ int OptProblem::get_nnzHessLagr()
 #endif      
     }
     nnz_Hess = uniquely_indexise(ij_Hess);
+
+    tm.stop();
+    printf("Hessian structure %g sec\n", tm.getElapsedTime());
   }
   return nnz_Hess;
 }
 
 void OptProblem::fill_primal_vars(double* x) 
-{
-  
+{ 
   for(auto b: vars_primal->vblocks) {
     DCOPY(&(b->n), b->x, &one, x + b->index, &one);
   }
 }
+
+void OptProblem::set_primal_vars(const double* x)
+{
+  for(auto b: vars_primal->vblocks) {
+    memcpy(b->x, x+b->index, b->n*sizeof(double));
+    //DCOPY(&(b->n), x, &one, x + b->index, &one);
+  }
+}
+
+
 void OptProblem::fill_vars_lower_bounds(double* lb)
 {
   
@@ -275,6 +298,97 @@ void OptProblem::fill_cons_upper_bounds(double* ub)
     DCOPY(&(b->n), b->ub, &one, ub + b->index, &one);
   }
 }
+
+void OptProblem::set_duals_vars_bounds(const double* zL, const double* zU)
+{
+  for(auto b: vars_primal->vblocks) {
+    auto* bdual = vars_duals_bounds->get_block(string("duals_bnd_") + b->id);
+
+    for(int i=0; i<b->n; i++) {
+      if(b->lb[i]<=-1e20 && b->ub[i] >=1e+20) {
+	bdual->x[i]=0.;
+      } else if(b->lb[i]<=-1e20) {
+	bdual->x[i] = zU[b->index+i];
+      } else if(b->ub[i] >=1e+20) {
+	bdual->x[i] = zL[b->index+i];
+      } else { 
+	bdual->x[i] = max(zL[b->index+i], zL[b->index+i]);
+      }
+      // printf("[%d] zL=%g zU=%g    x=%g lb=%g lu=%g   our dual=%g\n", b->index+i, 
+      //	     zL[b->index+i], zU[b->index+i], 
+      //     b->x[i], b->lb[i], b->ub[i], bdual->x[i]);
+    }
+  }
+}
+
+void OptProblem::fill_dual_vars_bounds(double* zL, double* zU)
+{
+  for(auto b: vars_primal->vblocks) {
+    auto* bdual = vars_duals_bounds->get_block(string("duals_bnd_") + b->id);
+
+    for(int i=0; i<b->n; i++) {
+      if(b->lb[i]<=-1e20 && b->ub[i] >=1e+20) {
+	zL[b->index+i] = zU[b->index+i] = 0; assert(bdual->x[i]==0);
+      } else if(b->lb[i]<=-1e20) {
+	zU[b->index+i] = bdual->x[i];
+	zL[b->index+i] = 0.;
+      } else if(b->ub[i] >=1e+20) {
+	zL[b->index+i] = bdual->x[i];
+	zU[b->index+i] = 0.;
+      } else { 
+	if( (b->x[i] - b->lb[i]) > (b->ub[i] - b->x[i]) ) {
+	  zU[b->index+i] = bdual->x[i];
+	  zL[b->index+i] = 0.;
+	} else {
+	  zL[b->index+i] = bdual->x[i];
+	  zU[b->index+i] = 0.;
+	}
+      }
+      // printf("[%d] zL=%g zU=%g    x=%g lb=%g lu=%g   our dual=%g\n", b->index+i, 
+      //	     zL[b->index+i], zU[b->index+i], 
+      //     b->x[i], b->lb[i], b->ub[i], bdual->x[i]);
+    }
+  }
+}
+
+bool OptProblem::fill_dual_bounds_start(double* zL, double* zU)
+{
+  for(auto b: vars_primal->vblocks) {
+    auto* bdual = vars_duals_bounds->get_block(string("duals_bnd_") + b->id);
+
+    if(!bdual->providesStartingPoint) {
+      for(int i=0; i<b->n; i++) {
+	zL[b->index+i] = zU[b->index+i] =0.;
+      }
+      continue;
+    }
+
+    for(int i=0; i<b->n; i++) {
+      if(b->lb[i]<=-1e20 && b->ub[i] >=1e+20) {
+	zL[b->index+i] = zU[b->index+i] = 0; assert(bdual->x[i]==0);
+      } else if(b->lb[i]<=-1e20) {
+	zU[b->index+i] = bdual->x[i];
+	zL[b->index+i] = 0.;
+      } else if(b->ub[i] >=1e+20) {
+	zL[b->index+i] = bdual->x[i];
+	zU[b->index+i] = 0.;
+      } else { 
+	if( (b->x[i] - b->lb[i]) > (b->ub[i] - b->x[i]) ) {
+	  zU[b->index+i] = bdual->x[i];
+	  zL[b->index+i] = 0.;
+	} else {
+	  zL[b->index+i] = bdual->x[i];
+	  zU[b->index+i] = 0.;
+	}
+      }
+      // printf("[%d] zL=%g zU=%g    x=%g lb=%g lu=%g   our dual=%g\n", b->index+i, 
+      //	     zL[b->index+i], zU[b->index+i], 
+      //     b->x[i], b->lb[i], b->ub[i], bdual->x[i]);
+    }
+  }  
+  return true;
+}
+
 
 OptVariables*  OptProblem::new_duals_vec_cons()
 {
@@ -324,11 +438,7 @@ bool OptProblem::fill_primal_start(double* x)
   }
   return true;
 }
-bool OptProblem::fill_dual_bounds_start(double* z_L, double* z_U)
-{
-  assert(false);
-  return true;
-}
+
 bool OptProblem::fill_dual_cons_start(double* lambda)
 {
   for(auto b: vars_duals_cons->vblocks) {
@@ -339,20 +449,52 @@ bool OptProblem::fill_dual_cons_start(double* lambda)
   return true;
 }
 
-bool OptProblem::optimize(const std::string& nlpsolver)
+void OptProblem::set_duals_vars_cons(const double* lambda)
+{
+  for(auto b: vars_duals_cons->vblocks) {
+    memcpy(b->x, lambda + b->index, b->n*sizeof(double));
+  }
+}
+
+bool OptProblem::optimize(const std::string& solver_name)
 {
   if(vars_duals_bounds) delete vars_duals_bounds;
   if(vars_duals_cons) delete vars_duals_cons;
   vars_duals_bounds = new_duals_vec_bounds();
   vars_duals_cons = new_duals_vec_cons();
 
-  IpoptSolver solver(this);
-  solver.initialize();
+  nlp_solver = new IpoptSolver(this);
+  nlp_solver->initialize();
 
-  solver.optimize();
+  if(true==nlp_solver->optimize()) {
+    set_have_start();
+  }
 
-  solver.finalize();
+  //solver.finalize();
   return true;
+}
+
+bool OptProblem::reoptimize(RestartType t)
+{
+  assert(vars_duals_bounds && "call optimize instead");
+  assert(vars_duals_cons && "call optimize instead");
+
+  nlp_solver->set_start_type(t);
+
+  if(true==nlp_solver->reoptimize()) {
+    set_have_start();
+  }
+
+  nlp_solver->finalize();
+  return true;
+}
+
+void OptProblem::set_have_start()
+{
+  //var_primals were updated with the values from the solver's finalize method
+  for(auto b: vars_primal->vblocks) b->providesStartingPoint=true;
+  for(auto b: vars_duals_bounds->vblocks) b->providesStartingPoint=true;
+  for(auto b: vars_duals_cons->vblocks) b->providesStartingPoint=true;
 }
 
 /////////////////////////////////////////

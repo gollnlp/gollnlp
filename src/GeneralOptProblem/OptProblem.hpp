@@ -1,13 +1,13 @@
 #ifndef GOLLNLP_OPTPROB
 #define GOLLNLP_OPTPROB
 
-#include "NlpSolver.hpp"
-
 #include <string>
 #include <cassert>
 #include <vector>
 #include <map>
 namespace gollnlp {
+
+class NlpSolver;
 
 class OptVariablesBlock {
 public:
@@ -282,8 +282,11 @@ public:
   //variables has b.providesStartingPoint==true and will use exactly b.x; otherwise will use zeros
 
   // NLP optimization
-  virtual bool optimize(const std::string& nlpsolver);
 
+  enum RestartType{primalRestart, primalDualRestart, AdvancedPrimalDualRestart};
+
+  virtual bool optimize(const std::string& nlpsolver);
+  virtual bool reoptimize(RestartType t=primalRestart);
   // Callbacks
   // This method is called by NlpSolver instance after each iteration (if supported by the solver)
   // Derive a class from OptProblem to hook your code
@@ -311,12 +314,19 @@ public:
   //DUALS -> for constraints
   void fill_dual_vars_con(double*x);
   //for bounds
-  void fill_dual_vars_bounds(double*x);
+  void fill_dual_vars_bounds(double*zL, double* zU);
 
   // other internal NLP-related methods
   bool fill_primal_start(double* x);
   bool fill_dual_bounds_start(double* z_L, double* z_U);
   bool fill_dual_cons_start(double* lambda);
+
+  //setters
+  void set_primal_vars(const double* x);
+  void set_duals_vars_bounds(const double* zL, const double* zU);
+  void set_duals_vars_cons(const double* lambda);
+
+  void set_have_start();
 
   //other internal methods
   virtual OptVariables* new_duals_vec_cons();
@@ -324,6 +334,8 @@ public:
 
   int get_nnzJaccons();
   int get_nnzHessLagr();
+
+ 
 
 protected:
   OptVariables*    vars_primal;
@@ -334,7 +346,8 @@ protected:
   OptVariables*    vars_duals_cons;
 
   int nnz_Jac, nnz_Hess;
-  bool haveStartingPt;
+
+  NlpSolver* nlp_solver;
 
   //these two vectors have limited storage lifetime
   std::vector<OptSparseEntry> ij_Jac, ij_Hess;
