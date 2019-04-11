@@ -207,6 +207,21 @@ public:
       return false;
     }
   }
+  virtual bool set_option(const std::string& name, int value)
+  {
+    app->Options()->SetIntegerValue(name, value);
+    return true;
+  }
+  virtual bool set_option(const std::string& name, double value)
+  {
+    app->Options()->SetNumericValue(name, value);
+    return true;
+  };
+  virtual bool set_option(const std::string& name, const std::string& value)
+  {
+    app->Options()->SetStringValue(name, value);
+    return true;
+  };
 
 private:
   Ipopt::SmartPtr<Ipopt::IpoptApplication> app;

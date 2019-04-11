@@ -19,6 +19,10 @@ public:
 
   virtual bool set_start_type(OptProblem::RestartType t)=0;
 
+  virtual bool set_option(const std::string& name, int value) = 0;
+  virtual bool set_option(const std::string& name, double value) = 0;
+  virtual bool set_option(const std::string& name, const std::string& value) = 0;
+
   // solves the problem and return success (0) or error codes (tbd)
   virtual int optimize() = 0;
   virtual int reoptimize() { return optimize(); }

@@ -270,7 +270,7 @@ public:
   //
   // optimization and NLP solver related stuff
   //
-  virtual bool use_nlp_solver(const std::string& nlpsolver);
+  virtual void use_nlp_solver(const std::string& name);
   //these setters return false if the option is not recognized by the NLP solver
   virtual bool set_solver_option(const std::string& name, int value);
   virtual bool set_solver_option(const std::string& name, double value);
@@ -335,7 +335,7 @@ public:
   int get_nnzJaccons();
   int get_nnzHessLagr();
 
- 
+protected:
 
 protected:
   OptVariables*    vars_primal;

@@ -34,6 +34,7 @@ OptProblem::OptProblem()
   vars_duals_cons = NULL;
 
   nnz_Jac = nnz_Hess = -1;
+  nlp_solver = NULL;
 }
 
 OptProblem::~OptProblem()
@@ -407,26 +408,18 @@ OptVariables*  OptProblem::new_duals_vec_bounds()
   return duals;
 }
 
-bool OptProblem::use_nlp_solver(const std::string& nlpsolver)
-{
-  assert(false);
-  return true;
-}
 //these setters return false if the option is not recognized by the NLP solver
 bool OptProblem::set_solver_option(const std::string& name, int value)
 {
-  assert(false);
-  return true;
+  return nlp_solver->set_option(name,value);
 }
 bool OptProblem::set_solver_option(const std::string& name, double value)
 {
-  assert(false);
-  return true;
+  return nlp_solver->set_option(name,value);
 }
 bool OptProblem::set_solver_option(const std::string& name, const std::string& value)
 {
-  assert(false);
-  return true;
+  return nlp_solver->set_option(name,value);
 }
 
 bool OptProblem::fill_primal_start(double* x)
@@ -456,6 +449,14 @@ void OptProblem::set_duals_vars_cons(const double* lambda)
   }
 }
 
+void OptProblem::use_nlp_solver(const std::string& name)
+{
+  if(NULL == nlp_solver) {
+    nlp_solver = new IpoptSolver(this);
+    nlp_solver->initialize();
+  }
+}
+
 bool OptProblem::optimize(const std::string& solver_name)
 {
   if(vars_duals_bounds) delete vars_duals_bounds;
@@ -463,11 +464,13 @@ bool OptProblem::optimize(const std::string& solver_name)
   vars_duals_bounds = new_duals_vec_bounds();
   vars_duals_cons = new_duals_vec_cons();
 
-  nlp_solver = new IpoptSolver(this);
-  nlp_solver->initialize();
+  if(!nlp_solver) {
+    cout << "call 'use_nlp_solver' first\n";
+    return false;
+  }
 
   if(true==nlp_solver->optimize()) {
-    set_have_start();
+    this->set_have_start();
   }
 
   //solver.finalize();

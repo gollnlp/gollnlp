@@ -5,7 +5,7 @@
 int main()
 {
   OptProblem prob;
-  int nx=100000, nyz=nx/5;
+  int nx=2000000, nyz=nx/5;
   OptVariablesBlock* x = new OptVariablesBlock(nx, "x");
   OptVariablesBlock* y = new OptVariablesBlock(nyz, "y", 0.5, 10);
   OptVariablesBlock* z = new OptVariablesBlock(nyz, "z", -1e+20, 5);
@@ -26,9 +26,18 @@ int main()
   prob.append_constraints(new Ex1SumOfSquaresConstraints("sumxsquare", x));
   prob.append_constraints(new Ex1Constraint2("constraint2", x, y, z));
 
+  prob.use_nlp_solver("ipopt");
+  //set options
+  prob.set_solver_option("linear_solver", "ma57");
+  prob.set_solver_option("print_timing_statistics", "yes");
+
   bool bret = prob.optimize("ipopt");
 
+  //set initial mu to something low
+  prob.set_solver_option("mu_init", 1e-6);
+
   bret = prob.reoptimize(OptProblem::primalDualRestart);
+  //bret = prob.reoptimize(OptProblem::primalRestart);
 
   return 0;
 }
