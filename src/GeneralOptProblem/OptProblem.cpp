@@ -39,7 +39,8 @@ OptProblem::OptProblem()
 
 OptProblem::~OptProblem()
 {
-  nlp_solver->finalize();
+  if(nlp_solver)
+    nlp_solver->finalize();
   delete obj;
   delete cons;
   delete vars_duals_bounds;
@@ -546,13 +547,13 @@ OptVariablesBlock::OptVariablesBlock(const int& n_, const std::string& id_, doub
   int i;
   lb = new double[n];
   if(lb_)
-    DCOPY(&n, lb, &one, lb_, &one);
+    DCOPY(&n, lb_, &one, lb, &one);
   else
     for(i=0; i<n; i++) lb[i] = -1e+20;
 
   ub = new double[n];
   if(ub_)
-    DCOPY(&n, ub, &one, ub_, &one);
+    DCOPY(&n, ub_, &one, ub, &one);
   else
     for(i=0; i<n; i++) ub[i] = +1e+20;
 }
