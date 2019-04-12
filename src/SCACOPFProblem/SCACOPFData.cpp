@@ -509,7 +509,13 @@ readRAW(const std::string& raw, double& MVAbase,
   }
   bool ret; string line; 
   ret = getline(rawfile, line); assert(ret);
-  MVAbase = strtod(split(line, ',')[1].c_str(), NULL);
+  
+  auto tokens = split(line, ',');
+  if(tokens.size()<2) {
+    log.printf(hovError, "invalid raw file? we expected two comma separated strings in %s.\n", raw.c_str());
+    return false;
+  }
+  MVAbase = strtod(tokens[1].c_str(), NULL);
 
   //skip the next two lines
   ret = getline(rawfile, line); assert(ret);
