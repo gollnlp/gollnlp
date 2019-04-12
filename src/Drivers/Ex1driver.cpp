@@ -5,7 +5,7 @@
 int main()
 {
   OptProblem prob;
-  int nx=1000000, nyz=nx/5;
+  int nx=2000000, nyz=nx/5;
   OptVariablesBlock* x = new OptVariablesBlock(nx, "x");
   OptVariablesBlock* y = new OptVariablesBlock(nyz, "y", 0.5, 10);
   OptVariablesBlock* z = new OptVariablesBlock(nyz, "z", -1e+20, 5);
@@ -35,10 +35,18 @@ int main()
   bool bret = prob.optimize("ipopt");
 
   //set initial mu to something low when restarting
-  prob.set_solver_option("mu_init", 1e-6);
+  prob.set_solver_option("mu_init", 1e-9);
 
-  bret = prob.reoptimize(OptProblem::advancedPrimalDualRestart); //warm_start_target_mu
-  //bret = prob.reoptimize(OptProblem::primalRestart);
+  bret = prob.reoptimize(OptProblem::primalDualRestart); //warm_start_target_mu
+
+  //
+  //modify rhs of constraints2 from 0 to 0.1 and resolve
+  OptConstraintsBlock* con2 = prob.get_constraints_block("constraint2");
+  assert(con2);
+  for(int i=0; i<con2->n; i++)
+    con2->lb[i] = con2->ub[i] = 0.01;
+
+  bret = prob.reoptimize(OptProblem::primalRestart); //warm_start_target_mu
 
   return 0;
 }

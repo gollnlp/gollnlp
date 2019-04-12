@@ -267,6 +267,11 @@ public:
     obj->append_objterm(objterm);
   }
 
+  inline OptConstraintsBlock* get_constraints_block(const std::string& id)
+  {
+    return cons->get_block(id);
+  }
+  
   //
   // optimization and NLP solver related stuff
   //
