@@ -57,11 +57,19 @@ public:
 			     const int& nnz, int* i, int* j, double* M)
   {
     assert(x == vars_primal.get_block("x"));
-
-    for(int it=0; it<x->n; it++) {
-      assert(H_nz_idxs[it]>=0);
-      assert(H_nz_idxs[it]<nnz);
-      M[H_nz_idxs[it]] += obj_factor;
+    if(NULL==M) {
+      int idx, row;
+      for(int it=0; it<x->n; it++) {
+	idx = H_nz_idxs[it]; 
+	if(idx<0) return false;
+	i[idx] = j[idx] = x->index+it;
+      }
+    } else {
+      for(int it=0; it<x->n; it++) {
+	assert(H_nz_idxs[it]>=0);
+	assert(H_nz_idxs[it]<nnz);
+	M[H_nz_idxs[it]] += obj_factor;
+      }
     }
     return true;
   }
@@ -123,20 +131,42 @@ public:
 			     const double& obj_factor,
 			     const int& nnz, int* i, int* j, double* M)
   {
-    int itaux;
-    for(int it=0; it<2*a->n; ) {
-      assert(H_nz_idxs[it]>=0);
-      assert(H_nz_idxs[it]<nnz);
+    if(NULL==M) {
+      int row,idx;
+      for(int it=0; it < a->n; it++) {
+	row = a->index+it;
+	
+	idx = H_nz_idxs[2*it];
+	if(idx<0) return false;
+	i[idx] = j[idx] = row;
+
+	idx = H_nz_idxs[2*it+1];
+	if(idx<0) return false;
+	i[idx] = row; j[idx] = b->index+it;
+      }
       
-      M[H_nz_idxs[it]] += obj_factor; // with respect to a_i, a_i
-      it++;
-      M[H_nz_idxs[it]] -= obj_factor; // with respect to a_i, b_i
-      it++;
-    }
-    for(int it=2*a->n; it<2*a->n+b->n; it++) {
-      assert(H_nz_idxs[it]>=0);
-      assert(H_nz_idxs[it]<nnz);
-      M[H_nz_idxs[it]] += obj_factor; // with respect to b_i, b_i
+      for(int it=0; it < b->n; it++) {
+	idx = H_nz_idxs[2*a->n + it];
+	if(idx<0) return false;
+	i[idx] = j[idx] = b->index+it;
+      }
+
+    } else {
+
+      for(int it=0; it<2*a->n; ) {
+	assert(H_nz_idxs[it]>=0);
+	assert(H_nz_idxs[it]<nnz);
+	
+	M[H_nz_idxs[it]] += obj_factor; // with respect to a_i, a_i
+	it++;
+	M[H_nz_idxs[it]] -= obj_factor; // with respect to a_i, b_i
+	it++;
+      }
+      for(int it=2*a->n; it<2*a->n+b->n; it++) {
+	assert(H_nz_idxs[it]>=0);
+	assert(H_nz_idxs[it]<nnz);
+	M[H_nz_idxs[it]] += obj_factor; // with respect to b_i, b_i
+      }
     }
 
     return true;
@@ -198,26 +228,28 @@ public:
   virtual bool eval_Jac(const OptVariables& primal_vars, bool new_x, 
 			const int& nnz, int* i, int* j, double* M)
   {
-    assert(M);
-    // if(NULL==M) {
-    //   //we have (i0,j0), (i0,j1), ..., (i0, jn), where 
-    //   // i0 = this->index
-    //   // j0 = x->index
-    //   // n  = x->n
-    //   //we put these starting at this->J_nz_start
-    //   int *ip = i+this->J_nz_start, *jp = j+this->J_nz_start, it;
-    //   for(it=0; it<x->n; it++) *(ip++) = this->index;
-    //   for(it=0; it<x->n; it++) *(jp++) = x->index+it;      
-    // } else {
+    if(NULL==M) {
+      //were my indexes set up?
+      if(this->J_nz_start<0) return false;
 
-    //starting at this->J_nz_start
-    double *Mp = M+this->J_nz_start; 
-    for(int it=0; it<x->n; it++) {
-      *(Mp++) +=  2*x->xref[it];
-      //printf("[%d] = %g x=%g  start=%d\n", it, M[this->J_nz_start+it], x->xref[it], this->J_nz_start);
+      //we have (i0,j0), (i0,j1), ..., (i0, jn), where 
+      // - i0 = this->index
+      // - j0 = x->index
+      // - n  = x->n
+      //we put these starting at this->J_nz_start
+      int *ip = i+this->J_nz_start, *jp = j+this->J_nz_start, it;
+      for(it=0; it<x->n; it++) *(ip++) = this->index;
+      for(it=0; it<x->n; it++) *(jp++) = x->index+it;      
+      return true;
+    } else {
+      //starting at this->J_nz_start
+      double *Mp = M+this->J_nz_start; 
+      for(int it=0; it<x->n; it++) {
+	*(Mp++) +=  2*x->xref[it];
+	//printf("[%d] = %g x=%g  start=%d\n", it, M[this->J_nz_start+it], x->xref[it], this->J_nz_start);
+      }
+      return true;
     }
-    
-    return true;
   };
   virtual bool eval_HessLagr(const OptVariables& vars_primal, bool new_x, 
 			     const OptVariables& lambda_vars, bool new_lambda,
@@ -227,8 +259,17 @@ public:
     assert(lambda!=NULL);
     assert(lambda->n==1);
 
-    for(int it=0; it < x->n; it++)
-      M[H_nz_idxs[it]] += 2. * lambda->xref[0];
+    if(NULL==M) {
+      int idx;
+      for(int it=0; it<n; it++) {
+	idx=H_nz_idxs[it];
+	if(idx<0) return false;
+	i[idx] = j[idx] = x->index+it;
+      }
+    } else {
+      for(int it=0; it < x->n; it++)
+	M[H_nz_idxs[it]] += 2. * lambda->xref[0];
+    }
     return true;
   };
 
@@ -352,43 +393,109 @@ public:
     }
     return true;
   };
+  
+  virtual bool get_Jacob_ij(std::vector<OptSparseEntry>& vij)
+  {
+    int i, itnz=0, nnz = get_Jacob_nnz();
+
+    if(NULL==J_nz_idxs)
+      J_nz_idxs = new int[nnz];
+ 
+    //3 or 4 (when use_slacks) per row
+    for(int row=0; itnz<nnz; row++) {
+      i = this->index+row;
+      vij.push_back(OptSparseEntry(i, x->index+row, J_nz_idxs+itnz));
+      itnz++;
+
+      vij.push_back(OptSparseEntry(i, y->index+row, J_nz_idxs+itnz));
+      itnz++;
+
+      vij.push_back(OptSparseEntry(i, z->index+row, J_nz_idxs+itnz));
+      itnz++;
+
+      if(use_slacks) {
+	vij.push_back(OptSparseEntry(i, s->index+row, J_nz_idxs+itnz));
+	itnz++;
+      }
+    }
+    return true;
+  };
   virtual bool eval_Jac(const OptVariables& primal_vars, bool new_x, 
-			const int& nnz, int* i, int* j, double* M)
+			const int& nnz, int* ia, int* ja, double* M)
   {
     //for sin(x_i) + z_i - cos(y_i) <=0 or sin(x_i) + z_i - cos(y_i) + s_i = 0, i=1,..,size(y)
     //3 or 4 (when use_slacks) per row
 
-    assert(M);
-    int itnz=0;
-    for(int i=0; i<n; i++) {
-      M[J_nz_idxs[itnz]] += cos(x->xref[i]); itnz++; //w.r.t. x_i
-      M[J_nz_idxs[itnz]] += sin(y->xref[i]); itnz++; //w.r.t. y_i
-      M[J_nz_idxs[itnz]] += 1.;              itnz++; //w.r.t. z_i
-    
-      if(use_slacks) {
-	M[J_nz_idxs[itnz]] += 1.;             itnz++; //w.r.t. s_i
+    // this->n is the number of constraints in the block
+    int itnz=0, aux, row;
+    if(NULL==M) {
+      for(int i=0; i<n; i++) {
+	row = this->index+i;
+
+	aux = J_nz_idxs[itnz];
+	if(aux<0) return false; //indexes were not provided yet
+	ia[aux] = row; ja[aux] = x->index+i; itnz++;
+
+	aux = J_nz_idxs[itnz];
+	if(aux<0) return false; //indexes were not provided yet
+	ia[aux] = row; ja[aux] = y->index+i; itnz++;
+
+	aux = J_nz_idxs[itnz];
+	if(aux<0) return false; //indexes were not provided yet
+	ia[aux] = row; ja[aux] = z->index+i; itnz++;
+
+	if(use_slacks) {
+	  aux = J_nz_idxs[itnz];
+	  if(aux<0) return false; //indexes were not provided yet
+	  ia[aux] = row; ja[aux] = s->index+i; itnz++;
+	}
+      }
+    } else {
+
+      for(int i=0; i<n; i++) {
+	M[J_nz_idxs[itnz]] += cos(x->xref[i]); itnz++; //w.r.t. x_i
+	M[J_nz_idxs[itnz]] += sin(y->xref[i]); itnz++; //w.r.t. y_i
+	M[J_nz_idxs[itnz]] += 1.;              itnz++; //w.r.t. z_i
+	
+	if(use_slacks) {
+	  M[J_nz_idxs[itnz]] += 1.;             itnz++; //w.r.t. s_i
+	}
       }
       assert(itnz<nnz);
-	
     }
     assert(itnz==get_Jacob_nnz());
     return true;
   };
   virtual bool eval_HessLagr(const OptVariables& vars_primal, bool new_x, 
 			     const OptVariables& lambda_vars, bool new_lambda,
-			     const int& nnz, int* i, int* j, double* M)
+			     const int& nnz, int* ia, int* ja, double* M)
   {
     const OptVariablesBlock* lambda = lambda_vars.get_block(string("duals_") + this->id);
     assert(lambda!=NULL);
     assert(lambda->n==n);
 
-    for(int it=0; it<n; it++)
-      M[H_nz_idxs[it]] += -sin(x->xref[it]) * lambda->xref[it];
+    if(NULL==M) {
+      int idx;
+      for(int it=0; it<n; it++) {
+	idx=H_nz_idxs[it];
+	if(idx<0) return false; //H_nz_idxs was not updated yet
+	ia[idx] = ja[idx] = x->index+it;
+      }
+      int* H_nz_head = H_nz_idxs + n;
+      for(int it=0; it<n; it++) {
+	idx = H_nz_head[it];
+	if(idx<0) return false; //H_nz_idxs was not updated yet
+	ia[idx] = ja[idx] = y->index+it;
+      }
+    } else {
 
-    int* H_nz_head=H_nz_idxs+n;
-    for(int it=0; it<n; it++)
-      M[H_nz_head[it]] += cos(y->xref[it]) * lambda->xref[it];
-
+      for(int it=0; it<n; it++)
+	M[H_nz_idxs[it]] += -sin(x->xref[it]) * lambda->xref[it];
+      
+      int* H_nz_head=H_nz_idxs+n;
+      for(int it=0; it<n; it++)
+	M[H_nz_head[it]] += cos(y->xref[it]) * lambda->xref[it];
+    }
     return true;
   };
 
@@ -425,33 +532,6 @@ public:
     }
     return true;
   }
-
-  virtual bool get_Jacob_ij(std::vector<OptSparseEntry>& vij)
-  {
-    int i, itnz=0, nnz = get_Jacob_nnz();
-
-    if(NULL==J_nz_idxs)
-      J_nz_idxs = new int[nnz];
- 
-    //3 or 4 (when use_slacks) per row
-    for(int row=0; itnz<nnz; row++) {
-      i = this->index+row;
-      vij.push_back(OptSparseEntry(i, x->index+row, J_nz_idxs+itnz));
-      itnz++;
-
-      vij.push_back(OptSparseEntry(i, y->index+row, J_nz_idxs+itnz));
-      itnz++;
-
-      vij.push_back(OptSparseEntry(i, z->index+row, J_nz_idxs+itnz));
-      itnz++;
-
-      if(use_slacks) {
-	vij.push_back(OptSparseEntry(i, s->index+row, J_nz_idxs+itnz));
-	itnz++;
-      }
-    }
-    return true;
-  } 
 
 private:
   //s is null when use_slacks==false
