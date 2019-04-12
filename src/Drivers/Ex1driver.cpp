@@ -5,7 +5,7 @@
 int main()
 {
   OptProblem prob;
-  int nx=2000000, nyz=nx/5;
+  int nx=1000000, nyz=nx/5;
   OptVariablesBlock* x = new OptVariablesBlock(nx, "x");
   OptVariablesBlock* y = new OptVariablesBlock(nyz, "y", 0.5, 10);
   OptVariablesBlock* z = new OptVariablesBlock(nyz, "z", -1e+20, 5);
@@ -30,13 +30,14 @@ int main()
   //set options
   prob.set_solver_option("linear_solver", "ma57");
   prob.set_solver_option("print_timing_statistics", "yes");
+  //prob.set_solver_option("print_level", 6);
 
   bool bret = prob.optimize("ipopt");
 
-  //set initial mu to something low
+  //set initial mu to something low when restarting
   prob.set_solver_option("mu_init", 1e-6);
 
-  bret = prob.reoptimize(OptProblem::primalDualRestart);
+  bret = prob.reoptimize(OptProblem::advancedPrimalDualRestart); //warm_start_target_mu
   //bret = prob.reoptimize(OptProblem::primalRestart);
 
   return 0;

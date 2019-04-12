@@ -283,7 +283,7 @@ public:
 
   // NLP optimization
 
-  enum RestartType{primalRestart, primalDualRestart, AdvancedPrimalDualRestart};
+  enum RestartType{primalRestart, primalDualRestart, advancedPrimalDualRestart};
 
   virtual bool optimize(const std::string& nlpsolver);
   virtual bool reoptimize(RestartType t=primalRestart);

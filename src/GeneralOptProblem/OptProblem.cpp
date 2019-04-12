@@ -39,6 +39,7 @@ OptProblem::OptProblem()
 
 OptProblem::~OptProblem()
 {
+  nlp_solver->finalize();
   delete obj;
   delete cons;
   delete vars_duals_bounds;
@@ -485,10 +486,9 @@ bool OptProblem::reoptimize(RestartType t)
   nlp_solver->set_start_type(t);
 
   if(true==nlp_solver->reoptimize()) {
-    set_have_start();
+    this->set_have_start();
   }
 
-  nlp_solver->finalize();
   return true;
 }
 

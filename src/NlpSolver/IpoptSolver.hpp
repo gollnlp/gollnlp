@@ -8,6 +8,8 @@
 #include "IpTNLP.hpp"
 #include "IpIpoptData.hpp"
 
+#include "goTimer.hpp"
+
 using namespace Ipopt;
 
 #include <iostream>
@@ -18,7 +20,8 @@ class IpoptNlp : public Ipopt::TNLP
 {
 public:
   /**constructor */
-  IpoptNlp(OptProblem* p) : prob(p) {assert(prob);}
+  IpoptNlp(OptProblem* p) : prob(p), have_adv_pd_restart(false) 
+  { assert(prob); } 
 
   /** default destructor */
   virtual ~IpoptNlp() {};
@@ -124,6 +127,7 @@ public:
     prob->set_primal_vars(x);
     prob->set_duals_vars_bounds(z_L, z_U);
     prob->set_duals_vars_cons(lambda);
+    iter_vector = ip_data->curr () ;
   }
 
   
@@ -146,13 +150,24 @@ public:
     // really advanced primal-dual start -> warm_start_entire_iterate
     // https://github.com/coin-or/Bonmin/blob/master/Bonmin/src/Interfaces/BonTMINLP2TNLP.cpp
     // https://list.coin-or.org/pipermail/ipopt/2011-April/002428.html
+    if(have_adv_pd_restart) {
+	printf("Using advanced pd restart\n");
+	goTimer t; t.start();
+	warm_start_iterate.Copy(*iter_vector);
+	t.stop();
+	printf("copy took %g sec\n", t.getElapsedTime());
+      return true;
+    }
     return false;
   }
 
-  //@}
+  virtual void set_advanced_primaldual_restart(bool v) { have_adv_pd_restart=v; }
 
+  //@}
 private:
   OptProblem* prob;
+  SmartPtr< const IteratesVector > iter_vector;
+  bool have_adv_pd_restart;
   /**@name Methods to block default compiler methods.
    */
   //@{
@@ -169,13 +184,18 @@ public:
 
   virtual bool set_start_type(OptProblem::RestartType t)
   {
-    if(t==OptProblem::primalDualRestart)
+    if(t==OptProblem::primalDualRestart) {
       app->Options()->SetStringValue("warm_start_init_point", "yes");
-    else
+	ipopt_nlp_spec->set_advanced_primaldual_restart(false);
+    } else {
       if(t==OptProblem::primalRestart)
 	app->Options()->SetStringValue("warm_start_init_point", "no");
-      else
-	assert("not yet implemented");
+      else {		
+	app->Options()->SetStringValue("warm_start_init_point", "yes");
+	app->Options()->SetStringValue("warm_start_entire_iterate", "yes");
+	ipopt_nlp_spec->set_advanced_primaldual_restart(true);
+      }
+    }
     return true;
   }
 
@@ -225,7 +245,7 @@ public:
 
 private:
   Ipopt::SmartPtr<Ipopt::IpoptApplication> app;
-  Ipopt::SmartPtr<Ipopt::TNLP> ipopt_nlp_spec;
+  Ipopt::SmartPtr<gollnlp::IpoptNlp> ipopt_nlp_spec;
 };
 
 
