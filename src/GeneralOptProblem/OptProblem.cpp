@@ -78,103 +78,28 @@ bool OptProblem::eval_gradobj (const double* x, bool new_x, double* grad)
   return true;
 }
 
-static void uniqueize(vector<OptSparseEntry>& ij, const int& nnz_unique, int* i, int* j) 
-{
-  //ij is sorted at this point
-  int nnz = ij.size();
-  if(nnz==0) return;
+// static void uniqueize(vector<OptSparseEntry>& ij, const int& nnz_unique, int* i, int* j) 
+// {
+//   //ij is sorted at this point
+//   int nnz = ij.size();
+//   if(nnz==0) return;
 
-  i[0]=ij[0].i;
-  j[0]=ij[0].j;
+//   i[0]=ij[0].i;
+//   j[0]=ij[0].j;
 
-  int it_nz_unique = 1;
-  for(int nz=1; nz<nnz; nz++) {
-    if( ij[nz-1] < ij[nz] ) {
-        i[it_nz_unique]=ij[nz].i;
-	j[it_nz_unique]=ij[nz].j;
-	it_nz_unique++;
-    } else {
-      assert(ij[nz-1].i == ij[nz].i && ij[nz-1].j == ij[nz].j);
-    }
-  }
-  assert(nnz_unique<=nnz);
-  assert(it_nz_unique==nnz_unique);
-}
-bool OptProblem::eval_Jaccons (const double* x, bool new_x, const int& nnz, int* i, int* j, double* M)
-{
-  if(M==NULL) {
-    //fill in i and j based on ij_Hess
-    
-    //in some case, e.g. derivative checking, eval_Jaccons is called more than one time with M==NULL
-    //re-uniqueize and display a warning
-    if(nnz>ij_Jac.size()) {
-      cout << "[Warning] Request for i and j for for Jacobian for " << nnz << " nnz, rebuilding ij_Jac." << endl;
-      cout << "[Warning] If such requests happen repeatedly, performance/speed will be seriously affected." << endl;
-      nnz_Jac=-1;
-      nnz_Jac = get_nnzJaccons();
-      assert(nnz == nnz_Jac && "structure of Jacobian changed");
-    }
-    uniqueize(ij_Jac, nnz, i, j);
-    hardclear(ij_Jac);
-
-    return true;
-  }
-
-  // case of M!=NULL > just fill in the values
-  for(int i=0; i<nnz; i++) M[i]=0.;
-
-  if(new_x) vars_primal->attach_to(x);
-  for(auto& con: cons->vblocks)
-    if(!con->eval_Jac(*vars_primal, new_x, nnz, i,j,M))
-      return false;
-  return true;
-}
-
-bool OptProblem::eval_HessLagr(const double* x, bool new_x, 
-			       const double& obj_factor, 
-			       const double* lambda, bool new_lambda,
-			       const int& nnz, int* i, int* j, double* M)
-{
-  if(M==NULL) {
-    //fill in i and j based on ij_Hess
-
-    //in some case, e.g. derivative checking, eval_Jaccons is called more than one time with M==NULL
-    //re-uniqueize and display a warning
-    if(nnz>ij_Hess.size()) {
-      cout << "[Warning] Request for i and j for for Hessian for " << nnz << " nnz, rebuilding ij_Hess." << endl;
-      cout << "[Warning] If such requests happen repeatedly, performance/speed will be seriously affected." << endl;
-      nnz_Hess=-1;
-      nnz_Jac = get_nnzHessLagr();
-      assert(nnz == nnz_Hess && "structure of Jacobian changed");
-    }
-    assert(nnz<=ij_Hess.size() && "ij_Hess was not yet built or has been cleared");
-    uniqueize(ij_Hess, nnz, i, j);
-    hardclear(ij_Hess);
-    //printnnz(nnz,i,j,M);
-    return true;
-  }
-
-  // case of M!=NULL > just fill in the values
-  for(int i=0; i<nnz; i++) M[i]=0.;
-
-  if(new_x) vars_primal->attach_to(x);
-  for(auto& ot: obj->vterms)
-    if(!ot->eval_HessLagr(*vars_primal, new_x, obj_factor, nnz,i,j,M))
-      return false;
-
-
-  if(new_lambda) vars_duals_cons->attach_to(lambda);
-
-  for(auto& con: cons->vblocks)
-    if(!con->eval_HessLagr(*vars_primal, new_x, *vars_duals_cons, new_lambda, nnz,i,j,M))
-      return false;
-
-  //printnnz(nnz,i,j,M);
-
-
-  return true;
-}
-
+//   int it_nz_unique = 1;
+//   for(int nz=1; nz<nnz; nz++) {
+//     if( ij[nz-1] < ij[nz] ) {
+//         i[it_nz_unique]=ij[nz].i;
+// 	j[it_nz_unique]=ij[nz].j;
+// 	it_nz_unique++;
+//     } else {
+//       assert(ij[nz-1].i == ij[nz].i && ij[nz-1].j == ij[nz].j);
+//     }
+//   }
+//   assert(nnz_unique<=nnz);
+//   assert(it_nz_unique==nnz_unique);
+// }
 static int inline uniquely_indexise(vector<OptSparseEntry>& ij)
 {
   int nnz = ij.size();
@@ -197,6 +122,7 @@ static int inline uniquely_indexise(vector<OptSparseEntry>& ij)
   assert(nnz_unique<nnz);
   return nnz_unique+1;
 }
+
 int OptProblem::get_nnzJaccons()
 {
   if(nnz_Jac<0) {
@@ -208,9 +134,33 @@ int OptProblem::get_nnzJaccons()
     nnz_Jac = uniquely_indexise(ij_Jac);
 
     tm.stop();
-    printf("Jacobian structure %g sec\n", tm.getElapsedTime());
+    printf("Jacobian structure took %g sec\n", tm.getElapsedTime());
   }
   return nnz_Jac;
+}
+
+  // we assume that eval_Jaccons is called after get_nnzJaccons
+bool OptProblem::eval_Jaccons (const double* x, bool new_x, const int& nnz, int* i, int* j, double* M)
+{
+  if(M==NULL) {
+    if(new_x) vars_primal->attach_to(x);
+
+    for(auto& con: cons->vblocks) {
+      if(!con->eval_Jac(*vars_primal, new_x, nnz, i,j,M)) {
+	assert(false && "eval_Jaccons should be called after get_nnzJaccons");
+      }
+    }
+    return true;
+  }
+
+  // case of M!=NULL > just fill in the values
+  for(int i=0; i<nnz; i++) M[i]=0.;
+
+  if(new_x) vars_primal->attach_to(x);
+  for(auto& con: cons->vblocks)
+    if(!con->eval_Jac(*vars_primal, new_x, nnz, i,j,M))
+      return false;
+  return true;
 }
 
 #ifdef DEBUG
@@ -250,6 +200,44 @@ int OptProblem::get_nnzHessLagr()
     printf("Hessian structure %g sec\n", tm.getElapsedTime());
   }
   return nnz_Hess;
+}
+
+
+bool OptProblem::eval_HessLagr(const double* x, bool new_x, 
+			       const double& obj_factor, 
+			       const double* lambda, bool new_lambda,
+			       const int& nnz, int* i, int* j, double* M)
+{
+  if(new_x) vars_primal->attach_to(x);
+  if(new_lambda) vars_duals_cons->attach_to(lambda);
+  if(M==NULL) {
+    for(auto& ot: obj->vterms) {
+      if(!ot->eval_HessLagr(*vars_primal, new_x, obj_factor, nnz,i,j,M)) {
+	assert(false && "eval_HessLagr should be called after get_nnzHessLagr");
+      }
+    }
+    for(auto& con: cons->vblocks) {
+      if(!con->eval_HessLagr(*vars_primal, new_x, *vars_duals_cons, new_lambda, nnz,i,j,M)) {
+	assert(false && "eval_HessLagr should be called after get_nnzHessLagr");
+      }
+    }
+    //printnnz(nnz,i,j,M);
+  } else {
+
+    // case of M!=NULL > just fill in the values
+    for(int i=0; i<nnz; i++) M[i]=0.;
+    
+    for(auto& ot: obj->vterms)
+      if(!ot->eval_HessLagr(*vars_primal, new_x, obj_factor, nnz,i,j,M))
+	return false;
+    
+    for(auto& con: cons->vblocks)
+      if(!con->eval_HessLagr(*vars_primal, new_x, *vars_duals_cons, new_lambda, nnz,i,j,M))
+	return false;
+    
+    //printnnz(nnz,i,j,M);
+  }
+  return true;
 }
 
 void OptProblem::fill_primal_vars(double* x) 
