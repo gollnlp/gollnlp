@@ -8,10 +8,10 @@
 
 namespace gollnlp {
 
-  class goSCACOPFData {
+  class SCACOPFData {
 
   public:
-    goSCACOPFData();
+    SCACOPFData();
 
     bool readinstance(const std::string& raw, const std::string& rop, const std::string& inl, const std::string& con);
 

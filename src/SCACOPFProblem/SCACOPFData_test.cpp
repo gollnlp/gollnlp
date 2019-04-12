@@ -1,4 +1,4 @@
-#include "goSCACOPFData.hpp"
+#include "SCACOPFData.hpp"
 #include "goUtils.hpp"
 #include "goTimer.hpp"
 #include <cassert>
@@ -10,7 +10,7 @@ using namespace std;
 
 void usage(const string& smain);
 vector<vector<string> > loadinstances(const string& file);
-string computechecks(const goSCACOPFData& data);
+string computechecks(const SCACOPFData& data);
 vector<string> getchecks();
 
 int main(int argc, char* argv[])
@@ -28,7 +28,7 @@ int main(int argc, char* argv[])
     
     cout<< "\nreading " << inst[0] << endl;
 
-    goSCACOPFData data;
+    SCACOPFData data;
     data.readinstance(inst[1], inst[2], inst[3], inst[4]);
     data.buildindexsets();
 
@@ -90,7 +90,7 @@ vector<vector<string> > loadinstances(const string& file)
   }
 }
 
-string computechecks(const goSCACOPFData& d)
+string computechecks(const SCACOPFData& d)
 {
   double chk=0; stringstream ret; ret.precision(5);
   for(auto& v: d.L_Nidx[0]) chk += (1+v)/16.0;

@@ -1,4 +1,4 @@
-#include "goSCACOPFData.hpp"
+#include "SCACOPFData.hpp"
 #include "goUtils.hpp"
 #include "goLogger.hpp"
 #include <cstdlib>
@@ -15,7 +15,7 @@ namespace gollnlp {
 //temporary log object
 goLogger log(stdout);
 
-goSCACOPFData::goSCACOPFData() 
+SCACOPFData::SCACOPFData() 
 {
   
 }
@@ -56,7 +56,7 @@ enum GADSPheader{GADSPTBL=0,GADSPPMAX,GADSPPMIN,GADSPFUELCOST,
 enum GORheader{GORI=0,GORID,GORH,GORPMAX,GORPMIN,GORR,GORD}; //governor response
   //enum Contheader{COLABEL=0, COCTYPE, COCON}; //contingencies
 
-bool goSCACOPFData::
+bool SCACOPFData::
 readinstance(const std::string& raw, const std::string& rop, const std::string& inl, const std::string& con)
 {
   double MVAbase;
@@ -458,7 +458,7 @@ readinstance(const std::string& raw, const std::string& rop, const std::string& 
   return true;
 }
 
-void goSCACOPFData::buildindexsets()
+void SCACOPFData::buildindexsets()
 {
   size_t nbus = N_Bus.size(), nline=L_From.size(), ntran=T_From.size();
   L_Nidx = VVInt(2);
@@ -496,7 +496,7 @@ void goSCACOPFData::buildindexsets()
   //printvecvec(Gn, "Gn");
 }
 
-bool goSCACOPFData::
+bool SCACOPFData::
 readRAW(const std::string& raw, double& MVAbase,
 	VVStr& buses,  VVStr& loads, VVStr& fixedbusshunts,
 	VVStr& generators, VVStr& ntbranches, VVStr& tbranches,
@@ -767,7 +767,7 @@ readRAW(const std::string& raw, double& MVAbase,
   return true;
 }
 
-bool goSCACOPFData::
+bool SCACOPFData::
 readROP(const std::string& rop, VVStr& generatordsp, VVStr& activedsptables, 
 	VInt& costcurves_ltbl, VStr& costcurves_label, VVDou& costcurves_xi, VVDou& costcurves_yi)
 {
@@ -895,7 +895,7 @@ readROP(const std::string& rop, VVStr& generatordsp, VVStr& activedsptables,
   return true;
 }
 
-bool goSCACOPFData::
+bool SCACOPFData::
 readINL(const std::string& inl, VVStr& governorresponse)
 {
   ifstream file(inl.c_str());
@@ -928,7 +928,7 @@ readINL(const std::string& inl, VVStr& governorresponse)
   return true;
 }
 
-bool goSCACOPFData::readCON(const string& con,
+bool SCACOPFData::readCON(const string& con,
 			     VStr& contingencies_label, 
 			     std::vector<ContingencyType>& contingencies_type,
 			     std::vector<Contingency*>& contingencies_con)
@@ -980,14 +980,14 @@ bool goSCACOPFData::readCON(const string& con,
   return true;
 }
 
-void goSCACOPFData::convert(const VStr& src, VInt& dest)
+void SCACOPFData::convert(const VStr& src, VInt& dest)
 {
   size_t sz = src.size();
   dest.resize(sz);
   for(int i=0; i<sz; i++)
     dest[i] = atoi(src[i].c_str());
 }
-void goSCACOPFData::convert(const VStr& src, VDou& dest)
+void SCACOPFData::convert(const VStr& src, VDou& dest)
 {
   size_t sz = src.size();
   dest.resize(sz);
