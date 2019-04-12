@@ -52,7 +52,8 @@ add_subdirectory(src/GeneralOptProblem)
 
 add_subdirectory(src/Utils)
 add_subdirectory(src/OPF)
-add_subdirectory(src/Drivers)
+add_subdirectory(src/Ex1OptProblem)
+
 
 add_library(gollnlp STATIC $<TARGET_OBJECTS:goSCACOPF> $<TARGET_OBJECTS:goUtils> $<TARGET_OBJECTS:goOptimiz>)
 
