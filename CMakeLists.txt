@@ -42,7 +42,7 @@ set(IPOPT_LIBS "-lipopt -lm  -ldl")
 include_directories(${CMAKE_BINARY_DIR})
 
 include_directories(src/GeneralOptProblem)
-include_directories(src/OPF)
+include_directories(src/SCACOPFProblem)
 include_directories(src/Utils)
 include_directories(src/NlpSolver)
 include_directories(src/Ex1OptProblem)
@@ -51,7 +51,7 @@ include_directories(src/Ex1OptProblem)
 add_subdirectory(src/GeneralOptProblem)
 
 add_subdirectory(src/Utils)
-add_subdirectory(src/OPF)
+add_subdirectory(src/SCACOPFProblem)
 add_subdirectory(src/Ex1OptProblem)
 
 
