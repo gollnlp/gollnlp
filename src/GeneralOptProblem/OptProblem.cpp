@@ -277,15 +277,12 @@ void OptProblem::fill_cons_lower_bounds(double* lb)
   for(auto b: cons->vblocks) {
     assert(b->n>=0);
     assert(b->index>=0);
-    assert(b->lb!=NULL && b->n>0);
     DCOPY(&(b->n), b->lb, &one, lb + b->index, &one);
   }
 }
 void OptProblem::fill_cons_upper_bounds(double* ub)
 {
-  
   for(auto b: cons->vblocks) {
-    assert(b->ub!=NULL && b->n>0);
     DCOPY(&(b->n), b->ub, &one, ub + b->index, &one);
   }
 }

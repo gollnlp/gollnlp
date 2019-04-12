@@ -155,10 +155,12 @@ public:
 class OptConstraintsBlock : public OptConstraintsEvaluator {
 public:
   OptConstraintsBlock(const std::string& id_, int num) 
-    : n(num), index(-1), id(id_)
+    : n(num), index(-1), id(id_), lb(NULL), ub(NULL)
   {
-    lb = new double[n];
-    ub = new double[n];
+    if(n>0) {
+      lb = new double[n];
+      ub = new double[n];
+    }
   }
   virtual ~OptConstraintsBlock() 
   {
