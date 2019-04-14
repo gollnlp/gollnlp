@@ -12,7 +12,7 @@ class NlpSolver;
 class OptVariablesBlock {
 public:
   OptVariablesBlock(const int& n_, const std::string& id_);
-  OptVariablesBlock(const int& n_, const std::string& id_, double* lb, double* ub=NULL);
+  OptVariablesBlock(const int& n_, const std::string& id_, /*const*/ double* lb, /*const*/double* ub=NULL);
   //all lb and ub are set to lb_ and ub_
   OptVariablesBlock(const int& n_, const std::string& id_, double lb_, double ub_);
   virtual ~OptVariablesBlock();

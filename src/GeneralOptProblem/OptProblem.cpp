@@ -414,7 +414,7 @@ bool OptProblem::fill_primal_start(double* x)
   for(auto b: vars_primal->vblocks) {
     if(b->providesStartingPoint)
       DCOPY(&(b->n), b->x, &one, x + b->index, &one);
-    else for(int i=0; i<b->n; i++) x[i]=0.; 
+    else for(int i=b->index; i<b->n+b->index; i++) x[i]=0.; 
   }
   return true;
 }
