@@ -503,7 +503,7 @@ bool OptVariables::append_varsblock(OptVariablesBlock* b)
 {
   if(b) {
     if(mblocks.find(b->id)!= mblocks.end()) {
-      cerr << "appendVarsBlock:  block (name) already exists" << endl;
+      cerr << "appendVarsBlock:  block " << b->id << "already exists." << endl;
       assert(false);
       return false;
     }
@@ -623,7 +623,7 @@ bool OptConstraints::append_consblock(OptConstraintsBlock* b)
 {
   if(b) {
     if(mblocks.find(b->id)!= mblocks.end()) {
-      cerr << "append_consblock:  block " << b->id << "already exists." << endl;
+      cerr << "append_consblock:  block " << b->id << " already exists." << endl;
       assert(false);
       return false;
     }
