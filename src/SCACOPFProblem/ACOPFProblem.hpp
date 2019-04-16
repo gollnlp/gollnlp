@@ -36,27 +36,27 @@ namespace gollnlp {
       append_variables(p_li1);
       auto p_li2 = new OptVariablesBlock(d.L_Line.size(), "p_li2");
       append_variables(p_li2);
-      append_objterm(new DummySingleVarQuadrObjTerm("p_li1_sq", p_li1));
-      append_objterm(new DummySingleVarQuadrObjTerm("p_li2_sq", p_li2));
+      //append_objterm(new DummySingleVarQuadrObjTerm("p_li1_sq", p_li1));
+      //append_objterm(new DummySingleVarQuadrObjTerm("p_li2_sq", p_li2));
 
       auto q_li1 = new OptVariablesBlock(d.L_Line.size(), "q_li1");
       auto q_li2 = new OptVariablesBlock(d.L_Line.size(), "q_li2");
       append_variables(q_li1); append_variables(q_li2);
-      append_objterm(new DummySingleVarQuadrObjTerm("q_li1_sq", q_li1));
-      append_objterm(new DummySingleVarQuadrObjTerm("q_li2_sq", q_li2));
+      //append_objterm(new DummySingleVarQuadrObjTerm("q_li1_sq", q_li1));
+      //append_objterm(new DummySingleVarQuadrObjTerm("q_li2_sq", q_li2));
  
       auto p_ti1 = new OptVariablesBlock(d.T_Transformer.size(), "p_t1i");
       auto p_ti2 = new OptVariablesBlock(d.T_Transformer.size(), "p_ti2");
       append_variables(p_ti1); 
-      append_objterm(new DummySingleVarQuadrObjTerm("p_ti1_sq", p_ti1));
+      //append_objterm(new DummySingleVarQuadrObjTerm("p_ti1_sq", p_ti1));
       append_variables(p_ti2); 
-      append_objterm(new DummySingleVarQuadrObjTerm("p_ti2_sq", p_ti2));
+      //append_objterm(new DummySingleVarQuadrObjTerm("p_ti2_sq", p_ti2));
 
       auto q_ti1 = new OptVariablesBlock(d.T_Transformer.size(), "q_ti1");
       auto q_ti2 = new OptVariablesBlock(d.T_Transformer.size(), "q_ti2");
       append_variables(q_ti1); append_variables(q_ti2); 
-      append_objterm(new DummySingleVarQuadrObjTerm("q_ti1_sq", q_ti1));
-      append_objterm(new DummySingleVarQuadrObjTerm("q_ti2_sq", q_ti2));
+      //append_objterm(new DummySingleVarQuadrObjTerm("q_ti1_sq", q_ti1));
+      //append_objterm(new DummySingleVarQuadrObjTerm("q_ti2_sq", q_ti2));
       
       auto b_s = new OptVariablesBlock(d.SSh_SShunt.size(), "b_s", d.SSh_Blb.data(), d.SSh_Bub.data());
       b_s->set_start_to(d.SSh_B0.data());

@@ -2,12 +2,14 @@
 #define OPF_VARIABLES
 
 #include "OptProblem.hpp"
+#include "SCACOPFData.hpp"
 
 #include "blasdefs.hpp"
 #include "goUtils.hpp"
 
 #include <cstring>
 #include <cmath>
+
 
 #include "OPFObjectiveTerms.hpp"
 
@@ -899,6 +901,34 @@ namespace gollnlp {
     OptVariablesBlock *q_g, *v_n, *q_li1, *q_li2, *q_ti1, *q_ti2, *b_s;
     const SCACOPFData& d;
     OptVariablesBlock *qslack_n; //2*n -> containss pslackp_n, pslackm_n;
+
+    int* J_nz_idxs;
+    int* H_nz_idxs;
+  };
+
+  class PFLineLimits  : public OptConstraintsBlock
+  {
+  public:
+    PFLineLimits(const std::string& id_, int numcons,
+		 OptVariablesBlock* p_li_, 
+		 OptVariablesBlock* q_li_,
+		 OptVariablesBlock* v_n_,
+		 const std::vector<int>& L_Nidx_,
+		 const std::vector<double>& L_Rate_,
+		 const SCACOPFData& d_);
+    virtual ~PFLineLimits();
+
+    virtual bool eval_body (const OptVariables& vars_primal, bool new_x, double* body);
+    virtual bool eval_Jac(const OptVariables& primal_vars, bool new_x, 
+			  const int& nnz, int* i, int* j, double* M);
+    int get_Jacob_nnz();
+    virtual bool get_Jacob_ij(std::vector<OptSparseEntry>& vij);
+  protected:
+    OptVariablesBlock *p_li, *q_li, *v_n;
+    const std::vector<int> &Nidx;
+    const std::vector<double> &L_Rate;
+    const SCACOPFData& d;
+    OptVariablesBlock *sslack_li; // sslackp_li1 or sslackm_li2;
 
     int* J_nz_idxs;
     int* H_nz_idxs;
