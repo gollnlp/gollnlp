@@ -273,7 +273,15 @@ public:
   {
     return cons->get_block(id);
   }
-  
+  inline OptVariablesBlock* vars_block(const std::string& id)
+  {
+    auto it = vars_primal->mblocks.find(id);
+    if(it != vars_primal->mblocks.end())
+      return it->second;
+    assert(false);
+    return NULL;
+  }
+
   //
   // optimization and NLP solver related stuff
   //
@@ -291,6 +299,9 @@ public:
   // NLP optimization
 
   enum RestartType{primalRestart, primalDualRestart, advancedPrimalDualRestart};
+  
+  // method should be called before 'optimize' whenever the size or the sparsity pattern of the derivatives changes
+  virtual void problem_changed();
 
   virtual bool optimize(const std::string& nlpsolver);
   virtual bool reoptimize(RestartType t=primalRestart);

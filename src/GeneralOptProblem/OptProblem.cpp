@@ -444,6 +444,11 @@ void OptProblem::use_nlp_solver(const std::string& name)
   }
 }
 
+void OptProblem::problem_changed()
+{
+  nnz_Jac = nnz_Hess = -1;
+}
+
 bool OptProblem::optimize(const std::string& solver_name)
 {
   if(vars_duals_bounds) delete vars_duals_bounds;
