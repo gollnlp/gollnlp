@@ -1,5 +1,9 @@
 #include "OPFConstraints.hpp"
 
+#include <string>
+
+using namespace std;
+
 namespace gollnlp {
 
 //
@@ -78,8 +82,6 @@ bool PFLineLimits::eval_Jac(const OptVariables& primal_vars, bool new_x,
   } else {
     const double* Rate = L_Rate.data(); double cc, R;
     for(int it=0; it<n; it++) {
-      row = this->index+it;
-      
       R=Rate[it];
       cc = R * v_n->xref[L_Nidx[it]] + sslack_li->xref[it];
       cc *= 2;
@@ -125,6 +127,101 @@ bool PFLineLimits::get_Jacob_ij(std::vector<OptSparseEntry>& vij)
 #endif
   assert(J_nz_idxs+nnz == itnz);
   return true;
+}
+
+
+bool PFLineLimits::eval_HessLagr(const OptVariables& vars_primal, bool new_x, 
+				 const OptVariables& lambda_vars, bool new_lambda,
+				 const int& nnz, int* ia, int* ja, double* M)
+{
+#ifdef DEBUG
+  int nnz_loc = get_HessLagr_nnz();
+#endif
+  int *itnz=H_nz_idxs;
+  if(NULL==M) {
+    int i, j, row, aux;
+    for(int it=0; it<n; it++) {
+      row = v_n->index+Nidx[it];
+      ia[*itnz] = ja[*itnz] = row; itnz++; // w.r.t. (v_n,v_n)
+
+      i = uppertr_swap(row,j=sslack_li->index+it, aux);
+      ia[*itnz] = i; ja[*itnz] = j; itnz++; // w.r.t. (v_n,sslack_n)
+
+      ia[*itnz] = ja[*itnz] = p_li->index + it; itnz++; // w.r.t. (p_li,p_li)
+      ia[*itnz] = ja[*itnz] = q_li->index + it; itnz++; // w.r.t. (q_li,q_li)
+      ia[*itnz] = ja[*itnz] = sslack_li->index + it; itnz++; // w.r.t. (sslack_li,sslack_li)
+    }
+  } else {
+    const OptVariablesBlock* lambda = lambda_vars.get_block(std::string("duals_") + this->id);
+    assert(lambda!=NULL);
+    assert(lambda->n==n);
+    const double* Rate = L_Rate.data(); double aux, R, lam;
+    for(int it=0; it<n; it++) {
+      lam=lambda->xref[it]; lam *= 2*lam;
+      R=Rate[it]; aux = R*lam; 
+      M[*itnz++] -= aux*R; //w.r.t. (v_n, v_n)
+      M[*itnz++] -= aux;   //w.r.t. (v_n, sslack_li)
+      M[*itnz++] += lam;   //w.r.t. (p_li...
+      M[*itnz++] += lam;   //w.r.t. (q_li...
+      M[*itnz++] -= lam;   //w.r.t. (sslack_li...
+    }
+  }
+#ifdef DEBUG
+  assert(H_nz_idxs+nnz_loc==itnz);
+#endif
+  return true;
+}
+
+// p_li[l,i]^2 + q_li[l,i]^2 - (L[Rate][l]*v_n[L_Nidx[l,i]] + sslack_li[l,i])^2) <=0
+// Jacobian : let  c = L[Rate][l]*v_n[L_Nidx[l,i]] + sslack_li[l,i]
+// w.r.t to:   v_n        p_li    q_li   sslack_li
+//          -2*Rate*c   2*p_li   2*q_li    -2*c
+// Hessian
+// -2*Rate^2    (v_n,v_n)
+// -2*Rate      (v_n,sslack_li)
+//  2           (p_li,p_li)
+//  2           (q_li,q_li)
+// -2           (sslack_li, sslack_li)
+int PFLineLimits::get_HessLagr_nnz() 
+{ 
+  return 5*n;
+}
+bool PFLineLimits::get_HessLagr_ij(std::vector<OptSparseEntry>& vij) 
+{
+  if(n==0) return true;
+      
+  if(NULL==H_nz_idxs) {
+    H_nz_idxs = new int[get_HessLagr_nnz()];
+  }
+  
+  int *itnz=H_nz_idxs, i, j, row, aux;
+  for(int it=0; it<n; it++) {
+    row = v_n->index+Nidx[it];
+    vij.push_back(OptSparseEntry(row, row, itnz++)); // w.r.t. v_n,v_n
+    i = uppertr_swap(row,j=sslack_li->index+it, aux);
+    vij.push_back(OptSparseEntry(i, j, itnz++)); // w.r.t. v_n,sslack_li
+
+    row = p_li->index + it;
+    vij.push_back(OptSparseEntry(row, row, itnz++)); // w.r.t.  (p_li,p_li)
+
+    row = q_li->index + it;
+    vij.push_back(OptSparseEntry(row, row, itnz++)); // w.r.t. (q_li,q_li)
+
+    row = sslack_li->index + it;
+    vij.push_back(OptSparseEntry(row, row, itnz++)); // w.r.t.  (sslack_li, sslack_li)
+  }
+  return true;
+}
+  
+OptVariablesBlock* PFLineLimits::create_varsblock() 
+{ 
+  assert(sslack_li==NULL);
+  sslack_li = new OptVariablesBlock(n, string("sslack_li")+id, 0, 1e+20);
+  return sslack_li; 
+}
+OptObjectiveTerm* PFLineLimits::create_objterm() 
+{ 
+  return new DummySingleVarQuadrObjTerm("pen_sslack_li"+id, sslack_li); 
 }
   
 }//end namespace 

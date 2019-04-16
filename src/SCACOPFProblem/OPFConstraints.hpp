@@ -923,6 +923,15 @@ namespace gollnlp {
 			  const int& nnz, int* i, int* j, double* M);
     int get_Jacob_nnz();
     virtual bool get_Jacob_ij(std::vector<OptSparseEntry>& vij);
+
+    virtual bool eval_HessLagr(const OptVariables& vars_primal, bool new_x, 
+			       const OptVariables& lambda_vars, bool new_lambda,
+			       const int& nnz, int* ia, int* ja, double* M);
+    virtual int get_HessLagr_nnz();
+    virtual bool get_HessLagr_ij(std::vector<OptSparseEntry>& vij);
+
+    virtual OptVariablesBlock* create_varsblock();
+    virtual OptObjectiveTerm* create_objterm();
   protected:
     OptVariablesBlock *p_li, *q_li, *v_n;
     const std::vector<int> &Nidx;
