@@ -22,9 +22,9 @@ PFLineLimits::PFLineLimits(const std::string& id_, int numcons,
   assert(d.L_Line.size()==n);
   //rhs
   for(int i=0; i<n; i++)
-    lb[i]=0.;
+    lb[i]=-1e+20;
   for(int i=0; i<n; i++)
-    ub[i]=+1e+20;
+    ub[i]=0;
   J_nz_idxs = NULL;
   H_nz_idxs = NULL;
 }
@@ -216,7 +216,7 @@ bool PFLineLimits::get_HessLagr_ij(std::vector<OptSparseEntry>& vij)
 OptVariablesBlock* PFLineLimits::create_varsblock() 
 { 
   assert(sslack_li==NULL);
-  sslack_li = new OptVariablesBlock(n, string("sslack_li")+id, 0, 1e+20);
+  sslack_li = new OptVariablesBlock(n, string("sslack_li_")+id, 0, 1e+20);
   return sslack_li; 
 }
 OptObjectiveTerm* PFLineLimits::create_objterm() 

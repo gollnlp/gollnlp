@@ -36,27 +36,27 @@ namespace gollnlp {
       append_variables(p_li1);
       auto p_li2 = new OptVariablesBlock(d.L_Line.size(), "p_li2");
       append_variables(p_li2);
-      //append_objterm(new DummySingleVarQuadrObjTerm("p_li1_sq", p_li1));
-      //append_objterm(new DummySingleVarQuadrObjTerm("p_li2_sq", p_li2));
+      append_objterm(new DummySingleVarQuadrObjTerm("p_li1_sq", p_li1));
+      append_objterm(new DummySingleVarQuadrObjTerm("p_li2_sq", p_li2));
 
       auto q_li1 = new OptVariablesBlock(d.L_Line.size(), "q_li1");
       auto q_li2 = new OptVariablesBlock(d.L_Line.size(), "q_li2");
       append_variables(q_li1); append_variables(q_li2);
-      //append_objterm(new DummySingleVarQuadrObjTerm("q_li1_sq", q_li1));
-      //append_objterm(new DummySingleVarQuadrObjTerm("q_li2_sq", q_li2));
+      append_objterm(new DummySingleVarQuadrObjTerm("q_li1_sq", q_li1));
+      append_objterm(new DummySingleVarQuadrObjTerm("q_li2_sq", q_li2));
  
       auto p_ti1 = new OptVariablesBlock(d.T_Transformer.size(), "p_t1i");
       auto p_ti2 = new OptVariablesBlock(d.T_Transformer.size(), "p_ti2");
       append_variables(p_ti1); 
-      //append_objterm(new DummySingleVarQuadrObjTerm("p_ti1_sq", p_ti1));
+      append_objterm(new DummySingleVarQuadrObjTerm("p_ti1_sq", p_ti1));
       append_variables(p_ti2); 
-      //append_objterm(new DummySingleVarQuadrObjTerm("p_ti2_sq", p_ti2));
+      append_objterm(new DummySingleVarQuadrObjTerm("p_ti2_sq", p_ti2));
 
       auto q_ti1 = new OptVariablesBlock(d.T_Transformer.size(), "q_ti1");
       auto q_ti2 = new OptVariablesBlock(d.T_Transformer.size(), "q_ti2");
       append_variables(q_ti1); append_variables(q_ti2); 
-      //append_objterm(new DummySingleVarQuadrObjTerm("q_ti1_sq", q_ti1));
-      //append_objterm(new DummySingleVarQuadrObjTerm("q_ti2_sq", q_ti2));
+      append_objterm(new DummySingleVarQuadrObjTerm("q_ti1_sq", q_ti1));
+      append_objterm(new DummySingleVarQuadrObjTerm("q_ti2_sq", q_ti2));
       
       auto b_s = new OptVariablesBlock(d.SSh_SShunt.size(), "b_s", d.SSh_Blb.data(), d.SSh_Bub.data());
       b_s->set_start_to(d.SSh_B0.data());
@@ -229,13 +229,32 @@ namespace gollnlp {
 	append_constraints(pf_q_bal);
 
       }
+
+      {
+	//thermal line limits
+	auto pf_line_lim1 = new PFLineLimits("line_limits1", d.L_Line.size(),
+					     p_li1, q_li1, v_n, 
+					     d.L_Nidx[0], d.L_RateBase, d);
+	auto pf_line_lim2 = new PFLineLimits("line_limits2", d.L_Line.size(),
+					     p_li2, q_li2, v_n, 
+					     d.L_Nidx[1], d.L_RateBase, d);
+	append_constraints(pf_line_lim1);
+
+	vars_block("sslack_li_line_limits1")->set_start_to(0.1);
+	append_constraints(pf_line_lim2);
+      }
+
       use_nlp_solver("ipopt");
       //set options
       set_solver_option("linear_solver", "ma57");
       //set_solver_option("print_timing_statistics", "yes");
-      set_solver_option("max_iter", 250);
+      set_solver_option("max_iter", 150);
       //prob.set_solver_option("print_level", 6);
       bool bret = optimize("ipopt");
+      
+      //this->problem_changed();
+      //set_solver_option("max_iter", 200);
+      //bret = optimize("ipopt");
 
       return true;
     }
