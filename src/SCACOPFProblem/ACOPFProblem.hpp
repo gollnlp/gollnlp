@@ -58,18 +58,20 @@ namespace gollnlp {
       append_objterm(new DummySingleVarQuadrObjTerm("q_ti1_sq", q_ti1));
       append_objterm(new DummySingleVarQuadrObjTerm("q_ti2_sq", q_ti2));
       
-      // auto SSh = new OptVariablesBlock(d.SSh_SShunt.size(), "SSh", d.SSh_Blb.data(), d.SSh_Bub.data());
-      // SSh->set_start_to(d.SSh_B0.data());
-      // append_variables(SSh);
-      // append_objterm(new DummySingleVarQuadrObjTerm("SSh_sq", SSh));
+      auto b_s = new OptVariablesBlock(d.SSh_SShunt.size(), "b_s", d.SSh_Blb.data(), d.SSh_Bub.data());
+      b_s->set_start_to(d.SSh_B0.data());
+      append_variables(b_s);
+      append_objterm(new DummySingleVarQuadrObjTerm("b_s_sq", b_s));
       
-      // auto p_g = new OptVariablesBlock(d.G_Generator.size(), "p_g", d.G_Plb.data(), d.G_Pub.data());
-      // auto q_g = new OptVariablesBlock(d.G_Generator.size(), "q_g", d.G_Qlb.data(), d.G_Qub.data());
-      // append_variables(p_g); append_variables(q_g); 
-      // p_g->set_start_to(d.G_p0.data());
-      // q_g->set_start_to(d.G_q0.data());
-      // append_objterm(new DummySingleVarQuadrObjTerm("p_g_sq", p_g));
-      // append_objterm(new DummySingleVarQuadrObjTerm("q_g_sq", q_g));
+      auto p_g = new OptVariablesBlock(d.G_Generator.size(), "p_g", d.G_Plb.data(), d.G_Pub.data());
+      append_variables(p_g); 
+      p_g->set_start_to(d.G_p0.data());
+      append_objterm(new DummySingleVarQuadrObjTerm("p_g_sq", p_g));
+
+      auto q_g = new OptVariablesBlock(d.G_Generator.size(), "q_g", d.G_Qlb.data(), d.G_Qub.data());
+      q_g->set_start_to(d.G_q0.data());
+      append_variables(q_g); 
+      append_objterm(new DummySingleVarQuadrObjTerm("q_g_sq", q_g));
     
       //
       //constraints
@@ -218,7 +220,15 @@ namespace gollnlp {
       	append_constraints(pf_cons1);
       	append_constraints(pf_cons2);
       }
+      {
+	//active power balance
+	auto pf_p_bal = new PFActiveBalance("p_balance", d.N_Bus.size(), p_g, v_n, p_li1, p_li2, p_ti1, p_ti2, d);
+	append_constraints(pf_p_bal);
+	//active power balance
+	auto pf_q_bal = new PFReactiveBalance("q_balance", d.N_Bus.size(), q_g, v_n, q_li1, q_li2, q_ti1, q_ti2, b_s, d);
+	append_constraints(pf_q_bal);
 
+      }
       use_nlp_solver("ipopt");
       //set options
       set_solver_option("linear_solver", "ma57");

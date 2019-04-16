@@ -64,7 +64,14 @@ namespace gollnlp {
     std::vector<int> G_Nidx;
     //same as above but for reverse referencing (from buses to X)
     std::vector<std::vector<int> > Lidxn, Lin;
+    //!replacing the above with (the above will be removed at some point)
+    std::vector<std::vector<int> > Lidxn1, Lidxn2;
+
+
     std::vector<std::vector<int> > Tidxn, Tin;
+    //!replacing the above with (the above will be removed at some point)
+    std::vector<std::vector<int> > Tidxn1, Tidxn2;
+
     std::vector<std::vector<int> > SShn, Gn;
   protected:
     struct Contingency{

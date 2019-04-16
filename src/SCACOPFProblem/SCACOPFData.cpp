@@ -472,18 +472,31 @@ void SCACOPFData::buildindexsets()
   SSh_Nidx = indexin(SSh_Bus, N_Bus);
   G_Nidx = indexin(G_Bus, N_Bus);
 
-  Lidxn = Lin = VVInt(nbus, VInt());
-  for(size_t l=0; l<nline; l++) for(size_t i=0; i<2; i++) {
-      Lidxn[L_Nidx[i][l]].push_back(l);
-      Lin[L_Nidx[i][l]].push_back(i);
+  //Lidxn = Lin = VVInt(nbus, VInt());
+  //for(size_t l=0; l<nline; l++) for(size_t i=0; i<2; i++) {
+  //    Lidxn[L_Nidx[i][l]].push_back(l);
+  //    Lin[L_Nidx[i][l]].push_back(i);
+  //}
+
+  //!
+  Lidxn1 = Lidxn2 = VVInt(nbus, VInt());
+  for(size_t l=0; l<nline; l++) {
+    Lidxn1[L_Nidx[0][l]].push_back(l);
+    Lidxn2[L_Nidx[1][l]].push_back(l);
   }
 
-  Tidxn = Tin = VVInt(nbus, VInt());
-  for(size_t t=0; t<ntran; t++) for(size_t i=0; i<2; i++) {
-      Tidxn[T_Nidx[i][t]].push_back(t);
-      Tin[T_Nidx[i][t]].push_back(i);
+  //Tidxn = Tin = VVInt(nbus, VInt());
+  //for(size_t t=0; t<ntran; t++) for(size_t i=0; i<2; i++) {
+  //    Tidxn[T_Nidx[i][t]].push_back(t);
+  //    Tin[T_Nidx[i][t]].push_back(i);
+  //}
+
+  //!
+  Tidxn1 = Tidxn2 = VVInt(nbus, VInt());
+  for(size_t t=0; t<ntran; t++) {
+    Tidxn1[T_Nidx[0][t]].push_back(t);
+    Tidxn1[T_Nidx[1][t]].push_back(t);
   }
-  
 
   size_t nssh = SSh_SShunt.size(); assert(nssh==SSh_Bus.size());
   SShn = VVInt(nbus, VInt(0));
@@ -492,8 +505,12 @@ void SCACOPFData::buildindexsets()
   size_t ngen = G_Generator.size(); assert(ngen==G_Bus.size());
   Gn = VVInt(nbus, VInt());
   for(size_t g=0; g<ngen; g++) Gn[G_Nidx[g]].push_back(g);
-  //printvecvec(SShn, "SShn");
-  //printvecvec(Gn, "Gn");
+
+  //printvecvec(Lidxn, "Lidxn");
+  //printvecvec(Lin, "Lin");
+
+  //printvecvec(Lidxn1, "Lidxn1");
+  //printvecvec(Lidxn2, "Lidxn2");
 }
 
 bool SCACOPFData::

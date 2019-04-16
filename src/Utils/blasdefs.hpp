@@ -22,6 +22,10 @@
 namespace gollnlp
 {
 
+static int ione=1;
+static double done=1.;
+static double dminusone=-1.;
+
 extern "C" double DNRM2(int* n, double* x, int* incx);
 extern "C" double DDOT(int* n, double* dx, int* incx, double* dy, int* incy);
 extern "C" void   DSCAL(int* n, double* da, double* dx, int* incx);

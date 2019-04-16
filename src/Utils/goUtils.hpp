@@ -131,5 +131,10 @@ template<class T> std::vector<T> selectfrom(std::vector<T>& v, const std::vector
   return ret;
 }
 
+//j=max(i,j) and returns min(i,j)
+inline int uppertr_swap(const int& i, int& j, int& aux) {
+  if(i>j) { aux=j; j=i; return aux; } return i;
+}  
+
 }//end namespace
 #endif

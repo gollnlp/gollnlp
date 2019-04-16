@@ -46,7 +46,7 @@ int main()
   for(int i=0; i<con2->n; i++)
     con2->lb[i] = con2->ub[i] = 0.01;
 
-  bret = prob.reoptimize(OptProblem::primalRestart); //warm_start_target_mu
+  bret = prob.reoptimize(OptProblem::primalDualRestart); //warm_start_target_mu
 
   return 0;
 }
