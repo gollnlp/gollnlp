@@ -25,7 +25,7 @@ namespace gollnlp {
       auto v_n = new OptVariablesBlock(d.N_Bus.size(), "v_n", d.N_Vlb.data(), d.N_Vub.data()); 
       append_variables(v_n);
       v_n->set_start_to(d.N_v0.data());
-      append_objterm(new DummySingleVarQuadrObjTerm("v_n_sq", v_n));
+      //append_objterm(new DummySingleVarQuadrObjTerm("v_n_sq", v_n));
       
       auto theta_n = new OptVariablesBlock(d.N_Bus.size(), "theta_n");
       append_variables(theta_n);
@@ -240,9 +240,21 @@ namespace gollnlp {
 					     d.L_Nidx[1], d.L_RateBase, d);
 	append_constraints(pf_line_lim1);
 
-	vars_block("sslack_li_line_limits1")->set_start_to(0.1);
+	//vars_block("sslack_li_line_limits1")->set_start_to(0.1);
 	append_constraints(pf_line_lim2);
       }
+      {
+	//thermal transformer limits
+	auto pf_trans_lim1 = new PFTransfLimits("trans_limits1", d.T_Transformer.size(),
+					     p_ti1, q_ti1, 
+					     d.T_Nidx[0], d.T_RateBase, d);
+	auto pf_trans_lim2 = new PFTransfLimits("trans_limits2", d.T_Transformer.size(),
+					     p_ti2, q_ti2,
+					     d.T_Nidx[1], d.T_RateBase, d);
+	append_constraints(pf_trans_lim1);
+	append_constraints(pf_trans_lim2);
+      }
+
 
       use_nlp_solver("ipopt");
       //set options

@@ -906,6 +906,9 @@ namespace gollnlp {
     int* H_nz_idxs;
   };
 
+  //////////////////////////////////////////////////////////////////
+  // PFLineLimits - Line thermal limits
+  //////////////////////////////////////////////////////////////////
   class PFLineLimits  : public OptConstraintsBlock
   {
   public:
@@ -942,6 +945,46 @@ namespace gollnlp {
     int* J_nz_idxs;
     int* H_nz_idxs;
   };
+
+  //////////////////////////////////////////////////////////////////
+  // PFTransfLimits - Transformer thermal limits
+  //////////////////////////////////////////////////////////////////
+  class PFTransfLimits  : public OptConstraintsBlock
+  {
+  public:
+    PFTransfLimits(const std::string& id_, int numcons,
+		   OptVariablesBlock* p_ti_, 
+		   OptVariablesBlock* q_ti_,
+		   const std::vector<int>& T_Nidx_,
+		   const std::vector<double>& T_Rate_,
+		   const SCACOPFData& d_);
+    virtual ~PFTransfLimits();
+
+    virtual bool eval_body (const OptVariables& vars_primal, bool new_x, double* body);
+    virtual bool eval_Jac(const OptVariables& primal_vars, bool new_x, 
+			  const int& nnz, int* i, int* j, double* M);
+    int get_Jacob_nnz();
+    virtual bool get_Jacob_ij(std::vector<OptSparseEntry>& vij);
+
+    virtual bool eval_HessLagr(const OptVariables& vars_primal, bool new_x, 
+			       const OptVariables& lambda_vars, bool new_lambda,
+			       const int& nnz, int* ia, int* ja, double* M);
+    virtual int get_HessLagr_nnz();
+    virtual bool get_HessLagr_ij(std::vector<OptSparseEntry>& vij);
+
+    virtual OptVariablesBlock* create_varsblock();
+    virtual OptObjectiveTerm* create_objterm();
+  protected:
+    OptVariablesBlock *p_ti, *q_ti;
+    const std::vector<int> &Nidx;
+    const std::vector<double> &T_Rate;
+    const SCACOPFData& d;
+    OptVariablesBlock *sslack_ti; // sslackp_ti1 or sslackm_ti2;
+
+    int* J_nz_idxs;
+    int* H_nz_idxs;
+  };
+
 }
 
 #endif
