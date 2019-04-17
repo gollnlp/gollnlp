@@ -491,6 +491,21 @@ void OptProblem::set_have_start()
   for(auto b: vars_duals_cons->vblocks) b->providesStartingPoint=true;
 }
 
+void  OptProblem::print_summary() const
+{
+  printf("\n*************************************************************************\n");
+  printf("Problem with %d variables and %d constraints\n", get_num_variables(), get_num_constraints());
+  printf("Variables blocks: \n");
+  for(auto it : vars_primal->vblocks) 
+    printf("\t'%s' size %d  startsAt %d   providesStPoint %d\n",
+	   it->id.c_str(), it->n, it->index, it->providesStartingPoint);
+
+  printf("Constraints blocks: \n");
+  for(auto it : cons->vblocks) 
+    printf("\t'%s' size %d  startsAt %d\n", it->id.c_str(), it->n, it->index);
+    
+}
+
 /////////////////////////////////////////
 // OptVariables
 /////////////////////////////////////////

@@ -355,6 +355,10 @@ public:
   int get_nnzJaccons();
   int get_nnzHessLagr();
 
+
+public:
+  //utilities
+  void print_summary() const;
 protected:
 
 protected:
