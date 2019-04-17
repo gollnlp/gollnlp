@@ -985,6 +985,37 @@ namespace gollnlp {
     int* H_nz_idxs;
   };
 
+  ////////////////////////////////////////////////////////////////////////////
+  // PFProdCostAffineCons - constraints needed by the piecewise linear 
+  // production cost function 
+  // min sum_g( sum_h CostCi[g][h]^T t[g][h])
+  // constraints (handled outside) are
+  //   t>=0, sum_h t[g][h]=1
+  //   p_g[g] sum_h CostPi[g][h]*t[g][h] 
+  ///////////////////////////////////////////////////////////////////////////
+  class PFProdCostAffineCons  : public OptConstraintsBlock
+  {
+  public:
+    PFProdCostAffineCons(const std::string& id_, int numcons,
+		   OptVariablesBlock* p_g_, 
+		   const std::vector<int>& G_Nidx_,
+		   const SCACOPFData& d_);
+    virtual ~PFProdCostAffineCons();
+
+    virtual bool eval_body (const OptVariables& vars_primal, bool new_x, double* body);
+    virtual bool eval_Jac(const OptVariables& primal_vars, bool new_x, 
+			  const int& nnz, int* i, int* j, double* M);
+    int get_Jacob_nnz();
+    virtual bool get_Jacob_ij(std::vector<OptSparseEntry>& vij);
+
+  virtual OptVariablesBlock* create_varsblock() { return t_h; }
+  virtual OptObjectiveTerm* create_objterm() { return obj_term;}
+  protected:
+    OptVariablesBlock *p_g, *t_h;
+    PFProdCostPcLinObjTerm* obj_term;
+    const SCACOPFData& d;
+    int* J_nz_idxs; //only in size of generators
+  };
 }
 
 #endif

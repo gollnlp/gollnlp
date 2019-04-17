@@ -421,5 +421,161 @@ OptObjectiveTerm* PFTransfLimits::create_objterm()
 { 
   return new DummySingleVarQuadrObjTerm("pen_sslack_ti"+id, sslack_ti); 
 }
+ 
+
+////////////////////////////////////////////////////////////////////////////
+// PFProdCostAffineCons - constraints needed by the piecewise linear 
+// production cost function  
+// min sum_g( sum_h CostCi[g][h]^T t[g][h])
+// constraints (handled outside) are
+//   t>=0, sum_h t[g][h]=1, for g=1,2,...
+//   p_g[g] - sum_h CostPi[g][h]*t[g][h] =0 , for all for g=1,2,...
+///////////////////////////////////////////////////////////////////////////
+PFProdCostAffineCons::
+PFProdCostAffineCons(const std::string& id_, int numcons,
+		     OptVariablesBlock* p_g_, 
+		     const std::vector<int>& G_idx_,
+		     const SCACOPFData& d_)
+  : OptConstraintsBlock(id_,2*p_g_->n), d(d_), p_g(p_g_), J_nz_idxs(NULL)
+{
+  assert(p_g->n == G_idx_.size());
+
+  //rhs of this block
+  lb = new double[n];
+  for(int i=0; i<n; ) {
+    lb[i++] = 1.; lb[i++] = 0.;
+  }
+
+  ub = new double[n];
+  DCOPY(&n, lb, &ione, ub, &ione);
+
+  int sz_t_h = 0;
+  //we create here the extra variables and the objective term
+  for(auto idx: G_idx_) 
+    sz_t_h += d.G_CostPi[idx].size();
+  t_h = new OptVariablesBlock(sz_t_h, "t_h", 0., 1e+20);
+  obj_term = new PFProdCostPcLinObjTerm(id+"_cons", t_h, G_idx_, d);
+}
+PFProdCostAffineCons::~PFProdCostAffineCons()
+{
+  delete[] J_nz_idxs;
+  //do not delete t_h, obj_term; OptProblem frees them by convention
+}
   
+bool PFProdCostAffineCons::eval_body (const OptVariables& vars_primal, bool new_x, double* body)
+{
+  const double* Pi; int sz; double* itbody=body+this->index; const double *it_t_h=t_h->xref;
+  for(int it=0; it<p_g->n; it++) {
+    sz = d.G_CostPi[obj_term->Gidx[it]].size(); 
+    Pi = d.G_CostPi[obj_term->Gidx[it]].data();
+    for(int i=0; i<sz; i++) {
+      *itbody += *it_t_h;
+      *(itbody+1) -= Pi[i]* (*it_t_h);
+      it_t_h++;
+    }
+    itbody++;
+    *itbody++ += p_g->xref[it];
+  }
+  assert(body+this->index+n == itbody);
+  assert(t_h->xref+t_h->n == it_t_h);
+  return true;
+}
+bool PFProdCostAffineCons::eval_Jac(const OptVariables& primal_vars, bool new_x, 
+				    const int& nnz, int* ia, int* ja, double* M)
+{
+  int row=0, idxnz, sz; int t_h_idx=t_h->index;
+  if(NULL==M) {
+    for(int it=0; it<p_g->n; it++) {
+      row = this->index+2*it;
+      idxnz = J_nz_idxs[it];
+      assert(idxnz<nnz && idxnz>=0);
+      
+      //for sum_h t[g][h]=1
+      //w.r.t. p_g, t[g][h]
+      sz = d.G_CostPi[obj_term->Gidx[it]].size(); 
+      for(int i=0; i<sz; i++) {
+	ia[idxnz]=row; ja[idxnz]=t_h_idx+i; idxnz++;
+      }
+      
+      //for p_g[g] - sum_h CostPi[g][h]*t[g][h] =0
+      //w.r.t. t[g][h]
+      row++;
+      ia[idxnz]=row; ja[idxnz]=p_g->index+it; idxnz++; //p_g
+      for(int i=0; i<sz; i++) {
+	ia[idxnz]=row; ja[idxnz]=t_h_idx+i; idxnz++;
+      }
+      t_h_idx += sz;
+    }
+    assert(row+1 == this->index+this->n);
+    assert(t_h_idx == t_h->index+t_h->n);
+  } else {
+    const double* Pi;
+    for(int it=0; it<p_g->n; it++) {
+      idxnz = J_nz_idxs[it];
+      assert(idxnz<nnz && idxnz>=0);
+      
+      //for sum_h t[g][h]=1
+      //w.r.t. p_g, t[g][h]
+      sz = d.G_CostPi[obj_term->Gidx[it]].size(); 
+      for(int i=0; i<sz; i++) {
+	M[idxnz++] += 1.;
+      }
+      
+      Pi = d.G_CostPi[obj_term->Gidx[it]].data();
+      //for p_g[g] - sum_h CostPi[g][h]*t[g][h] =0
+      //w.r.t. t[g][h]
+      row++;
+      M[idxnz++] += 1.; //p_g
+      for(int i=0; i<sz; i++) {
+	M[idxnz++] -= Pi[i];
+      }
+    }
+  }
+  return true;
+}
+int PFProdCostAffineCons::get_Jacob_nnz()
+{
+  int nnz = p_g->n; //pg from second constraint
+  for(int it=0; it<p_g->n; it++) nnz+= 2 * d.G_CostPi[obj_term->Gidx[it]].size(); 
+  return nnz;
+}
+bool PFProdCostAffineCons::get_Jacob_ij(std::vector<OptSparseEntry>& vij)
+{
+#ifdef DEBUG
+  int loc_nnz = get_Jacob_nnz();
+  int vij_sz_in = vij.size();
+#endif
+
+  if(!J_nz_idxs) 
+    J_nz_idxs = new int[p_g->n];
+
+  int row=this->index; int sz; int t_h_idx=t_h->index;
+  for(int it=0; it<p_g->n; it++) {
+    row = this->index+2*it;
+
+    //for sum_h t[g][h]=1
+    //w.r.t. p_g, t[g][h]
+    vij.push_back(OptSparseEntry(row, p_g->index+it, J_nz_idxs+it));
+
+    sz = d.G_CostPi[obj_term->Gidx[it]].size(); 
+
+    for(int i=0; i<sz; i++)
+      vij.push_back(OptSparseEntry(row, t_h_idx+i, NULL));
+
+    //for p_g[g] - sum_h CostPi[g][h]*t[g][h] =0
+    //w.r.t. t[g][h]
+    row++;
+    for(int i=0; i<sz; i++)
+      vij.push_back(OptSparseEntry(row, t_h_idx+i, NULL));
+
+    t_h_idx += sz;
+  }
+#ifdef DEBUG
+  assert(row+1 == this->index+this->n);
+  assert(t_h_idx == t_h->index+t_h->n);
+  assert(vij.size() == loc_nnz+vij_sz_in);
+#endif
+  return true;
+}
+
 }//end namespace 
