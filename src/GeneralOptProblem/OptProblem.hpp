@@ -103,7 +103,8 @@ public:
   virtual bool eval_grad(const OptVariables& x, bool new_x, double* grad) = 0;
   virtual bool eval_HessLagr(const OptVariables& x, bool new_x, 
 			     const double& obj_factor,
-			     const int& nnz, int* i, int* j, double* M) = 0;
+			     const int& nnz, int* i, int* j, double* M)
+  { return true; }
 
   // methods that need to be implemented to specify the sparsity pattern of the 
   // implementer's contribution to the sparse derivatives
@@ -125,7 +126,8 @@ public:
 			const int& nnz, int* i, int* j, double* M) = 0;
   virtual bool eval_HessLagr(const OptVariables& x, bool new_x, 
 			     const OptVariables& lambda, bool new_lambda,
-			     const int& nnz, int* i, int* j, double* M) = 0;
+			     const int& nnz, int* i, int* j, double* M) 
+  { return true; }
 
   // methods that need to be implemented to specify the sparsity pattern of the 
   // implementer's contribution to the sparse derivatives
