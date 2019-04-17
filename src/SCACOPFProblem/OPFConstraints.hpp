@@ -348,6 +348,8 @@ namespace gollnlp {
       delete[] H_nz_idxs;
     };
 
+    OptVariablesBlock* slacks() { return pslack_n; }
+
     virtual bool eval_body (const OptVariables& vars_primal, bool new_x, double* body)
     {
       assert(pslack_n); //assert(pslackm_n);
@@ -569,7 +571,8 @@ namespace gollnlp {
     //term (e.g., penalization) that OptConstraintsBlock may need
     virtual OptObjectiveTerm* create_objterm() 
     { 
-      return new DummySingleVarQuadrObjTerm("pen_pslack_n", pslack_n); 
+      //this is done externally
+      return NULL;//new DummySingleVarQuadrObjTerm("pen_pslack_n", pslack_n); 
     }
   protected:
     OptVariablesBlock *p_g, *v_n, *p_li1, *p_li2, *p_ti1, *p_ti2;
@@ -611,6 +614,8 @@ namespace gollnlp {
       delete[] J_nz_idxs;
       delete[] H_nz_idxs;
     };
+
+    OptVariablesBlock* slacks() { return qslack_n; }
 
     virtual bool eval_body (const OptVariables& vars_primal, bool new_x, double* body)
     {
@@ -895,7 +900,8 @@ namespace gollnlp {
     //term (e.g., penalization) that OptConstraintsBlock may need
     virtual OptObjectiveTerm* create_objterm() 
     { 
-      return new DummySingleVarQuadrObjTerm("pen_qslack_n", qslack_n); 
+      //this is done externally
+      return NULL;//new DummySingleVarQuadrObjTerm("pen_qslack_n", qslack_n); 
     }
   protected:
     OptVariablesBlock *q_g, *v_n, *q_li1, *q_li2, *q_ti1, *q_ti2, *b_s;
@@ -920,6 +926,8 @@ namespace gollnlp {
 		 const std::vector<double>& L_Rate_,
 		 const SCACOPFData& d_);
     virtual ~PFLineLimits();
+
+    OptVariablesBlock* slacks() { return sslack_li; }
 
     virtual bool eval_body (const OptVariables& vars_primal, bool new_x, double* body);
     virtual bool eval_Jac(const OptVariables& primal_vars, bool new_x, 
@@ -959,6 +967,7 @@ namespace gollnlp {
 		   const std::vector<double>& T_Rate_,
 		   const SCACOPFData& d_);
     virtual ~PFTransfLimits();
+    OptVariablesBlock* slacks() { return sslack_ti; }
 
     virtual bool eval_body (const OptVariables& vars_primal, bool new_x, double* body);
     virtual bool eval_Jac(const OptVariables& primal_vars, bool new_x, 
@@ -1008,13 +1017,47 @@ namespace gollnlp {
     int get_Jacob_nnz();
     virtual bool get_Jacob_ij(std::vector<OptSparseEntry>& vij);
 
-  virtual OptVariablesBlock* create_varsblock() { return t_h; }
-  virtual OptObjectiveTerm* create_objterm() { return obj_term;}
+    virtual OptVariablesBlock* create_varsblock() { return t_h; }
+    virtual OptObjectiveTerm* create_objterm() { return obj_term; }
   protected:
     OptVariablesBlock *p_g, *t_h;
     PFProdCostPcLinObjTerm* obj_term;
     const SCACOPFData& d;
     int* J_nz_idxs; //only in size of generators
+  };
+
+  //////////////////////////////////////////////////////////////////////////////
+  // Slack penalty piecewise linear objective
+  // min sum_i( sum_h P[i][h] sigma_h[i][h])
+  // constraints (handled outside) are
+  //   0<= sigma[i][h] <= Pseg_h, 
+  //   slacks[i] - sum_h sigma[i][h] =0, i=1,2, size(slacks)
+  //////////////////////////////////////////////////////////////////////////////
+  class PFPenaltyAffineCons  : public OptConstraintsBlock
+  {
+  public:
+    PFPenaltyAffineCons(const std::string& id_, int numcons,
+			OptVariablesBlock* slack_, 
+			const std::vector<double>& pen_coeff,
+			const std::vector<double>& pen_segm,
+			const SCACOPFData& d_);
+    virtual ~PFPenaltyAffineCons();
+
+    virtual bool eval_body (const OptVariables& vars_primal, bool new_x, double* body);
+    virtual bool eval_Jac(const OptVariables& primal_vars, bool new_x, 
+			  const int& nnz, int* i, int* j, double* M);
+    int get_Jacob_nnz();
+    virtual bool get_Jacob_ij(std::vector<OptSparseEntry>& vij);
+    
+    virtual OptObjectiveTerm* create_objterm() { return obj_term; }
+    virtual OptVariablesBlock* create_varsblock() { return sigma; }
+  protected:
+    OptVariablesBlock *slack, *sigma;
+    PFPenaltyPcLinObjTerm* obj_term;
+    const SCACOPFData& d;
+    int* J_nz_idxs; //only in size of slack
+    double P1, P2, P3;
+    double S1, S2, S3;
   };
 }
 

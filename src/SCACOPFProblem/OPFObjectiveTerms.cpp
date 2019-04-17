@@ -70,7 +70,7 @@ bool PFPenaltyPcLinObjTerm::eval_f(const OptVariables& vars_primal, bool new_x, 
 {  
   int i;
   for(i=0; i<sigma->n; i+=3) 
-    obj_val += sigma->xref[i]*P1 + sigma->xref[i+1]*P2 + sigma->xref[i+3]*P3;
+    obj_val += sigma->xref[i]*P1 + sigma->xref[i+1]*P2 + sigma->xref[i+2]*P3;
   assert(i==sigma->n);
   return true;
 }

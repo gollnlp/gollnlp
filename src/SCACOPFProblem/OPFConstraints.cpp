@@ -469,7 +469,7 @@ bool PFProdCostAffineCons::eval_body (const OptVariables& vars_primal, bool new_
     sz = d.G_CostPi[obj_term->Gidx[it]].size(); 
     Pi = d.G_CostPi[obj_term->Gidx[it]].data();
     for(int i=0; i<sz; i++) {
-      *itbody += *it_t_h;
+      *itbody     += *it_t_h;
       *(itbody+1) -= Pi[i]* (*it_t_h);
       it_t_h++;
     }
@@ -573,6 +573,121 @@ bool PFProdCostAffineCons::get_Jacob_ij(std::vector<OptSparseEntry>& vij)
 #ifdef DEBUG
   assert(row+1 == this->index+this->n);
   assert(t_h_idx == t_h->index+t_h->n);
+  assert(vij.size() == loc_nnz+vij_sz_in);
+#endif
+  return true;
+}
+
+//////////////////////////////////////////////////////////////////////////////
+// Slack penalty piecewise linear objective
+// min sum_i( sum_h P[i][h] sigma_h[i][h])
+// constraints (handled outside) are
+//   0<= sigma[i][h] <= S_h, 
+//   slacks[i] - sum_h sigma[i][h] =0, i=1,2, size(slacks)
+//////////////////////////////////////////////////////////////////////////////
+
+PFPenaltyAffineCons::
+PFPenaltyAffineCons(const std::string& id_, int numcons,
+			OptVariablesBlock* slack_, 
+			const std::vector<double>& pen_coeff,
+			const std::vector<double>& pen_segm,
+			const SCACOPFData& d_)
+  : OptConstraintsBlock(id_,slack_->n), slack(slack_), d(d_), J_nz_idxs(NULL)
+{
+  assert(pen_segm.size()==3);
+  assert(pen_coeff.size()==3);
+
+  P1=pen_coeff[0]; P2=pen_coeff[1]; P3=pen_coeff[2];
+  S1=pen_segm[0]; S2=pen_segm[1]; S3=pen_segm[2];
+
+  //rhs of this block
+  lb = new double[n];
+  for(int i=0; i<n; i++) lb[i] = 0.; 
+
+  ub = new double[n];
+  DCOPY(&n, lb, &ione, ub, &ione);
+
+  //for(int i=0; i<n; ) {ub[i++] = S1; ub[i++] = S2; ub[i++] = S3;} 
+  sigma = new OptVariablesBlock(3*slack->n, id+"_sigma", 0., S3);
+  for(int i=0; i<sigma->n; ) { sigma->ub[i++]=S1; sigma->ub[i++]=S2; i++;}
+
+  obj_term = new PFPenaltyPcLinObjTerm(id+"_cons", sigma, pen_coeff, d);
+}
+PFPenaltyAffineCons::~PFPenaltyAffineCons()
+{
+  delete[] J_nz_idxs;
+  //do not delete t_h, obj_term; OptProblem frees them by convention
+}
+  
+bool PFPenaltyAffineCons::eval_body (const OptVariables& vars_primal, bool new_x, double* body)
+{
+  double* itbody=body+this->index; 
+  for(int it=0; it<sigma->n; it+=3) {
+    *itbody++ -= sigma->xref[it]+sigma->xref[it+1]+sigma->xref[it+2];
+  }
+  assert(body+this->index+n == itbody);
+
+  DAXPY(&n, &done, const_cast<double*>(slack->xref), &ione, body+this->index, &ione);
+  return true;
+}
+bool PFPenaltyAffineCons::eval_Jac(const OptVariables& primal_vars, bool new_x, 
+				    const int& nnz, int* ia, int* ja, double* M)
+{
+  int row=0, idxnz;
+  if(NULL==M) {
+    assert(slack->n == n);
+    for(int it=0; it<n; it++) {
+      row = this->index+it;
+      idxnz = J_nz_idxs[it];
+      assert(idxnz<nnz && idxnz>=0);
+      
+      ia[idxnz]=row; ja[idxnz]=slack->index+it;        idxnz++; 
+      ia[idxnz]=row; ja[idxnz]=sigma->index+3*it;   idxnz++; 
+      ia[idxnz]=row; ja[idxnz]=sigma->index+3*it+1; idxnz++; 
+      ia[idxnz]=row; ja[idxnz]=sigma->index+3*it+2; idxnz++; 
+    }
+    assert(row+1 == this->index+this->n);
+  } else {
+
+    for(int it=0; it<n; it++) {
+      idxnz = J_nz_idxs[it];
+      assert(idxnz<nnz && idxnz>=0);
+      
+      M[idxnz++] += 1.; //slack
+      M[idxnz++] -= 1.; //sigma1
+      M[idxnz++] -= 1.; //sigma2
+      M[idxnz++] -= 1.; //sigma3
+    }
+  }
+  return true;
+}
+int PFPenaltyAffineCons::get_Jacob_nnz()
+{
+  return 4*n;
+}
+
+//slacks[i] - sum_h sigma[i][h] =0, i=1,2, size(slacks)
+bool PFPenaltyAffineCons::get_Jacob_ij(std::vector<OptSparseEntry>& vij)
+{
+#ifdef DEBUG
+  int loc_nnz = get_Jacob_nnz();
+  int vij_sz_in = vij.size();
+#endif
+
+  if(!J_nz_idxs) 
+    J_nz_idxs = new int[n];
+
+  int row=0; 
+  for(int it=0; it<n; it++) {
+    row = this->index+it;
+
+    vij.push_back(OptSparseEntry(row, slack->index+it, J_nz_idxs+it));
+    vij.push_back(OptSparseEntry(row, sigma->index+3*it, NULL));
+    vij.push_back(OptSparseEntry(row, sigma->index+3*it+1, NULL));
+    vij.push_back(OptSparseEntry(row, sigma->index+3*it+2, NULL));
+  }
+#ifdef DEBUG
+  assert(row+1 == this->index+this->n);
   assert(vij.size() == loc_nnz+vij_sz_in);
 #endif
   return true;
