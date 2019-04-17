@@ -47,4 +47,40 @@ bool PFProdCostPcLinObjTerm::eval_grad(const OptVariables& vars_primal, bool new
   DAXPY(&(t_h->n), &done, CostCi, &ione, grad+t_h->index, &ione);
   return true;
 }
+
+//////////////////////////////////////////////////////////////////////////////
+// Slack penalty piecewise linear objective
+// min sum_i( sum_h P[i][h] sigma_h[i][h])
+//////////////////////////////////////////////////////////////////////////////
+PFPenaltyPcLinObjTerm::
+PFPenaltyPcLinObjTerm(const std::string& id_, 
+		      OptVariablesBlock* sigma_,
+		      const std::vector<double>& pen_coeff,
+		      const SCACOPFData& d_)
+  : OptObjectiveTerm(id_), sigma(sigma_), d(d_)
+{
+  assert(pen_coeff.size()==3); 
+  P1 = pen_coeff[0]; P2 = pen_coeff[1]; P3 = pen_coeff[2]; 
+}
+
+PFPenaltyPcLinObjTerm::~PFPenaltyPcLinObjTerm()
+{ }
+
+bool PFPenaltyPcLinObjTerm::eval_f(const OptVariables& vars_primal, bool new_x, double& obj_val)
+{  
+  int i;
+  for(i=0; i<sigma->n; i+=3) 
+    obj_val += sigma->xref[i]*P1 + sigma->xref[i+1]*P2 + sigma->xref[i+3]*P3;
+  assert(i==sigma->n);
+  return true;
+}
+bool PFPenaltyPcLinObjTerm::eval_grad(const OptVariables& vars_primal, bool new_x, double* grad)
+{
+  grad += sigma->index;
+  for(int i=0; i<sigma->n; i+=3) {
+    *grad++ += P1; *grad++ += P2; *grad++ += P3;
+  }
+  return true;
+}
+
 } //end namespace

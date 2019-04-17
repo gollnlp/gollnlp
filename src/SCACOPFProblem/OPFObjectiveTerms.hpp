@@ -40,6 +40,33 @@ namespace gollnlp {
     int ngen;
   };
 
+  //////////////////////////////////////////////////////////////////////////////
+  // Slack penalty piecewise linear objective
+  // min sum_i( sum_h P[i][h] sigma_h[i][h])
+  // constraints (handled outside) are
+  //   0<= sigma[i][h] <= Pseg_h, 
+  //   slacks[i] - sum_h sigma[i][h] =0, i=1,2, size(slacks)
+  //////////////////////////////////////////////////////////////////////////////
+  class PFPenaltyPcLinObjTerm : public OptObjectiveTerm {
+  public: 
+    //Gidx contains the indexes (in d.G_Generator) of the generator participating
+    PFPenaltyPcLinObjTerm(const std::string& id_, 
+			  OptVariablesBlock* sigma_,
+			  const std::vector<double>& pen_coeff,
+			  const SCACOPFData& d_);
+    virtual ~PFPenaltyPcLinObjTerm();
+    virtual bool eval_f(const OptVariables& vars_primal, bool new_x, double& obj_val);
+    virtual bool eval_grad(const OptVariables& vars_primal, bool new_x, double* grad);
+    //Hessian is all zero
+
+  private:
+    std::string id;
+    OptVariablesBlock* sigma;
+    const SCACOPFData& d;
+    double P1, P2, P3;
+  };
+
+
   //for 0.5||x||^2 -> to be used in testing
   class DummySingleVarQuadrObjTerm : public OptObjectiveTerm {
   public: 
