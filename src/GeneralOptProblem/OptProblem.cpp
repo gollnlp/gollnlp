@@ -377,7 +377,6 @@ bool OptProblem::fill_dual_bounds_start(double* zL, double* zU)
   return true;
 }
 
-
 OptVariables*  OptProblem::new_duals_vec_cons()
 {
   OptVariables* duals = new OptVariables();
@@ -506,9 +505,9 @@ void  OptProblem::print_summary() const
     
 }
 
-/////////////////////////////////////////
+///////////////////////////////////////////////////////////////////
 // OptVariables
-/////////////////////////////////////////
+///////////////////////////////////////////////////////////////////
 
 OptVariables::OptVariables()
 {
@@ -614,7 +613,12 @@ void OptVariablesBlock::set_start_to(const OptVariablesBlock& block)
   assert(block.n == this->n);
   set_start_to(block.x);
 }
-
+void OptVariablesBlock::print() const
+{
+  printf("vector '%s' of size %d providesStPt %d\n", id.c_str(), n, providesStartingPoint);
+  for(int i=0; i<n; i++) printf("%12.5e ", x[i]);
+  printf("\n");
+}
 
 /////////////////////////////////////////
 // OptConstraints

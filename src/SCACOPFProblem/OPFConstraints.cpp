@@ -538,6 +538,459 @@ bool PFActiveBalance::get_HessLagr_ij(std::vector<OptSparseEntry>& vij)
   return true;
 }
 
+//sum(p_g[g] for g=Gn[n])  - N[:Gsh][n]*v_n[n]^2 -
+// sum(p_li[Lidxn[n][lix],Lin[n][lix]] for lix=1:length(Lidxn[n])) -
+// sum(p_ti[Tidxn[n][tix],Tin[n][tix]] for tix=1:length(Tidxn[n])) -   N[:Pd][n]) ==
+// + pslackp_n[n] - pslackm_n[n]    
+//
+//
+void PFActiveBalance::compute_slacks(OptVariablesBlock* slacksv) const
+{
+  assert(slacksv->n == 2*n);
+  double* body = slacksv->x; //use first n as buffer
+
+  const double *NGsh=d.N_Gsh.data(), *NPd = d.N_Pd.data();
+  for(int i=0; i<n; i++) {
+    *body = - NPd[i] - NGsh[i] * v_n->x[i] * v_n->x[i];
+    body++;
+  }
+  body -= n;
+  const int *Gn; int nGn;
+  for(int i=0; i<n; i++) {
+    nGn = d.Gn[i].size(); Gn = d.Gn[i].data();
+    for(int ig=0; ig<nGn; ig++) 
+      *body += p_g->x[Gn[ig]];
+    body++;
+  }
+  body -= n;
+  {
+    // - sum(p_li1[Lidxn1[n][lix]] for lix=1:length(Lidxn1[n])) 
+    const int *Lidxn; int nLidx;
+    for(int i=0; i<n; i++) {
+      Lidxn=d.Lidxn1[i].data(); nLidx = d.Lidxn1[i].size();
+      for(int ilix=0; ilix<nLidx; ilix++)
+	*body -= p_li1->x[Lidxn[ilix]];
+      body++;
+    }
+    body -= n;
+    // - sum(p_li2[Lidxn1[n][lix]] for lix=1:length(Lidxn2[n])) 
+    for(int i=0; i<n; i++) {
+      Lidxn=d.Lidxn2[i].data(); nLidx = d.Lidxn2[i].size();
+      for(int ilix=0; ilix<nLidx; ilix++)
+	*body -= p_li2->x[Lidxn[ilix]];
+      body++;
+    }
+    body -= n;
+  }
+  {
+    const int *Tidxn; int nTidx;
+    // - sum(p_ti1[Tidxn1[n][tix]] for tix=1:length(Tidxn1[n]))
+    for(int i=0; i<n; i++) {
+      Tidxn=d.Tidxn1[i].data(); nTidx = d.Tidxn1[i].size();
+      for(int itix=0; itix<nTidx; itix++)
+	*body -= p_ti1->x[Tidxn[itix]];
+      body++;
+    }
+    body -= n;
+    // - sum(p_ti2[Tidxn2[n][tix]] for tix=1:length(Tidxn2[n]))
+    for(int i=0; i<n; i++) {
+      Tidxn=d.Tidxn2[i].data(); nTidx = d.Tidxn2[i].size();
+      for(int itix=0; itix<nTidx; itix++)
+	*body -= p_ti2->x[Tidxn[itix]];
+      body++;
+    }
+  }
+  double* pslackp_n = slacksv->x, *pslackm_n = slacksv->x+n;
+  for(int i=0; i<n; i++) {
+    //pslackm_n[n] = max(0.0, -pslack)
+    //pslackp_n[n] = max(0.0, pslack)
+    if(pslackp_n[i]<0) {
+      pslackm_n[i] = -pslackp_n[i];
+      pslackp_n[i] = 0;
+    } else {
+      pslackm_n[i] = 0;
+    }
+  }
+}
+////////////////////////////////////////////////////////////////////////////////////////////
+// Reactive Balance constraints
+//
+//sum(q_g[g] for g=Gn[n]) - 
+// (-N[:Bsh][n] - sum(b_s[s] for s=SShn[n]))*v_n[n]^2 -
+// sum(q_li[Lidxn[n][lix],Lin[n][lix]] for lix=1:length(Lidxn[n])) -
+// sum(q_ti[Tidxn[n][tix],Tin[n][tix]] for tix=1:length(Tidxn[n])) - 
+// qslackp_n[n] + qslackm_n[n])  ==  N[:Qd][n]
+////////////////////////////////////////////////////////////////////////////////////////////
+PFReactiveBalance::PFReactiveBalance(const std::string& id_, int numcons,
+		      OptVariablesBlock* q_g_, 
+		      OptVariablesBlock* v_n_,
+		      OptVariablesBlock* q_li1_,
+		      OptVariablesBlock* q_li2_,
+		      OptVariablesBlock* q_ti1_,
+		      OptVariablesBlock* q_ti2_,
+		      OptVariablesBlock* b_s_,
+		      const SCACOPFData& d_)
+  : OptConstraintsBlock(id_, numcons), 
+    q_g(q_g_), v_n(v_n_), 
+    q_li1(q_li1_), q_li2(q_li2_), 
+    q_ti1(q_ti1_), q_ti2(q_ti2_), 
+    b_s(b_s_), d(d_), qslack_n(NULL)//, pslackm_n(NULL)
+{
+  assert(d.N_Pd.size()==n);
+  //rhs
+  memcpy(lb, d.N_Qd.data(), n*sizeof(double));
+  DCOPY(&n, lb, &ione, ub, &ione);
+  J_nz_idxs = NULL;
+  H_nz_idxs = NULL;
+}
+PFReactiveBalance::~PFReactiveBalance() 
+{
+  delete[] J_nz_idxs;
+  delete[] H_nz_idxs;
+}
+
+bool PFReactiveBalance::eval_body (const OptVariables& vars_primal, bool new_x, double* body)
+{
+  assert(qslack_n); 
+  body += this->index;
+  double* slacks = const_cast<double*>(qslack_n->xref);
+  DAXPY(&n, &dminusone, slacks,   &ione, body, &ione);
+  DAXPY(&n, &done,      slacks+n, &ione, body, &ione);
+
+  const int *Gn; int nGn;
+  for(int i=0; i<n; i++) {
+    nGn = d.Gn[i].size(); Gn = d.Gn[i].data();
+    for(int ig=0; ig<nGn; ig++) 
+      *body += q_g->xref[Gn[ig]];
+    body++;
+  }
+  body -= n;
+  {
+    //(N[:Bsh][n]  + sum(b_s[s] for s=SShn[n]))*v_n[n]^2 
+    const double *NBsh=d.N_Bsh.data(); const int *SShn; int sz; double aux;
+    for(int i=0; i<n; i++) {
+      aux = NBsh[i];
+      SShn = d.SShn[i].data(); sz = d.SShn[i].size();
+      for(int is=0; is<sz; is++) aux += b_s->xref[SShn[is]];
+      *body++ += aux*v_n->xref[i]*v_n->xref[i];
+    }
+  }
+  body -= n;
+  {
+    // - sum(q_li1[Lidxn1[n][lix]] for lix=1:length(Lidxn1[n])) 
+    const int *Lidxn; int nLidx;
+    for(int i=0; i<n; i++) {
+      Lidxn=d.Lidxn1[i].data(); nLidx = d.Lidxn1[i].size();
+      for(int ilix=0; ilix<nLidx; ilix++)
+	*body -= q_li1->xref[Lidxn[ilix]];
+      body++;
+    }
+    body -= n;
+    // - sum(q_li2[Lidxn1[n][lix]] for lix=1:length(Lidxn2[n])) 
+    for(int i=0; i<n; i++) {
+      Lidxn=d.Lidxn2[i].data(); nLidx = d.Lidxn2[i].size();
+      for(int ilix=0; ilix<nLidx; ilix++)
+	*body -= q_li2->xref[Lidxn[ilix]];
+      body++;
+    }
+    body -= n;
+  }
+  {
+    const int *Tidxn; int nTidx;
+    // - sum(q_ti1[Tidxn1[n][tix]] for tix=1:length(Tidxn1[n]))
+    for(int i=0; i<n; i++) {
+      Tidxn=d.Tidxn1[i].data(); nTidx = d.Tidxn1[i].size();
+      for(int itix=0; itix<nTidx; itix++)
+	*body -= q_ti1->xref[Tidxn[itix]];
+      body++;
+    }
+    body -= n;
+    // - sum(q_ti2[Tidxn2[n][tix]] for tix=1:length(Tidxn2[n]))
+    for(int i=0; i<n; i++) {
+      Tidxn=d.Tidxn2[i].data(); nTidx = d.Tidxn2[i].size();
+      for(int itix=0; itix<nTidx; itix++)
+	*body -= q_ti2->xref[Tidxn[itix]];
+      body++;
+    }
+  }
+  return true;
+} 
+
+void PFReactiveBalance::compute_slacks(OptVariablesBlock* qslacks_n)
+{
+  double* body = qslacks_n->x;
+
+  const int *Gn; int nGn;
+  for(int i=0; i<n; i++) {
+    *body=0;
+    nGn = d.Gn[i].size(); Gn = d.Gn[i].data();
+    for(int ig=0; ig<nGn; ig++) 
+      *body += q_g->x[Gn[ig]];
+    body++;
+  }
+  body -= n;
+  {
+    //(N[:Bsh][n]  + sum(b_s[s] for s=SShn[n]))*v_n[n]^2 
+    const double *NBsh=d.N_Bsh.data(); const int *SShn; int sz; double aux;
+    for(int i=0; i<n; i++) {
+      aux = NBsh[i];
+      SShn = d.SShn[i].data(); sz = d.SShn[i].size();
+      for(int is=0; is<sz; is++) aux += b_s->x[SShn[is]];
+      *body++ += aux*v_n->x[i]*v_n->x[i] - d.N_Qd[i];
+    }
+  }
+  body -= n;
+  {
+    // - sum(q_li1[Lidxn1[n][lix]] for lix=1:length(Lidxn1[n])) 
+    const int *Lidxn; int nLidx;
+    for(int i=0; i<n; i++) {
+      Lidxn=d.Lidxn1[i].data(); nLidx = d.Lidxn1[i].size();
+      for(int ilix=0; ilix<nLidx; ilix++)
+	*body -= q_li1->x[Lidxn[ilix]];
+      body++;
+    }
+    body -= n;
+    // - sum(q_li2[Lidxn1[n][lix]] for lix=1:length(Lidxn2[n])) 
+    for(int i=0; i<n; i++) {
+      Lidxn=d.Lidxn2[i].data(); nLidx = d.Lidxn2[i].size();
+      for(int ilix=0; ilix<nLidx; ilix++)
+	*body -= q_li2->x[Lidxn[ilix]];
+      body++;
+    }
+    body -= n;
+  }
+  {
+    const int *Tidxn; int nTidx;
+    // - sum(q_ti1[Tidxn1[n][tix]] for tix=1:length(Tidxn1[n]))
+    for(int i=0; i<n; i++) {
+      Tidxn=d.Tidxn1[i].data(); nTidx = d.Tidxn1[i].size();
+      for(int itix=0; itix<nTidx; itix++)
+	*body -= q_ti1->x[Tidxn[itix]];
+      body++;
+    }
+    body -= n;
+    // - sum(q_ti2[Tidxn2[n][tix]] for tix=1:length(Tidxn2[n]))
+    for(int i=0; i<n; i++) {
+      Tidxn=d.Tidxn2[i].data(); nTidx = d.Tidxn2[i].size();
+      for(int itix=0; itix<nTidx; itix++)
+	*body -= q_ti2->x[Tidxn[itix]];
+      body++;
+    }
+  }
+
+  double *qslackp_n=qslacks_n->x, *qslackm_n=qslacks_n->x+n;
+  for(int i=0; i<n; i++) {
+    if(qslackp_n[i]<0) {
+      qslackm_n[i] = - qslackp_n[i];
+      qslackp_n[i] = 0.;
+    } else {
+      qslackm_n[i] = 0.;
+    }
+  }
+}
+
+//sum(q_g[g] for g=Gn[n]) - 
+// (-N[:Bsh][n] - sum(b_s[s] for s=SShn[n]))*v_n[n]^2 -
+// sum(q_li[Lidxn[n][lix],Lin[n][lix]] for lix=1:length(Lidxn[n])) -
+// sum(q_ti[Tidxn[n][tix],Tin[n][tix]] for tix=1:length(Tidxn[n])) - qslackp_n[n] + qslackm_n[n]) == N[:Qd][n]
+bool PFReactiveBalance::eval_Jac(const OptVariables& primal_vars, bool new_x, 
+				 const int& nnz, int* i, int* j, double* M)
+{
+#ifdef DEBUG
+  int nnz_loc=get_Jacob_nnz();
+#endif
+  int row, *itnz=J_nz_idxs;
+  if(NULL==M) {
+    for(int it=0; it<n; it++) {
+      row = this->index+it;
+      //v_n
+      i[*itnz]=row; j[*itnz]=v_n->index+it; itnz++;
+      //q_g
+      for(auto g: d.Gn[it]) { i[*itnz]=row; j[*itnz]=q_g->index+g; itnz++; }
+      //q_li1 and p_l2
+      for(auto l: d.Lidxn1[it]) { i[*itnz]=row; j[*itnz]=q_li1->index+l; itnz++; }	  
+      for(auto l: d.Lidxn2[it]) { i[*itnz]=row; j[*itnz]=q_li2->index+l; itnz++; }
+      //q_ti1 and q_ti2
+      for(auto t: d.Tidxn1[it]) { i[*itnz]=row; j[*itnz]=q_ti1->index+t; itnz++; }	  
+      for(auto t: d.Tidxn2[it]) { i[*itnz]=row; j[*itnz]=q_ti2->index+t; itnz++; }
+	  
+      //b_s
+      for(auto ssh: d.SShn[it])  { i[*itnz]=row; j[*itnz]=b_s->index+ssh; itnz++; }
+
+      //slacks
+      i[*itnz]=row; j[*itnz]=qslack_n->index+it;   itnz++;
+      i[*itnz]=row; j[*itnz]=qslack_n->index+it+n; itnz++;
+    }
+#ifdef DEBUG
+    assert(J_nz_idxs + nnz_loc == itnz);
+#endif
+  } else {
+    const double* Bsh=d.N_Bsh.data(); int sz, szsshn; const int *sshn; double aux;
+    for(int it=0; it<n; it++) {
+      row = this->index+it;
+
+      aux=Bsh[it];
+      szsshn = d.SShn[it].size(); sshn = d.SShn[it].data();
+      for(int s=0; s<szsshn; s++) aux += b_s->xref[sshn[s]];
+      M[*itnz] += 2*v_n->xref[it]*aux;  itnz++; //vn
+	  
+      sz = d.Gn[it].size();
+      for(int ig=0; ig<sz; ig++) { M[*itnz] += 1; itnz++; } //q_g
+
+      sz=d.Lidxn1[it].size();
+      for(int i=0; i<sz; i++) { M[*itnz] -= 1; itnz++;} //q_li_1
+      sz=d.Lidxn2[it].size();
+      for(int i=0; i<sz; i++) { M[*itnz] -= 1; itnz++;} //p_l2_1
+
+      sz=d.Tidxn1[it].size();
+      for(int i=0; i<sz; i++) { M[*itnz] -= 1; itnz++;} //q_ti_1
+      sz=d.Tidxn2[it].size();
+      for(int i=0; i<sz; i++) { M[*itnz] -= 1; itnz++;} //p_t2_1
+
+      aux = v_n->xref[it]*v_n->xref[it];
+      for(int s=0; s<szsshn; s++) {  M[*itnz] += aux; itnz++;} //b_s
+
+      //slacks
+      M[*itnz] -= 1; itnz++;
+      M[*itnz] += 1; itnz++;
+    }
+  }
+  return true;
+}
+int PFReactiveBalance::get_Jacob_nnz(){ 
+  int nnz = 2*n; //slacks
+  for(int i=0; i<n; i++) 
+    nnz += d.Gn[i].size() + (1+d.SShn[i].size()) + d.Lidxn1[i].size() + d.Lidxn2[i].size() + d.Tidxn1[i].size() + d.Tidxn2[i].size();
+  return nnz; 
+}
+
+bool PFReactiveBalance::get_Jacob_ij(std::vector<OptSparseEntry>& vij)
+{
+  if(n<=0) return true;
+
+  int nnz = get_Jacob_nnz();
+  if(!J_nz_idxs) 
+    J_nz_idxs = new int[nnz];
+#ifdef DEBUG
+  int n_vij_in = vij.size();
+#endif
+
+  int row, *itnz=J_nz_idxs;
+  for(int it=0; it<n; it++) {
+    row = this->index+it;
+    //v_n
+    vij.push_back(OptSparseEntry(row, v_n->index+it, itnz++));
+
+    //q_g
+    for(auto g: d.Gn[it]) 
+      vij.push_back(OptSparseEntry(row, q_g->index+g, itnz++));
+
+    //q_li1
+    for(auto l: d.Lidxn1[it])
+      vij.push_back(OptSparseEntry(row, q_li1->index+l, itnz++));
+    //q_li1
+    for(auto l: d.Lidxn2[it])
+      vij.push_back(OptSparseEntry(row, q_li2->index+l, itnz++));
+			
+    //q_ti1
+    for(auto t: d.Tidxn1[it])
+      vij.push_back(OptSparseEntry(row, q_ti1->index+t, itnz++));
+    //q_ti1
+    for(auto t: d.Tidxn2[it])
+      vij.push_back(OptSparseEntry(row, q_ti2->index+t, itnz++));
+
+    //b_s
+    for(auto is: d.SShn[it])
+      vij.push_back(OptSparseEntry(row, b_s->index+is, itnz++));
+		
+    //slacks
+    vij.push_back(OptSparseEntry(row, qslack_n->index+it, itnz++));
+    vij.push_back(OptSparseEntry(row, qslack_n->index+it+n, itnz++));
+  }
+  printf("nnz=%d vijsize=%d\n", nnz, vij.size());
+#ifdef DEBUG
+  assert(nnz+n_vij_in==vij.size());
+#endif
+  assert(J_nz_idxs+nnz == itnz);
+  return true;
+}
+
+// 
+// Jacobian (nonlinear parts)
+//   2*( N[:Bsh][n] + sum(b_s[s] for s=SShn[n]) ) * v_n[n]   - w.r.t. v_n
+//   v_n[n]^2   - w.r.t. to b_s[s]  for all a=SShn[n]
+//
+// Hessian
+// 2*( N[:Bsh][n] + sum(b_s[s] for s=SShn[n]) )  - w.r.t. v_n,v_n
+// 2*v_n                                         - w.r.t. v_n,b_s[s] for s=SShn[n]
+// total nnz = n + sum( cardinal(SShn[i])  )  for i=1,...,n
+bool PFReactiveBalance::eval_HessLagr(const OptVariables& vars_primal, bool new_x, 
+				      const OptVariables& lambda_vars, bool new_lambda,
+				      const int& nnz, int* ia, int* ja, double* M)
+{
+#ifdef DEBUG
+  int nnz_loc = get_HessLagr_nnz();
+#endif
+  int *itnz=H_nz_idxs;
+  if(NULL==M) {
+    int i, j, row, aux;
+    for(int it=0; it<n; it++) {
+      row = v_n->index+it;
+      ia[*itnz] = ja[*itnz] = row; itnz++; // w.r.t. v_n,v_n
+      for(auto is: d.SShn[it]) {
+	i = uppertr_swap(row,j=b_s->index+is, aux); 
+	ia[*itnz] = i; ja[*itnz] = j; itnz++; // w.r.t. v_n,b_s[s])
+      }
+    }
+  } else {
+    const double* NBsh = d.N_Bsh.data(); const int* ssh; int sz; double aux;
+    for(int it=0; it<n; it++) {
+      aux = NBsh[it];
+
+      sz=d.SShn[it].size(); ssh = d.SShn[it].data();
+      for(int is=0; is<sz; is++) {
+	aux += b_s->xref[is];
+      }
+      M[*itnz] += 2*aux; itnz++; //w.r.t. (v_n, v_n)
+
+      for(int is=0; is<sz; is++) {
+	M[*itnz] += 2*v_n->xref[it]; itnz++; //w.r.t. (v_n, v_n)
+      }
+    }
+  }
+#ifdef DEBUG
+  assert(H_nz_idxs+nnz_loc==itnz);
+#endif
+  return true;
+}
+
+int PFReactiveBalance::get_HessLagr_nnz() 
+{ 
+  int nnz=n; //v_n
+  for(int i=0; i<n; i++) nnz += d.SShn[i].size();
+  return nnz; 
+}
+
+bool PFReactiveBalance::get_HessLagr_ij(std::vector<OptSparseEntry>& vij) 
+{
+  if(n==0) return true;
+      
+  if(NULL==H_nz_idxs) {
+    H_nz_idxs = new int[get_HessLagr_nnz()];
+  }
+
+  int *itnz=H_nz_idxs, i, j, row, aux;
+  for(int it=0; it<n; it++) {
+    row = v_n->index+it;
+    vij.push_back(OptSparseEntry(row, row, itnz++)); // w.r.t. v_n,v_n
+	
+    for(auto is: d.SShn[it]) {
+      i = uppertr_swap(row,j=b_s->index+is, aux); 
+      vij.push_back(OptSparseEntry(i, j, itnz++)); // w.r.t. v_n,b_s[s])
+    }
+  }
+  return true;
+}
 
 //////////////////////////////////////////////////////////////////
 // PFLineLimits - Line thermal limits

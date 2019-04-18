@@ -35,6 +35,8 @@ public:
   //handled by attach_to
   const double* xref;
   bool providesStartingPoint;
+  
+  void print() const;
 };
   
 ////////////////////////////////////////////////////////////

@@ -41,49 +41,49 @@ bool ACOPFProblem::default_assembly()
   auto v_n = new OptVariablesBlock(d.N_Bus.size(), "v_n", d.N_Vlb.data(), d.N_Vub.data()); 
   append_variables(v_n);
   v_n->set_start_to(d.N_v0.data());
-  append_objterm(new DummySingleVarQuadrObjTerm("v_n_sq", v_n));
+  //append_objterm(new DummySingleVarQuadrObjTerm("v_n_sq", v_n));
 
   auto theta_n = new OptVariablesBlock(d.N_Bus.size(), "theta_n");
   append_variables(theta_n);
   theta_n->set_start_to(d.N_theta0.data());
-  theta_n->lb[0] = theta_n->ub[0] = 0;
-  append_objterm(new DummySingleVarQuadrObjTerm("theta_n_sq", theta_n));
+  theta_n->lb[0] = theta_n->ub[0] = d.N_theta0[0];
+  //append_objterm(new DummySingleVarQuadrObjTerm("theta_n_sq", theta_n));
 
   auto p_li1 = new OptVariablesBlock(d.L_Line.size(), "p_li1");
   append_variables(p_li1);
   auto p_li2 = new OptVariablesBlock(d.L_Line.size(), "p_li2");
   append_variables(p_li2);
-  append_objterm(new DummySingleVarQuadrObjTerm("p_li1_sq", p_li1));
-  append_objterm(new DummySingleVarQuadrObjTerm("p_li2_sq", p_li2));
+  //append_objterm(new DummySingleVarQuadrObjTerm("p_li1_sq", p_li1));
+  // append_objterm(new DummySingleVarQuadrObjTerm("p_li2_sq", p_li2));
 
   auto q_li1 = new OptVariablesBlock(d.L_Line.size(), "q_li1");
   auto q_li2 = new OptVariablesBlock(d.L_Line.size(), "q_li2");
   append_variables(q_li1); append_variables(q_li2);
-  append_objterm(new DummySingleVarQuadrObjTerm("q_li1_sq", q_li1));
-  append_objterm(new DummySingleVarQuadrObjTerm("q_li2_sq", q_li2));
+  //append_objterm(new DummySingleVarQuadrObjTerm("q_li1_sq", q_li1));
+  //append_objterm(new DummySingleVarQuadrObjTerm("q_li2_sq", q_li2));
  
   auto p_ti1 = new OptVariablesBlock(d.T_Transformer.size(), "p_t1i");
   auto p_ti2 = new OptVariablesBlock(d.T_Transformer.size(), "p_ti2");
   append_variables(p_ti1); 
-  append_objterm(new DummySingleVarQuadrObjTerm("p_ti1_sq", p_ti1));
+  //append_objterm(new DummySingleVarQuadrObjTerm("p_ti1_sq", p_ti1));
   append_variables(p_ti2); 
-  append_objterm(new DummySingleVarQuadrObjTerm("p_ti2_sq", p_ti2));
+  //append_objterm(new DummySingleVarQuadrObjTerm("p_ti2_sq", p_ti2));
 
   auto q_ti1 = new OptVariablesBlock(d.T_Transformer.size(), "q_ti1");
   auto q_ti2 = new OptVariablesBlock(d.T_Transformer.size(), "q_ti2");
   append_variables(q_ti1); append_variables(q_ti2); 
-  append_objterm(new DummySingleVarQuadrObjTerm("q_ti1_sq", q_ti1));
-  append_objterm(new DummySingleVarQuadrObjTerm("q_ti2_sq", q_ti2));
+  //append_objterm(new DummySingleVarQuadrObjTerm("q_ti1_sq", q_ti1));
+  //append_objterm(new DummySingleVarQuadrObjTerm("q_ti2_sq", q_ti2));
       
   auto b_s = new OptVariablesBlock(d.SSh_SShunt.size(), "b_s", d.SSh_Blb.data(), d.SSh_Bub.data());
   b_s->set_start_to(d.SSh_B0.data());
   append_variables(b_s);
-  append_objterm(new DummySingleVarQuadrObjTerm("b_s_sq", b_s));
+  //append_objterm(new DummySingleVarQuadrObjTerm("b_s_sq", b_s));
 
   auto q_g = new OptVariablesBlock(d.G_Generator.size(), "q_g", d.G_Qlb.data(), d.G_Qub.data());
   q_g->set_start_to(d.G_q0.data());
   append_variables(q_g); 
-  append_objterm(new DummySingleVarQuadrObjTerm("q_g_sq", q_g));
+  //append_objterm(new DummySingleVarQuadrObjTerm("q_g_sq", q_g));
 
   //
   //constraints
@@ -117,6 +117,11 @@ bool ACOPFProblem::default_assembly()
 	
     append_constraints(pf_cons1);
     append_constraints(pf_cons2);
+    
+    //compute starting points
+    pf_cons1->compute_power(p_li1); p_li1->providesStartingPoint=true;
+    pf_cons2->compute_power(p_li2); p_li2->providesStartingPoint=true;
+    p_li1->print();p_li2->print();
   }
 
   {
@@ -152,7 +157,11 @@ bool ACOPFProblem::default_assembly()
 	
     append_constraints(pf_cons1);
     append_constraints(pf_cons2);
+    pf_cons1->compute_power(q_li1); q_li1->providesStartingPoint=true;
+    pf_cons2->compute_power(q_li2); q_li2->providesStartingPoint=true;
+    q_li1->print();q_li2->print();
   }
+  
   // transformers power flows
   {
     // i=1 addpowerflowcon!(m, p_ti[t,1], v_n[T_Nidx[t,1]], v_n[T_Nidx[t,2]],
@@ -193,8 +202,13 @@ bool ACOPFProblem::default_assembly()
 	
     append_constraints(pf_cons1);
     append_constraints(pf_cons2);
+    pf_cons1->compute_power(p_ti1); p_ti1->providesStartingPoint=true;
+    pf_cons2->compute_power(p_ti2); p_ti2->providesStartingPoint=true;
+    p_ti1->print();p_ti2->print();
   }
-  
+  p_g->print();
+  q_g->print();
+
   {
     // i=1 addpowerflowcon!(m, q_ti[t,1], v_n[T_Nidx[t,1]], v_n[T_Nidx[t,2]],
     //		theta_n[T_Nidx[t,1]], theta_n[T_Nidx[t,2]],
@@ -233,6 +247,9 @@ bool ACOPFProblem::default_assembly()
 	
     append_constraints(pf_cons1);
     append_constraints(pf_cons2);
+    pf_cons1->compute_power(q_ti1); q_ti1->providesStartingPoint=true;
+    pf_cons2->compute_power(q_ti2); q_ti2->providesStartingPoint=true;
+    q_ti1->print();q_ti2->print();
   }
   {
     //active power balance
@@ -245,10 +262,16 @@ bool ACOPFProblem::default_assembly()
 
     //addpenaltyfunctions!(m, pslackm_n, pslackp_n, qslackm_n, qslackp_n, sslack_li, sslack_ti
     //pslackm_n and pslackp_n
-    append_slackpenalties_blocks(pf_p_bal->slacks(), d.P_Penalties[SCACOPFData::pP], d.P_Quantities[SCACOPFData::pP]);
-    //qslackm_n and qslackp_n
-    append_slackpenalties_blocks(pf_q_bal->slacks(), d.P_Penalties[SCACOPFData::pQ], d.P_Quantities[SCACOPFData::pQ]);
+    OptVariablesBlock* pslacks_n = pf_p_bal->slacks();
+    append_slackpenalties_blocks(pslacks_n, d.P_Penalties[SCACOPFData::pP], d.P_Quantities[SCACOPFData::pP]);
+    pf_p_bal->compute_slacks(pslacks_n); pslacks_n->providesStartingPoint=true;
+    pslacks_n->print();
 
+    OptVariablesBlock* qslacks_n = pf_q_bal->slacks();
+    append_slackpenalties_blocks(qslacks_n, d.P_Penalties[SCACOPFData::pQ], d.P_Quantities[SCACOPFData::pQ]);
+    pf_q_bal->compute_slacks(qslacks_n); qslacks_n->providesStartingPoint=true;
+    qslacks_n->print();
+    
   }
 
   {
@@ -284,12 +307,15 @@ bool ACOPFProblem::default_assembly()
     append_slackpenalties_blocks(pf_trans_lim2->slacks(), d.P_Penalties[SCACOPFData::pS], d.P_Quantities[SCACOPFData::pS]);
   }
 
-  
+
+  print_summary();
+
   use_nlp_solver("ipopt");
   //set options
   set_solver_option("linear_solver", "ma57");
+  set_solver_option("mu_init", 1.);
   //set_solver_option("print_timing_statistics", "yes");
-  set_solver_option("max_iter", 200);
+  set_solver_option("max_iter", 100);
   //prob.set_solver_option("print_level", 6);
   bool bret = optimize("ipopt");
       
