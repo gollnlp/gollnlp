@@ -113,7 +113,8 @@ readinstance(const std::string& raw, const std::string& rop, const std::string& 
     }
   }
   //fixedbusshunts
-  vector<int> fixedbusshunts_I, fixedbusshunts_GL, fixedbusshunts_BL, fixedbusshunts_status;
+  vector<int> fixedbusshunts_I,  fixedbusshunts_status;
+  vector<double> fixedbusshunts_GL, fixedbusshunts_BL;
   convert(fixedbusshunts[FSI], fixedbusshunts_I);   hardclear(fixedbusshunts[FSI]);
   convert(fixedbusshunts[FSGL], fixedbusshunts_GL); hardclear(fixedbusshunts[FSGL]);
   convert(fixedbusshunts[FSBL], fixedbusshunts_BL); hardclear(fixedbusshunts[FSBL]);
@@ -495,7 +496,7 @@ void SCACOPFData::buildindexsets()
   Tidxn1 = Tidxn2 = VVInt(nbus, VInt());
   for(size_t t=0; t<ntran; t++) {
     Tidxn1[T_Nidx[0][t]].push_back(t);
-    Tidxn1[T_Nidx[1][t]].push_back(t);
+    Tidxn2[T_Nidx[1][t]].push_back(t);
   }
 
   size_t nssh = SSh_SShunt.size(); assert(nssh==SSh_Bus.size());
