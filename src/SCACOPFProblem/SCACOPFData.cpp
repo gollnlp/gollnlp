@@ -328,7 +328,7 @@ readinstance(const std::string& raw, const std::string& rop, const std::string& 
 	G_q0[g] = 0.5*(G_Qlb[g] + G_Qub[g]);
 	sgen_inf += to_string(G_BusUnitNum[g]) + "/" + to_string(G_Bus[g]) + " ";
       }
-      VDou& xi = G_CostPi[g], yi = G_CostCi[g];
+      VDou &xi = G_CostPi[g], &yi = G_CostCi[g];
       size_t nn = xi.size();
       assert(nn>=2); 
       assert(yi.size()==nn);
