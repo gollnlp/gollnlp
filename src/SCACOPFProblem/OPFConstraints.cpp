@@ -1096,10 +1096,10 @@ void PFLineLimits::compute_slacks(OptVariablesBlock* sslacks)
   assert(n == sslacks->n);
   assert(n == L_Rate.size());
   assert(n == Nidx.size());
-  double* body = sslacks->x;
 
+  double* body = sslacks->x;
   for(int i=0; i<n; i++)
-    *body++ += p_li->x[i]*p_li->x[i];
+    *body++ = p_li->x[i]*p_li->x[i];
   body -= n;
   for(int i=0; i<n; i++)
     *body++ += q_li->x[i]*q_li->x[i];
@@ -1112,10 +1112,10 @@ void PFLineLimits::compute_slacks(OptVariablesBlock* sslacks)
     aux = Rate[i]*v_n->x[L_Nidx[i]];
     *body++ -= aux*aux;
   }
-
   body -= n;
+
   for(int i=0; i<n; i++) {
-    //printf(" [%3d] = %g\n", i, body[i]);
+    //if(body[i]>0) printf(" [%3d] = %g\n", i, body[i]);
     body[i] = body[i]>=0 ? sqrt(body[i]) : 0.;
   }
 }
@@ -1546,7 +1546,7 @@ PFProdCostAffineCons(const std::string& id_, int numcons,
   //we create here the extra variables and the objective term
   for(auto idx: G_idx_) 
     sz_t_h += d.G_CostPi[idx].size();
-  t_h = new OptVariablesBlock(sz_t_h, "t_h", 0., 1e+24);
+  t_h = new OptVariablesBlock(sz_t_h, "t_h", 0., 1e+20);
   obj_term = new PFProdCostPcLinObjTerm(id+"_cons", t_h, G_idx_, d);
 }
 PFProdCostAffineCons::~PFProdCostAffineCons()
