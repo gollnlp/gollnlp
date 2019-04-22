@@ -39,12 +39,6 @@ PFProdCostPcLinObjTerm::~PFProdCostPcLinObjTerm()
 bool PFProdCostPcLinObjTerm::eval_f(const OptVariables& vars_primal, bool new_x, double& obj_val)
 {
   obj_val += DDOT(&(t_h->n), const_cast<double*>(t_h->xref), &ione, CostCi, &ione);
-
-  //for(int i=0;i<t_h->n; i++)
-  //  obj_val += 0.5*t_h->xref[i]*(1.5*CostCi[i]);
-
-  //t_h->print();
-
   return true;
 }
 bool PFProdCostPcLinObjTerm::eval_grad(const OptVariables& vars_primal, bool new_x, double* grad)
