@@ -341,6 +341,7 @@ namespace gollnlp {
 			OptVariablesBlock* slack_, 
 			const std::vector<double>& pen_coeff,
 			const std::vector<double>& pen_segm,
+			const double& obj_weight, // DELTA or (1-DELTA)/NumK
 			const SCACOPFData& d_);
     virtual ~PFPenaltyAffineCons();
 
@@ -379,8 +380,9 @@ namespace gollnlp {
 				 OptVariablesBlock* slack_, 
 				 const std::vector<double>& pen_coeff,
 				 const std::vector<double>& pen_segm,
+				 const double& obj_weight, // DELTA or (1-DELTA)/NumK
 				 const SCACOPFData& d_)
-      : PFPenaltyAffineCons(id_, numcons, slack_, pen_coeff, pen_segm, d_) {};
+      : PFPenaltyAffineCons(id_, numcons, slack_, pen_coeff, pen_segm, obj_weight, d_) {};
     virtual ~PFPenaltyAffineConsTwoSlacks() {};
 
     virtual void compute_sigma(OptVariablesBlock *slackv);
