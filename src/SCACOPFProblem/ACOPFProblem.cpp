@@ -7,41 +7,32 @@ using namespace std;
 namespace gollnlp {
 
 
-bool ACOPFProblem::
+PFProdCostAffineCons* ACOPFProblem::
 append_prodcost_blocks(OptVariablesBlock* pg, const std::vector<int>& Gidxs)
 {
-  append_constraints(new PFProdCostAffineCons("prodcost_cons", 2*Gidxs.size(), pg, Gidxs, d));
+  PFProdCostAffineCons* cons = new PFProdCostAffineCons("prodcost_cons", 2*Gidxs.size(), pg, Gidxs, d);
+  append_constraints(cons);
+  return cons;
 }
-bool ACOPFProblem::
+PFPenaltyAffineCons* ACOPFProblem::
 append_slackpenalties_blocks(OptVariablesBlock* slacks, 
 			     const std::vector<double>& penalties,
 			     const std::vector<double>& segments)
 {
-  append_constraints(new PFPenaltyAffineCons(slacks->id+"_pcwslin_cons", 
-					     3*slacks->n, slacks, penalties, segments, d));
+  PFPenaltyAffineCons* cons = new PFPenaltyAffineCons(string("pcwslin_cons_") + slacks->id, 
+						      slacks->n, slacks, penalties, segments, d);
+  append_constraints(cons);
+  return cons;
 }
 
 bool ACOPFProblem::default_assembly()
 {
 
-  auto p_g = new OptVariablesBlock(d.G_Generator.size(), "p_g", d.G_Plb.data(), d.G_Pub.data());
-  append_variables(p_g); 
-  p_g->set_start_to(d.G_p0.data());
-
-  //piecewise linear objective and corresponding constraints
-  //all active generator
-  vector<int> gens(d.G_Generator.size()); iota(gens.begin(), gens.end(), 0);
-  //append_prodcost_blocks(p_g, gens); 
-  append_objterm(new DummySingleVarQuadrObjTerm("p_g_sq1", p_g));
-
-  //!starting points
-
-
-
   auto v_n = new OptVariablesBlock(d.N_Bus.size(), "v_n", d.N_Vlb.data(), d.N_Vub.data()); 
   append_variables(v_n);
   v_n->set_start_to(d.N_v0.data());
   //append_objterm(new DummySingleVarQuadrObjTerm("v_n_sq", v_n));
+  v_n->print();
 
   auto theta_n = new OptVariablesBlock(d.N_Bus.size(), "theta_n");
   append_variables(theta_n);
@@ -80,6 +71,10 @@ bool ACOPFProblem::default_assembly()
   append_variables(b_s);
   //append_objterm(new DummySingleVarQuadrObjTerm("b_s_sq", b_s));
 
+  auto p_g = new OptVariablesBlock(d.G_Generator.size(), "p_g", d.G_Plb.data(), d.G_Pub.data());
+  append_variables(p_g); 
+  p_g->set_start_to(d.G_p0.data());
+
   auto q_g = new OptVariablesBlock(d.G_Generator.size(), "q_g", d.G_Qlb.data(), d.G_Qub.data());
   q_g->set_start_to(d.G_q0.data());
   append_variables(q_g); 
@@ -90,6 +85,7 @@ bool ACOPFProblem::default_assembly()
   //
   int one=1; double zero=1., neghalf=-0.5;;
   // lines power flows
+  if(true)  
   {
     // i=1 addpowerflowcon!(m, p_li[l,i], v_n[L_Nidx[l,i]], v_n[L_Nidx[l,3-i]], theta_n[L_Nidx[l,i]], theta_n[L_Nidx[l,3-i]], L[:G][l], -L[:G][l], -L[:B][l])
     auto pf_cons1 = new PFConRectangular("p_li1_powerflow", d.L_Line.size(), 
@@ -121,9 +117,10 @@ bool ACOPFProblem::default_assembly()
     //compute starting points
     pf_cons1->compute_power(p_li1); p_li1->providesStartingPoint=true;
     pf_cons2->compute_power(p_li2); p_li2->providesStartingPoint=true;
-    p_li1->print();p_li2->print();
+    //p_li1->print();p_li2->print();
   }
 
+  if(true)    
   {
     // i=1 addpowerflowcon!(m, q_li[l,i], v_n[L_Nidx[l,i]], v_n[L_Nidx[l,3-i]], 
     //                         theta_n[L_Nidx[l,i]], theta_n[L_Nidx[l,3-i]], 
@@ -159,10 +156,11 @@ bool ACOPFProblem::default_assembly()
     append_constraints(pf_cons2);
     pf_cons1->compute_power(q_li1); q_li1->providesStartingPoint=true;
     pf_cons2->compute_power(q_li2); q_li2->providesStartingPoint=true;
-    q_li1->print();q_li2->print();
+    //q_li1->print();q_li2->print();
   }
   
   // transformers power flows
+  if(true)    
   {
     // i=1 addpowerflowcon!(m, p_ti[t,1], v_n[T_Nidx[t,1]], v_n[T_Nidx[t,2]],
     //		theta_n[T_Nidx[t,1]], theta_n[T_Nidx[t,2]],
@@ -204,11 +202,10 @@ bool ACOPFProblem::default_assembly()
     append_constraints(pf_cons2);
     pf_cons1->compute_power(p_ti1); p_ti1->providesStartingPoint=true;
     pf_cons2->compute_power(p_ti2); p_ti2->providesStartingPoint=true;
-    p_ti1->print();p_ti2->print();
+    //p_ti1->print();p_ti2->print();
   }
-  p_g->print();
-  q_g->print();
 
+  if(true)    
   {
     // i=1 addpowerflowcon!(m, q_ti[t,1], v_n[T_Nidx[t,1]], v_n[T_Nidx[t,2]],
     //		theta_n[T_Nidx[t,1]], theta_n[T_Nidx[t,2]],
@@ -249,31 +246,51 @@ bool ACOPFProblem::default_assembly()
     append_constraints(pf_cons2);
     pf_cons1->compute_power(q_ti1); q_ti1->providesStartingPoint=true;
     pf_cons2->compute_power(q_ti2); q_ti2->providesStartingPoint=true;
-    q_ti1->print();q_ti2->print();
+    //q_ti1->print();q_ti2->print();
   }
+  if(true)    
   {
     //active power balance
     auto pf_p_bal = new PFActiveBalance("p_balance", d.N_Bus.size(), p_g, v_n, p_li1, p_li2, p_ti1, p_ti2, d);
     append_constraints(pf_p_bal);
+    //pslackm_n and pslackp_n
+    OptVariablesBlock* pslacks_n = pf_p_bal->slacks();
+    pf_p_bal->compute_slacks(pslacks_n); pslacks_n->providesStartingPoint=true;
+    //pslacks_n->print();
+
+    PFPenaltyAffineCons* cons_apb_pen = new PFPenaltyAffineConsTwoSlacks(string("pcwslin_cons_") + pslacks_n->id, 
+									 pf_p_bal->n, pslacks_n, 
+									 d.P_Penalties[SCACOPFData::pP], 
+									 d.P_Quantities[SCACOPFData::pP], 
+									 d);
+    append_constraints(cons_apb_pen);
+    //sigmas for this block
+    OptVariablesBlock* sigma = cons_apb_pen->get_sigma();
+    cons_apb_pen->compute_sigma(sigma); sigma->providesStartingPoint=true;
+    //pslacks_n->print();
+    //sigma->print();
+    //printf("\n\n");
 
     //reactive power balance
     auto pf_q_bal = new PFReactiveBalance("q_balance", d.N_Bus.size(), q_g, v_n, q_li1, q_li2, q_ti1, q_ti2, b_s, d);
     append_constraints(pf_q_bal);
-
-    //addpenaltyfunctions!(m, pslackm_n, pslackp_n, qslackm_n, qslackp_n, sslack_li, sslack_ti
-    //pslackm_n and pslackp_n
-    OptVariablesBlock* pslacks_n = pf_p_bal->slacks();
-    append_slackpenalties_blocks(pslacks_n, d.P_Penalties[SCACOPFData::pP], d.P_Quantities[SCACOPFData::pP]);
-    pf_p_bal->compute_slacks(pslacks_n); pslacks_n->providesStartingPoint=true;
-    pslacks_n->print();
-
     OptVariablesBlock* qslacks_n = pf_q_bal->slacks();
-    append_slackpenalties_blocks(qslacks_n, d.P_Penalties[SCACOPFData::pQ], d.P_Quantities[SCACOPFData::pQ]);
+    PFPenaltyAffineCons* cons_rpb_pen = new PFPenaltyAffineConsTwoSlacks(string("pcwslin_cons_") + qslacks_n->id, 
+									 pf_q_bal->n, qslacks_n, 
+									 d.P_Penalties[SCACOPFData::pQ], 
+									 d.P_Quantities[SCACOPFData::pQ], 
+									 d);
+    append_constraints(cons_rpb_pen);
+
     pf_q_bal->compute_slacks(qslacks_n); qslacks_n->providesStartingPoint=true;
-    qslacks_n->print();
-    
+    sigma = cons_rpb_pen->get_sigma();
+    cons_rpb_pen->compute_sigma(sigma); sigma->providesStartingPoint=true;
+    //qslacks_n->print();
+    //sigma->print();
+    //printf("\n\n");
   }
 
+  if(true)   
   {
     //thermal line limits
     auto pf_line_lim1 = new PFLineLimits("line_limits1", d.L_Line.size(),
@@ -283,14 +300,37 @@ bool ACOPFProblem::default_assembly()
 					 p_li2, q_li2, v_n, 
 					 d.L_Nidx[1], d.L_RateBase, d);
     append_constraints(pf_line_lim1);
-
-    vars_block("sslack_li_line_limits1")->set_start_to(0.1);
     append_constraints(pf_line_lim2);
+
+
     //sslack_li1
-    append_slackpenalties_blocks(pf_line_lim1->slacks(), d.P_Penalties[SCACOPFData::pS], d.P_Quantities[SCACOPFData::pS]);
+    OptVariablesBlock* sslack_li1 = pf_line_lim1->slacks();
+    PFPenaltyAffineCons* cons_li1_pen 
+      = append_slackpenalties_blocks(sslack_li1, 
+				     d.P_Penalties[SCACOPFData::pS], 
+				     d.P_Quantities[SCACOPFData::pS]);
+
+    pf_line_lim1->compute_slacks(sslack_li1); sslack_li1->providesStartingPoint=true;
+    OptVariablesBlock* sigma = cons_li1_pen->get_sigma();
+    cons_li1_pen->compute_sigma(sigma); sigma->providesStartingPoint=true;
+    //sslack_li1->print();
+    //sigma->print();
+    //printf("\n\n");
+
     //sslack_li2
-    append_slackpenalties_blocks(pf_line_lim2->slacks(), d.P_Penalties[SCACOPFData::pS], d.P_Quantities[SCACOPFData::pS]);
+    OptVariablesBlock* sslack_li2 = pf_line_lim2->slacks();
+    PFPenaltyAffineCons* cons_li2_pen 
+      = append_slackpenalties_blocks(sslack_li2, 
+				     d.P_Penalties[SCACOPFData::pS], 
+				     d.P_Quantities[SCACOPFData::pS]);
+    pf_line_lim2->compute_slacks(sslack_li2); sslack_li2->providesStartingPoint=true;
+    sigma = cons_li2_pen->get_sigma();
+    cons_li2_pen->compute_sigma(sigma); sigma->providesStartingPoint=true;
+    //sslack_li2->print();
+    //sigma->print();
+    //printf("\n\n");
   }
+  if(true)  
   {
     //thermal transformer limits
     auto pf_trans_lim1 = new PFTransfLimits("trans_limits1", d.T_Transformer.size(),
@@ -301,10 +341,41 @@ bool ACOPFProblem::default_assembly()
     					    d.T_Nidx[1], d.T_RateBase, d);
     append_constraints(pf_trans_lim1);
     append_constraints(pf_trans_lim2);
+    
     //sslack_ti1
-    append_slackpenalties_blocks(pf_trans_lim1->slacks(), d.P_Penalties[SCACOPFData::pS], d.P_Quantities[SCACOPFData::pS]);
+    OptVariablesBlock* sslack_ti1 = pf_trans_lim1->slacks();
+    PFPenaltyAffineCons* cons_ti1_pen 
+      = append_slackpenalties_blocks(sslack_ti1, 
+				     d.P_Penalties[SCACOPFData::pS], 
+				     d.P_Quantities[SCACOPFData::pS]);
+    pf_trans_lim1->compute_slacks(sslack_ti1); sslack_ti1->providesStartingPoint=true;
+    OptVariablesBlock* sigma = cons_ti1_pen->get_sigma();
+    cons_ti1_pen->compute_sigma(sigma); sigma->providesStartingPoint=true;
+    //sslack_ti1->print();
+    //sigma->print();
+    //printf("\n\n");
+
     //sslack_ti2
-    append_slackpenalties_blocks(pf_trans_lim2->slacks(), d.P_Penalties[SCACOPFData::pS], d.P_Quantities[SCACOPFData::pS]);
+    OptVariablesBlock* sslack_ti2 = pf_trans_lim2->slacks();
+    PFPenaltyAffineCons* cons_ti2_pen 
+      = append_slackpenalties_blocks(sslack_ti2, d.P_Penalties[SCACOPFData::pS], d.P_Quantities[SCACOPFData::pS]);
+    pf_trans_lim2->compute_slacks(sslack_ti2); sslack_ti2->providesStartingPoint=true;
+    sigma = cons_ti2_pen->get_sigma();
+    cons_ti2_pen->compute_sigma(sigma); sigma->providesStartingPoint=true;
+    //sslack_ti2->print();
+    //sigma->print();
+    //printf("\n\n");
+  }
+
+  //piecewise linear objective and corresponding constraints
+  //all active generators
+  vector<int> gens(d.G_Generator.size()); iota(gens.begin(), gens.end(), 0);
+  {
+    PFProdCostAffineCons* prod_cost_cons = append_prodcost_blocks(p_g, gens); 
+    OptVariablesBlock* t_h = prod_cost_cons->get_t_h();
+    prod_cost_cons->compute_t_h(t_h); t_h->providesStartingPoint = true;
+    //t_h->print();
+    //p_g->print();
   }
 
 
@@ -320,7 +391,7 @@ bool ACOPFProblem::default_assembly()
   bool bret = optimize("ipopt");
       
   //this->problem_changed();
-  //set_solver_option("max_iter", 50);
+  //t_solver_option("max_iter", 50);
   //set_solver_option("mu_init", 1e-2);
   //bret = optimize("ipopt");
 

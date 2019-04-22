@@ -20,10 +20,10 @@ namespace gollnlp {
     OptProblem opt_prob;
     
     virtual bool default_assembly();
-    virtual bool append_prodcost_blocks(OptVariablesBlock* pg, const std::vector<int>& Gidxs);
-    virtual bool append_slackpenalties_blocks(OptVariablesBlock* slacks, 
-					      const std::vector<double>& penalties,
-					      const std::vector<double>& segments);
+    virtual PFProdCostAffineCons* append_prodcost_blocks(OptVariablesBlock* pg, const std::vector<int>& Gidxs);
+    virtual PFPenaltyAffineCons*  append_slackpenalties_blocks(OptVariablesBlock* slacks, 
+							       const std::vector<double>& penalties,
+							       const std::vector<double>& segments);
 
   protected: 
     SCACOPFData& d;
