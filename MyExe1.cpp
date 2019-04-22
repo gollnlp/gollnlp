@@ -30,10 +30,18 @@ int main(int argc, char *argv[])
     //  		    "../../goinstances/challenge1/Original_Dataset_1-4/Original_Dataset_Offline_Edition_1/Network_03O-10/case.inl",
     //  		    "../../goinstances/challenge1/Original_Dataset_1-4/Original_Dataset_Offline_Edition_1/Network_03O-10/scenario_9/case.con", 2700.,  2, "Network_03");
 
-  return myexe1_function("../../goinstances/challenge1/Original_Dataset_1-4/Original_Dataset_Offline_Edition_1/Network_10O-10/scenario_9/case.raw",  
+  return myexe1_function("../../goinstances/challenge1/Original_Dataset_1-4/Original_Dataset_Offline_Edition_1/Network_10O-10/scenario_2/case.raw",  
 		    "../../goinstances/challenge1/Original_Dataset_1-4/Original_Dataset_Offline_Edition_1/Network_10O-10/case.rop", 
-		    "../../goinstances/challenge1/Original_Dataset_1-4/Original_Dataset_Offline_Edition_1/Network_10O-10/case.inl",
-		    "../../goinstances/challenge1/Original_Dataset_1-4/Original_Dataset_Offline_Edition_1/Network_10O-10/scenario_9/case.con", 2700.,  2, "Network_03");
+		    "../../goinstances/challenge1/Original_Dataset_1-4/Original_Dataset_Offline_Edition_1/Network_10O-10/scenario_2/case.inl",
+		    "../../goinstances/challenge1/Original_Dataset_1-4/Original_Dataset_Offline_Edition_1/Network_10O-10/scenario_2/case.con", 2700.,  2, "Network_03");
   }
   return 0;
 }
+
+
+//"../../goinstances/challenge1/Original_Dataset_1-4/Original_Dataset_Offline_Edition_1/Network_03O-10/scenario_9/case.con"  "../../goinstances/challenge1/Original_Dataset_1-4/Original_Dataset_Offline_Edition_1/Network_03O-10/case.inl" "../../goinstances/challenge1/Original_Dataset_1-4/Original_Dataset_Offline_Edition_1/Network_03O-10/scenario_9/case.raw" "../../goinstances/challenge1/Original_Dataset_1-4/Original_Dataset_Offline_Edition_1/Network_03O-10/case.rop"  2700  2 "Network_03"
+
+//LD_PRELOAD=/usr/lib64/libgomp.so.1:/export/home/petra1/intel_mkl2019/mkl/lib/intel64/libmkl_gnu_thread.so:/export/home/petra1/intel_mkl2019/compilers_and_libraries_2019.2.187/linux/mkl/lib/intel64/libmkl_core.so:/export/home/petra1/intel_mkl20_libraries_2019.2.187/linux/mkl/lib/intel64_lin/libmkl_avx2.so julia ../MyJulia1.jl "../../goinstances/challenge1/Original_Dataset_1-4/Original_Dataset_Offline_Edition_1/Network_10O-10/scenario_9/case.con"  "../../goinstances/challenge1/Original_Dataset_1-4/Original_Dataset_Offline_Edition_1/Network_10O-10/scenario_9/case.inl" "../../goinstances/challenge1/Original_Dataset_1-4/Original_Dataset_Offline_Edition_1/Network_10O-10/scenario_9/case.raw" "../../goinstances/challenge1/Original_Dataset_1-4/Original_Dataset_Offline_Edition_1/Network_10O-10/case.rop"  2700  2 "Network_10"
+
+
+//LD_PRELOAD=/usr/lib64/libgomp.so.1:/export/home/petra1/intel_mkl2019/mkl/lib/intel64/libmkl_gnu_thread.so:/export/home/petra1/intel_mkl2019/compilers_and_libraries_2019.2.187/linux/mkl/lib/intel64/libmkl_core.so:/export/home/petra1/intel_mkl20_libraries_2019.2.187/linux/mkl/lib/intel64_lin/libmkl_avx2.so julia ../MyJulia1.jl "../../goinstances/challenge1/Original_Dataset_1-4/Original_Dataset_Offline_Edition_1/Network_10O-10/scenario_2/case.con"  "../../goinstances/challenge1/Original_Dataset_1-4/Original_Dataset_Offline_Edition_1/Network_10O-10/scenario_2/case.inl" "../../goinstances/challenge1/Original_Dataset_1-4/Original_Dataset_Offline_Edition_1/Network_10O-10/scenario_2/case.raw" "../../goinstances/challenge1/Original_Dataset_1-4/Original_Dataset_Offline_Edition_1/Network_10O-10/case.rop"  2700  2 "Network_10"
