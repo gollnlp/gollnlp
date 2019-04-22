@@ -14,8 +14,9 @@ namespace gollnlp {
     SCACOPFData();
 
     bool readinstance(const std::string& raw, const std::string& rop, const std::string& inl, const std::string& con);
-
     void buildindexsets();
+
+    int bus_with_largest_gen() const;
   public:
     double MVAbase;
 

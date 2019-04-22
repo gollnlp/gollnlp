@@ -17,8 +17,13 @@ goLogger log(stdout);
 
 SCACOPFData::SCACOPFData() 
   : DELTA(0.5)
+{}
+
+int SCACOPFData::bus_with_largest_gen() const
 {
-  
+  auto it_max = max_element(G_Pub.begin(), G_Pub.end());
+  size_t idx_max = distance(G_Pub.begin(), it_max);
+  return G_Nidx[idx_max];
 }
 
 static inline bool isEndOrStartOfSection(const string& l)
