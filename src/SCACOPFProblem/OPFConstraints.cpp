@@ -1809,7 +1809,7 @@ bool PFPenaltyAffineCons::eval_Jac(const OptVariables& primal_vars, bool new_x,
       idxnz = J_nz_idxs[it];
       assert(idxnz<nnz && idxnz>=0);
       
-      ia[idxnz]=row; ja[idxnz]=slack->index+it;        idxnz++; 
+      ia[idxnz]=row; ja[idxnz]=slack->index+it;     idxnz++; 
       ia[idxnz]=row; ja[idxnz]=sigma->index+3*it;   idxnz++; 
       ia[idxnz]=row; ja[idxnz]=sigma->index+3*it+1; idxnz++; 
       ia[idxnz]=row; ja[idxnz]=sigma->index+3*it+2; idxnz++; 

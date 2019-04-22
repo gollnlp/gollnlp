@@ -60,7 +60,7 @@ bool OptProblem::eval_obj(const double* x, bool new_x, double& obj_val)
     if (!ot->eval_f(*vars_primal, new_x, obj_val) )
        return false;
 #ifdef DEBUG
-    printf("obj_term '%s' returned %12.5e total %12.5e\n", ot->id.c_str(), obj_val-obj_val_before, obj_val);
+    //printf("obj_term '%s' returned %12.5e total %12.5e\n", ot->id.c_str(), obj_val-obj_val_before, obj_val);
 #endif
     
   }
