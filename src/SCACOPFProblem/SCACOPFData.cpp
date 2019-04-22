@@ -16,6 +16,7 @@ namespace gollnlp {
 goLogger log(stdout);
 
 SCACOPFData::SCACOPFData() 
+  : DELTA(0.5)
 {
   
 }

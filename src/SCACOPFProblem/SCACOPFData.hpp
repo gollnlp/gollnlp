@@ -51,6 +51,8 @@ namespace gollnlp {
     //penalties
     enum PenaltyType{pP=0, pQ=1, pS=2};
     std::vector<std::vector<double> > P_Quantities, P_Penalties;
+    
+    double DELTA;
 
     //
     // -- index sets for efficient iteration
