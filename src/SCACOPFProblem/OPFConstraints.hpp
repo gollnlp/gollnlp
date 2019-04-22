@@ -207,6 +207,9 @@ namespace gollnlp {
 
   //////////////////////////////////////////////////////////////////
   // PFLineLimits - Line thermal limits
+  //
+  // p_li[l,i]^2 + q_li[l,i]^2 <= (L[RateSymb][l]*v_n[L_Nidx[l,i]] + 
+  //                               sslack_li[l,i])^2
   //////////////////////////////////////////////////////////////////
   class PFLineLimits  : public OptConstraintsBlock
   {
@@ -221,7 +224,7 @@ namespace gollnlp {
     virtual ~PFLineLimits();
 
     OptVariablesBlock* slacks() { return sslack_li; }
-
+    virtual void compute_slacks(OptVariablesBlock* sslacks_li);
     virtual bool eval_body (const OptVariables& vars_primal, bool new_x, double* body);
     virtual bool eval_Jac(const OptVariables& primal_vars, bool new_x, 
 			  const int& nnz, int* i, int* j, double* M);
@@ -247,9 +250,11 @@ namespace gollnlp {
     int* H_nz_idxs;
   };
 
-  //////////////////////////////////////////////////////////////////
+  ////////////////////////////////////////////////////////////////////
   // PFTransfLimits - Transformer thermal limits
-  //////////////////////////////////////////////////////////////////
+  //
+  // p_ti[t,i]^2 + q_ti[t,i]^2 <= (T[RateSymb][t] + sslack_ti[t,i])^2
+  ////////////////////////////////////////////////////////////////////
   class PFTransfLimits  : public OptConstraintsBlock
   {
   public:
@@ -261,7 +266,7 @@ namespace gollnlp {
 		   const SCACOPFData& d_);
     virtual ~PFTransfLimits();
     OptVariablesBlock* slacks() { return sslack_ti; }
-
+    void compute_slacks(OptVariablesBlock* sslack_ti);
     virtual bool eval_body (const OptVariables& vars_primal, bool new_x, double* body);
     virtual bool eval_Jac(const OptVariables& primal_vars, bool new_x, 
 			  const int& nnz, int* i, int* j, double* M);
@@ -293,7 +298,7 @@ namespace gollnlp {
   // min sum_g( sum_h CostCi[g][h]^T t[g][h])
   // constraints (handled outside) are
   //   t>=0, sum_h t[g][h]=1
-  //   p_g[g] sum_h CostPi[g][h]*t[g][h] 
+  //   p_g[g] = sum_h CostPi[g][h]*t[g][h] 
   ///////////////////////////////////////////////////////////////////////////
   class PFProdCostAffineCons  : public OptConstraintsBlock
   {
@@ -303,6 +308,9 @@ namespace gollnlp {
 		   const std::vector<int>& G_Nidx_,
 		   const SCACOPFData& d_);
     virtual ~PFProdCostAffineCons();
+
+    OptVariablesBlock* get_t_h() { return t_h; }
+    void compute_t_h(OptVariablesBlock* th);
 
     virtual bool eval_body (const OptVariables& vars_primal, bool new_x, double* body);
     virtual bool eval_Jac(const OptVariables& primal_vars, bool new_x, 
@@ -320,7 +328,7 @@ namespace gollnlp {
   };
 
   //////////////////////////////////////////////////////////////////////////////
-  // Slack penalty piecewise linear objective
+  // Slack penalty constraints block
   // min sum_i( sum_h P[i][h] sigma_h[i][h])
   // constraints (handled outside) are
   //   0<= sigma[i][h] <= Pseg_h, 
@@ -335,6 +343,9 @@ namespace gollnlp {
 			const std::vector<double>& pen_segm,
 			const SCACOPFData& d_);
     virtual ~PFPenaltyAffineCons();
+
+    OptVariablesBlock* get_sigma() { return sigma; }
+    virtual void compute_sigma(OptVariablesBlock *slackv);
 
     virtual bool eval_body (const OptVariables& vars_primal, bool new_x, double* body);
     virtual bool eval_Jac(const OptVariables& primal_vars, bool new_x, 
@@ -351,6 +362,34 @@ namespace gollnlp {
     int* J_nz_idxs; //only in size of slack
     double P1, P2, P3;
     double S1, S2, S3;
+  };
+  //////////////////////////////////////////////////////////////////////////////
+  // (double) Slacks penalty constraints block
+  // min sum_i( sum_h P[i][h] sigma_h[i][h])
+  // constraints (handled outside) are
+  //   0<= sigma[i][h] <= Pseg_h, 
+  //   slacksp[i] + slacksm[i] - sum_h sigma[i][h] =0, i=1,2, size(slacks)
+  //
+  // the two slacks are kept vectorized: slack_ = [slacksp; slackm]
+  //////////////////////////////////////////////////////////////////////////////
+  class PFPenaltyAffineConsTwoSlacks  : public PFPenaltyAffineCons
+  {
+  public:
+    PFPenaltyAffineConsTwoSlacks(const std::string& id_, int numcons,
+				 OptVariablesBlock* slack_, 
+				 const std::vector<double>& pen_coeff,
+				 const std::vector<double>& pen_segm,
+				 const SCACOPFData& d_)
+      : PFPenaltyAffineCons(id_, numcons, slack_, pen_coeff, pen_segm, d_) {};
+    virtual ~PFPenaltyAffineConsTwoSlacks() {};
+
+    virtual void compute_sigma(OptVariablesBlock *slackv);
+
+    virtual bool eval_body (const OptVariables& vars_primal, bool new_x, double* body);
+    virtual bool eval_Jac(const OptVariables& primal_vars, bool new_x, 
+			  const int& nnz, int* i, int* j, double* M);
+    int get_Jacob_nnz();
+    virtual bool get_Jacob_ij(std::vector<OptSparseEntry>& vij);
   };
 }
 

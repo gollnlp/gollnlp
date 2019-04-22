@@ -1,7 +1,7 @@
 #include "OPFConstraints.hpp"
 
 #include <string>
-
+#include <cassert>
 using namespace std;
 
 namespace gollnlp {
@@ -66,6 +66,11 @@ bool PFConRectangular::eval_body (const OptVariables& vars_primal, bool new_x, d
     *itbody++ +=  A[i]*v1*v1 + B[i]*v1v2*cos(ththT) + C[i]*v1v2*sin(ththT) - pq->xref[i];
   }
   assert(body+this->index+n == itbody);
+#ifdef DEBUG
+  double r=DNRM2(&n, body+this->index, &ione);
+  //printf("Evaluated constraint '%s' -> resid norm %g\n", id.c_str(), r);
+#endif
+
   return true;
 }
 
@@ -323,7 +328,8 @@ PFActiveBalance::PFActiveBalance(const std::string& id_, int numcons,
 {
   assert(d.N_Pd.size()==n);
   //rhs
-  memcpy(lb, d.N_Pd.data(), n*sizeof(double));
+  //!memcpy(lb, d.N_Pd.data(), n*sizeof(double));
+  for(int i=0; i<n; i++) lb[i]=0.;
   DCOPY(&n, lb, &ione, ub, &ione);
   J_nz_idxs = NULL;
   H_nz_idxs = NULL;
@@ -341,8 +347,9 @@ bool PFActiveBalance::eval_body (const OptVariables& vars_primal, bool new_x, do
   DAXPY(&n, &dminusone, slacks,   &ione, body, &ione);
   DAXPY(&n, &done,      slacks+n, &ione, body, &ione);
 
-  const double *NGsh=d.N_Gsh.data();
+  const double *NGsh=d.N_Gsh.data(), *NPd=d.N_Pd.data();
   for(int i=0; i<n; i++) {
+    *body -= NPd[i];
     *body -= NGsh[i] * v_n->xref[i] * v_n->xref[i];
     body++;
   }
@@ -392,6 +399,20 @@ bool PFActiveBalance::eval_body (const OptVariables& vars_primal, bool new_x, do
       body++;
     }
   }
+#ifdef DEBUG
+  body -= n;
+  //for(int i=0; i<n; i++) printf("%12.5e %12.5e| ", pslack_n->xref[i], pslack_n->xref[i+n]);
+  //printf("\n");
+
+  //for(int i=0; i<n; i++) body[i]=0.;
+
+  //double resid[n];
+  //DCOPY(&n, body, &ione, resid, &ione);
+  //DAXPY(&n, &dminusone, lb, &ione, resid, &ione);
+  double r=DNRM2(&n, body, &ione);
+  //printf("Evaluated constraint '%s' -> resid norm %g\n", id.c_str(), r);
+#endif
+
   return true;
 }
 // sum(p_g[g] for g=Gn[n])  - N[:Gsh][n]*v_n[n]^2 -
@@ -638,7 +659,8 @@ PFReactiveBalance::PFReactiveBalance(const std::string& id_, int numcons,
 {
   assert(d.N_Pd.size()==n);
   //rhs
-  memcpy(lb, d.N_Qd.data(), n*sizeof(double));
+  //!memcpy(lb, d.N_Qd.data(), n*sizeof(double));
+  for(int i=0; i<n; i++) lb[i]=0.;
   DCOPY(&n, lb, &ione, ub, &ione);
   J_nz_idxs = NULL;
   H_nz_idxs = NULL;
@@ -657,8 +679,9 @@ bool PFReactiveBalance::eval_body (const OptVariables& vars_primal, bool new_x, 
   DAXPY(&n, &dminusone, slacks,   &ione, body, &ione);
   DAXPY(&n, &done,      slacks+n, &ione, body, &ione);
 
-  const int *Gn; int nGn;
+  const int *Gn; int nGn; const double *NQd=d.N_Qd.data();
   for(int i=0; i<n; i++) {
+    *body -= NQd[i];
     nGn = d.Gn[i].size(); Gn = d.Gn[i].data();
     for(int ig=0; ig<nGn; ig++) 
       *body += q_g->xref[Gn[ig]];
@@ -713,6 +736,21 @@ bool PFReactiveBalance::eval_body (const OptVariables& vars_primal, bool new_x, 
       body++;
     }
   }
+
+#ifdef DEBUG
+  body -= n;
+  //for(int i=0; i<n; i++) printf("%12.5e %12.5e| ", pslack_n->xref[i], pslack_n->xref[i+n]);
+  //printf("\n");
+
+  //for(int i=0; i<n; i++) body[i]=0.;
+
+  //double resid[n];
+  //DCOPY(&n, body, &ione, resid, &ione);
+  //DAXPY(&n, &dminusone, lb, &ione, resid, &ione);
+  double r=DNRM2(&n, body, &ione);
+  //printf("Evaluated constraint '%s' -> resid norm %g\n", id.c_str(), r);
+#endif
+
   return true;
 } 
 
@@ -1045,7 +1083,37 @@ bool PFLineLimits::eval_body (const OptVariables& vars_primal, bool new_x, doubl
   }
   return true;
 }
-  
+ 
+void PFLineLimits::compute_slacks(OptVariablesBlock* sslacks)
+{
+  assert(n == sslacks->n);
+  assert(n == L_Rate.size());
+  assert(n == Nidx.size());
+  double* body = sslacks->x;
+
+  for(int i=0; i<n; i++)
+    *body++ += p_li->x[i]*p_li->x[i];
+  body -= n;
+  for(int i=0; i<n; i++)
+    *body++ += q_li->x[i]*q_li->x[i];
+  body -= n;
+
+  const double* Rate = L_Rate.data();
+  const int* L_Nidx = Nidx.data();
+  double aux;
+  for(int i=0; i<n; i++) {
+    aux = Rate[i]*v_n->x[L_Nidx[i]];
+    *body++ -= aux*aux;
+  }
+
+  body -= n;
+  for(int i=0; i<n; i++) {
+    //printf(" [%3d] = %g\n", i, body[i]);
+    body[i] = body[i]>=0 ? sqrt(body[i]) : 0.;
+  }
+}
+
+
 bool PFLineLimits::eval_Jac(const OptVariables& primal_vars, bool new_x, 
 			    const int& nnz, int* i, int* j, double* M)
 {
@@ -1207,7 +1275,8 @@ OptVariablesBlock* PFLineLimits::create_varsblock()
 }
 OptObjectiveTerm* PFLineLimits::create_objterm() 
 { 
-  return new DummySingleVarQuadrObjTerm("pen_sslack_li"+id, sslack_li); 
+  return NULL;
+  //return new DummySingleVarQuadrObjTerm("pen_sslack_li"+id, sslack_li); 
 }
 
 
@@ -1263,6 +1332,36 @@ bool PFTransfLimits::eval_body (const OptVariables& vars_primal, bool new_x, dou
   }
   return true;
 }
+// p_ti[t,i]^2 + q_ti[t,i]^2 - (T_Rate][t] + sslack_ti[t,i])^2) <=0
+void PFTransfLimits::compute_slacks(OptVariablesBlock* sslackti)
+{
+  assert(sslack_ti->n == n); 
+  assert(n == T_Rate.size());
+  assert(n == Nidx.size());
+  double* body  = sslackti->x;
+
+  for(int i=0; i<n; i++)
+    *body++ = p_ti->x[i]*p_ti->x[i];
+  body -= n;
+
+  for(int i=0; i<n; i++) {
+    *body += q_ti->x[i]*q_ti->x[i];
+    *body = sqrt(*body);
+    body++;
+  }
+  body -= n;
+
+  const double* Rate = T_Rate.data();
+  for(int i=0; i<n; i++) {
+    *body++ -= Rate[i];
+  }
+  body -= n;
+
+  for(int i=0; i<n; i++) {
+    body[i] = body[i]>=0 ? body[i] : 0;
+  }
+}
+
   
 bool PFTransfLimits::eval_Jac(const OptVariables& primal_vars, bool new_x, 
 			      const int& nnz, int* i, int* j, double* M)
@@ -1405,7 +1504,7 @@ OptVariablesBlock* PFTransfLimits::create_varsblock()
 }
 OptObjectiveTerm* PFTransfLimits::create_objterm() 
 { 
-  return new DummySingleVarQuadrObjTerm("pen_sslack_ti"+id, sslack_ti); 
+  return NULL;//new DummySingleVarQuadrObjTerm("pen_sslack_ti"+id, sslack_ti); 
 }
  
 
@@ -1439,7 +1538,7 @@ PFProdCostAffineCons(const std::string& id_, int numcons,
   //we create here the extra variables and the objective term
   for(auto idx: G_idx_) 
     sz_t_h += d.G_CostPi[idx].size();
-  t_h = new OptVariablesBlock(sz_t_h, "t_h", 0., 1e+20);
+  t_h = new OptVariablesBlock(sz_t_h, "t_h", 0., 1e+24);
   obj_term = new PFProdCostPcLinObjTerm(id+"_cons", t_h, G_idx_, d);
 }
 PFProdCostAffineCons::~PFProdCostAffineCons()
@@ -1447,25 +1546,92 @@ PFProdCostAffineCons::~PFProdCostAffineCons()
   delete[] J_nz_idxs;
   //do not delete t_h, obj_term; OptProblem frees them by convention
 }
-  
+
 bool PFProdCostAffineCons::eval_body (const OptVariables& vars_primal, bool new_x, double* body)
 {
-  const double* Pi; int sz; double* itbody=body+this->index; const double *it_t_h=t_h->xref;
+  assert(p_g->n*2 == n);
+  const double* Pi; int sz, i; 
+  double* itbody=body+this->index; const double *it_t_h=t_h->xref;
   for(int it=0; it<p_g->n; it++) {
+
+    //!
+    //printf("g=%d Pg=%g\n th=[", it, p_g->xref[it]);
+
     sz = d.G_CostPi[obj_term->Gidx[it]].size(); 
     Pi = d.G_CostPi[obj_term->Gidx[it]].data();
-    for(int i=0; i<sz; i++) {
+    for(i=0; i<sz; i++) {
       *itbody     += *it_t_h;
       *(itbody+1) -= Pi[i]* (*it_t_h);
+
+      //!
+      //printf(" %g ", *it_t_h);
+
       it_t_h++;
     }
     itbody++;
-    *itbody++ += p_g->xref[it];
+
+    *itbody += p_g->xref[it];
+    itbody++;
+
+
+    //!
+    //printf("]\n residual %12.5e %12.5e \n\n", body[this->index+2*it]-1, body[this->index+2*it+1]);
+
+
   }
   assert(body+this->index+n == itbody);
   assert(t_h->xref+t_h->n == it_t_h);
+#ifdef DEBUG
+  //for(int i=0; i<n/2; i++) 
+  //  printf("residual %12.5e %12.5e \n", body[2*i]-1, body[2*i+1]);
+  //printf("\n");
+  //assert(false);
+#endif
+  
+
   return true;
 }
+// given p_g[g] computes t[g][h]
+void PFProdCostAffineCons::compute_t_h(OptVariablesBlock* th)
+{
+  int sz, i; double *it_th=th->x;
+  for(int it=0; it<p_g->n; it++) {
+    sz = d.G_CostPi[obj_term->Gidx[it]].size(); 
+    //!copy
+    vector<double> Pi = d.G_CostPi[obj_term->Gidx[it]];
+
+    assert(sz>=2 && "need to have at least two cost points");
+    sort(Pi.begin(), Pi.end());
+    assert(Pi == d.G_CostPi[obj_term->Gidx[it]] && "we expect sorted generation cost points for any given generator");
+
+    int idx_min = 0; //distance(begin(Pi), min_element(begin(Pi), end(Pi)));
+    int idx_max = sz-1; //distance(begin(Pi), max_element(begin(Pi), end(Pi)));
+    if(p_g->x[it]<Pi[idx_min]) {
+      printf("Warning: p_g[%d] is too much outside the min of generation cost points. will adjust it.\n", it);
+      p_g->x[it] = Pi[idx_min];
+    } 
+    if(p_g->x[it]>Pi[idx_max]) {
+      printf("Warning: p_g[%d] is too much outside the max of generation cost points. will adjust it.\n", it);
+      p_g->x[it] = Pi[idx_max];
+    } 
+    for(i=0; i<sz; i++, it_th++) {
+      if(Pi[i]>p_g->x[it]) break;
+      *it_th = 0.;
+    }
+    assert(i>=1);
+    assert(i<sz);
+    assert(Pi[i]   >= p_g->x[it]);
+    assert(Pi[i-1] <= p_g->x[it]);
+    assert(Pi[i]-Pi[i-1] >=1e-10);
+    *(it_th-1) = 1 - (p_g->x[it] - Pi[i-1]) / (Pi[i]-Pi[i-1]);
+    *it_th     = 1 - *(it_th-1);
+
+    i++; it_th++;
+    for(; i<sz; i++, it_th++) *it_th = 0.;
+  }
+  assert(th->x+th->n == it_th);
+}
+
 bool PFProdCostAffineCons::eval_Jac(const OptVariables& primal_vars, bool new_x, 
 				    const int& nnz, int* ia, int* ja, double* M)
 {
@@ -1564,21 +1730,21 @@ bool PFProdCostAffineCons::get_Jacob_ij(std::vector<OptSparseEntry>& vij)
   return true;
 }
 
+
 //////////////////////////////////////////////////////////////////////////////
-// Slack penalty piecewise linear objective
+// Slack penalty constraints block
 // min sum_i( sum_h P[i][h] sigma_h[i][h])
-// constraints (handled outside) are
+// constraints are
 //   0<= sigma[i][h] <= S_h, 
 //   slacks[i] - sum_h sigma[i][h] =0, i=1,2, size(slacks)
 //////////////////////////////////////////////////////////////////////////////
-
 PFPenaltyAffineCons::
 PFPenaltyAffineCons(const std::string& id_, int numcons,
 			OptVariablesBlock* slack_, 
 			const std::vector<double>& pen_coeff,
 			const std::vector<double>& pen_segm,
 			const SCACOPFData& d_)
-  : OptConstraintsBlock(id_,slack_->n), slack(slack_), d(d_), J_nz_idxs(NULL)
+  : OptConstraintsBlock(id_,numcons), slack(slack_), d(d_), J_nz_idxs(NULL)
 {
   assert(pen_segm.size()==3);
   assert(pen_coeff.size()==3);
@@ -1594,10 +1760,10 @@ PFPenaltyAffineCons(const std::string& id_, int numcons,
   DCOPY(&n, lb, &ione, ub, &ione);
 
   //for(int i=0; i<n; ) {ub[i++] = S1; ub[i++] = S2; ub[i++] = S3;} 
-  sigma = new OptVariablesBlock(3*slack->n, id+"_sigma", 0., S3);
+  sigma = new OptVariablesBlock(3*n, id+"_sigma", 0., S3);
   for(int i=0; i<sigma->n; ) { sigma->ub[i++]=S1; sigma->ub[i++]=S2; i++;}
 
-  obj_term = new PFPenaltyPcLinObjTerm(id+"_cons", sigma, pen_coeff, d);
+  obj_term = new PFPenaltyPcLinObjTerm(id+"_obj", sigma, pen_coeff, d);
 }
 PFPenaltyAffineCons::~PFPenaltyAffineCons()
 {
@@ -1616,6 +1782,26 @@ bool PFPenaltyAffineCons::eval_body (const OptVariables& vars_primal, bool new_x
   DAXPY(&n, &done, const_cast<double*>(slack->xref), &ione, body+this->index, &ione);
   return true;
 }
+
+void PFPenaltyAffineCons::compute_sigma(OptVariablesBlock *sigmav)
+{
+  assert(sigmav==sigma);
+  double slack_val;
+  for(int it=0; it<sigma->n; it+=3) {
+    assert(3*(it/3) == it);
+    slack_val=slack->x[it/3];
+    assert(slack_val>=0);
+
+    sigma->x[it] = min(slack_val, S1);
+    slack_val -= sigma->x[it];
+
+    sigma->x[it+1] = min(slack_val, S2);
+    slack_val -= sigma->x[it+1];
+
+    sigma->x[it+2] = min(slack_val, S3);
+  }
+}
+
 bool PFPenaltyAffineCons::eval_Jac(const OptVariables& primal_vars, bool new_x, 
 				    const int& nnz, int* ia, int* ja, double* M)
 {
@@ -1679,4 +1865,111 @@ bool PFPenaltyAffineCons::get_Jacob_ij(std::vector<OptSparseEntry>& vij)
   return true;
 }
 
+//////////////////////////////////////////////////////////////////////////////
+// (double) Slacks penalty constraints block
+// min sum_i( sum_h P[i][h] sigma_h[i][h])
+// constraints (handled outside) are
+//   0<= sigma[i][h] <= Pseg_h, 
+//   slacksp[i] + slacksm[i] - sum_h sigma[i][h] =0, i=1,2, size(slacksp)
+//
+// the two slacks are kept vectorized: slack_ = [slacksp; slackm]
+//////////////////////////////////////////////////////////////////////////////
+bool PFPenaltyAffineConsTwoSlacks::eval_body (const OptVariables& vars_primal, bool new_x, double* body)
+{
+  double* itbody=body+this->index; 
+  for(int it=0; it<sigma->n; it+=3) {
+    *itbody++ -= sigma->xref[it]+sigma->xref[it+1]+sigma->xref[it+2];
+  }
+  assert(body+this->index+n == itbody);
+
+  DAXPY(&n, &done, const_cast<double*>(slack->xref),   &ione, body+this->index, &ione);
+  DAXPY(&n, &done, const_cast<double*>(slack->xref)+n, &ione, body+this->index, &ione);
+  return true;
+}
+
+void PFPenaltyAffineConsTwoSlacks::compute_sigma(OptVariablesBlock *sigmav)
+{
+  assert(sigmav==sigma);
+  double slack_val; int i;
+  for(int it=0; it<sigma->n; it+=3) {
+    i = it/3;
+    assert(3*i == it);
+    slack_val = slack->x[i] + slack->x[i+n];
+    assert(slack_val>=0);
+
+    sigma->x[it] = min(slack_val, S1);
+    slack_val -= sigma->x[it];
+
+    sigma->x[it+1] = min(slack_val, S2);
+    slack_val -= sigma->x[it+1];
+
+    sigma->x[it+2] = min(slack_val, S3);
+  }
+}
+
+bool PFPenaltyAffineConsTwoSlacks::eval_Jac(const OptVariables& primal_vars, bool new_x, 
+					    const int& nnz, int* ia, int* ja, double* M)
+{
+  int row=0, idxnz;
+  if(NULL==M) {
+    assert(slack->n == 2*n);
+    for(int it=0; it<n; it++) {
+      row = this->index+it;
+      idxnz = J_nz_idxs[it];
+      assert(idxnz<nnz && idxnz>=0);
+      
+      ia[idxnz]=row; ja[idxnz]=slack->index+it;     idxnz++; 
+      ia[idxnz]=row; ja[idxnz]=slack->index+it+n;   idxnz++; 
+      ia[idxnz]=row; ja[idxnz]=sigma->index+3*it;   idxnz++; 
+      ia[idxnz]=row; ja[idxnz]=sigma->index+3*it+1; idxnz++; 
+      ia[idxnz]=row; ja[idxnz]=sigma->index+3*it+2; idxnz++; 
+    }
+    assert(row+1 == this->index+this->n);
+  } else {
+
+    for(int it=0; it<n; it++) {
+      idxnz = J_nz_idxs[it];
+      assert(idxnz<nnz && idxnz>=0);
+      
+      M[idxnz++] += 1.; //slackp
+      M[idxnz++] += 1.; //slackm
+      M[idxnz++] -= 1.; //sigma1
+      M[idxnz++] -= 1.; //sigma2
+      M[idxnz++] -= 1.; //sigma3
+    }
+  }
+  return true;
+}
+int PFPenaltyAffineConsTwoSlacks::get_Jacob_nnz()
+{
+  return 5*n;
+}
+
+//slackp[i]+slackm[i] - sum_h sigma[i][h] =0, i=1,2, size(slacksp)
+bool PFPenaltyAffineConsTwoSlacks::get_Jacob_ij(std::vector<OptSparseEntry>& vij)
+{
+#ifdef DEBUG
+  int loc_nnz = get_Jacob_nnz();
+  int vij_sz_in = vij.size();
+#endif
+
+  if(!J_nz_idxs) 
+    J_nz_idxs = new int[n];
+
+  int row=0; 
+  for(int it=0; it<n; it++) {
+    row = this->index+it;
+
+    vij.push_back(OptSparseEntry(row, slack->index+it, J_nz_idxs+it));
+    vij.push_back(OptSparseEntry(row, slack->index+n+it, NULL));
+    vij.push_back(OptSparseEntry(row, sigma->index+3*it, NULL));
+    vij.push_back(OptSparseEntry(row, sigma->index+3*it+1, NULL));
+    vij.push_back(OptSparseEntry(row, sigma->index+3*it+2, NULL));
+  }
+#ifdef DEBUG
+  assert(row+1 == this->index+this->n);
+  assert(vij.size() == loc_nnz+vij_sz_in);
+#endif
+  return true;
+}
 }//end namespace 
