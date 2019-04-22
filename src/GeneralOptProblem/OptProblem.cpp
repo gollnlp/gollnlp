@@ -53,19 +53,28 @@ bool OptProblem::eval_obj(const double* x, bool new_x, double& obj_val)
 {
   obj_val=0.;
   if(new_x) vars_primal->attach_to(x);
-  for(auto& ot: obj->vterms) 
+  for(auto& ot: obj->vterms) {
+#ifdef DEBUG
+    double obj_val_before=obj_val;
+#endif
     if (!ot->eval_f(*vars_primal, new_x, obj_val) )
        return false;
+#ifdef DEBUG
+    printf("obj_term '%s' returned %12.5e total %12.5e\n", ot->id.c_str(), obj_val-obj_val_before, obj_val);
+#endif
+    
+  }
   return true;
 }
-bool OptProblem::eval_cons    (const double* x, bool new_x, double* g)
+bool OptProblem::eval_cons(const double* x, bool new_x, double* g)
 {
   for(int i=0; i<cons->m(); i++) g[i]=0.;
 
   if(new_x) vars_primal->attach_to(x);
-  for(auto& con: cons->vblocks)
+  for(auto& con: cons->vblocks) {
     if(!con->eval_body(*vars_primal, new_x, g))
       return false;
+  }
   return true;
 }
 bool OptProblem::eval_gradobj (const double* x, bool new_x, double* grad)
@@ -502,7 +511,10 @@ void  OptProblem::print_summary() const
   printf("Constraints blocks: \n");
   for(auto it : cons->vblocks) 
     printf("\t'%s' size %d  startsAt %d\n", it->id.c_str(), it->n, it->index);
-    
+  
+  printf("Objective terms: \n");
+  for(auto it: obj->vterms)
+    printf("\t'%s' \n", it->id.c_str());
 }
 
 ///////////////////////////////////////////////////////////////////
