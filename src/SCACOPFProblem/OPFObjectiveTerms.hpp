@@ -53,6 +53,7 @@ namespace gollnlp {
     PFPenaltyPcLinObjTerm(const std::string& id_, 
 			  OptVariablesBlock* sigma_,
 			  const std::vector<double>& pen_coeff,
+			  const double& obj_weight,
 			  const SCACOPFData& d_);
     virtual ~PFPenaltyPcLinObjTerm();
     virtual bool eval_f(const OptVariables& vars_primal, bool new_x, double& obj_val);
@@ -62,6 +63,7 @@ namespace gollnlp {
   private:
     std::string id;
     OptVariablesBlock* sigma;
+    double weight;
     const SCACOPFData& d;
     double P1, P2, P3;
   };
@@ -72,7 +74,7 @@ namespace gollnlp {
   public: 
     DummySingleVarQuadrObjTerm(const std::string& id, OptVariablesBlock* x_) 
       : OptObjectiveTerm(id), x(x_), H_nz_idxs(NULL)
-    {};
+    {assert(false);};
 
     virtual ~DummySingleVarQuadrObjTerm() 
     {
