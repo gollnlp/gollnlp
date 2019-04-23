@@ -28,6 +28,8 @@ append_slackpenalties_blocks(OptVariablesBlock* slacks,
 
 bool ACOPFProblem::default_assembly()
 {
+  bool useQPenActiveBalance, useQPenReactiveBalance, useQPenLi1, useQPenLi2, useQPenTi1, useQPenTi2;
+  useQPenActiveBalance=useQPenReactiveBalance=useQPenLi1=useQPenLi2=useQPenTi1=useQPenTi2=true;
 
   auto v_n = new OptVariablesBlock(d.N_Bus.size(), "v_n", d.N_Vlb.data(), d.N_Vub.data()); 
   append_variables(v_n);
@@ -264,19 +266,30 @@ bool ACOPFProblem::default_assembly()
       pf_p_bal->compute_slacks(pslacks_n); pslacks_n->providesStartingPoint=true;
       //pslacks_n->print();
       
-      PFPenaltyAffineCons* cons_apb_pen = new PFPenaltyAffineConsTwoSlacks(string("pcwslin_cons_") + pslacks_n->id, 
-									   pf_p_bal->n, pslacks_n, 
-									   d.P_Penalties[SCACOPFData::pP], 
-									   d.P_Quantities[SCACOPFData::pP], 
-									   d.DELTA, d);
-      append_constraints(cons_apb_pen);
-
-      //sigmas for this block
-      OptVariablesBlock* sigma = cons_apb_pen->get_sigma();
-      cons_apb_pen->compute_sigma(sigma); sigma->providesStartingPoint=true;
-      //pslacks_n->print();
-      //sigma->print();
-      //printf("\n\n");
+      if(useQPenActiveBalance) {
+	//pslacks_n->set_start_to(0.);
+	append_objterm( new PFPenaltyQuadrApproxObjTerm("quadr_pen_" + pslacks_n->id,
+							 pslacks_n,
+							 d.P_Penalties[SCACOPFData::pP], 
+							 d.P_Quantities[SCACOPFData::pP], 
+							 d.DELTA) );
+							 
+      } else {
+	PFPenaltyAffineCons* cons_apb_pen = 
+	  new PFPenaltyAffineConsTwoSlacks(string("pcwslin_cons_") + pslacks_n->id, 
+					   pf_p_bal->n, pslacks_n, 
+					   d.P_Penalties[SCACOPFData::pP], 
+					   d.P_Quantities[SCACOPFData::pP], 
+					   d.DELTA, d);
+	append_constraints(cons_apb_pen);
+	
+	//sigmas for this block
+	OptVariablesBlock* sigma = cons_apb_pen->get_sigma();
+	cons_apb_pen->compute_sigma(sigma); sigma->providesStartingPoint=true;
+	//pslacks_n->print();
+	//sigma->print();
+	//printf("\n\n");
+      }
     }
     if(true)
     {
@@ -284,19 +297,26 @@ bool ACOPFProblem::default_assembly()
       auto pf_q_bal = new PFReactiveBalance("q_balance", d.N_Bus.size(), q_g, v_n, q_li1, q_li2, q_ti1, q_ti2, b_s, d);
       append_constraints(pf_q_bal);
       OptVariablesBlock* qslacks_n = pf_q_bal->slacks();
-      PFPenaltyAffineCons* cons_rpb_pen = new PFPenaltyAffineConsTwoSlacks(string("pcwslin_cons_") + qslacks_n->id, 
-									   pf_q_bal->n, qslacks_n, 
-									   d.P_Penalties[SCACOPFData::pQ], 
-									   d.P_Quantities[SCACOPFData::pQ], 
-									   d.DELTA, d);
-      append_constraints(cons_rpb_pen);
-      
-      pf_q_bal->compute_slacks(qslacks_n); qslacks_n->providesStartingPoint=true;
-      OptVariablesBlock* sigma = cons_rpb_pen->get_sigma();
-      cons_rpb_pen->compute_sigma(sigma); sigma->providesStartingPoint=true;
-      //qslacks_n->print();
-      //sigma->print();
-      //printf("\n\n");
+
+      if(useQPenReactiveBalance) {
+	append_objterm( new PFPenaltyQuadrApproxObjTerm("quadr_pen_" + qslacks_n->id,
+							qslacks_n,
+							d.P_Penalties[SCACOPFData::pQ], 
+							d.P_Quantities[SCACOPFData::pQ], 
+							d.DELTA) );
+      } else {
+	PFPenaltyAffineCons* cons_rpb_pen = 
+	  new PFPenaltyAffineConsTwoSlacks(string("pcwslin_cons_") + qslacks_n->id, 
+					   pf_q_bal->n, qslacks_n, 
+					   d.P_Penalties[SCACOPFData::pQ], 
+					   d.P_Quantities[SCACOPFData::pQ], 
+					   d.DELTA, d);
+	append_constraints(cons_rpb_pen);
+	
+	pf_q_bal->compute_slacks(qslacks_n); qslacks_n->providesStartingPoint=true;
+	OptVariablesBlock* sigma = cons_rpb_pen->get_sigma();
+	cons_rpb_pen->compute_sigma(sigma); sigma->providesStartingPoint=true;
+      }
     }
   }
 
@@ -312,18 +332,25 @@ bool ACOPFProblem::default_assembly()
       
       //sslack_li1
       OptVariablesBlock* sslack_li1 = pf_line_lim1->slacks();
-      PFPenaltyAffineCons* cons_li1_pen =
-	new PFPenaltyAffineCons(string("pcwslin_cons_") + sslack_li1->id, sslack_li1->n, sslack_li1,
-				d.P_Penalties[SCACOPFData::pS], d.P_Quantities[SCACOPFData::pS],
-				d.DELTA, d);
-      append_constraints(cons_li1_pen);
-      
-      pf_line_lim1->compute_slacks(sslack_li1); sslack_li1->providesStartingPoint=true;
-      OptVariablesBlock* sigma = cons_li1_pen->get_sigma();
-      cons_li1_pen->compute_sigma(sigma); sigma->providesStartingPoint=true;
-      //sslack_li1->print();
-      //sigma->print();
-      //printf("\n\n");
+
+      if(useQPenLi1) {
+	append_objterm( new PFPenaltyQuadrApproxObjTerm("quadr_pen_" + sslack_li1->id,
+							sslack_li1,
+							d.P_Penalties[SCACOPFData::pS], 
+							d.P_Quantities[SCACOPFData::pS], 
+							d.DELTA) );
+      } else {
+
+	PFPenaltyAffineCons* cons_li1_pen =
+	  new PFPenaltyAffineCons(string("pcwslin_cons_") + sslack_li1->id, sslack_li1->n, sslack_li1,
+				  d.P_Penalties[SCACOPFData::pS], d.P_Quantities[SCACOPFData::pS],
+				  d.DELTA, d);
+	append_constraints(cons_li1_pen);
+	
+	pf_line_lim1->compute_slacks(sslack_li1); sslack_li1->providesStartingPoint=true;
+	OptVariablesBlock* sigma = cons_li1_pen->get_sigma();
+	cons_li1_pen->compute_sigma(sigma); sigma->providesStartingPoint=true;
+      }
     }
     if(true)
     {
@@ -333,15 +360,24 @@ bool ACOPFProblem::default_assembly()
       append_constraints(pf_line_lim2);
       //sslack_li2
       OptVariablesBlock* sslack_li2 = pf_line_lim2->slacks();
-      PFPenaltyAffineCons* cons_li2_pen  =
-	new PFPenaltyAffineCons(string("pcwslin_cons_") + sslack_li2->id, sslack_li2->n, sslack_li2,
-				d.P_Penalties[SCACOPFData::pS], d.P_Quantities[SCACOPFData::pS],
-				d.DELTA, d);
-      append_constraints(cons_li2_pen);
-      
-      pf_line_lim2->compute_slacks(sslack_li2); sslack_li2->providesStartingPoint=true;
-      OptVariablesBlock* sigma = cons_li2_pen->get_sigma();
-      cons_li2_pen->compute_sigma(sigma); sigma->providesStartingPoint=true;
+
+      if(useQPenLi2) {
+	append_objterm( new PFPenaltyQuadrApproxObjTerm("quadr_pen_" + sslack_li2->id,
+							sslack_li2,
+							d.P_Penalties[SCACOPFData::pS], 
+							d.P_Quantities[SCACOPFData::pS], 
+							d.DELTA) );
+      } else {
+	PFPenaltyAffineCons* cons_li2_pen  =
+	  new PFPenaltyAffineCons(string("pcwslin_cons_") + sslack_li2->id, sslack_li2->n, sslack_li2,
+				  d.P_Penalties[SCACOPFData::pS], d.P_Quantities[SCACOPFData::pS],
+				  d.DELTA, d);
+	append_constraints(cons_li2_pen);
+	
+	pf_line_lim2->compute_slacks(sslack_li2); sslack_li2->providesStartingPoint=true;
+	OptVariablesBlock* sigma = cons_li2_pen->get_sigma();
+	cons_li2_pen->compute_sigma(sigma); sigma->providesStartingPoint=true;
+      }
     }
   }
   
@@ -353,20 +389,26 @@ bool ACOPFProblem::default_assembly()
 					      p_ti1, q_ti1, 
 					      d.T_Nidx[0], d.T_RateBase, d);
       append_constraints(pf_trans_lim1);
-
-      
       //sslack_ti1
       OptVariablesBlock* sslack_ti1 = pf_trans_lim1->slacks();
-      PFPenaltyAffineCons* cons_ti1_pen = 
-	new PFPenaltyAffineCons(string("pcwslin_cons_") + sslack_ti1->id, sslack_ti1->n, sslack_ti1, 
-				d.P_Penalties[SCACOPFData::pS], d.P_Quantities[SCACOPFData::pS],
-				d.DELTA, d);
-      append_constraints(cons_ti1_pen);
 
-      pf_trans_lim1->compute_slacks(sslack_ti1); sslack_ti1->providesStartingPoint=true;
-      OptVariablesBlock* sigma = cons_ti1_pen->get_sigma();
-      cons_ti1_pen->compute_sigma(sigma); sigma->providesStartingPoint=true;
-
+      if(useQPenTi1) {
+	append_objterm( new PFPenaltyQuadrApproxObjTerm("quadr_pen_" + sslack_ti1->id,
+							sslack_ti1,
+							d.P_Penalties[SCACOPFData::pS], 
+							d.P_Quantities[SCACOPFData::pS], 
+							d.DELTA) );
+      } else {
+	PFPenaltyAffineCons* cons_ti1_pen = 
+	  new PFPenaltyAffineCons(string("pcwslin_cons_") + sslack_ti1->id, sslack_ti1->n, sslack_ti1, 
+				  d.P_Penalties[SCACOPFData::pS], d.P_Quantities[SCACOPFData::pS],
+				  d.DELTA, d);
+	append_constraints(cons_ti1_pen);
+	
+	pf_trans_lim1->compute_slacks(sslack_ti1); sslack_ti1->providesStartingPoint=true;
+	OptVariablesBlock* sigma = cons_ti1_pen->get_sigma();
+	cons_ti1_pen->compute_sigma(sigma); sigma->providesStartingPoint=true;
+      }
     }
     if(true) 
     {
@@ -376,15 +418,24 @@ bool ACOPFProblem::default_assembly()
       append_constraints(pf_trans_lim2);
       //sslack_ti2
       OptVariablesBlock* sslack_ti2 = pf_trans_lim2->slacks();
-      PFPenaltyAffineCons* cons_ti2_pen = 
-	new PFPenaltyAffineCons(string("pcwslin_cons_") + sslack_ti2->id, sslack_ti2->n, sslack_ti2, 
-				d.P_Penalties[SCACOPFData::pS], d.P_Quantities[SCACOPFData::pS],
-				d.DELTA, d);
-      append_constraints(cons_ti2_pen);
-      
-      pf_trans_lim2->compute_slacks(sslack_ti2); sslack_ti2->providesStartingPoint=true;
-      OptVariablesBlock* sigma = cons_ti2_pen->get_sigma();
-      cons_ti2_pen->compute_sigma(sigma); sigma->providesStartingPoint=true;
+
+      if(useQPenTi2) {
+	append_objterm( new PFPenaltyQuadrApproxObjTerm("quadr_pen_" + sslack_ti2->id,
+							sslack_ti2,
+							d.P_Penalties[SCACOPFData::pS], 
+							d.P_Quantities[SCACOPFData::pS], 
+							d.DELTA) );
+      } else {
+	PFPenaltyAffineCons* cons_ti2_pen = 
+	  new PFPenaltyAffineCons(string("pcwslin_cons_") + sslack_ti2->id, sslack_ti2->n, sslack_ti2, 
+				  d.P_Penalties[SCACOPFData::pS], d.P_Quantities[SCACOPFData::pS],
+				  d.DELTA, d);
+	append_constraints(cons_ti2_pen);
+	
+	pf_trans_lim2->compute_slacks(sslack_ti2); sslack_ti2->providesStartingPoint=true;
+	OptVariablesBlock* sigma = cons_ti2_pen->get_sigma();
+	cons_ti2_pen->compute_sigma(sigma); sigma->providesStartingPoint=true;
+      }
     }
   }
 

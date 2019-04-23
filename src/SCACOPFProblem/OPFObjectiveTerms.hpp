@@ -68,6 +68,48 @@ namespace gollnlp {
     double P1, P2, P3;
   };
 
+  //////////////////////////////////////////////////////////////////////////////
+  // Slack penalty quadratic objective
+  // q(0)=0
+  // q'(0) = P1 (slope of the piecewise linear penalty at 0)
+  // q(s1+s2) = piecewise_linear_penalty(s1+s2) (=P1*s1+P2*s2)
+  // 
+  // q(x) = a*x^2 + b*x, where
+  // b = P1, a=(P2-P1)/(s1+s2)^2
+  //
+  // Assumed is that the piecewise linear penalty is defined over 3 segments
+  // [0, s1], [s1, s1+s2], [s1+s2, s1+s2+s3] with slopes P1, P2, P3
+  //
+  // An objective weight is also applied
+  class PFPenaltyQuadrApproxObjTerm : public OptObjectiveTerm {
+  public: 
+    //Gidx contains the indexes (in d.G_Generator) of the generator participating
+    PFPenaltyQuadrApproxObjTerm(const std::string& id_, 
+				OptVariablesBlock* slacks_,
+				const std::vector<double>& pen_coeff,
+				const std::vector<double>& pen_segm,
+				const double& obj_weight);
+    virtual ~PFPenaltyQuadrApproxObjTerm();
+    virtual bool eval_f(const OptVariables& vars_primal, bool new_x, double& obj_val);
+    virtual bool eval_grad(const OptVariables& vars_primal, bool new_x, double* grad);
+
+    virtual bool eval_HessLagr(const OptVariables& vars_primal, bool new_x, 
+			       const double& obj_factor,
+			       const int& nnz, int* i, int* j, double* M);
+
+    virtual int get_HessLagr_nnz();
+    // (i,j) entries in the HessLagr to which this term contributes to
+    virtual bool get_HessLagr_ij(std::vector<OptSparseEntry>& vij);
+  private:
+    std::string id;
+    OptVariablesBlock* x;
+    double a,b;
+    double weight;
+    //keep the index for each nonzero elem in the Hessian that this constraints block contributes to
+    int *H_nz_idxs;
+    double aux;
+  };
+
 
   //for 0.5||x||^2 -> to be used in testing
   class DummySingleVarQuadrObjTerm : public OptObjectiveTerm {
