@@ -54,7 +54,8 @@ namespace gollnlp {
 			  OptVariablesBlock* sigma_,
 			  const std::vector<double>& pen_coeff,
 			  const double& obj_weight,
-			  const SCACOPFData& d_);
+			  const SCACOPFData& d_,
+			  const double& slacks_rescale=1.);
     virtual ~PFPenaltyPcLinObjTerm();
     virtual bool eval_f(const OptVariables& vars_primal, bool new_x, double& obj_val);
     virtual bool eval_grad(const OptVariables& vars_primal, bool new_x, double* grad);
@@ -80,7 +81,7 @@ namespace gollnlp {
   // Assumed is that the piecewise linear penalty is defined over 3 segments
   // [0, s1], [s1, s1+s2], [s1+s2, s1+s2+s3] with slopes P1, P2, P3
   //
-  // An objective weight is also applied
+  // An objective weight is applied and slacks are subject to rescaling
   class PFPenaltyQuadrApproxObjTerm : public OptObjectiveTerm {
   public: 
     //Gidx contains the indexes (in d.G_Generator) of the generator participating
@@ -88,7 +89,8 @@ namespace gollnlp {
 				OptVariablesBlock* slacks_,
 				const std::vector<double>& pen_coeff,
 				const std::vector<double>& pen_segm,
-				const double& obj_weight);
+				const double& obj_weight,
+				const double& slacks_rescale=1.);
     virtual ~PFPenaltyQuadrApproxObjTerm();
     virtual bool eval_f(const OptVariables& vars_primal, bool new_x, double& obj_val);
     virtual bool eval_grad(const OptVariables& vars_primal, bool new_x, double* grad);
@@ -104,7 +106,7 @@ namespace gollnlp {
     std::string id;
     OptVariablesBlock* x;
     double a,b;
-    double weight;
+    double weight, f;
     //keep the index for each nonzero elem in the Hessian that this constraints block contributes to
     int *H_nz_idxs;
     double aux;

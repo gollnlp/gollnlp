@@ -321,7 +321,8 @@ PFActiveBalance::PFActiveBalance(const std::string& id_, int numcons,
 				 OptVariablesBlock* p_li2_,
 				 OptVariablesBlock* p_ti1_,
 				 OptVariablesBlock* p_ti2_,
-				 const SCACOPFData& d_)
+				 const SCACOPFData& d_,
+				 const double& slacks_rescale/*=1.*/)
   : OptConstraintsBlock(id_, numcons), 
     p_g(p_g_), v_n(v_n_), p_li1(p_li1_), p_li2(p_li2_), 
     p_ti1(p_ti1_), p_ti2(p_ti2_), d(d_), pslack_n(NULL)//, pslackm_n(NULL)
@@ -331,6 +332,9 @@ PFActiveBalance::PFActiveBalance(const std::string& id_, int numcons,
   //!memcpy(lb, d.N_Pd.data(), n*sizeof(double));
   for(int i=0; i<n; i++) lb[i]=0.;
   DCOPY(&n, lb, &ione, ub, &ione);
+
+  r = slacks_rescale>0 ? 1/slacks_rescale : 1.;
+
   J_nz_idxs = NULL;
   H_nz_idxs = NULL;
 }
@@ -344,8 +348,11 @@ bool PFActiveBalance::eval_body (const OptVariables& vars_primal, bool new_x, do
   assert(pslack_n); //assert(pslackm_n);
   double* body = body_ + this->index;
   double* slacks = const_cast<double*>(pslack_n->xref);
-  DAXPY(&n, &dminusone, slacks,   &ione, body, &ione);
-  DAXPY(&n, &done,      slacks+n, &ione, body, &ione);
+
+  r = 0-r;
+  DAXPY(&n, &r, slacks,   &ione, body, &ione);
+  r = 0-r;
+  DAXPY(&n, &r, slacks+n, &ione, body, &ione);
 
   const double *NGsh=d.N_Gsh.data(), *NPd=d.N_Pd.data();
   for(int i=0; i<n; i++) {
@@ -466,8 +473,8 @@ bool PFActiveBalance::eval_Jac(const OptVariables& primal_vars, bool new_x,
       for(int i=0; i<sz; i++) { M[*itnz] -= 1; itnz++;} //p_t2_1
 
       //slacks
-      M[*itnz] -= 1; itnz++;
-      M[*itnz] += 1; itnz++;
+      M[*itnz] -= r; itnz++;
+      M[*itnz] += r; itnz++;
     }
   }
   return true;
@@ -565,7 +572,7 @@ bool PFActiveBalance::get_HessLagr_ij(std::vector<OptSparseEntry>& vij)
 //sum(p_g[g] for g=Gn[n])  - N[:Gsh][n]*v_n[n]^2 -
 // sum(p_li[Lidxn[n][lix],Lin[n][lix]] for lix=1:length(Lidxn[n])) -
 // sum(p_ti[Tidxn[n][tix],Tin[n][tix]] for tix=1:length(Tidxn[n])) -   N[:Pd][n]) ==
-// + pslackp_n[n] - pslackm_n[n]    
+// + r*pslackp_n[n] - r*pslackm_n[n]    
 //
 //
 void PFActiveBalance::compute_slacks(OptVariablesBlock* slacksv) const
@@ -629,9 +636,10 @@ void PFActiveBalance::compute_slacks(OptVariablesBlock* slacksv) const
     //pslackm_n[n] = max(0.0, -pslack)
     //pslackp_n[n] = max(0.0, pslack)
     if(pslackp_n[i]<0) {
-      pslackm_n[i] = -pslackp_n[i];
+      pslackm_n[i] = -pslackp_n[i]/r;
       pslackp_n[i] = 0;
     } else {
+      pslackp_n[i] = pslackp_n[i]/r;
       pslackm_n[i] = 0;
     }
   }
@@ -645,15 +653,17 @@ void PFActiveBalance::compute_slacks(OptVariablesBlock* slacksv) const
 // sum(q_ti[Tidxn[n][tix],Tin[n][tix]] for tix=1:length(Tidxn[n])) - 
 // qslackp_n[n] + qslackm_n[n])  ==  N[:Qd][n]
 ////////////////////////////////////////////////////////////////////////////////////////////
-PFReactiveBalance::PFReactiveBalance(const std::string& id_, int numcons,
-		      OptVariablesBlock* q_g_, 
-		      OptVariablesBlock* v_n_,
-		      OptVariablesBlock* q_li1_,
-		      OptVariablesBlock* q_li2_,
-		      OptVariablesBlock* q_ti1_,
-		      OptVariablesBlock* q_ti2_,
-		      OptVariablesBlock* b_s_,
-		      const SCACOPFData& d_)
+PFReactiveBalance::
+PFReactiveBalance(const std::string& id_, int numcons,
+		  OptVariablesBlock* q_g_, 
+		  OptVariablesBlock* v_n_,
+		  OptVariablesBlock* q_li1_,
+		  OptVariablesBlock* q_li2_,
+		  OptVariablesBlock* q_ti1_,
+		  OptVariablesBlock* q_ti2_,
+		  OptVariablesBlock* b_s_,
+		  const SCACOPFData& d_,
+		  const double& slacks_rescale)
   : OptConstraintsBlock(id_, numcons), 
     q_g(q_g_), v_n(v_n_), 
     q_li1(q_li1_), q_li2(q_li2_), 
@@ -661,6 +671,9 @@ PFReactiveBalance::PFReactiveBalance(const std::string& id_, int numcons,
     b_s(b_s_), d(d_), qslack_n(NULL)//, pslackm_n(NULL)
 {
   assert(d.N_Pd.size()==n);
+  assert(slacks_rescale>0);
+  r = slacks_rescale>0 ? 1/slacks_rescale: 1.;
+
   //rhs
   //!memcpy(lb, d.N_Qd.data(), n*sizeof(double));
   for(int i=0; i<n; i++) lb[i]=0.;
@@ -679,8 +692,10 @@ bool PFReactiveBalance::eval_body (const OptVariables& vars_primal, bool new_x, 
   assert(qslack_n); 
   double* body = body_ + this->index;
   double* slacks = const_cast<double*>(qslack_n->xref);
-  DAXPY(&n, &dminusone, slacks,   &ione, body, &ione);
-  DAXPY(&n, &done,      slacks+n, &ione, body, &ione);
+  r = 0-r;
+  DAXPY(&n, &r, slacks,   &ione, body, &ione);
+  r = 0-r;
+  DAXPY(&n, &r, slacks+n, &ione, body, &ione);
 
   const int *Gn; int nGn; const double *NQd=d.N_Qd.data();
   for(int i=0; i<n; i++) {
@@ -822,9 +837,10 @@ void PFReactiveBalance::compute_slacks(OptVariablesBlock* qslacks_n)
   double *qslackp_n=qslacks_n->x, *qslackm_n=qslacks_n->x+n;
   for(int i=0; i<n; i++) {
     if(qslackp_n[i]<0) {
-      qslackm_n[i] = - qslackp_n[i];
+      qslackm_n[i] = - qslackp_n[i]/r;
       qslackp_n[i] = 0.;
     } else {
+      qslackp_n[i] = qslackp_n[i]/r;
       qslackm_n[i] = 0.;
     }
   }
@@ -892,8 +908,8 @@ bool PFReactiveBalance::eval_Jac(const OptVariables& primal_vars, bool new_x,
       for(int s=0; s<szsshn; s++) {  M[*itnz] += aux; itnz++;} //b_s
 
       //slacks
-      M[*itnz] -= 1; itnz++;
-      M[*itnz] += 1; itnz++;
+      M[*itnz] -= r; itnz++;
+      M[*itnz] += r; itnz++;
     }
   }
   return true;
@@ -1046,11 +1062,14 @@ PFLineLimits::PFLineLimits(const std::string& id_, int numcons,
 			   OptVariablesBlock* v_n_,
 			   const std::vector<int>& L_Nidx_,
 			   const std::vector<double>& L_Rate_,
-			   const SCACOPFData& d_)
+			   const SCACOPFData& d_,
+			   const double& slacks_rescale)
   : OptConstraintsBlock(id_, numcons), 
     p_li(p_li_), q_li(q_li_), v_n(v_n_), Nidx(L_Nidx_), L_Rate(L_Rate_), d(d_), sslack_li(NULL)
 {
   assert(d.L_Line.size()==n);
+  assert(slacks_rescale>0);
+  r = slacks_rescale ? 1/slacks_rescale : 1.;
   //rhs
   for(int i=0; i<n; i++)
     lb[i]=-1e+20;
@@ -1085,7 +1104,7 @@ bool PFLineLimits::eval_body (const OptVariables& vars_primal, bool new_x, doubl
   const int* L_Nidx = Nidx.data();
   double aux;
   for(int i=0; i<n; i++) {
-    aux = Rate[i]*v_n->xref[L_Nidx[i]] + sslack_li->xref[i];
+    aux = Rate[i]*v_n->xref[L_Nidx[i]] + r*sslack_li->xref[i];
     *body++ -= aux*aux;
   }
   return true;
@@ -1116,7 +1135,7 @@ void PFLineLimits::compute_slacks(OptVariablesBlock* sslacks)
 
   for(int i=0; i<n; i++) {
     //if(body[i]>0) printf(" [%3d] = %g\n", i, body[i]);
-    body[i] = body[i]>=0 ? sqrt(body[i]) : 0.;
+    body[i] = body[i]>=0 ? sqrt(body[i])/r : 0.;
   }
 }
 
@@ -1144,21 +1163,21 @@ bool PFLineLimits::eval_Jac(const OptVariables& primal_vars, bool new_x,
     const double* Rate = L_Rate.data(); double cc, R;
     for(int it=0; it<n; it++) {
       R=Rate[it];
-      cc = R * v_n->xref[L_Nidx[it]] + sslack_li->xref[it];
+      cc = R * v_n->xref[L_Nidx[it]] + r*sslack_li->xref[it];
       cc *= 2;
 
       M[*itnz] -= R*cc;              itnz++; //vn
       M[*itnz] += 2*p_li->xref[it];  itnz++; //p_li
       M[*itnz] += 2*q_li->xref[it];  itnz++; //q_li
-      M[*itnz] -= cc;                itnz++; //sslack_li
+      M[*itnz] -= r*cc;              itnz++; //sslack_li
     }
   }
   return true;
 }
-// p_li[l,i]^2 + q_li[l,i]^2 - (L[Rate][l]*v_n[L_Nidx[l,i]] + sslack_li[l,i])^2) <=0
-// Jacobian : let  c = L[Rate][l]*v_n[L_Nidx[l,i]] + sslack_li[l,i]
+// p_li[l,i]^2 + q_li[l,i]^2 - (L[Rate][l]*v_n[L_Nidx[l,i]] + r*sslack_li[l,i])^2) <=0
+// Jacobian : let  c = L[Rate][l]*v_n[L_Nidx[l,i]] + r*sslack_li[l,i]
 // w.r.t to:   v_n        p_li    q_li   sslack_li
-//          -2*Rate*c   2*p_li   2*q_li    -2*c
+//          -2*Rate*c   2*p_li   2*q_li    -2*c*r
 int PFLineLimits::get_Jacob_nnz(){ 
   return 4*n; 
 }
@@ -1219,12 +1238,12 @@ bool PFLineLimits::eval_HessLagr(const OptVariables& vars_primal, bool new_x,
     const double* Rate = L_Rate.data(); double aux, R, lam;
     for(int it=0; it<n; it++) {
       lam=lambda->xref[it]; lam *= 2;
-      R=Rate[it]; aux = R*lam; //aux = 2*R*lam
+      R=Rate[it]; aux = R*lam*r; //aux = 2*R*lam*r
       M[*itnz++] -= aux*R; //w.r.t. (v_n, v_n)
       M[*itnz++] -= aux;   //w.r.t. (v_n, sslack_li)
       M[*itnz++] += lam;   //w.r.t. (p_li...
       M[*itnz++] += lam;   //w.r.t. (q_li...
-      M[*itnz++] -= lam;   //w.r.t. (sslack_li...
+      M[*itnz++] -= lam*r; //w.r.t. (sslack_li...
     }
   }
 #ifdef DEBUG
@@ -1233,16 +1252,16 @@ bool PFLineLimits::eval_HessLagr(const OptVariables& vars_primal, bool new_x,
   return true;
 }
 
-// p_li[l,i]^2 + q_li[l,i]^2 - (L[Rate][l]*v_n[L_Nidx[l,i]] + sslack_li[l,i])^2) <=0
-// Jacobian : let  c = L[Rate][l]*v_n[L_Nidx[l,i]] + sslack_li[l,i]
+// p_li[l,i]^2 + q_li[l,i]^2 - (L[Rate][l]*v_n[L_Nidx[l,i]] + r*sslack_li[l,i])^2) <=0
+// Jacobian : let  c = L[Rate][l]*v_n[L_Nidx[l,i]] + r*sslack_li[l,i]
 // w.r.t to:   v_n        p_li    q_li   sslack_li
-//          -2*Rate*c   2*p_li   2*q_li    -2*c
+//          -2*Rate*c   2*p_li   2*q_li    -2*r*c
 // Hessian
 // -2*Rate^2    (v_n,v_n)
-// -2*Rate      (v_n,sslack_li)
+// -2*Rate*r    (v_n,sslack_li)
 //  2           (p_li,p_li)
 //  2           (q_li,q_li)
-// -2           (sslack_li, sslack_li)
+// -2*r*r       (sslack_li, sslack_li)
 int PFLineLimits::get_HessLagr_nnz() 
 { 
   return 5*n;
@@ -1291,15 +1310,17 @@ OptObjectiveTerm* PFLineLimits::create_objterm()
 // PFTransfLimits - Transformer thermal limits
 //////////////////////////////////////////////////////////////////
 PFTransfLimits::PFTransfLimits(const std::string& id_, int numcons,
-			   OptVariablesBlock* p_ti_, 
-			   OptVariablesBlock* q_ti_,
-			   const std::vector<int>& T_Nidx_,
-			   const std::vector<double>& T_Rate_,
-			   const SCACOPFData& d_)
+			       OptVariablesBlock* p_ti_, 
+			       OptVariablesBlock* q_ti_,
+			       const std::vector<int>& T_Nidx_,
+			       const std::vector<double>& T_Rate_,
+			       const SCACOPFData& d_,
+			       const double& slacks_rescale)
   : OptConstraintsBlock(id_, numcons), 
     p_ti(p_ti_), q_ti(q_ti_), Nidx(T_Nidx_), T_Rate(T_Rate_), d(d_), sslack_ti(NULL)
 {
   assert(d.T_Transformer.size()==n);
+  r = slacks_rescale>0 ? 1/slacks_rescale : 1.;
   //rhs
   for(int i=0; i<n; i++)
     lb[i]=-1e+20;
@@ -1314,7 +1335,7 @@ PFTransfLimits::~PFTransfLimits()
   delete[] H_nz_idxs;
 }
 
-// p_ti[t,i]^2 + q_ti[t,i]^2 - (T_Rate][t] + sslack_ti[t,i])^2) <=0
+// p_ti[t,i]^2 + q_ti[t,i]^2 - (T_Rate][t] + r*sslack_ti[t,i])^2) <=0
 bool PFTransfLimits::eval_body (const OptVariables& vars_primal, bool new_x, double* body_)
 {
   assert(sslack_ti); 
@@ -1334,12 +1355,12 @@ bool PFTransfLimits::eval_body (const OptVariables& vars_primal, bool new_x, dou
   const int* L_Nidx = Nidx.data();
   double aux;
   for(int i=0; i<n; i++) {
-    aux = Rate[i] + sslack_ti->xref[i];
+    aux = Rate[i] + r*sslack_ti->xref[i];
     *body++ -= aux*aux;
   }
   return true;
 }
-// p_ti[t,i]^2 + q_ti[t,i]^2 - (T_Rate][t] + sslack_ti[t,i])^2) <=0
+// p_ti[t,i]^2 + q_ti[t,i]^2 - (T_Rate][t] + r*sslack_ti[t,i])^2) <=0
 void PFTransfLimits::compute_slacks(OptVariablesBlock* sslackti)
 {
   assert(sslack_ti->n == n); 
@@ -1365,7 +1386,7 @@ void PFTransfLimits::compute_slacks(OptVariablesBlock* sslackti)
   body -= n;
 
   for(int i=0; i<n; i++) {
-    body[i] = body[i]>=0 ? body[i] : 0;
+    body[i] = body[i]>0 ? body[i]/r : 0;
   }
 }
 
@@ -1391,20 +1412,20 @@ bool PFTransfLimits::eval_Jac(const OptVariables& primal_vars, bool new_x,
   } else {
     const double* Rate = T_Rate.data(); double c;
     for(int it=0; it<n; it++) {
-      c = Rate[it] + sslack_ti->xref[it];
+      c = Rate[it] + r*sslack_ti->xref[it];
 
       M[*itnz] += 2*p_ti->xref[it];  itnz++; //p_ti
       M[*itnz] += 2*q_ti->xref[it];  itnz++; //q_ti
-      M[*itnz] -= 2*c;               itnz++; //sslack_ti
+      M[*itnz] -= 2*c*r;             itnz++; //sslack_ti
     }
   }
   return true;
 }
 
-// p_ti[t,i]^2 + q_ti[t,i]^2 - (Rate[t] + sslack_ti[t,i])^2) <=0
-// Jacobian : let  c = Rate[l] + sslack_ti[l,i]
+// p_ti[t,i]^2 + q_ti[t,i]^2 - (Rate[t] + r*sslack_ti[t,i])^2) <=0
+// Jacobian : let  c = Rate[l] + r*sslack_ti[l,i]
 // w.r.t to:   p_ti    q_ti   sslack_ti
-//            2*p_ti   2*q_ti    -2*c
+//            2*p_ti   2*q_ti    -2*c*r
 int PFTransfLimits::get_Jacob_nnz(){ 
   return 3*n; 
 }
@@ -1455,12 +1476,12 @@ bool PFTransfLimits::eval_HessLagr(const OptVariables& vars_primal, bool new_x,
     const OptVariablesBlock* lambda = lambda_vars.get_block(std::string("duals_") + this->id);
     assert(lambda!=NULL);
     assert(lambda->n==n);
-    double aux, R, lam;
+    double aux, lam, rsq=r*r;
     for(int it=0; it<n; it++) {
       lam=lambda->xref[it]; lam *= 2*lam;
-      M[*itnz++] += lam;   //w.r.t. (p_ti...
-      M[*itnz++] += lam;   //w.r.t. (q_ti...
-      M[*itnz++] -= lam;   //w.r.t. (sslack_ti...
+      M[*itnz++] += lam;     //w.r.t. (p_ti...
+      M[*itnz++] += lam;     //w.r.t. (q_ti...
+      M[*itnz++] -= lam*rsq; //w.r.t. (sslack_ti...
     }
   }
 #ifdef DEBUG
@@ -1469,14 +1490,14 @@ bool PFTransfLimits::eval_HessLagr(const OptVariables& vars_primal, bool new_x,
   return true;
 }
 
-// p_ti[l,i]^2 + q_ti[l,i]^2 - (L[Rate][l]*v_n[L_Nidx[l,i]] + sslack_ti[l,i])^2) <=0
-// Jacobian : let  c = Rate[l] + sslack_ti[l,i]
+// p_ti[l,i]^2 + q_ti[l,i]^2 - (L[Rate][l]*v_n[L_Nidx[l,i]] + r*sslack_ti[l,i])^2) <=0
+// Jacobian : let  c = Rate[l] + r*sslack_ti[l,i]
 // w.r.t to:    p_ti    q_ti   sslack_ti
-//             2*p_ti   2*q_ti    -2*c
+//             2*p_ti   2*q_ti    -2*c*r
 // Hessian
 //  2           (p_ti,p_ti)
 //  2           (q_ti,q_ti)
-// -2           (sslack_ti, sslack_ti)
+// -2*r*r       (sslack_ti, sslack_ti)
 int PFTransfLimits::get_HessLagr_nnz() 
 { 
   return 3*n;
@@ -1732,6 +1753,12 @@ bool PFProdCostAffineCons::get_Jacob_ij(std::vector<OptSparseEntry>& vij)
 // constraints are
 //   0<= sigma[i][h] <= S_h, 
 //   slacks[i] - sum_h sigma[i][h] =0, i=1,2, size(slacks)
+// 
+// Upon rescaling
+// min sum_i( sum_h P[i][h]*f sigma_h[i][h])
+//  s.t. 0<= sigma[i][h] <= S_h/f
+//       slacks[i] - sum_h sigma[i][h] =0
+// where f = 1/slacks_rescale, usually 1/256 or 1/512
 //////////////////////////////////////////////////////////////////////////////
 PFPenaltyAffineCons::
 PFPenaltyAffineCons(const std::string& id_, int numcons,
@@ -1739,14 +1766,18 @@ PFPenaltyAffineCons(const std::string& id_, int numcons,
 		    const std::vector<double>& pen_coeff,
 		    const std::vector<double>& pen_segm,
 		    const double& obj_weight, // DELTA or (1-DELTA)/NumK
-		    const SCACOPFData& d_)
+		    const SCACOPFData& d_,
+		    const double& slacks_rescale)
   : OptConstraintsBlock(id_,numcons), slack(slack_), d(d_), J_nz_idxs(NULL)
 {
   assert(pen_segm.size()==3);
   assert(pen_coeff.size()==3);
 
-  P1=pen_coeff[0]; P2=pen_coeff[1]; P3=pen_coeff[2];
-  S1=pen_segm[0]; S2=pen_segm[1]; S3=pen_segm[2];
+  assert(slacks_rescale>1e-6);
+  double rescale = slacks_rescale>0 ? slacks_rescale : 1.; 
+
+  P1=pen_coeff[0]/rescale; P2=pen_coeff[1]/rescale; P3=pen_coeff[2]/rescale;
+  S1=pen_segm[0]*rescale;  S2=pen_segm[1]*rescale;  S3=pen_segm[2]*rescale;
 
   //rhs of this block
   lb = new double[n];
@@ -1759,7 +1790,7 @@ PFPenaltyAffineCons(const std::string& id_, int numcons,
   sigma = new OptVariablesBlock(3*n, id+"_sigma", 0., S3);
   for(int i=0; i<sigma->n; ) { sigma->ub[i++]=S1; sigma->ub[i++]=S2; i++;}
 
-  obj_term = new PFPenaltyPcLinObjTerm(id+"_obj", sigma, pen_coeff, obj_weight, d);
+  obj_term = new PFPenaltyPcLinObjTerm(id+"_obj", sigma, pen_coeff, obj_weight, d, slacks_rescale);
 }
 PFPenaltyAffineCons::~PFPenaltyAffineCons()
 {

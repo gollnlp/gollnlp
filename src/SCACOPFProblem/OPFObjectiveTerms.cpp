@@ -58,7 +58,8 @@ PFPenaltyPcLinObjTerm(const std::string& id_,
 		      OptVariablesBlock* sigma_,
 		      const std::vector<double>& pen_coeff,
 		      const double& obj_weight,
-		      const SCACOPFData& d_)
+		      const SCACOPFData& d_,
+		      const double& slacks_rescale)
   : OptObjectiveTerm(id_), sigma(sigma_), weight(obj_weight), d(d_)
 {
   assert(pen_coeff.size()==3); 
@@ -69,6 +70,7 @@ PFPenaltyPcLinObjTerm(const std::string& id_,
   } else {
     P1 = pen_coeff[0]; P2 = pen_coeff[1]; P3 = pen_coeff[2]; 
   }
+  P1 /= slacks_rescale; P2 /= slacks_rescale; P3 /= slacks_rescale; 
 }
 
 PFPenaltyPcLinObjTerm::~PFPenaltyPcLinObjTerm()
@@ -106,7 +108,7 @@ bool PFPenaltyPcLinObjTerm::eval_grad(const OptVariables& vars_primal, bool new_
 // q(s1+s2) = piecewise_linear_penalty(s1+s2) (=P1*s1+P2*s2)
 // 
 // q(x) = a*x^2 + b*x, where
-// b = P1, a=(P2-P1)/(s1+s2)^2
+// b = P1, a=(P2-P1)*S2/(s1+s2)^2
 //
 // Assumed is that the piecewise linear penalty is defined over 3 segments
 // [0, s1], [s1, s1+s2], [s1+s2, s1+s2+s3] with slopes P1, P2, P3
@@ -116,7 +118,8 @@ PFPenaltyQuadrApproxObjTerm(const std::string& id_,
 			    OptVariablesBlock* slacks_,
 			    const std::vector<double>& pen_coeff,
 			    const std::vector<double>& pen_segm,
-			    const double& obj_weight)
+			    const double& obj_weight,
+			    const double& slacks_rescale)
   : OptObjectiveTerm(id_), x(slacks_), weight(obj_weight), H_nz_idxs(NULL), aux(0)
 {
   assert(pen_coeff.size()==3);
@@ -130,8 +133,16 @@ PFPenaltyQuadrApproxObjTerm(const std::string& id_,
   }
   S1=pen_segm[0]; S2=pen_segm[1]; //S3=pen_segm[2];
 
-  a = (P2-P1)*S2/((S1+S2)*(S1+S2));
-  b = P1;
+  assert(slacks_rescale>0);
+
+  //f is usually 1/256 or 1/512
+  f = slacks_rescale>0 ? 1/slacks_rescale : 1.;
+  //double rescale = slacks_rescale>0 ? slacks_rescale : 1.;
+
+  //a = (P2-P1)*S2/((S1+S2)*(S1+S2));
+  double aux = S1+S2; 
+  a = ((((P2-P1)*f)/aux)*f)/aux;
+  b = P1*f;
 }
 PFPenaltyQuadrApproxObjTerm::~PFPenaltyQuadrApproxObjTerm() {}
 
@@ -156,10 +167,8 @@ bool PFPenaltyQuadrApproxObjTerm::eval_grad(const OptVariables& vars_primal, boo
   double* g = grad+x->index;
   // += 2*a*x
   aux = 2*a;
-  //assert(aux>0);
-  //DAXPY(&(x->n), &aux, const_cast<double*>(x->xref), &ione, g, &ione);
-  for(int i=0; i<x->n; i++)
-    g[i] += aux*x->xref[i];
+  assert(aux>0);
+  DAXPY(&(x->n), &aux, const_cast<double*>(x->xref), &ione, g, &ione);
 
   for(int i=0; i<x->n; i++)
     g[i] += b;
