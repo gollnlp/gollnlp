@@ -416,7 +416,7 @@ bool PFActiveBalance::eval_body (const OptVariables& vars_primal, bool new_x, do
 }
 // sum(p_g[g] for g=Gn[n])  - N[:Gsh][n]*v_n[n]^2 -
 // sum(p_li[Lidxn[n][lix],Lin[n][lix]] for lix=1:length(Lidxn[n])) -
-// sum(p_ti[Tidxn[n][tix],Tin[n][tix]] for tix=1:length(Tidxn[n])) - pslackp_n[n] + pslackm_n[n] = N[:Pd][n])
+// sum(p_ti[Tidxn[n][tix],Tin[n][tix]] for tix=1:length(Tidxn[n])) - r*pslackp_n[n] + r*pslackm_n[n] = N[:Pd][n])
 bool PFActiveBalance::eval_Jac(const OptVariables& primal_vars, bool new_x, 
 			  const int& nnz, int* i, int* j, double* M)
 {
@@ -643,7 +643,7 @@ void PFActiveBalance::compute_slacks(OptVariablesBlock* slacksv) const
 // (-N[:Bsh][n] - sum(b_s[s] for s=SShn[n]))*v_n[n]^2 -
 // sum(q_li[Lidxn[n][lix],Lin[n][lix]] for lix=1:length(Lidxn[n])) -
 // sum(q_ti[Tidxn[n][tix],Tin[n][tix]] for tix=1:length(Tidxn[n])) - 
-// qslackp_n[n] + qslackm_n[n])  ==  N[:Qd][n]
+// r*qslackp_n[n] + r*qslackm_n[n])  ==  N[:Qd][n]
 ////////////////////////////////////////////////////////////////////////////////////////////
 PFReactiveBalance::
 PFReactiveBalance(const std::string& id_, int numcons,
@@ -1076,7 +1076,7 @@ PFLineLimits::~PFLineLimits()
   delete[] H_nz_idxs;
 }
 
-// p_li[l,i]^2 + q_li[l,i]^2 - (L[RateSymb][l]*v_n[L_Nidx[l,i]] + sslack_li[l,i])^2) <=0
+// p_li[l,i]^2 + q_li[l,i]^2 - (L[RateSymb][l]*v_n[L_Nidx[l,i]] + r*sslack_li[l,i])^2) <=0
 bool PFLineLimits::eval_body (const OptVariables& vars_primal, bool new_x, double* body_)
 {
   assert(sslack_li); 

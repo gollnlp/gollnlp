@@ -121,7 +121,7 @@ namespace gollnlp {
     virtual OptVariablesBlock* create_varsblock() 
     { 
       assert(pslack_n==NULL);
-      pslack_n = new OptVariablesBlock(2*n, "pslack_n", 0, 1e+20);
+      pslack_n = new OptVariablesBlock(2*n, "pslack_n_"+id, 0, 1e+20);
       return pslack_n; 
     }
     
@@ -195,7 +195,7 @@ namespace gollnlp {
     virtual OptVariablesBlock* create_varsblock() 
     { 
       assert(qslack_n==NULL);
-      qslack_n = new OptVariablesBlock(2*n, "qslack_n", 0, 1e+20);
+      qslack_n = new OptVariablesBlock(2*n, "qslack_n_"+id, 0, 1e+20);
       return qslack_n; 
     }
     virtual OptObjectiveTerm* create_objterm() 
