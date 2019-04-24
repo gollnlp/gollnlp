@@ -29,7 +29,9 @@ append_slackpenalties_blocks(OptVariablesBlock* slacks,
 bool ACOPFProblem::default_assembly()
 {
   bool useQPenActiveBalance, useQPenReactiveBalance, useQPenLi1, useQPenLi2, useQPenTi1, useQPenTi2;
-  useQPenActiveBalance=useQPenReactiveBalance=useQPenLi1=useQPenLi2=useQPenTi1=useQPenTi2=true;
+  useQPenActiveBalance=useQPenReactiveBalance=useQPenLi1=useQPenLi2=useQPenTi1=useQPenTi2=false;
+
+  double slacks_scale = 256.;
 
   auto v_n = new OptVariablesBlock(d.N_Bus.size(), "v_n", d.N_Vlb.data(), d.N_Vub.data()); 
   append_variables(v_n);
@@ -259,7 +261,9 @@ bool ACOPFProblem::default_assembly()
     if(true) 
     {
       //active power balance
-      auto pf_p_bal = new PFActiveBalance("p_balance", d.N_Bus.size(), p_g, v_n, p_li1, p_li2, p_ti1, p_ti2, d);
+      auto pf_p_bal = new PFActiveBalance("p_balance", d.N_Bus.size(), 
+					  p_g, v_n, p_li1, p_li2, p_ti1, p_ti2, 
+					  d, slacks_scale);
       append_constraints(pf_p_bal);
       //pslackm_n and pslackp_n
       OptVariablesBlock* pslacks_n = pf_p_bal->slacks();
@@ -268,11 +272,9 @@ bool ACOPFProblem::default_assembly()
       
       if(useQPenActiveBalance) {
 	//pslacks_n->set_start_to(0.);
-	append_objterm( new PFPenaltyQuadrApproxObjTerm("quadr_pen_" + pslacks_n->id,
-							 pslacks_n,
-							 d.P_Penalties[SCACOPFData::pP], 
-							 d.P_Quantities[SCACOPFData::pP], 
-							 d.DELTA) );
+	append_objterm( new PFPenaltyQuadrApproxObjTerm("quadr_pen_" + pslacks_n->id, pslacks_n, 
+							d.P_Penalties[SCACOPFData::pP], d.P_Quantities[SCACOPFData::pP], 
+							d.DELTA, slacks_scale) );
 							 
       } else {
 	PFPenaltyAffineCons* cons_apb_pen = 
@@ -280,7 +282,7 @@ bool ACOPFProblem::default_assembly()
 					   pf_p_bal->n, pslacks_n, 
 					   d.P_Penalties[SCACOPFData::pP], 
 					   d.P_Quantities[SCACOPFData::pP], 
-					   d.DELTA, d);
+					   d.DELTA, d, slacks_scale);
 	append_constraints(cons_apb_pen);
 	
 	//sigmas for this block
@@ -294,7 +296,7 @@ bool ACOPFProblem::default_assembly()
     if(true)
     {
       //reactive power balance
-      auto pf_q_bal = new PFReactiveBalance("q_balance", d.N_Bus.size(), q_g, v_n, q_li1, q_li2, q_ti1, q_ti2, b_s, d);
+      auto pf_q_bal = new PFReactiveBalance("q_balance", d.N_Bus.size(), q_g, v_n, q_li1, q_li2, q_ti1, q_ti2, b_s, d, slacks_scale);
       append_constraints(pf_q_bal);
       OptVariablesBlock* qslacks_n = pf_q_bal->slacks();
 
@@ -303,14 +305,14 @@ bool ACOPFProblem::default_assembly()
 							qslacks_n,
 							d.P_Penalties[SCACOPFData::pQ], 
 							d.P_Quantities[SCACOPFData::pQ], 
-							d.DELTA) );
+							d.DELTA, slacks_scale) );
       } else {
 	PFPenaltyAffineCons* cons_rpb_pen = 
 	  new PFPenaltyAffineConsTwoSlacks(string("pcwslin_cons_") + qslacks_n->id, 
 					   pf_q_bal->n, qslacks_n, 
 					   d.P_Penalties[SCACOPFData::pQ], 
 					   d.P_Quantities[SCACOPFData::pQ], 
-					   d.DELTA, d);
+					   d.DELTA, d, slacks_scale);
 	append_constraints(cons_rpb_pen);
 	
 	pf_q_bal->compute_slacks(qslacks_n); qslacks_n->providesStartingPoint=true;
@@ -320,6 +322,7 @@ bool ACOPFProblem::default_assembly()
     }
   }
 
+  slacks_scale=1;
   
   {
     //thermal line limits
@@ -327,7 +330,7 @@ bool ACOPFProblem::default_assembly()
     {
       auto pf_line_lim1 = new PFLineLimits("line_limits1", d.L_Line.size(),
 					   p_li1, q_li1, v_n, 
-					   d.L_Nidx[0], d.L_RateBase, d);
+					   d.L_Nidx[0], d.L_RateBase, d, slacks_scale);
       append_constraints(pf_line_lim1);
       
       //sslack_li1
@@ -338,13 +341,13 @@ bool ACOPFProblem::default_assembly()
 							sslack_li1,
 							d.P_Penalties[SCACOPFData::pS], 
 							d.P_Quantities[SCACOPFData::pS], 
-							d.DELTA) );
+							d.DELTA, slacks_scale) );
       } else {
 
 	PFPenaltyAffineCons* cons_li1_pen =
 	  new PFPenaltyAffineCons(string("pcwslin_cons_") + sslack_li1->id, sslack_li1->n, sslack_li1,
 				  d.P_Penalties[SCACOPFData::pS], d.P_Quantities[SCACOPFData::pS],
-				  d.DELTA, d);
+				  d.DELTA, d, slacks_scale);
 	append_constraints(cons_li1_pen);
 	
 	pf_line_lim1->compute_slacks(sslack_li1); sslack_li1->providesStartingPoint=true;
@@ -356,7 +359,7 @@ bool ACOPFProblem::default_assembly()
     {
       auto pf_line_lim2 = new PFLineLimits("line_limits2", d.L_Line.size(),
 					 p_li2, q_li2, v_n, 
-					   d.L_Nidx[1], d.L_RateBase, d);
+					   d.L_Nidx[1], d.L_RateBase, d, slacks_scale);
       append_constraints(pf_line_lim2);
       //sslack_li2
       OptVariablesBlock* sslack_li2 = pf_line_lim2->slacks();
@@ -366,12 +369,12 @@ bool ACOPFProblem::default_assembly()
 							sslack_li2,
 							d.P_Penalties[SCACOPFData::pS], 
 							d.P_Quantities[SCACOPFData::pS], 
-							d.DELTA) );
+							d.DELTA, slacks_scale) );
       } else {
 	PFPenaltyAffineCons* cons_li2_pen  =
 	  new PFPenaltyAffineCons(string("pcwslin_cons_") + sslack_li2->id, sslack_li2->n, sslack_li2,
 				  d.P_Penalties[SCACOPFData::pS], d.P_Quantities[SCACOPFData::pS],
-				  d.DELTA, d);
+				  d.DELTA, d, slacks_scale);
 	append_constraints(cons_li2_pen);
 	
 	pf_line_lim2->compute_slacks(sslack_li2); sslack_li2->providesStartingPoint=true;
@@ -387,7 +390,7 @@ bool ACOPFProblem::default_assembly()
       //thermal transformer limits
       auto pf_trans_lim1 = new PFTransfLimits("trans_limits1", d.T_Transformer.size(),
 					      p_ti1, q_ti1, 
-					      d.T_Nidx[0], d.T_RateBase, d);
+					      d.T_Nidx[0], d.T_RateBase, d, slacks_scale);
       append_constraints(pf_trans_lim1);
       //sslack_ti1
       OptVariablesBlock* sslack_ti1 = pf_trans_lim1->slacks();
@@ -397,12 +400,12 @@ bool ACOPFProblem::default_assembly()
 							sslack_ti1,
 							d.P_Penalties[SCACOPFData::pS], 
 							d.P_Quantities[SCACOPFData::pS], 
-							d.DELTA) );
+							d.DELTA, slacks_scale) );
       } else {
 	PFPenaltyAffineCons* cons_ti1_pen = 
 	  new PFPenaltyAffineCons(string("pcwslin_cons_") + sslack_ti1->id, sslack_ti1->n, sslack_ti1, 
 				  d.P_Penalties[SCACOPFData::pS], d.P_Quantities[SCACOPFData::pS],
-				  d.DELTA, d);
+				  d.DELTA, d, slacks_scale);
 	append_constraints(cons_ti1_pen);
 	
 	pf_trans_lim1->compute_slacks(sslack_ti1); sslack_ti1->providesStartingPoint=true;
@@ -414,7 +417,7 @@ bool ACOPFProblem::default_assembly()
     {
       auto pf_trans_lim2 = new PFTransfLimits("trans_limits2", d.T_Transformer.size(),
 					      p_ti2, q_ti2,
-					      d.T_Nidx[1], d.T_RateBase, d);
+					      d.T_Nidx[1], d.T_RateBase, d, slacks_scale);
       append_constraints(pf_trans_lim2);
       //sslack_ti2
       OptVariablesBlock* sslack_ti2 = pf_trans_lim2->slacks();
@@ -424,12 +427,12 @@ bool ACOPFProblem::default_assembly()
 							sslack_ti2,
 							d.P_Penalties[SCACOPFData::pS], 
 							d.P_Quantities[SCACOPFData::pS], 
-							d.DELTA) );
+							d.DELTA, slacks_scale) );
       } else {
 	PFPenaltyAffineCons* cons_ti2_pen = 
 	  new PFPenaltyAffineCons(string("pcwslin_cons_") + sslack_ti2->id, sslack_ti2->n, sslack_ti2, 
 				  d.P_Penalties[SCACOPFData::pS], d.P_Quantities[SCACOPFData::pS],
-				  d.DELTA, d);
+				  d.DELTA, d, slacks_scale);
 	append_constraints(cons_ti2_pen);
 	
 	pf_trans_lim2->compute_slacks(sslack_ti2); sslack_ti2->providesStartingPoint=true;
