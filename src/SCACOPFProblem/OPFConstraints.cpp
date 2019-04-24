@@ -311,7 +311,7 @@ void PFConRectangular::compute_power(OptVariablesBlock* p_or_q)
 // sum(p_g[g] for g=Gn[n])  - N[:Gsh][n]*v_n[n]^2 -
 // sum(p_li[Lidxn[n][lix],Lin[n][lix]] for lix=1:length(Lidxn[n])) -
 // sum(p_ti[Tidxn[n][tix],Tin[n][tix]] for tix=1:length(Tidxn[n])) - 
-// pslackp_n[n] + pslackm_n[n]    =   N[:Pd][n])
+// r*pslackp_n[n] + r*pslackm_n[n]    =   N[:Pd][n])
 ///////////////////////////////////////////////////////////////////////////////
 
 PFActiveBalance::PFActiveBalance(const std::string& id_, int numcons,
@@ -408,14 +408,6 @@ bool PFActiveBalance::eval_body (const OptVariables& vars_primal, bool new_x, do
   }
 #ifdef DEBUG
   body -= n;
-  //for(int i=0; i<n; i++) printf("%12.5e %12.5e| ", pslack_n->xref[i], pslack_n->xref[i+n]);
-  //printf("\n");
-
-  //for(int i=0; i<n; i++) body[i]=0.;
-
-  //double resid[n];
-  //DCOPY(&n, body, &ione, resid, &ione);
-  //DAXPY(&n, &dminusone, lb, &ione, resid, &ione);
   double r=DNRM2(&n, body, &ione);
   //printf("Evaluated constraint '%s' -> resid norm %g\n", id.c_str(), r);
 #endif
