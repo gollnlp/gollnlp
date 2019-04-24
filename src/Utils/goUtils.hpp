@@ -124,6 +124,10 @@ std::vector<int> findall(const std::vector<T>& v, std::function<bool(const int&)
   return ret;
 }
 
+//erase elem at index 'i' from the vector
+template<class T> inline void eraseFrom(std::vector<T>& v, const int& i) { v.erase(v.begin()+i); }
+
+
 template<class T> std::vector<T> selectfrom(std::vector<T>& v, const std::vector<int>& idx)
 {
   std::vector<T> ret;
