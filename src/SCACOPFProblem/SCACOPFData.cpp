@@ -16,7 +16,7 @@ namespace gollnlp {
 goLogger log(stdout);
 
 SCACOPFData::SCACOPFData() 
-  : DELTA(0.5)
+  : DELTA(0.5), id(0)
 {}
 
 int SCACOPFData::bus_with_largest_gen() const
@@ -1025,4 +1025,51 @@ void SCACOPFData::convert(const VStr& src, VDou& dest)
     dest[i] = atof(src[i].c_str());
 }
 
-}//end namespace
+void SCACOPFData::rebuild_for_conting(int K_id)
+{
+  KType k_type = K_ConType[K_id]; int k_idout = K_IDout[K_id];
+  switch(k_type) {
+  case kGenerator: {
+    eraseFrom(G_Generator, K_id);
+    eraseFrom(G_Bus, K_id); eraseFrom(G_BusUnitNum, K_id);
+    eraseFrom(G_Plb, K_id); eraseFrom(G_Pub, K_id); eraseFrom(G_Qlb, K_id); 
+    eraseFrom(G_Qub, K_id); eraseFrom(G_p0, K_id); eraseFrom(G_q0, K_id); 
+    eraseFrom(G_alpha, K_id);
+    eraseFrom(G_CostPi, K_id); eraseFrom(G_CostCi, K_id);
+    break;
+  }
+  case kLine: {
+    eraseFrom(L_Line, K_id); eraseFrom(L_From, K_id);  eraseFrom(L_To, K_id); 
+    eraseFrom(L_CktID, K_id); eraseFrom(L_G, K_id); eraseFrom(L_B, K_id); 
+    eraseFrom(L_Bch, K_id); eraseFrom(L_RateBase, K_id); eraseFrom(L_RateEmer, K_id); 
+    break;
+  }
+  case kTransformer: {
+    eraseFrom(T_Transformer, K_id); eraseFrom(T_From, K_id); eraseFrom(T_To, K_id); 
+    eraseFrom(T_CktID, K_id); eraseFrom(T_Gm, K_id); eraseFrom(T_Bm, K_id); 
+    eraseFrom(T_G, K_id); eraseFrom(T_B, K_id); eraseFrom(T_Tau, K_id); 
+    eraseFrom(T_Theta, K_id); eraseFrom(T_RateBase, K_id); eraseFrom(T_RateEmer, K_id);
+    break;
+  }
+  default: {assert(false); break; }
+  }
+  //rebuild indexes
+  buildindexsets();
+
+  //hardclear all the data related to buses and switched shunts
+  hardclear(N_Bus); hardclear(N_Area);
+  hardclear(N_Pd); hardclear(N_Qd); hardclear(N_Gsh); hardclear(N_Bsh); hardclear(N_Vlb); 
+  hardclear(N_Vub); hardclear(N_EVlb); hardclear(N_EVub); hardclear(N_v0); hardclear(N_theta0);
+
+  hardclear(SSh_SShunt); hardclear(SSh_Bus); hardclear(SSh_Blb); hardclear(SSh_Bub); hardclear(SSh_B0);
+
+  //only keep 1 contingency -
+  hardclear(K_Contingency); hardclear(K_IDout); hardclear(K_ConType);
+  K_Contingency.push_back(K_id);
+  K_IDout.push_back(k_idout);
+  K_ConType.push_back(k_type);
+
+  id = K_id+1;
+}
+
+} //end of namespace

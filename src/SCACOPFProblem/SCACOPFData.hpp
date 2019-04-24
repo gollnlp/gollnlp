@@ -7,7 +7,6 @@
 #include <iostream>
 
 namespace gollnlp {
-
   class SCACOPFData {
 
   public:
@@ -16,8 +15,17 @@ namespace gollnlp {
     bool readinstance(const std::string& raw, const std::string& rop, const std::string& inl, const std::string& con);
     void buildindexsets();
 
+    // to keep things vectorized, "cut"/"sliced" copies of data are kept. This methods performes these cuts and
+    // (hard-)clear vectors not used in the contigencies
+    void rebuild_for_conting(int K_id);
+
+    //utilities
     int bus_with_largest_gen() const;
+
   public:
+    // 0 when used for ACOPF, conting index (1-based) for contingency subproblems
+    int id;
+
     double MVAbase;
 
     // - buses
@@ -57,6 +65,7 @@ namespace gollnlp {
 
     //
     // -- index sets for efficient iteration
+    //
     //indexes of L_From and L_To in N_Bus (stored in L_Nidx[0] and L_Nidx[1])
     std::vector<std::vector<int> > L_Nidx;
     //same as above but of T in N
@@ -124,7 +133,8 @@ namespace gollnlp {
 
     void convert(const VStr& src, VInt& dest);
     void convert(const VStr& src, VDou& dest);
-};//end of class
+  };//end of class
+
 } //end namespace
 
 #endif
