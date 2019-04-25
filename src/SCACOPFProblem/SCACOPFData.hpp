@@ -57,6 +57,13 @@ namespace gollnlp {
     std::vector<int> K_Contingency, K_IDout;
     std::vector<KType> K_ConType;
 
+    inline std::string cont_type_string(const int& k) {
+      if(K_ConType[k]==kGenerator) return "Generator";
+      if(K_ConType[k]==kLine) return "Line";
+      if(K_ConType[k]==kTransformer) return "Transformer";
+      return "Unknown";
+    }
+
     //penalties
     enum PenaltyType{pP=0, pQ=1, pS=2};
     std::vector<std::vector<double> > P_Quantities, P_Penalties;
