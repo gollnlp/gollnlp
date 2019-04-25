@@ -94,7 +94,13 @@ namespace gollnlp {
 		    OptVariablesBlock* p_li2_,
 		    OptVariablesBlock* p_ti1_,
 		    OptVariablesBlock* p_ti2_,
-		    const SCACOPFData& d_,
+		    const std::vector<double>& N_Gsh_,
+		    const std::vector<double>& N_Pd_,
+		    const std::vector<std::vector<int> >& Gn_,
+		    const std::vector<std::vector<int> >& Lidxn1_,
+		    const std::vector<std::vector<int> >& Lidxn2_,
+		    const std::vector<std::vector<int> >& Tidxn1_,
+		    const std::vector<std::vector<int> >& Tidxn2_,
 		    const double& slacks_rescale=1.);
     virtual ~PFActiveBalance();
 
@@ -134,9 +140,11 @@ namespace gollnlp {
     }
   protected:
     OptVariablesBlock *p_g, *v_n, *p_li1, *p_li2, *p_ti1, *p_ti2;
-    const SCACOPFData& d;
     double r;
     OptVariablesBlock *pslack_n; //2*n -> containss pslackp_n, pslackm_n;
+
+    const std::vector<double> &N_Gsh, &N_Pd;
+    const std::vector<std::vector<int> > &Gn, &Lidxn1, &Lidxn2, &Tidxn1, &Tidxn2;
 
     int* J_nz_idxs;
     int* H_nz_idxs;
@@ -164,7 +172,14 @@ namespace gollnlp {
 		      OptVariablesBlock* q_ti1_,
 		      OptVariablesBlock* q_ti2_,
 		      OptVariablesBlock* b_s_,
-		      const SCACOPFData& d_,
+		      const std::vector<double>& N_Bsh_,
+		      const std::vector<double>& N_Qd_,	
+		      const std::vector<std::vector<int> >& Gn_,
+		      const std::vector<std::vector<int> >& SShn_,
+		      const std::vector<std::vector<int> >& Lidxn1_,
+		      const std::vector<std::vector<int> >& Lidxn2_,
+		      const std::vector<std::vector<int> >& Tidxn1_,
+		      const std::vector<std::vector<int> >& Tidxn2_,
 		      const double& slacks_rescale=1.);
     virtual ~PFReactiveBalance();
 
@@ -205,9 +220,17 @@ namespace gollnlp {
     }
   protected:
     OptVariablesBlock *q_g, *v_n, *q_li1, *q_li2, *q_ti1, *q_ti2, *b_s;
-    const SCACOPFData& d;
     double r;
     OptVariablesBlock *qslack_n; //2*n -> containss pslackp_n, pslackm_n;
+
+    const std::vector<double>& N_Bsh;
+    const std::vector<double>& N_Qd;	
+    const std::vector<std::vector<int> >& Gn;
+    const std::vector<std::vector<int> >& SShn;
+    const std::vector<std::vector<int> >& Lidxn1;
+    const std::vector<std::vector<int> >& Lidxn2;
+    const std::vector<std::vector<int> >& Tidxn1;
+    const std::vector<std::vector<int> >& Tidxn2;
 
     int* J_nz_idxs;
     int* H_nz_idxs;
@@ -229,7 +252,6 @@ namespace gollnlp {
 		 OptVariablesBlock* v_n_,
 		 const std::vector<int>& L_Nidx_,
 		 const std::vector<double>& L_Rate_,
-		 const SCACOPFData& d_,
 		 const double& slacks_rescale=1.);
     virtual ~PFLineLimits();
 
@@ -253,7 +275,6 @@ namespace gollnlp {
     OptVariablesBlock *p_li, *q_li, *v_n;
     const std::vector<int> &Nidx;
     const std::vector<double> &L_Rate;
-    const SCACOPFData& d;
     double r;
     OptVariablesBlock *sslack_li; // sslackp_li1 or sslackm_li2;
     
@@ -276,7 +297,6 @@ namespace gollnlp {
 		   OptVariablesBlock* q_ti_,
 		   const std::vector<int>& T_Nidx_,
 		   const std::vector<double>& T_Rate_,
-		   const SCACOPFData& d_,
 		   const double& slacks_rescale=1.);
     virtual ~PFTransfLimits();
     OptVariablesBlock* slacks() { return sslack_ti; }
@@ -299,7 +319,6 @@ namespace gollnlp {
     OptVariablesBlock *p_ti, *q_ti;
     const std::vector<int> &Nidx;
     const std::vector<double> &T_Rate;
-    const SCACOPFData& d;
     double r;
     OptVariablesBlock *sslack_ti; // sslackp_ti1 or sslackm_ti2;
 
@@ -319,9 +338,11 @@ namespace gollnlp {
   {
   public:
     PFProdCostAffineCons(const std::string& id_, int numcons,
-		   OptVariablesBlock* p_g_, 
-		   const std::vector<int>& G_Nidx_,
-		   const SCACOPFData& d_);
+			 OptVariablesBlock* p_g_, 
+			 const std::vector<int>& G_Nidx_,
+			 const std::vector<std::vector<double> >& G_CostCi,
+			 const std::vector<std::vector<double> >& G_CostPi);
+
     virtual ~PFProdCostAffineCons();
 
     OptVariablesBlock* get_t_h() { return t_h; }
@@ -338,7 +359,7 @@ namespace gollnlp {
   protected:
     OptVariablesBlock *p_g, *t_h;
     PFProdCostPcLinObjTerm* obj_term;
-    const SCACOPFData& d;
+    std::vector<std::vector<double> > G_CostPi;
     int* J_nz_idxs; //only in size of generators
   };
 
@@ -357,7 +378,6 @@ namespace gollnlp {
 			const std::vector<double>& pen_coeff,
 			const std::vector<double>& pen_segm,
 			const double& obj_weight, // DELTA or (1-DELTA)/NumK
-			const SCACOPFData& d_,
 			const double& slacks_rescale=1.);
     virtual ~PFPenaltyAffineCons();
 
@@ -375,7 +395,6 @@ namespace gollnlp {
   protected:
     OptVariablesBlock *slack, *sigma;
     PFPenaltyPcLinObjTerm* obj_term;
-    const SCACOPFData& d;
     double f; //factor used in rescaling slacks, 
     int* J_nz_idxs; //only in size of slack
     double P1, P2, P3;
@@ -398,9 +417,8 @@ namespace gollnlp {
 				 const std::vector<double>& pen_coeff,
 				 const std::vector<double>& pen_segm,
 				 const double& obj_weight, // DELTA or (1-DELTA)/NumK
-				 const SCACOPFData& d_,
 				 const double& slacks_rescale=1.)
-      : PFPenaltyAffineCons(id_, numcons, slack_, pen_coeff, pen_segm, obj_weight, d_, slacks_rescale) {};
+      : PFPenaltyAffineCons(id_, numcons, slack_, pen_coeff, pen_segm, obj_weight, slacks_rescale) {};
     virtual ~PFPenaltyAffineConsTwoSlacks() {};
 
     virtual void compute_sigma(OptVariablesBlock *slackv);

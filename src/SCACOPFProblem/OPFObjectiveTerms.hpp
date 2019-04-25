@@ -24,7 +24,7 @@ namespace gollnlp {
     //Gidx contains the indexes (in d.G_Generator) of the generator participating
     PFProdCostPcLinObjTerm(const std::string& id_, OptVariablesBlock* t_h_, 
 			   const std::vector<int>& Gidx_,
-			   const SCACOPFData& d_);
+			   const std::vector<std::vector<double> >& G_CostCi);
     virtual ~PFProdCostPcLinObjTerm();
     virtual bool eval_f(const OptVariables& vars_primal, bool new_x, double& obj_val);
     virtual bool eval_grad(const OptVariables& vars_primal, bool new_x, double* grad);
@@ -36,7 +36,6 @@ namespace gollnlp {
     OptVariablesBlock* t_h;
     int* Gidx;
     double *CostCi;
-    const SCACOPFData& d;
     int ngen;
   };
 
@@ -54,7 +53,6 @@ namespace gollnlp {
 			  OptVariablesBlock* sigma_,
 			  const std::vector<double>& pen_coeff,
 			  const double& obj_weight,
-			  const SCACOPFData& d_,
 			  const double& slacks_rescale=1.);
     virtual ~PFPenaltyPcLinObjTerm();
     virtual bool eval_f(const OptVariables& vars_primal, bool new_x, double& obj_val);
@@ -65,7 +63,6 @@ namespace gollnlp {
     std::string id;
     OptVariablesBlock* sigma;
     double weight;
-    const SCACOPFData& d;
     double P1, P2, P3;
   };
 

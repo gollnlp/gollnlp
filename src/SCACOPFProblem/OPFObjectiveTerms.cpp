@@ -13,8 +13,8 @@ namespace gollnlp {
 PFProdCostPcLinObjTerm::
 PFProdCostPcLinObjTerm(const std::string& id_, OptVariablesBlock* t_h_, 
 		       const std::vector<int>& Gidx_,
-		       const SCACOPFData& d_)
-  : OptObjectiveTerm(id_), t_h(t_h_), d(d_)
+		       const std::vector<std::vector<double> >& G_CostCi)
+  : OptObjectiveTerm(id_), t_h(t_h_)
 {
   ngen = Gidx_.size();
   Gidx = new int[ngen];
@@ -24,8 +24,8 @@ PFProdCostPcLinObjTerm(const std::string& id_, OptVariablesBlock* t_h_,
   double*it = CostCi; int sz;
   for(int i=0; i<ngen; i++) {
     //int aaa = Gidx[i];
-    sz = d.G_CostCi[Gidx[i]].size();
-    memcpy(it, d.G_CostCi[Gidx[i]].data(), sz*sizeof(double));
+    sz = G_CostCi[Gidx[i]].size();
+    memcpy(it, G_CostCi[Gidx[i]].data(), sz*sizeof(double));
     it += sz;
   }
   assert(CostCi+t_h->n == it);
@@ -58,9 +58,8 @@ PFPenaltyPcLinObjTerm(const std::string& id_,
 		      OptVariablesBlock* sigma_,
 		      const std::vector<double>& pen_coeff,
 		      const double& obj_weight,
-		      const SCACOPFData& d_,
 		      const double& slacks_rescale)
-  : OptObjectiveTerm(id_), sigma(sigma_), weight(obj_weight), d(d_)
+  : OptObjectiveTerm(id_), sigma(sigma_), weight(obj_weight)
 {
   assert(pen_coeff.size()==3); 
   assert(weight>=0 && weight<=1);
@@ -176,9 +175,10 @@ bool PFPenaltyQuadrApproxObjTerm::eval_grad(const OptVariables& vars_primal, boo
   return true;
 }
 
-bool PFPenaltyQuadrApproxObjTerm::eval_HessLagr(const OptVariables& vars_primal, bool new_x, 
-			       const double& obj_factor,
-			       const int& nnz, int* i, int* j, double* M)
+bool PFPenaltyQuadrApproxObjTerm::
+eval_HessLagr(const OptVariables& vars_primal, bool new_x, 
+	      const double& obj_factor,
+	      const int& nnz, int* i, int* j, double* M)
 {
   if(NULL==M) {
     int idx;
