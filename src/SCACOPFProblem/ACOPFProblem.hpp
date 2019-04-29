@@ -17,6 +17,7 @@ namespace gollnlp {
   {
   public:
     ACOPFProblem(SCACOPFData& d_in) : data_sc(d_in), useQPen(false), slacks_scale(1.) {}
+    virtual ~ACOPFProblem();
     OptProblem opt_prob;
     
     virtual bool default_assembly();
@@ -34,6 +35,8 @@ namespace gollnlp {
     void add_obj_prod_cost(SCACOPFData& dB);
 
     void add_cons_coupling(SCACOPFData& dB);
+    void add_cons_nonanticip(SCACOPFData& dB, const std::vector<int>& Gk_no_AGC);
+    void add_cons_AGC(SCACOPFData& dB, const std::vector<int>& Gk_AGC);
   protected: 
     SCACOPFData& data_sc;
     //contingencies' SCACOPFData

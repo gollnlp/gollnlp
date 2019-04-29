@@ -429,6 +429,29 @@ namespace gollnlp {
     int get_Jacob_nnz();
     virtual bool get_Jacob_ij(std::vector<OptSparseEntry>& vij);
   };
+
+  /////////////////////////////////////////////////////////////////////////////////
+  // non-anticipativity-like constraints 
+  /////////////////////////////////////////////////////////////////////////////////
+  class NonAnticipCons : public OptConstraintsBlock
+  {
+  public:
+    NonAnticipCons(const std::string& id_, int numcons,
+		   OptVariablesBlock* pg0_, OptVariablesBlock* pgK_, 
+		   const std::vector<int>& idx0_, const std::vector<int>& idxK_);
+    virtual ~NonAnticipCons();
+
+    virtual bool eval_body (const OptVariables& vars_primal, bool new_x, double* body);
+    virtual bool eval_Jac(const OptVariables& primal_vars, bool new_x, 
+			  const int& nnz, int* i, int* j, double* M);
+    int get_Jacob_nnz();
+    virtual bool get_Jacob_ij(std::vector<OptSparseEntry>& vij);
+    
+  protected:
+    OptVariablesBlock *pg0, *pgK;
+    int *idx0, *idxK;
+    int* J_nz_idxs; 
+  };
 }
 
 #endif

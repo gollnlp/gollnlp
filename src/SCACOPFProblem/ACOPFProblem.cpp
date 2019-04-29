@@ -7,6 +7,12 @@ using namespace std;
 
 namespace gollnlp {
 
+ACOPFProblem::~ACOPFProblem()
+{
+  for(auto d: data_K)
+    delete d;
+}
+
 bool ACOPFProblem::default_assembly()
 {
   useQPen = false;
@@ -30,17 +36,17 @@ bool ACOPFProblem::default_assembly()
   // contingencies
   //
   //vector<int> K_Cont = {0, 71, 85, 97, 98}; //net 03 scen 9
-  //vector<int> K_Cont ={0, 386, 428, 435}; //net 10 scen 9; first two are gen, then a line and a trans
-  vector<int> K_Cont ={428};
+  vector<int> K_Cont ={0, 386, 428, 435}; //net 10 scen 9; first two are gen, then a line and a trans
   int nK = K_Cont.size();
   //for(auto K : data_sc.K_Contingency) {
   for(auto K : K_Cont) {
+
     data_K.push_back(new SCACOPFData(data_sc));
     SCACOPFData& dK = *(data_K).back(); //shortcut
     dK.rebuild_for_conting(K,nK);
 
-    printf("adding blocks for contingency K=%d IDOut=%d Type=%s\n", 
-	   K, d.K_IDout[K], d.cont_type_string(K).c_str());
+    printf("adding blocks for contingency K=%d IDOut=%d outidx=%d Type=%s\n", 
+	   K, d.K_IDout[K], d.K_outidx[K], d.cont_type_string(K).c_str());
 
     add_variables(dK);
     add_cons_lines_pf(dK);
@@ -76,9 +82,76 @@ bool ACOPFProblem::default_assembly()
 void ACOPFProblem::add_cons_coupling(SCACOPFData& dB)
 {
   int K_id = dB.K_Contingency[0];
+
+  //indexes in data_sc.G_Generator
   vector<int> Gk, Gkp, Gknop;
   data_sc.get_AGC_participation(K_id, Gk, Gkp, Gknop);
+  assert(Gk.size() == dB.G_Generator.size());
+
+  add_cons_nonanticip(dB, Gknop);
+  add_cons_AGC(dB, Gkp);
+
+  //voltages
+  
 }
+
+void ACOPFProblem::add_cons_nonanticip(SCACOPFData& dB, const std::vector<int>& G_idxs_no_AGC)
+{
+  if(G_idxs_no_AGC.size()==0) return; 
+
+  OptVariablesBlock* pg0 = variable("p_g", data_sc);
+  if(NULL==pg0) {
+    printf("Contingency %d: p_g var not found in the base case; will add NO nonanticip coupling constraints.\n", dB.id);
+    return;
+  }
+  OptVariablesBlock* pgK = variable("p_g", dB);
+  if(NULL==pgK) {
+    printf("Contingency %d: p_g var not found in conting problem; will add NO nonanticip coupling constraints.\n", dB.id);
+    return;
+  }
+
+  auto ids_no_AGC = selectfrom(data_sc.G_Generator, G_idxs_no_AGC);
+  auto conting_matching_idxs = indexin(dB.G_Generator, ids_no_AGC);
+  conting_matching_idxs = findall(conting_matching_idxs, [](int val) {return val!=-1;});
+#ifdef DEBUG
+  assert(G_idxs_no_AGC.size() == conting_matching_idxs.size());
+  for(int i0=0, iK=0; i0<G_idxs_no_AGC.size(); i0++, iK++) {
+    //all dB.G_Generator should be in data_sc.G_Generator
+    assert(conting_matching_idxs[iK]>=0); 
+    //all ids should match in order
+    assert(dB.G_Generator[conting_matching_idxs[iK]] == data_sc.G_Generator[G_idxs_no_AGC[i0]]);
+  }
+#endif
+  
+  auto cons = new NonAnticipCons(con_name("non_anticip",dB), G_idxs_no_AGC.size(),
+				 pg0, pgK, G_idxs_no_AGC, conting_matching_idxs);
+  append_constraints(cons);
+  
+  printf("AGC: %d gens NOT participating: added %d nonanticip constraints\n", G_idxs_no_AGC.size(), cons->n);
+}
+
+void ACOPFProblem::add_cons_AGC(SCACOPFData& dB, const std::vector<int>& G_idxs_AGC)
+{
+  auto ids_agc = selectfrom(data_sc.G_Generator, G_idxs_AGC);
+  auto conting_matching_idxs = indexin(dB.G_Generator, ids_agc);
+  conting_matching_idxs = findall(conting_matching_idxs, [](int val) {return val!=-1;});
+#ifdef DEBUG
+  assert(G_idxs_AGC.size() == conting_matching_idxs.size());
+  for(int i0=0, iK=0; i0<G_idxs_AGC.size(); i0++, iK++) {
+    //all dB.G_Generator should be in data_sc.G_Generator
+    assert(conting_matching_idxs[iK]>=0); 
+    //all ids should match in order
+    assert(dB.G_Generator[conting_matching_idxs[iK]] == data_sc.G_Generator[G_idxs_AGC[i0]]);
+  }
+  printvec(conting_matching_idxs, "conting gen idxs");
+  printvec(G_idxs_AGC, "base case gen idxs");
+#endif
+
+  
+
+  //printf("AGC: %d gens participating: added %d constraints\n", G_idxs_AGC.size(), cons->n);
+}
+
 void ACOPFProblem::add_variables(SCACOPFData& d)
 {
   auto v_n = new OptVariablesBlock(data_sc.N_Bus.size(), var_name("v_n",d), 

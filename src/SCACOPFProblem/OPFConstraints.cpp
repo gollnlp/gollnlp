@@ -2026,4 +2026,100 @@ bool PFPenaltyAffineConsTwoSlacks::get_Jacob_ij(std::vector<OptSparseEntry>& vij
 #endif
   return true;
 }
+
+/////////////////////////////////////////////////////////////////////////////////
+// non-anticipativity-like constraints 
+/////////////////////////////////////////////////////////////////////////////////
+NonAnticipCons::NonAnticipCons(const std::string& id_, int numcons,
+			       OptVariablesBlock* pg0_, OptVariablesBlock* pgK_, 
+			       const std::vector<int>& idx0_, const std::vector<int>& idxK_)
+  : OptConstraintsBlock(id_,numcons), pg0(pg0_), pgK(pgK_), J_nz_idxs(NULL)
+{
+  assert(numcons==idx0_.size());
+  assert(numcons==idxK_.size());
+  assert(pg0_->n >= numcons);
+  assert(pgK_->n >= numcons);
+  idx0 = new int[idx0_.size()];
+  memcpy(idx0, idx0_.data(), numcons*sizeof(int));
+  idxK = new int[idxK_.size()];
+  memcpy(idxK, idxK_.data(), numcons*sizeof(int));
+
+  //rhs of this block
+  lb = new double[n];
+  for(int i=0; i<n; i++) lb[i] = 0.; 
+  
+  ub = new double[n];
+  DCOPY(&n, lb, &ione, ub, &ione);
+}
+
+NonAnticipCons::~NonAnticipCons()
+{
+  delete [] idx0;
+  delete [] idxK;
+  delete [] J_nz_idxs;
+}
+
+bool NonAnticipCons::eval_body (const OptVariables& vars_primal, bool new_x, double* body)
+{
+  double* g = body+this->index;
+  for(int i=0; i<n; i++)
+    g[i] += pg0->xref[idx0[i]] - pgK->xref[idxK[i]];
+  return true;
+}
+
+
+bool NonAnticipCons::eval_Jac(const OptVariables& primal_vars, bool new_x, 
+			      const int& nnz, int* ia, int* ja, double* M)
+{
+  int row=0, idxnz;
+  if(NULL==M) {
+    for(int it=0; it<n; it++) {
+      row = this->index+it;
+      idxnz = J_nz_idxs[it];
+      assert(idxnz<nnz && idxnz>=0);
+      
+      ia[idxnz]=row; ja[idxnz]=pg0->index+idx0[it]; idxnz++; 
+      ia[idxnz]=row; ja[idxnz]=pgK->index+idxK[it]; idxnz++; 
+    }
+    assert(row+1 == this->index+this->n);
+  } else {
+
+    for(int it=0; it<n; it++) {
+      idxnz = J_nz_idxs[it];
+      assert(idxnz<nnz && idxnz>=0);
+      M[idxnz++] += 1.; //pg0
+      assert(idxnz<nnz && idxnz>=0);
+      M[idxnz]   -= 1.; //pgK
+    }
+  }
+  return true;
+}
+int NonAnticipCons::NonAnticipCons::get_Jacob_nnz()
+{
+  return 2*n;
+}
+bool NonAnticipCons::get_Jacob_ij(std::vector<OptSparseEntry>& vij)
+{
+#ifdef DEBUG
+  int loc_nnz = get_Jacob_nnz();
+  int vij_sz_in = vij.size();
+#endif
+  
+  if(!J_nz_idxs) 
+    J_nz_idxs = new int[n];
+
+  int row=0; 
+  for(int it=0; it<n; it++) {
+    row = this->index+it;
+
+    vij.push_back(OptSparseEntry(row, pg0->index+idx0[it], J_nz_idxs+it));
+    vij.push_back(OptSparseEntry(row, pgK->index+idxK[it], NULL));
+  }
+#ifdef DEBUG
+  assert(row+1 == this->index+this->n);
+  assert(vij.size() == loc_nnz+vij_sz_in);
+#endif
+  return true;
+}
+
 }//end namespace 
