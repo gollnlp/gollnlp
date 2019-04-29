@@ -32,6 +32,8 @@ namespace gollnlp {
     void add_cons_thermal_li_lims(SCACOPFData& dB);
     void add_cons_thermal_ti_lims(SCACOPFData& dB);
     void add_obj_prod_cost(SCACOPFData& dB);
+
+    void add_cons_coupling(SCACOPFData& dB);
   protected: 
     SCACOPFData& data_sc;
     //contingencies' SCACOPFData

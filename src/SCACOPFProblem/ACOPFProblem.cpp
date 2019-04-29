@@ -9,8 +9,8 @@ namespace gollnlp {
 
 bool ACOPFProblem::default_assembly()
 {
-  useQPen = true;
-  slacks_scale = 512.;
+  useQPen = false;
+  slacks_scale = 1.;
 
   SCACOPFData& d = data_sc; //shortcut
 
@@ -29,14 +29,18 @@ bool ACOPFProblem::default_assembly()
   //
   // contingencies
   //
-  vector<int> K_Cont = {386};
+  //vector<int> K_Cont = {0, 71, 85, 97, 98}; //net 03 scen 9
+  //vector<int> K_Cont ={0, 386, 428, 435}; //net 10 scen 9; first two are gen, then a line and a trans
+  vector<int> K_Cont ={428};
+  int nK = K_Cont.size();
   //for(auto K : data_sc.K_Contingency) {
   for(auto K : K_Cont) {
     data_K.push_back(new SCACOPFData(data_sc));
     SCACOPFData& dK = *(data_K).back(); //shortcut
-    dK.rebuild_for_conting(K);
+    dK.rebuild_for_conting(K,nK);
 
-    printf("adding blocks for contingency K=%d IDOut=%d Type=%s\n", K, d.K_IDout[K], d.cont_type_string(K).c_str());
+    printf("adding blocks for contingency K=%d IDOut=%d Type=%s\n", 
+	   K, d.K_IDout[K], d.cont_type_string(K).c_str());
 
     add_variables(dK);
     add_cons_lines_pf(dK);
@@ -45,7 +49,8 @@ bool ACOPFProblem::default_assembly()
     add_cons_reactive_powbal(dK);
     add_cons_thermal_li_lims(dK);
     add_cons_thermal_ti_lims(dK);
-    break;
+
+    add_cons_coupling(dK);
   }
 
   print_summary();
@@ -68,7 +73,12 @@ bool ACOPFProblem::default_assembly()
 
   return true;
 }
-
+void ACOPFProblem::add_cons_coupling(SCACOPFData& dB)
+{
+  int K_id = dB.K_Contingency[0];
+  vector<int> Gk, Gkp, Gknop;
+  data_sc.get_AGC_participation(K_id, Gk, Gkp, Gknop);
+}
 void ACOPFProblem::add_variables(SCACOPFData& d)
 {
   auto v_n = new OptVariablesBlock(data_sc.N_Bus.size(), var_name("v_n",d), 
@@ -324,7 +334,7 @@ void ACOPFProblem::add_cons_active_powbal(SCACOPFData& d)
   if(useQPenActiveBalance) {
     append_objterm( new PFPenaltyQuadrApproxObjTerm("quadr_pen_" + pslacks_n->id, pslacks_n, 
 						    d.P_Penalties[SCACOPFData::pP], d.P_Quantities[SCACOPFData::pP], 
-						    d.DELTA, slacks_scale) );
+						    d.PenaltyWeight, slacks_scale) );
     
   } else {
     PFPenaltyAffineCons* cons_apb_pen = 
@@ -332,7 +342,7 @@ void ACOPFProblem::add_cons_active_powbal(SCACOPFData& d)
 				       pf_p_bal->n, pslacks_n, 
 				       d.P_Penalties[SCACOPFData::pP], 
 				       d.P_Quantities[SCACOPFData::pP], 
-				       d.DELTA, slacks_scale);
+				       d.PenaltyWeight, slacks_scale);
     append_constraints(cons_apb_pen);
     
     //sigmas for this block
@@ -368,14 +378,14 @@ void ACOPFProblem::add_cons_reactive_powbal(SCACOPFData& d)
 						    qslacks_n,
 						    d.P_Penalties[SCACOPFData::pQ], 
 						    d.P_Quantities[SCACOPFData::pQ], 
-						    d.DELTA, slacks_scale) );
+						    d.PenaltyWeight, slacks_scale) );
   } else {
     PFPenaltyAffineCons* cons_rpb_pen = 
       new PFPenaltyAffineConsTwoSlacks(string("pcwslin_cons_") + qslacks_n->id, 
 				       pf_q_bal->n, qslacks_n, 
 				       d.P_Penalties[SCACOPFData::pQ], 
 				       d.P_Quantities[SCACOPFData::pQ], 
-				       d.DELTA, slacks_scale);
+				       d.PenaltyWeight, slacks_scale);
     append_constraints(cons_rpb_pen);
     
     OptVariablesBlock* sigma = cons_rpb_pen->get_sigma();
@@ -408,13 +418,13 @@ void ACOPFProblem::add_cons_thermal_li_lims(SCACOPFData& d)
 						      sslack_li1,
 						      d.P_Penalties[SCACOPFData::pS], 
 						      d.P_Quantities[SCACOPFData::pS], 
-						      d.DELTA, slacks_scale) );
+						      d.PenaltyWeight, slacks_scale) );
     } else {
 
       PFPenaltyAffineCons* cons_li1_pen =
 	new PFPenaltyAffineCons(string("pcwslin_cons_") + sslack_li1->id, sslack_li1->n, sslack_li1,
 				d.P_Penalties[SCACOPFData::pS], d.P_Quantities[SCACOPFData::pS],
-				d.DELTA, slacks_scale);
+				d.PenaltyWeight, slacks_scale);
       append_constraints(cons_li1_pen);
 	
       OptVariablesBlock* sigma = cons_li1_pen->get_sigma();
@@ -437,12 +447,12 @@ void ACOPFProblem::add_cons_thermal_li_lims(SCACOPFData& d)
 						      sslack_li2,
 						      d.P_Penalties[SCACOPFData::pS], 
 						      d.P_Quantities[SCACOPFData::pS], 
-						      d.DELTA, slacks_scale) );
+						      d.PenaltyWeight, slacks_scale) );
     } else {
       PFPenaltyAffineCons* cons_li2_pen  =
 	new PFPenaltyAffineCons(string("pcwslin_cons_") + sslack_li2->id, sslack_li2->n, sslack_li2,
 				d.P_Penalties[SCACOPFData::pS], d.P_Quantities[SCACOPFData::pS],
-				d.DELTA, slacks_scale);
+				d.PenaltyWeight, slacks_scale);
       append_constraints(cons_li2_pen);
 	
       
@@ -476,12 +486,12 @@ void ACOPFProblem::add_cons_thermal_ti_lims(SCACOPFData& d)
 						      sslack_ti1,
 						      d.P_Penalties[SCACOPFData::pS], 
 						      d.P_Quantities[SCACOPFData::pS], 
-						      d.DELTA, slacks_scale) );
+						      d.PenaltyWeight, slacks_scale) );
     } else {
       PFPenaltyAffineCons* cons_ti1_pen = 
 	new PFPenaltyAffineCons(string("pcwslin_cons_") + sslack_ti1->id, sslack_ti1->n, sslack_ti1, 
 				d.P_Penalties[SCACOPFData::pS], d.P_Quantities[SCACOPFData::pS],
-				d.DELTA, slacks_scale);
+				d.PenaltyWeight, slacks_scale);
       append_constraints(cons_ti1_pen);
 	
       OptVariablesBlock* sigma = cons_ti1_pen->get_sigma();
@@ -503,12 +513,12 @@ void ACOPFProblem::add_cons_thermal_ti_lims(SCACOPFData& d)
 						      sslack_ti2,
 						      d.P_Penalties[SCACOPFData::pS], 
 						      d.P_Quantities[SCACOPFData::pS], 
-						      d.DELTA, slacks_scale) );
+						      d.PenaltyWeight, slacks_scale) );
     } else {
       PFPenaltyAffineCons* cons_ti2_pen = 
 	new PFPenaltyAffineCons(string("pcwslin_cons_") + sslack_ti2->id, sslack_ti2->n, sslack_ti2, 
 				d.P_Penalties[SCACOPFData::pS], d.P_Quantities[SCACOPFData::pS],
-				d.DELTA, slacks_scale);
+				d.PenaltyWeight, slacks_scale);
       append_constraints(cons_ti2_pen);
 	
       OptVariablesBlock* sigma = cons_ti2_pen->get_sigma();
