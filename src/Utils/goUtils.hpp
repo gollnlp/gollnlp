@@ -7,6 +7,8 @@
 #include <algorithm>
 #include <vector>
 
+#include <cassert>
+
 namespace gollnlp {
 // trim from start (in place)
 static inline void ltrim(std::string &s) {
@@ -79,7 +81,7 @@ template<class T> inline void hardclear(std::vector<T>& in) { std::vector<T>().s
 
 
 //index of 'e' in v; return -1 if not found
-template<class T> inline int indexin(std::vector<T>& v, const T& e)
+template<class T> inline int indexin(const std::vector<T>& v, const T& e)
 {
   auto it = std::find(v.begin(), v.end(), e);
   if(it==v.end()) 
@@ -88,7 +90,7 @@ template<class T> inline int indexin(std::vector<T>& v, const T& e)
     return std::distance(v.begin(), it);
 }
 // for entries of 'v' that are not present in 'in', the indexes will be set to -1
-template<class T> inline std::vector<int> indexin(std::vector<T>& v, std::vector<T>& in)
+template<class T> inline std::vector<int> indexin(const std::vector<T>& v, const std::vector<T>& in)
 {
   std::vector<int> vIdx(v.size());
   iota(vIdx.begin(), vIdx.end(), 0);
@@ -125,7 +127,7 @@ std::vector<int> findall(const std::vector<T>& v, std::function<bool(const int&)
   return ret;
 }
 
-// erase elem 'e' from the vector; if e is not in v return false, otherwise true
+// erase first elem 'e' from the vector; if e is not in v return false, otherwise true
 template<class T> inline bool erase_elem_from(std::vector<T>& v, const T& e) 
 { 
   auto it = std::find(v.begin(), v.end(), e);
@@ -139,10 +141,13 @@ template<class T> inline bool erase_elem_from(std::vector<T>& v, const T& e)
 template<class T> inline void erase_idx_from(std::vector<T>& v, const int& idx) { v.erase(v.begin()+idx); }
 
 
-template<class T> std::vector<T> selectfrom(std::vector<T>& v, const std::vector<int>& idx)
+template<class T> std::vector<T> selectfrom(const std::vector<T>& v, const std::vector<int>& idx)
 {
   std::vector<T> ret;
-  for(auto& keep: idx) ret.push_back(v[keep]);
+  for(auto& keep: idx) {
+    assert(keep>=0);
+    ret.push_back(v[keep]);
+  }
   return ret;
 }
 
