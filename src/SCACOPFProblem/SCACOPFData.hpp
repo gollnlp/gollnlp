@@ -17,11 +17,16 @@ namespace gollnlp {
 
     // to keep things vectorized, "cut"/"sliced" copies of data are kept. This methods performes these cuts and
     // (hard-)clear vectors not used in the contigencies
-    void rebuild_for_conting(int K_id);
+    //'nCont' refers to the total # of contingencies considered
+    void rebuild_for_conting(int K_id, int nCont);
 
     //utilities
     int bus_with_largest_gen() const;
 
+    //Gk    - indexes of all generators excepting 'outidx' if 'ConType' is generator
+    //Gkp   - indexes of participating generators
+    //Gknop - indexes of non-participating generators
+    void get_AGC_participation(int Kidx, std::vector<int>& Gk, std::vector<int>& Gkp, std::vector<int>& Gknop);
   public:
     // 0 when used for ACOPF, conting index (1-based) for contingency subproblems
     int id;
@@ -61,7 +66,7 @@ namespace gollnlp {
       if(K_ConType[k]==kGenerator) return "Generator";
       if(K_ConType[k]==kLine) return "Line";
       if(K_ConType[k]==kTransformer) return "Transformer";
-      return "Unknown";
+      return "Error/Unknown";
     }
 
     //penalties
@@ -69,7 +74,7 @@ namespace gollnlp {
     std::vector<std::vector<double> > P_Quantities, P_Penalties;
     
     double DELTA;
-
+    double PenaltyWeight; //DELTA for base case, (1-DELTA)/nK for contingencies
     //
     // -- index sets for efficient iteration
     //

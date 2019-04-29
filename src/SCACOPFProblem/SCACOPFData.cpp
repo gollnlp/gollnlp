@@ -9,14 +9,13 @@ using namespace std;
 
 #include <cmath>
 #include "blasdefs.hpp"
-
 namespace gollnlp {
 
 //temporary log object
 goLogger log(stdout);
 
 SCACOPFData::SCACOPFData() 
-  : DELTA(0.5), id(0)
+  : DELTA(0.5), PenaltyWeight(0.5), id(0)
 {}
 
 int SCACOPFData::bus_with_largest_gen() const
@@ -25,6 +24,71 @@ int SCACOPFData::bus_with_largest_gen() const
   size_t idx_max = distance(G_Pub.begin(), it_max);
   return G_Nidx[idx_max];
 }
+void SCACOPFData::get_AGC_participation(int Kidx, vector<int>& Gk, vector<int>& Gkp, vector<int>& Gknop)
+{
+  bool b;
+  auto Garea = selectfrom(N_Area, G_Nidx);
+  
+  //! check this
+
+  //all generators
+  Gk = vector<int>(G_Generator.size()); iota(Gk.begin(), Gk.end(), 0);
+  vector<int> Ak;
+  
+  if(kGenerator==K_ConType[Kidx]) {
+    int outidx = indexin(G_Generator,  K_IDout[Kidx]);
+    b = erase_elem_from(Gk,outidx); assert(b);
+    Ak.push_back(N_Area[G_Nidx[outidx]]);
+
+  } else if(kLine==K_ConType[Kidx]) {
+    int outidx = indexin(L_Line,  K_IDout[Kidx]);
+    vector<int> idxs = {L_Nidx[0][outidx], L_Nidx[1][outidx]};
+    auto Narea = selectfrom(N_Area, idxs);
+    sort(Narea.begin(), Narea.end());
+
+    //'unique' eliminates all but the first element from every consecutive group of 
+    //equivalent elements from the range and returns iterator to the new end of the range
+
+    //'erase' removes the elements in the range [first, last)
+
+    //since we have at most two elements, this remove "all" duplicates
+    Narea.erase( unique( Narea.begin(), Narea.end() ), Narea.end() );
+    //printvec(Narea, "Narea");
+    for(auto v: Narea) Ak.push_back(v);
+
+  } else if(kTransformer==K_ConType[Kidx]) {
+    int outidx = indexin(L_Line,  K_IDout[Kidx]);
+    vector<int> idxs = {T_Nidx[0][outidx], T_Nidx[1][outidx]};
+    auto Narea = selectfrom(N_Area, idxs);
+    sort(Narea.begin(), Narea.end());
+    Narea.erase( unique( Narea.begin(), Narea.end() ), Narea.end() );
+    //printvec(Narea, "Narea");
+    for(auto v: Narea) Ak.push_back(v);
+
+  } else assert(false);
+
+  auto Garea_of_Gk = selectfrom(Garea, Gk);
+  auto Gkareaidx = indexin(Garea_of_Gk, Ak);
+  //printvec(Gkareaidx, "Gkareaidx");
+  //printvec(Ak, "Ak");
+  //
+  //discriminant = .&(Gkareaidx .!= nothing, abs.(G[:alpha][Gk]) .> 1E-8)
+  //Gkp = Gk[discriminant]
+  //Gknop = Gk[.!discriminant]
+  auto Galpha_of_Gk = selectfrom(G_alpha, Gk);
+  assert(Galpha_of_Gk.size() == Gk.size());
+  assert(Gkareaidx.size() == Gk.size());
+  Gkp.clear(); Gknop.clear();
+  for(int it=0; it<Gk.size(); it++) {
+    if(Gkareaidx[it]!=-1 && abs(Galpha_of_Gk[it])>1e-8)
+      Gkp.push_back(Gk[it]);
+    else
+      Gknop.push_back(Gk[it]);
+  }
+  //printvec(Gk, "Gk");
+  //printvec(Gknop, "Gknop");
+}
+
 
 static inline bool isEndOrStartOfSection(const string& l)
 {
@@ -1025,30 +1089,35 @@ void SCACOPFData::convert(const VStr& src, VDou& dest)
     dest[i] = atof(src[i].c_str());
 }
 
-void SCACOPFData::rebuild_for_conting(int K_id)
+  void SCACOPFData::rebuild_for_conting(int K_id, int nCont)
 {
+  bool b;
   KType k_type = K_ConType[K_id]; int k_idout = K_IDout[K_id];
   switch(k_type) {
   case kGenerator: {
-    eraseFrom(G_Generator, K_id);
-    eraseFrom(G_Bus, K_id); eraseFrom(G_BusUnitNum, K_id);
-    eraseFrom(G_Plb, K_id); eraseFrom(G_Pub, K_id); eraseFrom(G_Qlb, K_id); 
-    eraseFrom(G_Qub, K_id); eraseFrom(G_p0, K_id); eraseFrom(G_q0, K_id); 
-    eraseFrom(G_alpha, K_id);
-    eraseFrom(G_CostPi, K_id); eraseFrom(G_CostCi, K_id);
+    int idxout = indexin(G_Generator, k_idout); assert(idxout>=0);
+
+    b = erase_elem_from(G_Generator, k_idout); assert(b);
+    erase_idx_from(G_Bus, idxout); erase_idx_from(G_BusUnitNum, idxout);
+    erase_idx_from(G_Plb, idxout); erase_idx_from(G_Pub, idxout); erase_idx_from(G_Qlb, idxout); 
+    erase_idx_from(G_Qub, idxout); erase_idx_from(G_p0, idxout); erase_idx_from(G_q0, idxout); 
+    erase_idx_from(G_alpha, idxout);
+    erase_idx_from(G_CostPi, idxout); erase_idx_from(G_CostCi, idxout);
     break;
   }
   case kLine: {
-    eraseFrom(L_Line, K_id); eraseFrom(L_From, K_id);  eraseFrom(L_To, K_id); 
-    eraseFrom(L_CktID, K_id); eraseFrom(L_G, K_id); eraseFrom(L_B, K_id); 
-    eraseFrom(L_Bch, K_id); eraseFrom(L_RateBase, K_id); eraseFrom(L_RateEmer, K_id); 
+    int idxout = indexin(L_Line, k_idout);
+    erase_idx_from(L_Line, idxout); erase_idx_from(L_From, idxout);  erase_idx_from(L_To, idxout); 
+    erase_idx_from(L_CktID, idxout); erase_idx_from(L_G, idxout); erase_idx_from(L_B, idxout); 
+    erase_idx_from(L_Bch, idxout); erase_idx_from(L_RateBase, idxout); erase_idx_from(L_RateEmer, idxout); 
     break;
   }
   case kTransformer: {
-    eraseFrom(T_Transformer, K_id); eraseFrom(T_From, K_id); eraseFrom(T_To, K_id); 
-    eraseFrom(T_CktID, K_id); eraseFrom(T_Gm, K_id); eraseFrom(T_Bm, K_id); 
-    eraseFrom(T_G, K_id); eraseFrom(T_B, K_id); eraseFrom(T_Tau, K_id); 
-    eraseFrom(T_Theta, K_id); eraseFrom(T_RateBase, K_id); eraseFrom(T_RateEmer, K_id);
+    int idxout = indexin(T_Transformer, k_idout);
+    erase_idx_from(T_Transformer, idxout); erase_idx_from(T_From, idxout); erase_idx_from(T_To, idxout); 
+    erase_idx_from(T_CktID, idxout); erase_idx_from(T_Gm, idxout); erase_idx_from(T_Bm, idxout); 
+    erase_idx_from(T_G, idxout); erase_idx_from(T_B, idxout); erase_idx_from(T_Tau, idxout); 
+    erase_idx_from(T_Theta, idxout); erase_idx_from(T_RateBase, idxout); erase_idx_from(T_RateEmer, idxout);
     break;
   }
   default: {assert(false); break; }
@@ -1069,6 +1138,7 @@ void SCACOPFData::rebuild_for_conting(int K_id)
   K_IDout.push_back(k_idout);
   K_ConType.push_back(k_type);
 
+  PenaltyWeight = (1-DELTA)/nCont;
   id = K_id+1;
 }
 
