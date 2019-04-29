@@ -13,8 +13,9 @@ namespace gollnlp {
     SCACOPFData();
 
     bool readinstance(const std::string& raw, const std::string& rop, const std::string& inl, const std::string& con);
-    void buildindexsets();
-
+  private:
+    void buildindexsets(bool ommit_K_related=false);
+  public:
     // to keep things vectorized, "cut"/"sliced" copies of data are kept. This methods performes these cuts and
     // (hard-)clear vectors not used in the contigencies
     //'nCont' refers to the total # of contingencies considered
@@ -97,6 +98,10 @@ namespace gollnlp {
     std::vector<std::vector<int> > Tidxn1, Tidxn2;
 
     std::vector<std::vector<int> > SShn, Gn;
+
+    //indexes of the out element (gen, line, transf) in the corresponding
+    //G_Generator, L_Line, or T_Transformer vector (base case)
+    std::vector<int> K_outidx;
   protected:
     struct Contingency{
       virtual ~Contingency() {}; 

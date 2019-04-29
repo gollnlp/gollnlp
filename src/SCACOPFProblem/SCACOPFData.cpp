@@ -526,10 +526,12 @@ readinstance(const std::string& raw, const std::string& rop, const std::string& 
   P_Penalties[pS] = {1E3*MVAbase, 5E3*MVAbase, 1E6*MVAbase};
 
 
+  buildindexsets();
+
   return true;
 }
 
-void SCACOPFData::buildindexsets()
+void SCACOPFData::buildindexsets(bool ommit_K_related)
 {
   size_t nbus = N_Bus.size(), nline=L_From.size(), ntran=T_From.size();
   L_Nidx = VVInt(2);
@@ -582,6 +584,29 @@ void SCACOPFData::buildindexsets()
 
   //printvecvec(Lidxn1, "Lidxn1");
   //printvecvec(Lidxn2, "Lidxn2");
+
+  if(!ommit_K_related) {
+    assert(K_outidx.size()==0);
+    //indexes of the out element (gen, line, transf) in the corresponding
+    //G_Generator, L_Line, or T_Transformer vector (base case)
+    assert(K_IDout.size()==K_Contingency.size());
+    assert(K_IDout.size()==K_ConType.size());
+    for(auto k: K_Contingency) {
+      if(K_ConType[k]==kGenerator) {
+	K_outidx.push_back(indexin(G_Generator, K_IDout[k]));
+	assert(K_outidx.back() >= 0);
+      } else if(K_ConType[k]==kLine) {
+	K_outidx.push_back(indexin(L_Line, K_IDout[k]));
+	assert(K_outidx.back() >= 0);
+      } else if(K_ConType[k]==kTransformer) {
+	K_outidx.push_back(indexin(T_Transformer, K_IDout[k]));
+	assert(K_outidx.back() >= 0);
+      } else {
+	assert(false);
+      }
+    }
+    assert(K_outidx.size()==K_Contingency.size());
+  }
 }
 
 bool SCACOPFData::
@@ -1089,13 +1114,16 @@ void SCACOPFData::convert(const VStr& src, VDou& dest)
     dest[i] = atof(src[i].c_str());
 }
 
-  void SCACOPFData::rebuild_for_conting(int K_id, int nCont)
+void SCACOPFData::rebuild_for_conting(int K_id, int nCont)
 {
   bool b;
   KType k_type = K_ConType[K_id]; int k_idout = K_IDout[K_id];
+  int idxout = -1;
   switch(k_type) {
   case kGenerator: {
-    int idxout = indexin(G_Generator, k_idout); assert(idxout>=0);
+    idxout = indexin(G_Generator, k_idout); //safe to use idxout=K_outidx[K_id]
+    assert(idxout>=0);
+    assert(idxout==K_outidx[K_id]);
 
     b = erase_elem_from(G_Generator, k_idout); assert(b);
     erase_idx_from(G_Bus, idxout); erase_idx_from(G_BusUnitNum, idxout);
@@ -1106,14 +1134,17 @@ void SCACOPFData::convert(const VStr& src, VDou& dest)
     break;
   }
   case kLine: {
-    int idxout = indexin(L_Line, k_idout);
+    idxout = indexin(L_Line, k_idout); //safe to use idxout=K_outidx[K_id]
+    assert(idxout==K_outidx[K_id]);
+
     erase_idx_from(L_Line, idxout); erase_idx_from(L_From, idxout);  erase_idx_from(L_To, idxout); 
     erase_idx_from(L_CktID, idxout); erase_idx_from(L_G, idxout); erase_idx_from(L_B, idxout); 
     erase_idx_from(L_Bch, idxout); erase_idx_from(L_RateBase, idxout); erase_idx_from(L_RateEmer, idxout); 
     break;
   }
   case kTransformer: {
-    int idxout = indexin(T_Transformer, k_idout);
+    idxout = indexin(T_Transformer, k_idout); //safe to use idxout=K_outidx[K_id]
+    assert(idxout==K_outidx[K_id]); 
     erase_idx_from(T_Transformer, idxout); erase_idx_from(T_From, idxout); erase_idx_from(T_To, idxout); 
     erase_idx_from(T_CktID, idxout); erase_idx_from(T_Gm, idxout); erase_idx_from(T_Bm, idxout); 
     erase_idx_from(T_G, idxout); erase_idx_from(T_B, idxout); erase_idx_from(T_Tau, idxout); 
@@ -1122,8 +1153,18 @@ void SCACOPFData::convert(const VStr& src, VDou& dest)
   }
   default: {assert(false); break; }
   }
-  //rebuild indexes
-  buildindexsets();
+
+  assert(idxout>=0);
+
+  //only keep 1 contingency -
+  hardclear(K_Contingency); hardclear(K_IDout); hardclear(K_ConType); hardclear(K_outidx);
+  K_Contingency.push_back(K_id);
+  K_IDout.push_back(k_idout);
+  K_ConType.push_back(k_type);
+  K_outidx.push_back(idxout);
+
+  //rebuild indexes - contingency related
+  buildindexsets(true);
 
   //hardclear all the data related to buses and switched shunts
   hardclear(N_Bus); hardclear(N_Area);
@@ -1131,12 +1172,6 @@ void SCACOPFData::convert(const VStr& src, VDou& dest)
   hardclear(N_Vub); hardclear(N_EVlb); hardclear(N_EVub); hardclear(N_v0); hardclear(N_theta0);
 
   hardclear(SSh_SShunt); hardclear(SSh_Bus); hardclear(SSh_Blb); hardclear(SSh_Bub); hardclear(SSh_B0);
-
-  //only keep 1 contingency -
-  hardclear(K_Contingency); hardclear(K_IDout); hardclear(K_ConType);
-  K_Contingency.push_back(K_id);
-  K_IDout.push_back(k_idout);
-  K_ConType.push_back(k_type);
 
   PenaltyWeight = (1-DELTA)/nCont;
   id = K_id+1;

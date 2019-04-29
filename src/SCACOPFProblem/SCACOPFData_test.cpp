@@ -30,7 +30,6 @@ int main(int argc, char* argv[])
 
     SCACOPFData data;
     data.readinstance(inst[1], inst[2], inst[3], inst[4]);
-    data.buildindexsets();
 
     //check with the saved result
     string sCheck = computechecks(data);
