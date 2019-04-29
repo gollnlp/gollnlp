@@ -545,6 +545,12 @@ bool OptVariables::append_varsblock(OptVariablesBlock* b)
   return true;
 }
 
+bool OptVariables::append_varsblocks(std::vector<OptVariablesBlock*> v)
+{
+  for(auto& b: v) if(!append_varsblock(b)) return false;
+  return true;
+}
+
 void OptVariables::attach_to(const double *x)
 {
   for(auto b: vblocks) b->xref = x + b->index;

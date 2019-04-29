@@ -2406,8 +2406,14 @@ bool AGCComplementarityCons::get_HessLagr_ij(std::vector<OptSparseEntry>& vij)
 
 OptVariablesBlock* AGCComplementarityCons::create_varsblock()
 {
-  return rhop;
+  return NULL; //the two slacks blocks are returned in 'create_multiple_varsblocks'
 }
+
+vector<OptVariablesBlock*> AGCComplementarityCons:: create_multiple_varsblocks()
+{
+  return std::vector<OptVariablesBlock*>({rhop,rhom});
+}
+
 OptObjectiveTerm* AGCComplementarityCons::create_objterm()
 {
   return NULL;

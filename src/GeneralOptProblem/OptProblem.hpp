@@ -72,6 +72,8 @@ private:
 
   // appends b to list of blocks; updates this->n and b->index
   bool append_varsblock(OptVariablesBlock* b);
+  bool append_varsblocks(std::vector<OptVariablesBlock*> vVarBlocks);
+
   virtual void attach_to(const double* xfromsolver);
 };
 
@@ -177,6 +179,11 @@ public:
   // the additional variables block that OptConstraintsBlock may need to add.
   // NULL should be returned when the OptConstraintsBlock need not create a vars block
   virtual OptVariablesBlock* create_varsblock() { return NULL; }
+  // Use the following method when the constraints blocks needs to create multiple 
+  // variables (e.g., introduce multiple and/or different types of slacks).
+  // Both create_XXX_varsblock(s) methods can be implemented to return 
+  // non-null/empty variable blocks.
+  virtual std::vector<OptVariablesBlock*> create_multiple_varsblocks() { return std::vector<OptVariablesBlock*>(); }
 
   //same as above. OptProblem calls this (in 'append_constraints') to add an objective 
   //term (e.g., penalization) that OptConstraintsBlock may need
@@ -264,7 +271,9 @@ public:
     if(con) {
       cons->append_consblock(con);
       
-      vars_primal->append_varsblock(con->create_varsblock());
+      vars_primal->append_varsblock (con->create_varsblock());
+      vars_primal->append_varsblocks(con->create_multiple_varsblocks());
+
       obj->append_objterm(con->create_objterm());
     } else assert(con);
   }

@@ -492,6 +492,7 @@ namespace gollnlp {
     virtual bool get_HessLagr_ij(std::vector<OptSparseEntry>& vij);
     
     virtual OptVariablesBlock* create_varsblock();
+    virtual std::vector<OptVariablesBlock*> create_multiple_varsblocks();
     virtual OptObjectiveTerm* create_objterm();
   protected:
     OptVariablesBlock *p0, *pk, *deltak, *rhop, *rhom;
