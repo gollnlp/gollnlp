@@ -77,6 +77,16 @@ template<class T> inline void printvecvec(const std::vector<std::vector<T> >& v,
 }
 template<class T> inline void hardclear(std::vector<T>& in) { std::vector<T>().swap(in); }
 
+
+//index of 'e' in v; return -1 if not found
+template<class T> inline int indexin(std::vector<T>& v, const T& e)
+{
+  auto it = std::find(v.begin(), v.end(), e);
+  if(it==v.end()) 
+    return -1;
+  else
+    return std::distance(v.begin(), it);
+}
 // for entries of 'v' that are not present in 'in', the indexes will be set to -1
 template<class T> inline std::vector<int> indexin(std::vector<T>& v, std::vector<T>& in)
 {
@@ -100,15 +110,6 @@ template<class T> inline std::vector<int> indexin(std::vector<T>& v, std::vector
 	iv++; 
       } else v[vIdx[iv]]>in[inIdx[iin]] ? iin++: iv++;
   }
-
-  // T *vv = v.data(), *vin = in.data();
-  // for(int iv=0, iin=0, *div=vIdx.data(), *diin=inIdx.data(), *didxs=idxs.data(); iv<szv && iin<szin;) {
-  //   cout << "iv=" << iv << "  iin=" << iin << " | " << div[iv] << " " << diin[iin] << endl;
-  //   if(vv[div[iv]]==vin[diin[iin]]) {
-  //     didxs[div[iv]]=diin[iin];
-  //     iin++; iv++;
-  //   } else vv[div[iv]]>vin[diin[iin]]? iin++: iv++;
-  // }
   return idxs;
 }
 
@@ -124,8 +125,18 @@ std::vector<int> findall(const std::vector<T>& v, std::function<bool(const int&)
   return ret;
 }
 
+// erase elem 'e' from the vector; if e is not in v return false, otherwise true
+template<class T> inline bool erase_elem_from(std::vector<T>& v, const T& e) 
+{ 
+  auto it = std::find(v.begin(), v.end(), e);
+  if(it==v.end()) 
+    return false;
+  v.erase(it);
+  return true;
+}
+
 //erase elem at index 'i' from the vector
-template<class T> inline void eraseFrom(std::vector<T>& v, const int& i) { v.erase(v.begin()+i); }
+template<class T> inline void erase_idx_from(std::vector<T>& v, const int& idx) { v.erase(v.begin()+idx); }
 
 
 template<class T> std::vector<T> selectfrom(std::vector<T>& v, const std::vector<int>& idx)
