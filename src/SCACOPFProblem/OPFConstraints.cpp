@@ -2149,7 +2149,7 @@ AGCComplementarityCons(const std::string& id_, int numcons,
 {
   assert(idx0_.size()==idxK_.size());
   assert(idx0_.size()==n/3);
-  assert(n<=p0->n); assert(n<=pk->n);
+  assert(n/3<=p0->n); assert(n/3<=pk->n);
   assert(1==deltak->n);
   assert(Plb_.size()==n/3);
   assert(Pub_.size()==n/3);
@@ -2223,13 +2223,34 @@ bool AGCComplementarityCons::eval_body (const OptVariables& vars_primal, bool ne
   // -r <= (pk-Pub)/gb * rhop <= r  and  -r <= (pk-Plb)/gb * rhom <= r
   for(int conidx=dim; conidx<n; ) {
     assert(it<dim);
-    g[conidx] += (pk->xref[idxk[it]]-Pub[it])*gb[it] * rhop->xref[it];
+    g[conidx] += (pk->xref[idxk[it]]-Pub[it])/gb[it] * rhop->xref[it];
     conidx++;
-    g[conidx] += (pk->xref[idxk[it]]-Plb[it])*gb[it] * rhom->xref[it];
+    g[conidx] += (pk->xref[idxk[it]]-Plb[it])/gb[it] * rhom->xref[it];
     conidx++; it++;
   }
   return true;
 }
+void AGCComplementarityCons::compute_rhos(OptVariablesBlock* rp, OptVariablesBlock* rm)
+{
+  //compute from   p0 + alpha*deltak - pk - gb * rhop + gb * rhom = 0
+  //use rhom->x as buffer
+  double* g=rhom->x;
+  int dim = n/3;
+  assert(dim==rhom->n);assert(dim==rhop->n);
+  for(int it=0; it<dim; it++) {
+    assert(gb[it]>1e-8);
+    g[it] = ( p0->x[idx0[it]] + deltak->x[0]*G_alpha[idx0[it]] - pk->x[idxk[it]] ) / gb[it];
+  }
+  for(int it=0; it<dim; it++) {
+    //carefull: g is rhom->x
+    if(g[it] > 0) {
+      rhop->x[it] = g[it]; rhom->x[it] = 0.;
+    } else {
+      rhop->x[it] = 0.; rhom->x[it] = - g[it]; // same as  rhom->x[it] = -rhom->x[it]
+    }
+  }
+}
+
 
 bool AGCComplementarityCons::
 eval_Jac(const OptVariables& primal_vars, bool new_x, 
@@ -2261,12 +2282,12 @@ eval_Jac(const OptVariables& primal_vars, bool new_x,
       ia[idxnz]=row; ja[idxnz]=rhop->index+it;       idxnz++; // w.r.t. rhop
       row++; idx++;
       
-      idxnz = J_nz_idxs[idx]; assert(idxnz<nnz && idxnz>=0);  assert(idxnz+2<nnz); 
+      idxnz = J_nz_idxs[idx]; assert(idxnz<nnz && idxnz>=0);  assert(idxnz+1<nnz); 
       ia[idxnz]=row; ja[idxnz]=pk->index+idxk[it];   idxnz++; // w.r.t. pk
       ia[idxnz]=row; ja[idxnz]=rhom->index+it;       idxnz++; // w.r.t. rhom
       row++;
     }
-    assert(row+1 == this->index+this->n);
+    assert(row == this->index+this->n);
   } else {
 
     for(int it=0; it<dim; it++) {
@@ -2285,12 +2306,12 @@ eval_Jac(const OptVariables& primal_vars, bool new_x,
       idxnz = J_nz_idxs[idx];
       assert(idxnz+2<nnz);
       M[idxnz++] += rhop->xref[it]/gb[it];               // w.r.t. pk
-      M[idxnz++] += (pk->xref[idxk[it]]-Pub[it])*gb[it]; // w.r.t. rhop
+      M[idxnz++] += (pk->xref[idxk[it]]-Pub[it])/gb[it]; // w.r.t. rhop
       idx++;
       
-      idxnz = J_nz_idxs[idx]; assert(idxnz<nnz && idxnz>=0);  assert(idxnz+2<nnz); 
+      idxnz = J_nz_idxs[idx]; assert(idxnz<nnz && idxnz>=0);  assert(idxnz+1<nnz); 
       M[idxnz++] += rhom->xref[it]/gb[it];               // w.r.t. pk
-      M[idxnz++] += (pk->xref[idxk[it]]-Plb[it])*gb[it]; // w.r.t. rhom
+      M[idxnz++] += (pk->xref[idxk[it]]-Plb[it])/gb[it]; // w.r.t. rhom
     }
   }
   return true;
@@ -2380,6 +2401,7 @@ eval_HessLagr(const OptVariables& vars_primal, bool new_x,
       M[*itnz] += lambda->xref[it]/gb[i]; itnz++; it++;
       M[*itnz] += lambda->xref[it]/gb[i]; itnz++; it++;
     }
+    assert(H_nz_idxs + 2*n/3 == itnz);
   }
 
   return true;

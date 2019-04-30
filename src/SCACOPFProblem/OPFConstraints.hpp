@@ -479,6 +479,11 @@ namespace gollnlp {
 			   bool add_penalty_obj=false, const double& bigM=0);
     virtual ~AGCComplementarityCons();
 
+    OptVariablesBlock* get_rhop() { return rhop; }
+    OptVariablesBlock* get_rhom() { return rhom; }
+    void compute_rhos(OptVariablesBlock* rp, OptVariablesBlock* rm);
+
+
     virtual bool eval_body (const OptVariables& vars_primal, bool new_x, double* body);
     virtual bool eval_Jac(const OptVariables& primal_vars, bool new_x, 
 			  const int& nnz, int* i, int* j, double* M);
@@ -494,11 +499,12 @@ namespace gollnlp {
     virtual OptVariablesBlock* create_varsblock();
     virtual std::vector<OptVariablesBlock*> create_multiple_varsblocks();
     virtual OptObjectiveTerm* create_objterm();
+double *gb; //size n/3 = nGenAGC
   protected:
     OptVariablesBlock *p0, *pk, *deltak, *rhop, *rhom;
     int *idx0, *idxk; //size n/3 = nGenAGC
     double r;
-    double *gb; //size n/3 = nGenAGC
+    
     double *Plb, *Pub; //size n/3 = nGenAGC
     const double* G_alpha; //size ngen base case, accessed via idx0
     int* J_nz_idxs; 
