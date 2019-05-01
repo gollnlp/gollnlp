@@ -51,7 +51,7 @@ void SCACOPFData::get_AGC_participation(int Kidx, vector<int>& Gk, vector<int>& 
 
     //'erase' removes the elements in the range [first, last)
 
-    //since we have at most two elements, this remove "all" duplicates
+    //since we have at most two elements, this removes "all" duplicates
     Narea.erase( unique( Narea.begin(), Narea.end() ), Narea.end() );
     //printvec(Narea, "Narea");
     for(auto v: Narea) Ak.push_back(v);

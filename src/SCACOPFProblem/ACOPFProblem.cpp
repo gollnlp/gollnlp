@@ -106,9 +106,71 @@ void ACOPFProblem::add_cons_coupling(SCACOPFData& dB)
   add_cons_AGC(dB, Gkp);
 
   //voltages
-  
+  add_cons_PVPQ(dB, Gk);
 }
 
+// Gk are the indexes of all gens other than the outgen (for generator contingencies) 
+// in data_sc.G_Generator
+void ACOPFProblem::add_cons_PVPQ(SCACOPFData& dB, const std::vector<int>& Gk)
+{
+  printvec(Gk);
+  auto G_Nidx_Gk = selectfrom(dB.G_Nidx, Gk);
+  assert(G_Nidx_Gk == dB.G_Nidx);
+  printvec(G_Nidx_Gk);
+  sort(G_Nidx_Gk.begin(), G_Nidx_Gk.end());
+  printvec(G_Nidx_Gk);
+  auto last = unique(G_Nidx_Gk.begin(), G_Nidx_Gk.end());
+  G_Nidx_Gk.erase(last, G_Nidx_Gk.end());
+  printvec(G_Nidx_Gk);
+  auto &N_PVPQ = G_Nidx_Gk; //nodes with PVPQ generators;
+
+  //generators at each node with PVPQ generators
+  vector<vector<int> > gen_agg;
+  vector<double> Qlb, Qub;
+  int nPVPQGens=0, nPVPQCons=0;
+
+  for(auto n: N_PVPQ) {
+    assert(dB.Gn[n].size()>0);
+    double Qagglb=0., Qaggub=0.;
+
+    int numfixed = 0;
+    gen_agg.push_back( vector<int>() );
+    for(auto g: dB.Gn[n]) {
+#ifdef DEBUG
+      assert(dB.K_Contingency.size()==1);
+      assert(dB.K_outidx.size()==1);
+      if(dB.K_ConType[0]==SCACOPFData::kGenerator) 
+	assert(data_sc.G_Generator[dB.K_outidx[0]]!=dB.G_Generator[g]);
+#endif
+      if(abs(dB.G_Qub[g]-dB.G_Qlb[g])<=1e-8) {
+	numfixed++;
+	printf("PVPQ: gen ID=%d p_q is fixed; will not add PVPQ constraint\n");
+	continue;
+      }
+      gen_agg.back().push_back(g);
+      Qagglb += dB.G_Qlb[g];
+      Qaggub += dB.G_Qub[g];
+    }
+    assert(gen_agg.back().size()+numfixed == dB.Gn[n].size());
+    nPVPQGens += gen_agg.back().size()+numfixed;
+    Qlb.push_back(Qagglb);
+    Qub.push_back(Qaggub);
+  }
+  assert(gen_agg.size()==Qlb.size());
+  assert(gen_agg.size()==Qub.size());
+  assert(N_PVPQ.size()==gen_agg.size());
+
+  
+
+
+  for(int i=0; i<Qlb.size(); i++) {
+    printf("%d %g %g \n", N_PVPQ[i], Qlb[i], Qub[i]);
+    printvec(gen_agg[i]);
+  }
+  //printvecvec(gen_agg, "active generators");
+  //printvec(Qlb, "Qlb");
+  //printvec(Qub, "Qub");
+}
 void ACOPFProblem::add_cons_nonanticip(SCACOPFData& dB, const std::vector<int>& G_idxs_no_AGC)
 {
   if(G_idxs_no_AGC.size()>0) {

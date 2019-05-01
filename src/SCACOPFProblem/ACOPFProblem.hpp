@@ -40,6 +40,7 @@ namespace gollnlp {
     void add_cons_coupling(SCACOPFData& dB);
     void add_cons_nonanticip(SCACOPFData& dB, const std::vector<int>& Gk_no_AGC);
     void add_cons_AGC(SCACOPFData& dB, const std::vector<int>& Gk_AGC);
+    void add_cons_PVPQ(SCACOPFData& dB, const std::vector<int>& Gk);
   protected: 
     SCACOPFData& data_sc;
     //contingencies' SCACOPFData
