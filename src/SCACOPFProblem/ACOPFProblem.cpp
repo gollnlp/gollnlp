@@ -1,5 +1,9 @@
 #include "ACOPFProblem.hpp"
 
+#include "OPFConstraints.hpp"
+#include "CouplingConstraints.hpp"
+#include "OPFObjectiveTerms.hpp"
+
 #include <numeric>
 #include <typeinfo> 
 

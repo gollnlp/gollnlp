@@ -4,8 +4,6 @@
 #include "OptProblem.hpp"
 
 #include "SCACOPFData.hpp"
-#include "OPFConstraints.hpp"
-#include "OPFObjectiveTerms.hpp"
 
 #include <cstring>
 #include "blasdefs.hpp"
