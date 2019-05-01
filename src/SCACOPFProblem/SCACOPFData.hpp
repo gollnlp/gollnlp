@@ -24,7 +24,7 @@ namespace gollnlp {
     //utilities
     int bus_with_largest_gen() const;
 
-    //Gk    - indexes of all generators excepting 'outidx' if 'ConType' is generator
+    //Gk    - indexes of all generators excepting 'outidx' if 'ConType' of Kidx is generator
     //Gkp   - indexes of participating generators
     //Gknop - indexes of non-participating generators
     void get_AGC_participation(int Kidx, std::vector<int>& Gk, std::vector<int>& Gkp, std::vector<int>& Gknop);

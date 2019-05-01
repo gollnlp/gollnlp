@@ -529,7 +529,7 @@ bool PFActiveBalance::get_Jacob_ij(std::vector<OptSparseEntry>& vij)
     vij.push_back(OptSparseEntry(row, pslack_n->index+it, itnz++));
     vij.push_back(OptSparseEntry(row, pslack_n->index+it+n, itnz++));
   }
-  printf("nnz=%d vijsize=%d\n", nnz, vij.size());
+  //printf("nnz=%d vijsize=%d\n", nnz, vij.size());
 #ifdef DEBUG
   assert(nnz+n_vij_in==vij.size());
 #endif
@@ -991,7 +991,7 @@ bool PFReactiveBalance::get_Jacob_ij(std::vector<OptSparseEntry>& vij)
     vij.push_back(OptSparseEntry(row, qslack_n->index+it, itnz++));
     vij.push_back(OptSparseEntry(row, qslack_n->index+it+n, itnz++));
   }
-  printf("nnz=%d vijsize=%d\n", nnz, vij.size());
+  //printf("nnz=%d vijsize=%d\n", nnz, vij.size());
 #ifdef DEBUG
   assert(nnz+n_vij_in==vij.size());
 #endif
@@ -1227,7 +1227,7 @@ bool PFLineLimits::get_Jacob_ij(std::vector<OptSparseEntry>& vij)
     vij.push_back(OptSparseEntry(row, q_li->index+it, itnz++));
     vij.push_back(OptSparseEntry(row, sslack_li->index+it, itnz++));
   }
-  printf("nnz=%d vijsize=%d\n", nnz, vij.size());
+  //printf("nnz=%d vijsize=%d\n", nnz, vij.size());
 #ifdef DEBUG
   assert(nnz+n_vij_in==vij.size());
 #endif
@@ -1473,7 +1473,7 @@ bool PFTransfLimits::get_Jacob_ij(std::vector<OptSparseEntry>& vij)
     vij.push_back(OptSparseEntry(row, q_ti->index+it, itnz++));
     vij.push_back(OptSparseEntry(row, sslack_ti->index+it, itnz++));
   }
-  printf("nnz=%d vijsize=%d\n", nnz, vij.size());
+  //printf("nnz=%d vijsize=%d\n", nnz, vij.size());
 #ifdef DEBUG
   assert(nnz+n_vij_in==vij.size());
 #endif
@@ -2285,7 +2285,9 @@ eval_Jac(const OptVariables& primal_vars, bool new_x,
       idxnz = J_nz_idxs[idx]; assert(idxnz<nnz && idxnz>=0);  assert(idxnz+1<nnz); 
       ia[idxnz]=row; ja[idxnz]=pk->index+idxk[it];   idxnz++; // w.r.t. pk
       ia[idxnz]=row; ja[idxnz]=rhom->index+it;       idxnz++; // w.r.t. rhom
+#ifdef DEBUG
       row++;
+#endif
     }
     assert(row == this->index+this->n);
   } else {
@@ -2397,11 +2399,15 @@ eval_HessLagr(const OptVariables& vars_primal, bool new_x,
   } else {
     const OptVariablesBlock* lambda = lambda_vars.get_block(std::string("duals_") + this->id);
     assert(lambda!=NULL); assert(lambda->n==n);
-    for(int it=dim, i=0; i<n/3; i++) {
-      M[*itnz] += lambda->xref[it]/gb[i]; itnz++; it++;
-      M[*itnz] += lambda->xref[it]/gb[i]; itnz++; it++;
+    int it=dim;
+    for(int i=0; i<n/3; i++) {
+      M[*itnz] += lambda->xref[it]/gb[i]; //w.r.t. (pk,rhop)
+      itnz++; it++;
+      M[*itnz] += lambda->xref[it]/gb[i]; //w.r.t. (pk,rhom)
+      itnz++; it++;
     }
     assert(H_nz_idxs + 2*n/3 == itnz);
+    assert(it == n);
   }
 
   return true;
