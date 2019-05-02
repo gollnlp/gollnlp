@@ -137,18 +137,19 @@ AGCComplementarityCons(const std::string& id_, int numcons,
 
   G_alpha = G_alpha_.data();
 
-  idx0 = new int[n];
-  memcpy(idx0, idx0_.data(), n*sizeof(int));
-  idxk = new int[n];
-  memcpy(idxk, idxK_.data(), n*sizeof(int));
+  int dim=n/3;
+  idx0 = new int[dim];
+  memcpy(idx0, idx0_.data(), dim*sizeof(int));
+  idxk = new int[dim];
+  memcpy(idxk, idxK_.data(), dim*sizeof(int));
 
-  Plb = new double[n];
-  memcpy(Plb, Plb_.data(), n*sizeof(double));
-  Pub = new double[n];
-  memcpy(Pub, Pub_.data(), n*sizeof(double));
-  gb = new double[n]; //gb = Pub-Plb
-  DCOPY(&n, Pub, &ione, gb, &ione);
-  DAXPY(&n, &dminusone, Plb, &ione, gb, &ione);
+  Plb = new double[dim];
+  memcpy(Plb, Plb_.data(), dim*sizeof(double));
+  Pub = new double[dim];
+  memcpy(Pub, Pub_.data(), dim*sizeof(double));
+  gb = new double[dim]; //gb = Pub-Plb
+  DCOPY(&dim, Pub, &ione, gb, &ione);
+  DAXPY(&dim, &dminusone, Plb, &ione, gb, &ione);
 
   //rhs of this constraints block
   assert(r>=0);
@@ -264,9 +265,7 @@ eval_Jac(const OptVariables& primal_vars, bool new_x,
       idxnz = J_nz_idxs[idx]; assert(idxnz<nnz && idxnz>=0);  assert(idxnz+1<nnz); 
       ia[idxnz]=row; ja[idxnz]=pk->index+idxk[it];   idxnz++; // w.r.t. pk
       ia[idxnz]=row; ja[idxnz]=rhom->index+it;       idxnz++; // w.r.t. rhom
-#ifdef DEBUG
       row++;
-#endif
     }
     assert(row == this->index+this->n);
   } else {
@@ -422,6 +421,367 @@ vector<OptVariablesBlock*> AGCComplementarityCons:: create_multiple_varsblocks()
 }
 
 OptObjectiveTerm* AGCComplementarityCons::create_objterm()
+{
+  return NULL;
+}
+
+///////////////////////////////////////////////////////////////////////////////////
+// PVPQ smoothing using complementarity function
+// 
+// v[n] - vk[n] - nup[n]+num[n] = 0, for all n=idxs_bus
+// nup, num >=0
+// -r <= ( sum(qk[g])-Qub[n] ) / gb[n] * nup[n] <= r
+// -r <= ( sum(qk[g])-Qlb[n] ) / gb[n] * num[n] <= r
+//
+// when r=0, the last two constraints are enforced as equalities == 0
+// scaling parameter gb[n] = generation band at the bus = Qub[n]-Qlb[n]
+//
+// also, a big-M penalty objective term can be added to penalize 
+// -(qk-Qub)/gb * nup and  (qk-Qlb)/gb * num
+///////////////////////////////////////////////////////////////////////////////////
+
+PVPQComplementarityCons::
+PVPQComplementarityCons(const std::string& id_, int numcons,
+			OptVariablesBlock* v0_, OptVariablesBlock* vK_, 
+			OptVariablesBlock* qK_,
+			const std::vector<int>& idxs_bus_,
+			const std::vector<vector<int> >& idxs_gen_, 
+			const std::vector<double>& Qlb_, const std::vector<double>& Qub_, 
+			const double& r_,
+			bool add_penalty_obj, const double& bigM)
+  : OptConstraintsBlock(id_, numcons), v0(v0_), vk(vK_), qk(qK_), idxs_gen(idxs_gen_),
+    r(r_), J_nz_idxs(NULL), H_nz_idxs(NULL)
+{
+  assert(v0->n == vk->n);
+  assert(n/3 == idxs_gen.size());
+  assert(n/3 == idxs_bus_.size());
+  assert(Qlb_.size() == Qub_.size());
+  assert(n/3 == Qlb_.size());
+  assert(3*(n/3) == n);
+  
+  int nbus = n/3;
+  idxs_bus = new int[nbus];
+  memcpy(idxs_bus, idxs_bus_.data(), nbus*sizeof(int));
+
+  Qlb = new double[nbus];
+  memcpy(Qlb, Qlb_.data(), nbus*sizeof(double));
+  Qub = new double[nbus];
+  memcpy(Qub, Qub_.data(), nbus*sizeof(double));
+  gb = new double[nbus]; //gb = Pub-Plb
+  DCOPY(&nbus, Qub, &ione, gb, &ione);
+  DAXPY(&nbus, &dminusone, Qlb, &ione, gb, &ione);
+
+  //rhs of this constraints block
+  assert(r>=0);
+  ub = new double[n];
+  for(int i=0; i<n/3; i++) ub[i] = 0.;
+  for(int i=n/3; i<n; i++) ub[i] = r; 
+  
+  lb = new double[n];
+  if(r==0)
+    DCOPY(&n, ub, &ione, lb, &ione);
+  else {
+    DCOPY(&nbus, ub, &ione, lb, &ione);//for(int i=0; i<n/3; i++) lb[i] = 0.;
+    for(int i=n/3; i<n; i++) lb[i] = -r; 
+  }
+
+  nup = new OptVariablesBlock(n/3, string("nup_")+id, 0, 1e+20);
+  num = new OptVariablesBlock(n/3, string("num_")+id, 0, 1e+20);
+
+  assert(bigM>=0);
+  if(add_penalty_obj) {
+    //add obj term
+    assert(false && "not yet implemented");
+  } else {
+    assert(bigM==0.);
+  } 
+}
+PVPQComplementarityCons::~PVPQComplementarityCons()
+{
+  delete[] idxs_bus;
+  delete[] gb;
+  delete[] Qlb;
+  delete[] Qub;
+  delete[] J_nz_idxs;
+  delete[] H_nz_idxs;
+}
+
+void PVPQComplementarityCons::compute_nus(OptVariablesBlock* np, OptVariablesBlock* nm)
+{
+  assert(v0->n == vk->n);
+  //compute from  v[n] - vk[n] - nup[n]+num[n] = 0
+  //use rhom->x as buffer
+  double* g=num->x;
+  int dim = n/3;
+  assert(dim==num->n);assert(dim==nup->n);
+  for(int it=0; it<dim; it++) {
+    g[it] = v0->x[idxs_bus[it]] - vk->x[idxs_bus[it]];
+  }
+  for(int it=0; it<dim; it++) {
+    //carefull: g is num->x
+    if(g[it] > 0) {
+      nup->x[it] = g[it]; num->x[it] = 0.;
+    } else {
+      nup->x[it] = 0.; num->x[it] = - g[it]; // same as  rhom->x[it] = -rhom->x[it]
+    }
+  }
+}
+
+bool PVPQComplementarityCons::eval_body(const OptVariables& vars_primal, bool new_x, double* body)
+{
+  int nbus = n/3, it;
+  double* g = body+this->index;
+
+  assert(v0->n == vk->n);
+  assert(vk->n >= nbus);
+
+  // v[n] - vk[n] - nup[n]+num[n] = 0, for all n=idxs_bus
+  for(it=0; it<nbus; it++) {
+    assert(idxs_bus[it] < v0->n);
+    assert(idxs_bus[it] >= 0);
+    g[it] += v0->xref[idxs_bus[it]];
+  }
+  for(it=0; it<nbus; it++) {
+    g[it] -= vk->xref[idxs_bus[it]];
+  }
+  DAXPY(&nbus, &dminusone, const_cast<double*>(nup->xref), &ione, g, &ione);
+  DAXPY(&nbus, &done,      const_cast<double*>(num->xref), &ione, g, &ione);
+
+  const int* idxs_g; int gi, ngen; double aux;
+  //body of the next 2n/3 constraints
+  // -r <= ( sum(qk[g])-Qub[n] ) / gb[n] * nup[n] <= r
+  // -r <= ( sum(qk[g])-Qlb[n] ) / gb[n] * num[n] <= r
+  it=0;
+  for(int conidx=nbus; conidx<n; ) {
+    idxs_g = idxs_gen[it].data(); ngen=idxs_gen[it].size();
+    assert(ngen >= 1);
+    aux=qk->xref[idxs_g[0]];
+    for(gi=1; gi<ngen; gi++) 
+      aux += qk->xref[idxs_g[gi]];
+    
+    g[conidx] += (aux-Qub[it]) / gb[it] * nup->xref[it];
+    conidx++;
+    g[conidx] += (aux-Qlb[it]) / gb[it] * num->xref[it];
+    conidx++; it++;
+  }
+  return true;
+}
+
+bool PVPQComplementarityCons::eval_Jac(const OptVariables& primal_vars, bool new_x, 
+			  const int& nnz, int* ia, int* ja, double* M)
+{
+  int row=0, idxnz, dim=n/3, idx_v, ngen, gi; const int* idxs_g;
+  if(NULL==M) {
+    assert(num->n == n/3);
+    assert(nup->n == n/3);
+    for(int it=0; it<dim; it++) {
+      row = this->index+it;
+      idxnz = J_nz_idxs[it];
+      assert(idxnz+3<nnz && idxnz>=0);
+
+      // v[idxs_bus[n]] - vk[idxs_bus[n]] - nup[n]+num[n] = 0
+      idx_v = idxs_bus[it];
+      ia[idxnz]=row; ja[idxnz]=v0->index+idx_v;      idxnz++; // w.r.t. v0
+      ia[idxnz]=row; ja[idxnz]=vk->index+idx_v;      idxnz++; // w.r.t. vk
+      ia[idxnz]=row; ja[idxnz]=nup->index+it;        idxnz++; // w.r.t. nup
+      ia[idxnz]=row; ja[idxnz]=num->index+it;        idxnz++; // w.r.t. num
+    }
+    int idx;
+    for(int it=0; it<dim; it++) {
+      idx = dim+2*it;
+      row = this->index + idx;
+      idxnz = J_nz_idxs[idx];
+      assert(idxnz<nnz && idxnz>=0);
+      assert(idxnz+1+idxs_gen[it].size()<nnz);
+
+      ngen = idxs_gen[it].size(); 
+      idxs_g = idxs_gen[it].data();
+      assert(ngen>=1);
+      // -r <= ( sum(qk[g])-Qub[n] ) / gb[n] * nup[n] <= r
+      ia[idxnz]=row; ja[idxnz]=nup->index+it;           idxnz++; // w.r.t. nup
+      ia[idxnz]=row; ja[idxnz]=qk->index+idxs_g[0];     idxnz++; // w.r.t. qk's
+      for(gi=1; gi<ngen; gi++) {
+	ia[idxnz]=row; ja[idxnz]=qk->index+idxs_g[gi];  idxnz++; // w.r.t. qk's
+      }
+      row++; idx++;
+
+      // -r <= ( sum(qk[g])-Qlb[n] ) / gb[n] * num[n] <= r
+      idxnz = J_nz_idxs[idx]; 
+      assert(idxnz<nnz && idxnz>=0);  assert(idxnz+idxs_gen[it].size()<nnz); 
+      ia[idxnz]=row; ja[idxnz]=num->index+it;            idxnz++; // w.r.t. num
+      ia[idxnz]=row; ja[idxnz]=qk->index+idxs_g[0];      idxnz++; // w.r.t. qk's
+      for(gi=1; gi<ngen; gi++) {
+	ia[idxnz]=row; ja[idxnz]=qk->index+idxs_g[gi];   idxnz++; // w.r.t. qk's
+      }
+      row++;
+    }
+    assert(row == this->index+this->n);
+  } else {
+
+    for(int it=0; it<dim; it++) {
+      idxnz = J_nz_idxs[it];
+      assert(idxnz<nnz && idxnz>=0);
+      
+      M[idxnz++] += 1.; // w.r.t. v0
+      M[idxnz++] -= 1.; // w.r.t. vk
+      M[idxnz++] -= 1.; // w.r.t. nup
+      M[idxnz++] += 1.; // w.r.t. num
+    }
+    int idx; double qsum, aux1;
+    for(int it=0; it<dim; it++) {
+      idx = dim+2*it;
+      idxnz = J_nz_idxs[idx];
+      assert(idxnz+2<nnz);
+
+      ngen = idxs_gen[it].size(); 
+      idxs_g = idxs_gen[it].data();
+      assert(ngen>=1);
+      
+      
+      qsum = qk->xref[idxs_g[0]];
+      for(gi=1; gi<ngen; gi++) 
+	qsum += qk->xref[idxs_g[gi]];
+
+      // -r <= ( sum(qk[g])-Qub[n] ) / gb[n] * nup[n] <= r
+      aux1 = nup->xref[it]/gb[it];
+      M[idxnz++] += (qsum-Qub[it])/gb[it]; // w.r.t. nup
+      for(gi=0; gi<ngen; gi++)
+	M[idxnz++] += aux1;                // w.r.t. qk's
+      idx++;
+      
+      // -r <= ( sum(qk[g])-Qlb[n] ) / gb[n] * num[n] <= r
+      aux1 = num->xref[it]/gb[it];
+      idxnz = J_nz_idxs[idx]; assert(idxnz<nnz && idxnz>=0);  assert(idxnz+1<nnz); 
+      M[idxnz++] += (qsum-Qlb[it])/gb[it]; // w.r.t. num
+      for(gi=0; gi<ngen; gi++)
+	M[idxnz++] += aux1;                // w.r.t. qk's
+    }
+  }
+
+  return true;
+}
+
+int PVPQComplementarityCons::get_Jacob_nnz()
+{
+  //for the first n/3 constraints we have 4*n/3 nonzeros
+  int nnz = 4*(n/3);
+  for(int ni=0; ni<n/3; ni++)
+    nnz += 2*(1+idxs_gen[ni].size()); //1 for nup/num[ni] and idxs_gen[ni].size() for sum(qk[g])
+  return nnz;
+}
+
+bool PVPQComplementarityCons::get_Jacob_ij(std::vector<OptSparseEntry>& vij)
+{
+#ifdef DEBUG
+  int loc_nnz = get_Jacob_nnz();
+  int vij_sz_in = vij.size();
+#endif
+  
+  if(!J_nz_idxs) 
+    J_nz_idxs = new int[n];
+
+  // v[idxs_bus[n]] - vk[idxs_bus[n]] - nup[n]+num[n] = 0
+  int row=0; 
+  for(int it=0; it<n/3; it++) {
+    row = this->index+it;
+    vij.push_back(OptSparseEntry(row, v0->index+idxs_bus[it], J_nz_idxs+it)); //v0
+    vij.push_back(OptSparseEntry(row, vk->index+idxs_bus[it], NULL)); //vk
+    vij.push_back(OptSparseEntry(row, nup->index+it, NULL)); //nup
+    vij.push_back(OptSparseEntry(row, num->index+it, NULL)); //num
+  }
+  int idx=n/3;
+  for(int it=0; it<n/3; it++) {
+    idx = n/3+2*it;
+    row = this->index+idx;
+    // -r <= ( sum(qk[g])-Qub[n] ) / gb[n] * nup[n] <= r
+    vij.push_back(OptSparseEntry(row, nup->index+it, J_nz_idxs+idx)); //nup
+    for(auto gi: idxs_gen[it]) {
+      assert(gi >= 0);
+      assert(gi < qk->n);
+      vij.push_back(OptSparseEntry(row, qk->index+gi, NULL)); //qk
+    }
+    row++; idx++;
+
+    // -r <= ( sum(qk[g])-Qlb[n] ) / gb[n] * num[n] <= r
+    vij.push_back(OptSparseEntry(row, num->index+it, J_nz_idxs+idx)); //num
+    for(auto gi: idxs_gen[it]) {
+      vij.push_back(OptSparseEntry(row, qk->index+gi, NULL)); //qk
+    }
+  }
+  assert(idx==n-1);
+
+#ifdef DEBUG
+  assert(row+1 == this->index+this->n);
+  assert(vij.size() == loc_nnz+vij_sz_in);
+#endif
+  return true;
+}
+
+bool PVPQComplementarityCons::eval_HessLagr(const OptVariables& vars_primal, bool new_x, 
+			       const OptVariables& lambda_vars, bool new_lambda,
+			       const int& nnz, int* ia, int* ja, double* M)
+{
+
+  return true;
+}
+
+// Hessian is zero for the first n/3
+// for each bilinear constraint of the following 2*n/3, there are s=idx_gen[n].size() 
+// non-zeros, all off-diagonal
+//                q1      q2        qs       num                   
+// Jacobian1:  nup/gb  nup/gb ... nup/gb  (sum(q)-lb)/gb
+// Jacobian2:  num/gb  num/gb ... num/gb  (sum(q)-lb)/gb
+
+// Hessian: 
+//    1/gb -> w.r.t. (q1,nup), (q2,nup), ..., (qs,nup)
+//    1/gb -> w.r.t. (q1,num), (q2,num), ..., (qs,num)
+int PVPQComplementarityCons::get_HessLagr_nnz()
+{
+  int nnz=0;
+  for(int ni=0; ni<n/3; ni++)
+    nnz += 2*idxs_gen[ni].size(); 
+  return nnz;
+}
+
+bool PVPQComplementarityCons::get_HessLagr_ij(std::vector<OptSparseEntry>& vij)
+{
+  if(n==0) return true;
+  int nnz;
+  if(NULL==H_nz_idxs) {
+    H_nz_idxs = new int[nnz=get_HessLagr_nnz()];
+  }
+  int i,j, dim=n/3, aux, itnz=0;
+  for(int it=0; it<n/3; it++) {
+    for(auto gi : idxs_gen[it]) {
+      j = nup->index+it;
+      i = qk->index+gi;
+      i = uppertr_swap(i,j,aux);
+      vij.push_back(OptSparseEntry(i,j,H_nz_idxs+itnz)); //w.r.t. (qk's,nup)
+      itnz++;
+    }
+    for(auto gi : idxs_gen[it]) {
+      j = num->index+it;
+      i = qk->index+gi;
+      i = uppertr_swap(i,j,aux);
+      vij.push_back(OptSparseEntry(i,j,H_nz_idxs+itnz)); //w.r.t. (qk's,nup)
+      itnz++;
+    }
+  }
+  assert(itnz==nnz);
+  return true;
+}
+    
+OptVariablesBlock* PVPQComplementarityCons::create_varsblock()
+{
+  return NULL; //the two slacks blocks are returned in 'create_multiple_varsblocks'
+}
+
+std::vector<OptVariablesBlock*> PVPQComplementarityCons::create_multiple_varsblocks()
+{
+  return std::vector<OptVariablesBlock*>({nup,num});
+}
+
+OptObjectiveTerm* PVPQComplementarityCons::create_objterm()
 {
   return NULL;
 }

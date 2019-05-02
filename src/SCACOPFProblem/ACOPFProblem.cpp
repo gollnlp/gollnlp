@@ -42,8 +42,8 @@ bool ACOPFProblem::default_assembly()
 
   //vector<int> K_Cont = {8, 83, 366}; //net 01; gen, line, transf, id out=[27,61,126]
   //vector<int> K_Cont = {0, 71, 85, 97, 98}; //net 03 scen 9
-  //vector<int> K_Cont ={0, 386, 428, 435}; //net 10 scen 9; first two are gen, then a line and a trans
-  vector<int> K_Cont ={435};
+  vector<int> K_Cont ={0, 386, 428, 435}; //net 10 scen 9; first two are gen, then a line and a trans
+  //vector<int> K_Cont ={386};
   int nK = K_Cont.size();
   //for(auto K : data_sc.K_Contingency) {
   for(auto K : K_Cont) {
@@ -113,10 +113,10 @@ void ACOPFProblem::add_cons_coupling(SCACOPFData& dB)
 // in data_sc.G_Generator
 void ACOPFProblem::add_cons_PVPQ(SCACOPFData& dB, const std::vector<int>& Gk)
 {
-  printvec(Gk);
-  auto G_Nidx_Gk = selectfrom(dB.G_Nidx, Gk);
+  auto G_Nidx_Gk = selectfrom(data_sc.G_Nidx, Gk);
+  //extra check
   assert(G_Nidx_Gk == dB.G_Nidx);
-  printvec(G_Nidx_Gk);
+
   sort(G_Nidx_Gk.begin(), G_Nidx_Gk.end());
   printvec(G_Nidx_Gk);
   auto last = unique(G_Nidx_Gk.begin(), G_Nidx_Gk.end());
@@ -124,17 +124,21 @@ void ACOPFProblem::add_cons_PVPQ(SCACOPFData& dB, const std::vector<int>& Gk)
   printvec(G_Nidx_Gk);
   auto &N_PVPQ = G_Nidx_Gk; //nodes with PVPQ generators;
 
-  //generators at each node with PVPQ generators
-  vector<vector<int> > gen_agg;
+  //(aggregated) non-fixed q_g generator ids at each node/bus
+  // with PVPQ generators that have at least one non-fixed q_g 
+  vector<vector<int> > idxs_gen_agg;
+  //bus indexes that have at least one non-fixed q_g
+  vector<int> idxs_bus_pvpq;
+  //aggregated lb and ub on reactive power at each PVPQ bus
   vector<double> Qlb, Qub;
-  int nPVPQGens=0, nPVPQCons=0;
+  int nPVPQGens=0, nPVPQCons=0; int num_buses_all_qgen_fixed=0;
 
   for(auto n: N_PVPQ) {
     assert(dB.Gn[n].size()>0);
     double Qagglb=0., Qaggub=0.;
 
     int numfixed = 0;
-    gen_agg.push_back( vector<int>() );
+    idxs_gen_agg.push_back( vector<int>() );
     for(auto g: dB.Gn[n]) {
 #ifdef DEBUG
       assert(dB.K_Contingency.size()==1);
@@ -144,33 +148,39 @@ void ACOPFProblem::add_cons_PVPQ(SCACOPFData& dB, const std::vector<int>& Gk)
 #endif
       if(abs(dB.G_Qub[g]-dB.G_Qlb[g])<=1e-8) {
 	numfixed++;
-	printf("PVPQ: gen ID=%d p_q is fixed; will not add PVPQ constraint\n");
+	printf("PVPQ: gen ID=%d p_q at bus %d is fixed; will not add PVPQ constraint\n",
+	       dB.G_Generator[g], dB.G_Nidx[g]);
 	continue;
       }
-      gen_agg.back().push_back(g);
+      idxs_gen_agg.back().push_back(g);
       Qagglb += dB.G_Qlb[g];
       Qaggub += dB.G_Qub[g];
     }
-    assert(gen_agg.back().size()+numfixed == dB.Gn[n].size());
-    nPVPQGens += gen_agg.back().size()+numfixed;
-    Qlb.push_back(Qagglb);
-    Qub.push_back(Qaggub);
+
+    assert(idxs_gen_agg.back().size()+numfixed == dB.Gn[n].size());
+    nPVPQGens += idxs_gen_agg.back().size()+numfixed;
+
+    if(idxs_gen_agg.back().size()==0) {
+      assert(Qagglb==0. && Qaggub==0.);
+      idxs_gen_agg.pop_back();
+      num_buses_all_qgen_fixed++;
+    } else {
+      Qlb.push_back(Qagglb);
+      Qub.push_back(Qaggub);
+      idxs_bus_pvpq.push_back(n);
+    }
   }
-  assert(gen_agg.size()==Qlb.size());
-  assert(gen_agg.size()==Qub.size());
-  assert(N_PVPQ.size()==gen_agg.size());
-
-  
-
+  assert(idxs_gen_agg.size() == Qlb.size());
+  assert(idxs_gen_agg.size() == Qub.size());
+  assert(N_PVPQ.size()  == num_buses_all_qgen_fixed+idxs_gen_agg.size());
+  assert(idxs_bus_pvpq.size() == idxs_gen_agg.size());
 
   for(int i=0; i<Qlb.size(); i++) {
     printf("%d %g %g \n", N_PVPQ[i], Qlb[i], Qub[i]);
-    printvec(gen_agg[i]);
+    printvec(idxs_gen_agg[i]);
   }
-  //printvecvec(gen_agg, "active generators");
-  //printvec(Qlb, "Qlb");
-  //printvec(Qub, "Qub");
 }
+
 void ACOPFProblem::add_cons_nonanticip(SCACOPFData& dB, const std::vector<int>& G_idxs_no_AGC)
 {
   if(G_idxs_no_AGC.size()>0) {

@@ -18,6 +18,7 @@ option(GOLLNLP_WITH_MAKETEST "Enable 'make test'" ON)
 
 if(GOLLNLP_USE_MPI)
   if(NOT DEFINED MPI_CXX_COMPILER)
+    set(CMAKE_PREFIX_PATH "${CMAKE_PREFIX_PATH} /usr/lib64/openmpi")
     find_package(MPI REQUIRED)
     set(CMAKE_CXX_COMPILER ${MPI_CXX_COMPILER})
   endif(NOT DEFINED MPI_CXX_COMPILER)
@@ -36,7 +37,7 @@ message("Using Ipopt dir ${IPOPT_DIR}")
 include_directories("${IPOPT_DIR}/include/coin")
 link_directories("${IPOPT_DIR}/lib")
 #set (CMAKE_SHARED_LINKER_FLAGS "${CMAKE_SHARED_LINKER_FLAGS} -Wl,--rpath -Wl,${IPOPT_DIR}/lib")
-set(IPOPT_LIBS "-lipopt -lm  -ldl")
+set(IPOPT_LIBS "-lgfortran -lipopt -lm  -ldl")
 
 # include build directory for Fortran name mangling header
 include_directories(${CMAKE_BINARY_DIR})

@@ -94,26 +94,28 @@ namespace gollnlp {
     int* H_nz_idxs;
   };
 
-  /////////////////////////////////////////////////////////////////////////////////
-  // AGC smoothing using complementarity function
+  ///////////////////////////////////////////////////////////////////////////////////
+  // PVPQ smoothing using complementarity function
   // 
-  // v - vk + alpha*deltak -  nup + num = 0
+  // v[n] - vk[n] + sum(qk[g]:g=idxs_gen[n]) - nup[n]+num[n] = 0, for all n=idxs_bus
   // nup, num >=0
-  // -r <= (qk-Qub)/gb * nup <= r
-  // -r <= (qk-Qlb)/gb * num <= r
+  // -r <= ( sum(qk[g])-Qub[n] ) / gb[n] * nup[n] <= r
+  // -r <= ( sum(qk[g])-Qlb[n] ) / gb[n] * num[n] <= r
   //
   // when r=0, the last two constraints are enforced as equalities == 0
-  // scaling parameter gb = generation band = Qub-Qlb
+  // scaling parameter gb[n] = generation band at the bus = Qub[n]-Qlb[n]
   //
-  // also, a big-M penalty objective term can be added penalize 
+  // also, a big-M penalty objective term can be added to penalize 
   // -(qk-Qub)/gb * nup and  (qk-Qlb)/gb * num
-  /////////////////////////////////////////////////////////////////////////////////
+  ///////////////////////////////////////////////////////////////////////////////////
   class PVPQComplementarityCons : public OptConstraintsBlock
   {
   public:
     PVPQComplementarityCons(const std::string& id_, int numcons,
-			    OptVariablesBlock* v0_, OptVariablesBlock* vK_, OptVariablesBlock* qK_,
-			    const std::vector<int>& idx0_, const std::vector<int>& idxK_,
+			    OptVariablesBlock* v0_, OptVariablesBlock* vK_, 
+			    OptVariablesBlock* qK_,
+			    const std::vector<int>& idxs_bus_,
+			    const std::vector<std::vector<int> >& idxs_gen_, 
 			    const std::vector<double>& Qlb, const std::vector<double>& Qub, 
 			    const double& r_,
 			    bool add_penalty_obj=false, const double& bigM=0);
@@ -142,10 +144,12 @@ namespace gollnlp {
     double *gb; //size n/3 = nGenAGC
   protected:
     OptVariablesBlock *v0, *vk, *qk, *nup, *num;
-    int *idx0, *idxk; //size n/3 = nGenAGC
+    int *idxs_bus; // size n/3 = nPVPQBuses
+    // size n/3, each elem has at least one elem
+    std::vector<std::vector<int> > idxs_gen; 
     double r;
     
-    double *Qlb, *Qub; //size n/3 = nGenAGC
+    double *Qlb, *Qub; //size n/3 
     int* J_nz_idxs; 
     int* H_nz_idxs;
   };
