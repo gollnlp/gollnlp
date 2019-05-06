@@ -243,12 +243,13 @@ eval_Jac(const OptVariables& primal_vars, bool new_x,
     for(int it=0; it<dim; it++) {
       row = this->index+it;
       idxnz = J_nz_idxs[it];
-      assert(idxnz<nnz && idxnz>=0);
+      assert(idxnz+4<nnz && idxnz>=0);
       
       ia[idxnz]=row; ja[idxnz]=p0->index+idx0[it];   idxnz++; // w.r.t. p0
       ia[idxnz]=row; ja[idxnz]=pk->index+idxk[it];   idxnz++; // w.r.t. pk
       ia[idxnz]=row; ja[idxnz]=deltak->index;        idxnz++; // w.r.t. delta
       ia[idxnz]=row; ja[idxnz]=rhop->index+it;       idxnz++; // w.r.t. rhop
+      assert(idxnz<nnz);
       ia[idxnz]=row; ja[idxnz]=rhom->index+it;       idxnz++; // w.r.t. rhom
     }
     int idx;
@@ -364,7 +365,7 @@ eval_HessLagr(const OptVariables& vars_primal, bool new_x,
   int *itnz=H_nz_idxs, dim=n/3;
   if(NULL==M) {
     int i,j, aux;
-    for(int it=0; it<n/3; it++) {
+    for(int it=0; it<dim; it++) {
       i = pk->index+idxk[it]; j = rhop->index+it;
       i = uppertr_swap(i,j,aux);
       ia[*itnz]=i; ja[*itnz]=j; itnz++; //w.r.t. (pk,rhop)
@@ -378,7 +379,7 @@ eval_HessLagr(const OptVariables& vars_primal, bool new_x,
     const OptVariablesBlock* lambda = lambda_vars.get_block(std::string("duals_") + this->id);
     assert(lambda!=NULL); assert(lambda->n==n);
     int it=dim;
-    for(int i=0; i<n/3; i++) {
+    for(int i=0; i<dim; i++) {
       M[*itnz] += lambda->xref[it]/gb[i]; //w.r.t. (pk,rhop)
       itnz++; it++;
       M[*itnz] += lambda->xref[it]/gb[i]; //w.r.t. (pk,rhom)
@@ -570,68 +571,81 @@ bool PVPQComplementarityCons::eval_body(const OptVariables& vars_primal, bool ne
 bool PVPQComplementarityCons::eval_Jac(const OptVariables& primal_vars, bool new_x, 
 			  const int& nnz, int* ia, int* ja, double* M)
 {
-  int row=0, idxnz, dim=n/3, idx_v, ngen, gi; const int* idxs_g;
+#ifdef DEBUG
+  int loc_nnz = get_Jacob_nnz();
+#endif
+  int row=0, dim=n/3, idx_v, ngen, gi; const int* idxs_g;
+  const int *pidxnz=J_nz_idxs;
   if(NULL==M) {
     assert(num->n == n/3);
     assert(nup->n == n/3);
     for(int it=0; it<dim; it++) {
       row = this->index+it;
-      idxnz = J_nz_idxs[it];
-      assert(idxnz+3<nnz && idxnz>=0);
 
+      assert(pidxnz[0]<nnz && pidxnz[1]<nnz && pidxnz[2]<nnz && pidxnz[3]<nnz);
+      assert(pidxnz[0]>=0   && pidxnz[1]>=0 && pidxnz[2]>=0  && pidxnz[3]>=0);
       // v[idxs_bus[n]] - vk[idxs_bus[n]] - nup[n]+num[n] = 0
       idx_v = idxs_bus[it];
-      ia[idxnz]=row; ja[idxnz]=v0->index+idx_v;      idxnz++; // w.r.t. v0
-      ia[idxnz]=row; ja[idxnz]=vk->index+idx_v;      idxnz++; // w.r.t. vk
-      ia[idxnz]=row; ja[idxnz]=nup->index+it;        idxnz++; // w.r.t. nup
-      ia[idxnz]=row; ja[idxnz]=num->index+it;        idxnz++; // w.r.t. num
+      ia[*pidxnz]=row; ja[*pidxnz]=v0->index+idx_v;      pidxnz++; // w.r.t. v0
+      ia[*pidxnz]=row; ja[*pidxnz]=vk->index+idx_v;      pidxnz++; // w.r.t. vk
+      ia[*pidxnz]=row; ja[*pidxnz]=nup->index+it;        pidxnz++; // w.r.t. nup
+      ia[*pidxnz]=row; ja[*pidxnz]=num->index+it;        pidxnz++; // w.r.t. num
     }
+    assert(pidxnz == J_nz_idxs+4*(n/3));
+
     int idx;
     for(int it=0; it<dim; it++) {
       idx = dim+2*it;
       row = this->index + idx;
-      idxnz = J_nz_idxs[idx];
-      assert(idxnz<nnz && idxnz>=0);
-      assert(idxnz+1+idxs_gen[it].size()<nnz);
 
       ngen = idxs_gen[it].size(); 
       idxs_g = idxs_gen[it].data();
       assert(ngen>=1);
+
+      assert(pidxnz[0]<nnz && pidxnz[1]<nnz);
+      assert(pidxnz[0]>=0  && pidxnz[1]>=0);
+
       // -r <= ( sum(qk[g])-Qub[n] ) / gb[n] * nup[n] <= r
-      ia[idxnz]=row; ja[idxnz]=nup->index+it;           idxnz++; // w.r.t. nup
-      ia[idxnz]=row; ja[idxnz]=qk->index+idxs_g[0];     idxnz++; // w.r.t. qk's
+      ia[*pidxnz]=row; ja[*pidxnz]=nup->index+it;           pidxnz++; // w.r.t. nup
+      ia[*pidxnz]=row; ja[*pidxnz]=qk->index+idxs_g[0];     pidxnz++; // w.r.t. qk's
       for(gi=1; gi<ngen; gi++) {
-	ia[idxnz]=row; ja[idxnz]=qk->index+idxs_g[gi];  idxnz++; // w.r.t. qk's
+	assert(*pidxnz>=0 && *pidxnz<nnz);
+	ia[*pidxnz]=row; ja[*pidxnz]=qk->index+idxs_g[gi];  pidxnz++; // w.r.t. qk's
       }
       row++; idx++;
 
       // -r <= ( sum(qk[g])-Qlb[n] ) / gb[n] * num[n] <= r
-      idxnz = J_nz_idxs[idx]; 
-      assert(idxnz<nnz && idxnz>=0);  assert(idxnz+idxs_gen[it].size()<nnz); 
-      ia[idxnz]=row; ja[idxnz]=num->index+it;            idxnz++; // w.r.t. num
-      ia[idxnz]=row; ja[idxnz]=qk->index+idxs_g[0];      idxnz++; // w.r.t. qk's
+      assert(pidxnz[0]<nnz && pidxnz[1]<nnz);
+      assert(pidxnz[0]>=0  && pidxnz[1]>=0);
+
+      ia[*pidxnz]=row; ja[*pidxnz]=num->index+it;            pidxnz++; // w.r.t. num
+      ia[*pidxnz]=row; ja[*pidxnz]=qk->index+idxs_g[0];      pidxnz++; // w.r.t. qk's
       for(gi=1; gi<ngen; gi++) {
-	ia[idxnz]=row; ja[idxnz]=qk->index+idxs_g[gi];   idxnz++; // w.r.t. qk's
+	assert(*pidxnz>=0 && *pidxnz<nnz);
+	ia[*pidxnz]=row; ja[*pidxnz]=qk->index+idxs_g[gi];   pidxnz++; // w.r.t. qk's
       }
       row++;
     }
+#ifdef DEBUG
     assert(row == this->index+this->n);
+    assert(pidxnz == J_nz_idxs+loc_nnz);
+#endif
   } else {
 
     for(int it=0; it<dim; it++) {
-      idxnz = J_nz_idxs[it];
-      assert(idxnz<nnz && idxnz>=0);
-      
-      M[idxnz++] += 1.; // w.r.t. v0
-      M[idxnz++] -= 1.; // w.r.t. vk
-      M[idxnz++] -= 1.; // w.r.t. nup
-      M[idxnz++] += 1.; // w.r.t. num
+#ifdef DEBUG
+      assert(pidxnz[0]<nnz && pidxnz[1]<nnz && pidxnz[2]<nnz && pidxnz[3]<nnz);
+      assert(pidxnz[0]>=0   && pidxnz[1]>=0 && pidxnz[2]>=0  && pidxnz[3]>=0);
+#endif
+      M[*pidxnz++] += 1.; // w.r.t. v0
+      M[*pidxnz++] -= 1.; // w.r.t. vk
+      M[*pidxnz++] -= 1.; // w.r.t. nup
+      M[*pidxnz++] += 1.; // w.r.t. num
     }
+    assert(pidxnz == J_nz_idxs+4*(n/3));
     int idx; double qsum, aux1;
     for(int it=0; it<dim; it++) {
       idx = dim+2*it;
-      idxnz = J_nz_idxs[idx];
-      assert(idxnz+2<nnz);
 
       ngen = idxs_gen[it].size(); 
       idxs_g = idxs_gen[it].data();
@@ -644,18 +658,20 @@ bool PVPQComplementarityCons::eval_Jac(const OptVariables& primal_vars, bool new
 
       // -r <= ( sum(qk[g])-Qub[n] ) / gb[n] * nup[n] <= r
       aux1 = nup->xref[it]/gb[it];
-      M[idxnz++] += (qsum-Qub[it])/gb[it]; // w.r.t. nup
+      M[*pidxnz++] += (qsum-Qub[it])/gb[it]; // w.r.t. nup
       for(gi=0; gi<ngen; gi++)
-	M[idxnz++] += aux1;                // w.r.t. qk's
+	M[*pidxnz++] += aux1;                // w.r.t. qk's
       idx++;
       
       // -r <= ( sum(qk[g])-Qlb[n] ) / gb[n] * num[n] <= r
       aux1 = num->xref[it]/gb[it];
-      idxnz = J_nz_idxs[idx]; assert(idxnz<nnz && idxnz>=0);  assert(idxnz+1<nnz); 
-      M[idxnz++] += (qsum-Qlb[it])/gb[it]; // w.r.t. num
+      M[*pidxnz++] += (qsum-Qlb[it])/gb[it]; // w.r.t. num
       for(gi=0; gi<ngen; gi++)
-	M[idxnz++] += aux1;                // w.r.t. qk's
+	M[*pidxnz++] += aux1;                // w.r.t. qk's
     }
+#ifdef DEBUG
+    assert(pidxnz == J_nz_idxs+loc_nnz);
+#endif
   }
 
   return true;
@@ -672,44 +688,46 @@ int PVPQComplementarityCons::get_Jacob_nnz()
 
 bool PVPQComplementarityCons::get_Jacob_ij(std::vector<OptSparseEntry>& vij)
 {
-#ifdef DEBUG
   int loc_nnz = get_Jacob_nnz();
+#ifdef DEBUG
   int vij_sz_in = vij.size();
 #endif
   
   if(!J_nz_idxs) 
-    J_nz_idxs = new int[n];
+    J_nz_idxs = new int[loc_nnz];
+  int *itnz=J_nz_idxs;
 
   // v[idxs_bus[n]] - vk[idxs_bus[n]] - nup[n]+num[n] = 0
   int row=0; 
   for(int it=0; it<n/3; it++) {
     row = this->index+it;
-    vij.push_back(OptSparseEntry(row, v0->index+idxs_bus[it], J_nz_idxs+it)); //v0
-    vij.push_back(OptSparseEntry(row, vk->index+idxs_bus[it], NULL)); //vk
-    vij.push_back(OptSparseEntry(row, nup->index+it, NULL)); //nup
-    vij.push_back(OptSparseEntry(row, num->index+it, NULL)); //num
+    vij.push_back(OptSparseEntry(row, v0->index+idxs_bus[it], itnz++)); //v0
+    vij.push_back(OptSparseEntry(row, vk->index+idxs_bus[it], itnz++)); //vk
+    vij.push_back(OptSparseEntry(row, nup->index+it, itnz++));          //nup
+    vij.push_back(OptSparseEntry(row, num->index+it, itnz++));          //num
   }
-  int idx=n/3;
+  assert(J_nz_idxs+4*(n/3)==itnz);
+  int idx=n/3; ;
   for(int it=0; it<n/3; it++) {
     idx = n/3+2*it;
     row = this->index+idx;
     // -r <= ( sum(qk[g])-Qub[n] ) / gb[n] * nup[n] <= r
-    vij.push_back(OptSparseEntry(row, nup->index+it, J_nz_idxs+idx)); //nup
+    vij.push_back(OptSparseEntry(row, nup->index+it, itnz++)); //nup
     for(auto gi: idxs_gen[it]) {
       assert(gi >= 0);
       assert(gi < qk->n);
-      vij.push_back(OptSparseEntry(row, qk->index+gi, NULL)); //qk
+      vij.push_back(OptSparseEntry(row, qk->index+gi, itnz++)); //qk
     }
     row++; idx++;
 
     // -r <= ( sum(qk[g])-Qlb[n] ) / gb[n] * num[n] <= r
-    vij.push_back(OptSparseEntry(row, num->index+it, J_nz_idxs+idx)); //num
+    vij.push_back(OptSparseEntry(row, num->index+it, itnz++));  //num
     for(auto gi: idxs_gen[it]) {
-      vij.push_back(OptSparseEntry(row, qk->index+gi, NULL)); //qk
+      vij.push_back(OptSparseEntry(row, qk->index+gi, itnz++)); //qk
     }
   }
   assert(idx==n-1);
-
+  assert(J_nz_idxs+loc_nnz==itnz);
 #ifdef DEBUG
   assert(row+1 == this->index+this->n);
   assert(vij.size() == loc_nnz+vij_sz_in);
@@ -721,7 +739,56 @@ bool PVPQComplementarityCons::eval_HessLagr(const OptVariables& vars_primal, boo
 			       const OptVariables& lambda_vars, bool new_lambda,
 			       const int& nnz, int* ia, int* ja, double* M)
 {
+#ifdef DEBUG
+  int nnz_loc = get_HessLagr_nnz();
+#endif
+  int *itnz=H_nz_idxs, dim=n/3;
+  if(NULL==M) {
+    int i,j, aux;
+    for(int it=0; it<dim; it++) {
+      aux = nup->index+it;
+      for(auto gi : idxs_gen[it]) {
+	i = qk->index+gi; 
+	j = aux;
+	i = uppertr_swap(i,j,aux);
+	ia[*itnz]=i; ja[*itnz]=j; itnz++; //w.r.t. (qk's,nup)
+      }
+      aux = num->index+it;
+      for(auto gi : idxs_gen[it]) {
+	i = qk->index+gi; 
+	j = aux;
+	i = uppertr_swap(i,j,aux); 
+	ia[*itnz]=i; ja[*itnz]=j; itnz++; //w.r.t. (qk's,num)
+      }
+    }
+  } else {
+    const OptVariablesBlock* lambda = lambda_vars.get_block(std::string("duals_") + this->id);
+    assert(lambda!=NULL); assert(lambda->n==n);
+    const int* idxs_g; int ngen;
+    int it=dim;
+    for(int i=0; i<dim; i++) {
+      idxs_g = idxs_gen[i].data(); ngen = idxs_gen[i].size();
+      assert(ngen>=1);
 
+      // 1/gb -> w.r.t. (q1,nup), (q2,nup), ..., (qs,nup)
+      M[*itnz] += lambda->xref[it]/gb[i]; itnz++;   //w.r.t. (qk'q,nup)
+      for(int gi=1; gi<ngen; gi++) {
+	M[*itnz] += lambda->xref[it]/gb[i]; itnz++; //w.r.t. (qk'q,nup)
+      }
+      it++;
+
+      // /gb -> w.r.t. (q1,num), (q2,num), ..., (qs,num)
+      M[*itnz] += lambda->xref[it]/gb[i]; itnz++;   //w.r.t. (pk's,num)
+      for(int gi=1; gi<ngen; gi++) {
+	M[*itnz] += lambda->xref[it]/gb[i]; itnz++; //w.r.t. (pk's,num)
+      }
+      it++;
+    }
+    assert(it == n);
+  }
+#ifdef DEBUG
+  assert(H_nz_idxs + nnz_loc == itnz);
+#endif
   return true;
 }
 
