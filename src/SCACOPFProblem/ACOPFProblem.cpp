@@ -21,7 +21,7 @@ ACOPFProblem::~ACOPFProblem()
 
 bool ACOPFProblem::default_assembly()
 {
-  useQPen = false;
+  useQPen = true;
   slacks_scale = 1.;
 
   SCACOPFData& d = data_sc; //shortcut
@@ -42,12 +42,12 @@ bool ACOPFProblem::default_assembly()
   // contingencies
   //
 
-  //vector<int> K_Cont = {8, 83, 366}; //net 01; gen, line, transf, id out=[27,61,126]
+  vector<int> K_Cont = {8, 83, 366}; //net 01; gen, line, transf, id out=[27,61,126]
   //vector<int> K_Cont = {0, 71, 85, 97, 98}; //net 03 scen 9
   //vector<int> K_Cont ={0, 386, 428, 435}; //net 10 scen 9; first two are gen, then a line and a trans
   //vector<int> K_Cont ={386};
   //vector<int> K_Cont ={570,646,155,495,497};
-  vector<int> K_Cont = {};//{919}; //network 07-O scenario 9, large penalty
+  //vector<int> K_Cont = {919,960,961}; //network 07-R scenario 9, large penalty in pre-trial 1
 
   int nK = K_Cont.size();
   //for(auto K : data_sc.K_Contingency) {
@@ -66,13 +66,14 @@ bool ACOPFProblem::default_assembly()
     add_cons_active_powbal(dK);
     add_cons_reactive_powbal(dK);
     add_cons_thermal_li_lims(dK,SysCond_BaseCase);
-    //add_cons_thermal_ti_lims(dK,SysCond_BaseCase);
+    add_cons_thermal_ti_lims(dK,SysCond_BaseCase);
 
+    AGCSmoothing = 1e-2;
     //coupling AGC and PVPQ; also creates delta_k
-    //add_cons_coupling(dK);
+    add_cons_coupling(dK);
   }
 
-  print_summary();
+  //print_summary();
 
   use_nlp_solver("ipopt");
   //set options
@@ -80,6 +81,7 @@ bool ACOPFProblem::default_assembly()
   set_solver_option("mu_init", 1.);
   //set_solver_option("print_timing_statistics", "yes");
   set_solver_option("max_iter", 1000);
+  //set_solver_option("tol", 1e-10);
   //prob.set_solver_option("print_level", 6);
   bool bret = optimize("ipopt");
 
@@ -87,22 +89,28 @@ bool ACOPFProblem::default_assembly()
   //auto ssl_ti2 = vars_block("sslack_ti_trans_limits2_0");
   //ssl_ti2->print(); 
 
-  auto pti1 = vars_block("p_ti1_0");
-  pti1->print();
+  //auto pti1 = vars_block("p_ti1_0");
+  //pti1->print();
   
   //print_p_g(data_sc);
   //for(auto d: data_K)
   //  print_p_g_with_coupling_info(*d);
   
-  for(auto d: data_K)
-    print_PVPQ_info(*d);
+  //print_Transf_powers(data_sc);
+  
+  //for(auto d: data_K)
+  //  print_PVPQ_info(*d);
       
   //this->problem_changed();
   //t_solver_option("max_iter", 50);
-  //set_solver_option("mu_init", 1e-2);
-  //bret = optimize("ipopt");
+  //set_solver_option("mu_init", 1e-8);
+  //CSmoothing=;
+  //PVPQSmoothing=1e-6;
 
   //bret = reoptimize(OptProblem::primalDualRestart); //warm_start_target_mu
+
+  //for(auto d: data_K)
+  //  print_PVPQ_info(*d);
 
   return true;
 }
@@ -210,7 +218,6 @@ void ACOPFProblem::add_cons_PVPQ(SCACOPFData& dB, const std::vector<int>& Gk)
     return;
   }
   
-  double PVPQSmoothing = 1e-2;
   auto cons = new PVPQComplementarityCons(con_name("PVPQ", dB), 3*idxs_gen_agg.size(),
 					  v_n0, v_nk, q_gk,
 					  idxs_bus_pvpq, idxs_gen_agg,
@@ -308,7 +315,6 @@ void ACOPFProblem::add_cons_AGC(SCACOPFData& dB, const std::vector<int>& G_idxs_
   append_variables(deltaK);
   deltaK->set_start_to(0.);
 
-  double AGCSmoothing = 1e-2;
   auto cons = new AGCComplementarityCons(con_name("AGC", dB), 3*G_idxs_AGC.size(),
 					 pg0, pgK, deltaK, 
 					 G_idxs_AGC, conting_matching_idxs,
@@ -321,6 +327,9 @@ void ACOPFProblem::add_cons_AGC(SCACOPFData& dB, const std::vector<int>& G_idxs_
   auto rhop=cons->get_rhop(), rhom=cons->get_rhom();
   cons->compute_rhos(rhop, rhom);
   rhop->providesStartingPoint=true; rhom->providesStartingPoint=true;
+
+  append_objterm(new LinearPenaltyObjTerm(string("bigMpen_")+rhom->id, rhom, 1.));
+  append_objterm(new LinearPenaltyObjTerm(string("bigMpen_")+rhop->id, rhop, 1.));
 
   //for(int i=0; i<rhop->n; i++) 
   //  printf("%g %g   %g\n", rhop->x[i], rhom->x[i], cons->gb[i]);
@@ -345,9 +354,16 @@ void ACOPFProblem::add_variables(SCACOPFData& d)
   theta_n->set_start_to(data_sc.N_theta0.data());
   int RefBus = data_sc.bus_with_largest_gen();
   printf("RefBus=%d\n", RefBus);
-  theta_n->lb[RefBus] = theta_n->ub[RefBus] = data_sc.N_theta0[RefBus];
-  if(data_sc.N_theta0[RefBus]!=0) {
-    printf("We should set theta at RefBus to 0");
+
+  if(data_sc.N_theta0[RefBus]!=0.) {
+    for(int b=0; b<theta_n->n; b++) {
+      theta_n->x[b] -= data_sc.N_theta0[RefBus];
+      assert( theta_n->x[b] >= theta_n->lb[b]);
+      assert( theta_n->x[b] <= theta_n->ub[b]);
+    }
+    theta_n->lb[RefBus] = theta_n->ub[RefBus] = 0.;
+    assert(theta_n->x[RefBus]==0.);
+    //printf("We should set theta at RefBus to 0");
   }
   //append_objterm(new DummySingleVarQuadrObjTerm("theta_sq", theta_n));
 
@@ -487,98 +503,104 @@ void ACOPFProblem::add_cons_lines_pf(SCACOPFData& d)
 }
 void ACOPFProblem::add_cons_transformers_pf(SCACOPFData& d)
 {
-  //
-  // transformers active power flows
-  //
-  auto p_ti1 = variable("p_ti1",d), p_ti2 = variable("p_ti2",d);
   auto v_n = variable("v_n",d), theta_n = variable("theta_n",d);
+  {
+    //
+    // transformers active power flows
+    //
+    auto p_ti1 = variable("p_ti1",d), p_ti2 = variable("p_ti2",d);
 
-  // i=1 addpowerflowcon!(m, p_ti[t,1], v_n[T_Nidx[t,1]], v_n[T_Nidx[t,2]],
-  //		theta_n[T_Nidx[t,1]], theta_n[T_Nidx[t,2]],
-  //		T[:G][t]/T[:Tau][t]^2+T[:Gm][t], -T[:G][t]/T[:Tau][t], -T[:B][t]/T[:Tau][t], -T[:Theta][t])
-  auto pf_cons1 = new PFConRectangular(con_name("p_ti1_powerflow",d), d.T_Transformer.size(), 
-				       p_ti1, v_n, theta_n,
-				       d.T_Nidx[0], d.T_Nidx[1]);
-  //set the coefficients directly
-  double *A = pf_cons1->get_A(), *TG=d.T_G.data(), *TTau=d.T_Tau.data();
-  DCOPY(&(pf_cons1->n), d.T_Gm.data(), &ione, A, &ione);
-  for(int t=0; t<pf_cons1->n; t++) 
-    A[t] += TG[t] / (TTau[t]*TTau[t]);
-  
-  double *B=pf_cons1->get_B();
-  for(int t=0; t<pf_cons1->n; t++) 
-    B[t]=-TG[t]/TTau[t];
-  
-  double *C=pf_cons1->get_C(), *TB=d.T_B.data();
-  for(int t=0; t<pf_cons1->n; t++) 
-    C[t]=-TB[t]/TTau[t];
-  
-  double *T=pf_cons1->get_T(), *TTheta=d.T_Theta.data();
-  for(int t=0; t<pf_cons1->n; t++) 
-    T[t] = -TTheta[t];
-  
-  // i=2 addpowerflowcon!(m, p_ti[t,2], v_n[T_Nidx[t,2]], v_n[T_Nidx[t,1]],
-  //		theta_n[T_Nidx[t,2]], theta_n[T_Nidx[t,1]],
-  //		T[:G][t], -T[:G][t]/T[:Tau][t], -T[:B][t]/T[:Tau][t], T[:Theta][t])
-  auto pf_cons2 = new PFConRectangular(con_name("p_ti2_powerflow",d), d.T_Transformer.size(), 
-				       p_ti2, v_n, theta_n,
-				       d.T_Nidx[1], d.T_Nidx[0]);
-  //set the coefficients directly
-  DCOPY(&(pf_cons2->n), d.T_G.data(), &ione, pf_cons2->get_A(), &ione);
-  DCOPY(&(pf_cons2->n), pf_cons1->get_B(), &ione, pf_cons2->get_B(), &ione);
-  DCOPY(&(pf_cons2->n), pf_cons1->get_C(), &ione, pf_cons2->get_C(), &ione);	
-  DCOPY(&(pf_cons2->n), TTheta, &ione, pf_cons2->get_T(), &ione);
-  
-  append_constraints(pf_cons1);
-  append_constraints(pf_cons2);
-  
-  pf_cons1->compute_power(p_ti1); p_ti1->providesStartingPoint=true;
-  pf_cons2->compute_power(p_ti2); p_ti2->providesStartingPoint=true;
+    // i=1 addpowerflowcon!(m, p_ti[t,1], v_n[T_Nidx[t,1]], v_n[T_Nidx[t,2]],
+    //		theta_n[T_Nidx[t,1]], theta_n[T_Nidx[t,2]],
+    //		T[:G][t]/T[:Tau][t]^2+T[:Gm][t], -T[:G][t]/T[:Tau][t], -T[:B][t]/T[:Tau][t], -T[:Theta][t])
+    auto pf_cons1 = new PFConRectangular(con_name("p_ti1_powerflow",d), d.T_Transformer.size(), 
+					 p_ti1, v_n, theta_n,
+					 d.T_Nidx[0], d.T_Nidx[1]);
+    //set the coefficients directly
+    double *A = pf_cons1->get_A(), *TG=d.T_G.data(), *TTau=d.T_Tau.data();
+    DCOPY(&(pf_cons1->n), d.T_Gm.data(), &ione, A, &ione);
+    for(int t=0; t<pf_cons1->n; t++) 
+      A[t] += TG[t] / (TTau[t]*TTau[t]);
 
 
-  //
-  // transformers reactive power flows
-  //
-  auto q_ti1 = variable("q_ti1",d), q_ti2 = variable("q_ti2",d);
-  // i=1 addpowerflowcon!(m, q_ti[t,1], v_n[T_Nidx[t,1]], v_n[T_Nidx[t,2]],
-  //		theta_n[T_Nidx[t,1]], theta_n[T_Nidx[t,2]],
-  //		-T[:B][t]/T[:Tau][t]^2-T[:Bm][t], T[:B][t]/T[:Tau][t], -T[:G][t]/T[:Tau][t], -T[:Theta][t])
-  pf_cons1 = new PFConRectangular(con_name("q_ti1_powerflow",d), d.T_Transformer.size(), 
-				  q_ti1, v_n, theta_n,
-				  d.T_Nidx[0], d.T_Nidx[1]);
-  //set the coefficients directly
-  A=pf_cons1->get_A(); TB=d.T_B.data(); TTau=d.T_Tau.data(); double* TBM=d.T_Bm.data();
-  for(int t=0; t<pf_cons1->n; t++) 
-    A[t] = -TBM[t]-TB[t]/(TTau[t]*TTau[t]);
+    double *B=pf_cons1->get_B();
+    for(int t=0; t<pf_cons1->n; t++) 
+      B[t]=-TG[t]/TTau[t];
   
-  B=pf_cons1->get_B();
-  for(int t=0; t<pf_cons1->n; t++) 
-    B[t] = TB[t]/TTau[t];
+    double *C=pf_cons1->get_C(), *TB=d.T_B.data();
+    for(int t=0; t<pf_cons1->n; t++) 
+      C[t]=-TB[t]/TTau[t];
   
-  C=pf_cons1->get_C(); TG=d.T_G.data();
-  for(int t=0; t<pf_cons1->n; t++) 
-    C[t] = -TG[t]/TTau[t];
+    double *T=pf_cons1->get_T(), *TTheta=d.T_Theta.data();
+    for(int t=0; t<pf_cons1->n; t++) 
+      T[t] = -TTheta[t];
   
-  T=pf_cons1->get_T(); TTheta=d.T_Theta.data();
-  for(int t=0; t<pf_cons1->n; t++) T[t] = -TTheta[t];
+    // i=2 addpowerflowcon!(m, p_ti[t,2], v_n[T_Nidx[t,2]], v_n[T_Nidx[t,1]],
+    //		theta_n[T_Nidx[t,2]], theta_n[T_Nidx[t,1]],
+    //		T[:G][t], -T[:G][t]/T[:Tau][t], -T[:B][t]/T[:Tau][t], T[:Theta][t])
+    auto pf_cons2 = new PFConRectangular(con_name("p_ti2_powerflow",d), d.T_Transformer.size(), 
+					 p_ti2, v_n, theta_n,
+					 d.T_Nidx[1], d.T_Nidx[0]);
+    //set the coefficients directly
+    DCOPY(&(pf_cons2->n), d.T_G.data(), &ione, pf_cons2->get_A(), &ione);
+    DCOPY(&(pf_cons2->n), pf_cons1->get_B(), &ione, pf_cons2->get_B(), &ione);
+    DCOPY(&(pf_cons2->n), pf_cons1->get_C(), &ione, pf_cons2->get_C(), &ione);	
+    DCOPY(&(pf_cons2->n), TTheta, &ione, pf_cons2->get_T(), &ione);
   
-  // i=2 addpowerflowcon!(m, q_ti[t,2], v_n[T_Nidx[t,2]], v_n[T_Nidx[t,1]],
-  //		theta_n[T_Nidx[t,2]], theta_n[T_Nidx[t,1]],
-  //		-T[:B][t], T[:B][t]/T[:Tau][t], -T[:G][t]/T[:Tau][t], T[:Theta][t])
-  pf_cons2 = new PFConRectangular(con_name("q_ti2_powerflow",d), d.T_Transformer.size(), 
-				  q_ti2, v_n, theta_n,
-				  d.T_Nidx[1], d.T_Nidx[0]);
+    append_constraints(pf_cons1);
+    append_constraints(pf_cons2);
   
-  A=pf_cons2->get_A();
-  for(int i=0; i<pf_cons1->n; i++) A[i]=-TB[i];
-  DCOPY(&(pf_cons2->n), pf_cons1->get_B(), &ione, pf_cons2->get_B(), &ione);
-  DCOPY(&(pf_cons2->n), pf_cons1->get_C(), &ione, pf_cons2->get_C(), &ione);
-  DCOPY(&(pf_cons2->n), TTheta, &ione, pf_cons2->get_T(), &ione);
+    pf_cons1->compute_power(p_ti1); p_ti1->providesStartingPoint=true;
+    pf_cons2->compute_power(p_ti2); p_ti2->providesStartingPoint=true;
+  }
+  {
+    //
+    // transformers reactive power flows
+    //
+    auto q_ti1 = variable("q_ti1",d), q_ti2 = variable("q_ti2",d);
+    // i=1 addpowerflowcon!(m, q_ti[t,1], v_n[T_Nidx[t,1]], v_n[T_Nidx[t,2]],
+    //		theta_n[T_Nidx[t,1]], theta_n[T_Nidx[t,2]],
+    //		-T[:B][t]/T[:Tau][t]^2-T[:Bm][t], T[:B][t]/T[:Tau][t], -T[:G][t]/T[:Tau][t], -T[:Theta][t])
+    auto pf_cons1 = new PFConRectangular(con_name("q_ti1_powerflow",d), d.T_Transformer.size(), 
+					 q_ti1, v_n, theta_n,
+					 d.T_Nidx[0], d.T_Nidx[1]);
+    //set the coefficients directly
+    double *A=pf_cons1->get_A(), *TB=d.T_B.data(), *TTau=d.T_Tau.data(), *TBM=d.T_Bm.data();
+    for(int t=0; t<pf_cons1->n; t++) 
+      A[t] = -TBM[t]-TB[t]/(TTau[t]*TTau[t]);
   
-  append_constraints(pf_cons1);
-  append_constraints(pf_cons2);
-  pf_cons1->compute_power(q_ti1); q_ti1->providesStartingPoint=true;
-  pf_cons2->compute_power(q_ti2); q_ti2->providesStartingPoint=true;
+    double *B=pf_cons1->get_B();
+    for(int t=0; t<pf_cons1->n; t++) 
+      B[t] = TB[t]/TTau[t];
+  
+    double *C=pf_cons1->get_C(), *TG=d.T_G.data();
+    for(int t=0; t<pf_cons1->n; t++) 
+      C[t] = -TG[t]/TTau[t];
+  
+    double *T=pf_cons1->get_T(), *TTheta=d.T_Theta.data();
+    for(int t=0; t<pf_cons1->n; t++) T[t] = -TTheta[t];
+  
+    // i=2 addpowerflowcon!(m, q_ti[t,2], v_n[T_Nidx[t,2]], v_n[T_Nidx[t,1]],
+    //		theta_n[T_Nidx[t,2]], theta_n[T_Nidx[t,1]],
+    //		-T[:B][t], T[:B][t]/T[:Tau][t], -T[:G][t]/T[:Tau][t], T[:Theta][t])
+    auto pf_cons2 = new PFConRectangular(con_name("q_ti2_powerflow",d), d.T_Transformer.size(), 
+					 q_ti2, v_n, theta_n,
+					 d.T_Nidx[1], d.T_Nidx[0]);
+  
+    A=pf_cons2->get_A();
+    for(int i=0; i<pf_cons2->n; i++) A[i]=-TB[i];
+    DCOPY(&(pf_cons2->n), pf_cons1->get_B(), &ione, pf_cons2->get_B(), &ione);
+    DCOPY(&(pf_cons2->n), pf_cons1->get_C(), &ione, pf_cons2->get_C(), &ione);
+    DCOPY(&(pf_cons2->n), TTheta, &ione, pf_cons2->get_T(), &ione);
+
+    //vector<double> vv(pf_cons2->get_B(), pf_cons2->get_B()+pf_cons2->n);
+    //printvec(vv, "	T[:B] ./ T[:Tau]");
+
+    append_constraints(pf_cons1);
+    append_constraints(pf_cons2);
+    pf_cons1->compute_power(q_ti1); q_ti1->providesStartingPoint=true;
+    pf_cons2->compute_power(q_ti2); q_ti2->providesStartingPoint=true;
+  }
 }
 
 void ACOPFProblem::add_cons_active_powbal(SCACOPFData& d)
@@ -741,9 +763,10 @@ void ACOPFProblem::add_cons_thermal_ti_lims(SCACOPFData& d, bool SysCond_BaseCas
 {
   //! temp
   bool useQPenTi1=useQPen, useQPenTi2=useQPen; //double slacks_scale=1.;
-  auto p_ti1 = variable("p_ti1", d), q_ti1 = variable("q_ti1", d);
+  
   vector<double>& T_Rate = SysCond_BaseCase ? d.T_RateBase : d.T_RateEmer;
   if(true){
+    auto p_ti1 = variable("p_ti1", d), q_ti1 = variable("q_ti1", d);
     auto pf_trans_lim1 = new PFTransfLimits(con_name("trans_limits1",d), d.T_Transformer.size(),
 					    p_ti1, q_ti1, 
 					    T_Rate, slacks_scale);
@@ -754,23 +777,24 @@ void ACOPFProblem::add_cons_thermal_ti_lims(SCACOPFData& d, bool SysCond_BaseCas
 
     if(useQPenTi1) {
       append_objterm( new PFPenaltyQuadrApproxObjTerm("quadr_pen_" + sslack_ti1->id,
-						      sslack_ti1,
-						      d.P_Penalties[SCACOPFData::pS], 
-						      d.P_Quantities[SCACOPFData::pS], 
-						      d.PenaltyWeight, slacks_scale) );
+    						      sslack_ti1,
+    						      d.P_Penalties[SCACOPFData::pS], 
+    						      d.P_Quantities[SCACOPFData::pS], 
+    						      d.PenaltyWeight, slacks_scale) );
     } else {
       PFPenaltyAffineCons* cons_ti1_pen = 
-	new PFPenaltyAffineCons(string("pcwslin_cons_") + sslack_ti1->id, sslack_ti1->n, sslack_ti1, 
-				d.P_Penalties[SCACOPFData::pS], d.P_Quantities[SCACOPFData::pS],
-				d.PenaltyWeight, slacks_scale);
+    	new PFPenaltyAffineCons(string("pcwslin_cons_") + sslack_ti1->id, sslack_ti1->n, sslack_ti1, 
+    				d.P_Penalties[SCACOPFData::pS], d.P_Quantities[SCACOPFData::pS],
+    				d.PenaltyWeight, slacks_scale);
       append_constraints(cons_ti1_pen);
 	
       OptVariablesBlock* sigma = cons_ti1_pen->get_sigma();
       cons_ti1_pen->compute_sigma(sigma); sigma->providesStartingPoint=true;
     }
   }
-  auto p_ti2 = variable("p_ti2", d), q_ti2 = variable("q_ti2", d);
+  
   if(true){
+    auto p_ti2 = variable("p_ti2", d), q_ti2 = variable("q_ti2", d);
     auto pf_trans_lim2 = new PFTransfLimits(con_name("trans_limits2",d), d.T_Transformer.size(),
 					    p_ti2, q_ti2,
 					    T_Rate, slacks_scale);
@@ -778,23 +802,21 @@ void ACOPFProblem::add_cons_thermal_ti_lims(SCACOPFData& d, bool SysCond_BaseCas
     //sslack_ti2
     OptVariablesBlock* sslack_ti2 = pf_trans_lim2->slacks();
 
-    //! append_variables(sslack_ti2);
-
     pf_trans_lim2->compute_slacks(sslack_ti2); sslack_ti2->providesStartingPoint=true;
 
     if(useQPenTi2) {
-        append_objterm( new PFPenaltyQuadrApproxObjTerm2("quadr_pen_" + sslack_ti2->id,
+        append_objterm( new PFPenaltyQuadrApproxObjTerm("quadr_pen_" + sslack_ti2->id,
          						      sslack_ti2,
          						      d.P_Penalties[SCACOPFData::pS], 
          						      d.P_Quantities[SCACOPFData::pS], 
          						      d.PenaltyWeight, slacks_scale) );
-	//append_objterm( new DummySingleVarQuadrObjTerm("QDu_pen_" + sslack_ti2->id, sslack_ti2));
-	//append_objterm( new DummySingleVarQuadrObjTerm("QDu_pen2_" + sslack_ti2->id, sslack_ti2));
+    	//append_objterm( new DummySingleVarQuadrObjTerm("QDu_pen_" + sslack_ti2->id, sslack_ti2));
+    	//append_objterm( new DummySingleVarQuadrObjTerm("QDu_pen2_" + sslack_ti2->id, sslack_ti2));
     } else {
       PFPenaltyAffineCons* cons_ti2_pen = 
-	new PFPenaltyAffineCons(string("pcwslin_cons_") + sslack_ti2->id, sslack_ti2->n, sslack_ti2, 
-				d.P_Penalties[SCACOPFData::pS], d.P_Quantities[SCACOPFData::pS],
-				d.PenaltyWeight, slacks_scale);
+    	new PFPenaltyAffineCons(string("pcwslin_cons_") + sslack_ti2->id, sslack_ti2->n, sslack_ti2, 
+    				d.P_Penalties[SCACOPFData::pS], d.P_Quantities[SCACOPFData::pS],
+    				d.PenaltyWeight, slacks_scale);
       append_constraints(cons_ti2_pen);
 	
       OptVariablesBlock* sigma = cons_ti2_pen->get_sigma();
@@ -961,4 +983,31 @@ void ACOPFProblem::print_PVPQ_info(SCACOPFData& dB)
 
 }
 
+  void ACOPFProblem::print_Transf_powers(SCACOPFData& dB, bool SysCond_BaseCase)
+{
+  auto p_ti1 = variable("p_ti1", dB),  p_ti2 = variable("p_ti2", dB);
+  auto q_ti1 = variable("q_ti1", dB),  q_ti2 = variable("q_ti2", dB);
+  vector<double>& T_Rate = SysCond_BaseCase ? dB.T_RateBase : dB.T_RateEmer;
+  assert(T_Rate.size() == p_ti1->n);
+  assert(T_Rate.size() == p_ti2->n);
+  assert(T_Rate.size() == q_ti1->n);
+  assert(T_Rate.size() == q_ti2->n);
+  assert(T_Rate.size() == dB.T_Transformer.size());
+  
+
+  printf("   #    ID     pti1        pti2         qt1         qt2       rate\n");
+  for(int t=0; t<dB.T_Transformer.size(); t++) {
+
+    double aux;
+    aux = p_ti1->x[t]*p_ti1->x[t] + q_ti1->x[t]*q_ti1->x[t];
+    aux = sqrt(aux);
+
+    printf("%4d %4d %12.5e %12.5e %12.5e %12.5e %12.5e\n",
+	   t, dB.T_Transformer[t],
+	   p_ti1->x[t], p_ti2->x[t], q_ti1->x[t], q_ti2->x[t], 
+	   T_Rate[t]);
+	   
+  }
+
+}
 } //end namespace

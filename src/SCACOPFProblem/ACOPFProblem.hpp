@@ -14,7 +14,9 @@ namespace gollnlp {
   class ACOPFProblem : public OptProblem
   {
   public:
-    ACOPFProblem(SCACOPFData& d_in) : data_sc(d_in), useQPen(false), slacks_scale(1.) {}
+    ACOPFProblem(SCACOPFData& d_in) 
+      : data_sc(d_in), 
+	useQPen(false), slacks_scale(1.),  PVPQSmoothing(0.01), AGCSmoothing(0.01){}
     virtual ~ACOPFProblem();
     OptProblem opt_prob;
     
@@ -49,7 +51,7 @@ namespace gollnlp {
     //options
     bool useQPen;
     double slacks_scale;
-
+    double AGCSmoothing, PVPQSmoothing;
   protected:
     //variables and constraints accessers
     inline std::string var_name(const std::string& prefix, const SCACOPFData& d) { 
@@ -65,6 +67,7 @@ namespace gollnlp {
     void print_p_g(SCACOPFData& dB);
     void print_p_g_with_coupling_info(SCACOPFData& dB);
     void print_PVPQ_info(SCACOPFData& dB);
+    void print_Transf_powers(SCACOPFData& dB, bool SysCond_BaseCase = true);
   };
 
 }

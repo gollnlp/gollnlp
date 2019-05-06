@@ -1,11 +1,9 @@
 #include "go_code1.hpp"
-
+#include <string>
 #include <iostream>
 
 int main(int argc, char *argv[])
 {
-
-  
   if(argc==8) {
     std::cout << "MyExe1 - v. April 12, 2019" << std::endl;
     double timeLimit = atof(argv[5]);
@@ -23,32 +21,58 @@ int main(int argc, char *argv[])
     return myexe1_function(argv[1], argv[2], argv[3], argv[4], 
 			   timeLimit, scoringMethod, argv[7]);
   } else {
-    // std::cout << argv[0] << " did not receive the correct number of parameters. Will exit.\n";
+    std::string root, net, scen, name;
+
+    std::cout << argv[0] << " did not receive the correct number of parameters. Will exit.\n";
+
+    
+    name = "Network_01O-10/";
+    root = "../../goinstances/challenge1/Original_Dataset_1-4/Original_Dataset_Offline_Edition_1/";
+    net = name + "/";
+    scen = "scenario_9/";
+    root = root+net;
+    return myexe1_function(root+scen+"case.raw",  root+"case.rop", root+"case.inl", root+scen+"case.con", 
+    			   2700.,  2, name);
+
+
+    name = "Network_03O-10/";
+    root = "../../goinstances/challenge1/Original_Dataset_1-4/Original_Dataset_Offline_Edition_1/";
+    net = name + "/";
+    scen = "scenario_9/";
+    root = root+net;
+    //return myexe1_function(root+scen+"case.raw",  root+"case.rop", root+"case.inl", root+scen+"case.con", 
+    //			   2700.,  2, name);
+
+
+    root = "../../goinstances/challenge1/Original_Dataset_1-4/Original_Dataset_Real-Time_Edition_1/";
+    name = "Network_07R-10";
+    net = name + "/";
+    scen = "scenario_9/";
+    root = root+net; 
+    //return myexe1_function(root+scen+"case.raw",  root+"case.rop", root+"case.inl", root+scen+"case.con", 
+    //			   2700.,  2, name);
+
+    name = "Network_07O-10/";
+    root = "../../goinstances/challenge1/Original_Dataset_1-4/Original_Dataset_Offline_Edition_1/";
+    net = name + "/";
+    scen = "scenario_9/";
+    root = root+net;
+    return myexe1_function(root+scen+"case.raw",  root+"case.rop", root+"case.inl", root+scen+"case.con", 
+    			   2700.,  2, name);
     // return 
-    //  myexe1_function("../../goinstances/challenge1/Original_Dataset_1-4/Original_Dataset_Offline_Edition_1/Network_01O-10/scenario_9/case.raw",  
-    //  		    "../../goinstances/challenge1/Original_Dataset_1-4/Original_Dataset_Offline_Edition_1/Network_01O-10/case.rop", 
-    //  		    "../../goinstances/challenge1/Original_Dataset_1-4/Original_Dataset_Offline_Edition_1/Network_01O-10/case.inl",
-    //  		    "../../goinstances/challenge1/Original_Dataset_1-4/Original_Dataset_Offline_Edition_1/Network_01O-10/scenario_9/case.con", 2700.,  2, "Network_01");
+    //   myexe1_function("../../goinstances/challenge1/Original_Dataset_1-4/Original_Dataset_Offline_Edition_1/Network_07O-10/scenario_9/case.raw",  
+    // 		      "../../goinstances/challenge1/Original_Dataset_1-4/Original_Dataset_Offline_Edition_1/Network_07O-10/case.rop", 
+    // 		      "../../goinstances/challenge1/Original_Dataset_1-4/Original_Dataset_Offline_Edition_1/Network_07O-10/case.inl",
+    // 		      "../../goinstances/challenge1/Original_Dataset_1-4/Original_Dataset_Offline_Edition_1/Network_07O-10/scenario_9/case.con", 
+    // 		      2700.,  2, "Network_03");
 
-
-
-    // return 
-    //  myexe1_function("../../goinstances/challenge1/Original_Dataset_1-4/Original_Dataset_Offline_Edition_1/Network_03O-10/scenario_9/case.raw",  
-    //  		    "../../goinstances/challenge1/Original_Dataset_1-4/Original_Dataset_Offline_Edition_1/Network_03O-10/case.rop", 
-    //  		    "../../goinstances/challenge1/Original_Dataset_1-4/Original_Dataset_Offline_Edition_1/Network_03O-10/case.inl",
-    //  		    "../../goinstances/challenge1/Original_Dataset_1-4/Original_Dataset_Offline_Edition_1/Network_03O-10/scenario_9/case.con", 2700.,  2, "Network_03");
-
-    return 
-      myexe1_function("../../goinstances/challenge1/Original_Dataset_1-4/Original_Dataset_Offline_Edition_1/Network_07O-10/scenario_9/case.raw",  
-		      "../../goinstances/challenge1/Original_Dataset_1-4/Original_Dataset_Offline_Edition_1/Network_07O-10/case.rop", 
-		      "../../goinstances/challenge1/Original_Dataset_1-4/Original_Dataset_Offline_Edition_1/Network_07O-10/case.inl",
-		      "../../goinstances/challenge1/Original_Dataset_1-4/Original_Dataset_Offline_Edition_1/Network_07O-10/scenario_9/case.con", 
-		      2700.,  2, "Network_03");
-
-  return myexe1_function("../../goinstances/challenge1/Original_Dataset_1-4/Original_Dataset_Offline_Edition_1/Network_10O-10/scenario_9/case.raw",  
-		    "../../goinstances/challenge1/Original_Dataset_1-4/Original_Dataset_Offline_Edition_1/Network_10O-10/case.rop", 
-		    "../../goinstances/challenge1/Original_Dataset_1-4/Original_Dataset_Offline_Edition_1/Network_10O-10/scenario_9/case.inl",
-		    "../../goinstances/challenge1/Original_Dataset_1-4/Original_Dataset_Offline_Edition_1/Network_10O-10/scenario_9/case.con", 2700.,  2, "Network_03");
+    root = "../../goinstances/challenge1/Original_Dataset_1-4/Original_Dataset_Offline_Edition_1/";
+    name = "Network_10O-10/";
+    net = name + "/";
+    scen = "scenario_9/";
+    root = root+net;
+    return myexe1_function(root+scen+"case.raw",  root+"case.rop", root+scen+"case.inl", root+scen+"case.con", 
+			   2700.,  2, name);
   }
   return 0;
 }
