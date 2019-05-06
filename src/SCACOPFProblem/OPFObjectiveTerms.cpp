@@ -142,8 +142,14 @@ PFPenaltyQuadrApproxObjTerm(const std::string& id_,
   double aux = S1+S2; 
   a = ((((P2-P1)*f)/aux)*f)/aux;
   b = P1*f;
+  //!
+  //b=0;a=1;
+  printf("a=%g b=%g weight=%g\n", a, b, weight);
 }
-PFPenaltyQuadrApproxObjTerm::~PFPenaltyQuadrApproxObjTerm() {}
+PFPenaltyQuadrApproxObjTerm::~PFPenaltyQuadrApproxObjTerm() 
+{
+  delete[] H_nz_idxs;
+}
 
 //a*x^2+b*x
 bool PFPenaltyQuadrApproxObjTerm::eval_f(const OptVariables& vars_primal, bool new_x, double& obj_val)
@@ -153,9 +159,14 @@ bool PFPenaltyQuadrApproxObjTerm::eval_f(const OptVariables& vars_primal, bool n
     aux += x->xref[i] * x->xref[i];
   obj_val += a*aux;
 
+  assert(aux>=0);
+
   aux = 0.; 
   for(int i=0; i<x->n; i++)
     aux += x->xref[i];
+
+  assert(aux>=0);
+
   obj_val += b*aux;
 
   return true;
@@ -166,7 +177,7 @@ bool PFPenaltyQuadrApproxObjTerm::eval_grad(const OptVariables& vars_primal, boo
   double* g = grad+x->index;
   // += 2*a*x
   aux = 2*a;
-  assert(aux>0);
+  //assert(aux>0);
   DAXPY(&(x->n), &aux, const_cast<double*>(x->xref), &ione, g, &ione);
 
   for(int i=0; i<x->n; i++)
@@ -189,12 +200,12 @@ eval_HessLagr(const OptVariables& vars_primal, bool new_x,
       i[idx] = j[idx] = x->index+it;
     }
   } else {
-       aux = 2*a*obj_factor;
-       for(int it=0; it<x->n; it++) {
-	 assert(H_nz_idxs[it]>=0);
-	 assert(H_nz_idxs[it]<nnz);
-	 M[H_nz_idxs[it]] += aux;
-       }
+    aux = 2*a*obj_factor;
+    for(int it=0; it<x->n; it++) {
+      assert(H_nz_idxs[it]>=0);
+      assert(H_nz_idxs[it]<nnz);
+      M[H_nz_idxs[it]] += aux;
+    }
   }
   return true;
 }
@@ -203,6 +214,120 @@ int PFPenaltyQuadrApproxObjTerm::get_HessLagr_nnz() { return x->n; }
 
 // (i,j) entries in the HessLagr to which this term contributes to
 bool PFPenaltyQuadrApproxObjTerm::get_HessLagr_ij(std::vector<OptSparseEntry>& vij)
+{
+  if(NULL==H_nz_idxs)
+    H_nz_idxs = new int[x->n];
+  
+  int i;
+  for(int it=0; it < x->n; it++) {
+    i = x->index+it;
+    vij.push_back(OptSparseEntry(i,i, H_nz_idxs+it));
+  }
+  return true;
+}
+  ////////////////////////////////////////////////////////////////////////////////////////////////
+PFPenaltyQuadrApproxObjTerm2::
+PFPenaltyQuadrApproxObjTerm2(const std::string& id_, 
+			    OptVariablesBlock* slacks_,
+			    const std::vector<double>& pen_coeff,
+			    const std::vector<double>& pen_segm,
+			    const double& obj_weight,
+			    const double& slacks_rescale)
+  : OptObjectiveTerm(id_), x(slacks_), weight(obj_weight), H_nz_idxs(NULL), aux(0)
+{
+  assert(pen_coeff.size()==3);
+  assert(pen_segm.size()==3);
+  double P1, P2, S1, S2;
+  assert(weight>=0 && weight<=1);
+  if(weight>0) {
+    P1 = pen_coeff[0]*weight; P2 = pen_coeff[1]*weight; //P3 = pen_coeff[2]*weight; 
+  } else {
+    P1 = pen_coeff[0]; P2 = pen_coeff[1]; //P3 = pen_coeff[2]; 
+  }
+  S1=pen_segm[0]; S2=pen_segm[1]; //S3=pen_segm[2];
+
+  assert(slacks_rescale>0);
+
+  //f is usually 1/256 or 1/512
+  f = slacks_rescale>0 ? 1/slacks_rescale : 1.;
+  //double rescale = slacks_rescale>0 ? slacks_rescale : 1.;
+
+  //a = (P2-P1)*S2/((S1+S2)*(S1+S2));
+  double aux = S1+S2; 
+  a = ((((P2-P1)*f)/aux)*f)/aux;
+  b = P1*f;
+  //!
+  //a=0.; b=1e8;
+  printf("{test} a=%g b=%g weight=%g\n", a, b, weight);
+}
+PFPenaltyQuadrApproxObjTerm2::~PFPenaltyQuadrApproxObjTerm2() 
+{
+  delete[] H_nz_idxs;
+}
+
+//a*x^2+b*x
+bool PFPenaltyQuadrApproxObjTerm2::eval_f(const OptVariables& vars_primal, bool new_x, double& obj_val)
+{
+  aux = 0.;
+  for(int i=0; i<x->n; i++) 
+    aux += x->xref[i] * x->xref[i];
+  obj_val += a*aux;
+
+  assert(aux>=0);
+
+  aux = 0.; 
+  for(int i=0; i<x->n; i++)
+    aux += x->xref[i];
+
+  assert(aux>=0);
+
+  obj_val += b*aux;
+
+  return true;
+}
+
+bool PFPenaltyQuadrApproxObjTerm2::eval_grad(const OptVariables& vars_primal, bool new_x, double* grad)
+{
+  double* g = grad+x->index;
+  // += 2*a*x
+  aux = 2*a;
+  //assert(aux>0);
+  DAXPY(&(x->n), &aux, const_cast<double*>(x->xref), &ione, g, &ione);
+
+  for(int i=0; i<x->n; i++)
+    g[i] += b;
+    
+  return true;
+}
+
+bool PFPenaltyQuadrApproxObjTerm2::
+eval_HessLagr(const OptVariables& vars_primal, bool new_x, 
+	      const double& obj_factor,
+	      const int& nnz, int* i, int* j, double* M)
+{
+  if(NULL==M) {
+    int idx;
+    for(int it=0; it<x->n; it++) {
+      idx = H_nz_idxs[it]; 
+      assert(idx>=0);
+      //if(idx<0) return false;
+      i[idx] = j[idx] = x->index+it;
+    }
+  } else {
+    aux = 2*a*obj_factor;
+    for(int it=0; it<x->n; it++) {
+      assert(H_nz_idxs[it]>=0);
+      assert(H_nz_idxs[it]<nnz);
+      M[H_nz_idxs[it]] += aux;
+    }
+  }
+  return true;
+}
+
+int PFPenaltyQuadrApproxObjTerm2::get_HessLagr_nnz() { return x->n; }
+
+// (i,j) entries in the HessLagr to which this term contributes to
+bool PFPenaltyQuadrApproxObjTerm2::get_HessLagr_ij(std::vector<OptSparseEntry>& vij)
 {
   if(NULL==H_nz_idxs)
     H_nz_idxs = new int[x->n];

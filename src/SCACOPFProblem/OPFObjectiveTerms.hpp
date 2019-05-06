@@ -108,14 +108,42 @@ namespace gollnlp {
     int *H_nz_idxs;
     double aux;
   };
+  class PFPenaltyQuadrApproxObjTerm2 : public OptObjectiveTerm {
+  public: 
+    //Gidx contains the indexes (in d.G_Generator) of the generator participating
+    PFPenaltyQuadrApproxObjTerm2(const std::string& id_, 
+				OptVariablesBlock* slacks_,
+				const std::vector<double>& pen_coeff,
+				const std::vector<double>& pen_segm,
+				const double& obj_weight,
+				const double& slacks_rescale=1.);
+    virtual ~PFPenaltyQuadrApproxObjTerm2();
+    virtual bool eval_f(const OptVariables& vars_primal, bool new_x, double& obj_val);
+    virtual bool eval_grad(const OptVariables& vars_primal, bool new_x, double* grad);
 
+    virtual bool eval_HessLagr(const OptVariables& vars_primal, bool new_x, 
+			       const double& obj_factor,
+			       const int& nnz, int* i, int* j, double* M);
+
+    virtual int get_HessLagr_nnz();
+    // (i,j) entries in the HessLagr to which this term contributes to
+    virtual bool get_HessLagr_ij(std::vector<OptSparseEntry>& vij);
+  private:
+    std::string id;
+    OptVariablesBlock* x;
+    double a,b;
+    double weight, f;
+    //keep the index for each nonzero elem in the Hessian that this constraints block contributes to
+    int *H_nz_idxs;
+    double aux;
+  };
 
   //for 0.5||x||^2 -> to be used in testing
   class DummySingleVarQuadrObjTerm : public OptObjectiveTerm {
   public: 
     DummySingleVarQuadrObjTerm(const std::string& id, OptVariablesBlock* x_) 
       : OptObjectiveTerm(id), x(x_), H_nz_idxs(NULL)
-    {assert(false);};
+    {};
 
     virtual ~DummySingleVarQuadrObjTerm() 
     {
@@ -127,7 +155,7 @@ namespace gollnlp {
     {
       int nvars = x->n; double aux;
       for(int it=0; it<nvars; it++) {
-	aux = x->xref[it] - 1.;
+	aux = x->xref[it]-1;
 	obj_val += aux * aux * 0.5;
       }
       return true;
@@ -136,7 +164,7 @@ namespace gollnlp {
     {
       double* g = grad + x->index;
       for(int it=0; it<x->n; it++) 
-	g[it] += x->xref[it] - 1.;
+	g[it] += x->xref[it]-1;
       return true;
     }
     virtual bool eval_HessLagr(const OptVariables& vars_primal, bool new_x, 
