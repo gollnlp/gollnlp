@@ -1,5 +1,5 @@
-#ifndef ACOPF_PROBLEM
-#define ACOPF_PROBLEM
+#ifndef SCACOPF_PROBLEM
+#define SCACOPF_PROBLEM
 
 #include "OptProblem.hpp"
 
@@ -11,13 +11,13 @@
 
 namespace gollnlp {
   
-  class ACOPFProblem : public OptProblem
+  class SCACOPFProblem : public OptProblem
   {
   public:
-    ACOPFProblem(SCACOPFData& d_in) 
+    SCACOPFProblem(SCACOPFData& d_in) 
       : data_sc(d_in), 
 	useQPen(false), slacks_scale(1.),  PVPQSmoothing(0.01), AGCSmoothing(0.01){}
-    virtual ~ACOPFProblem();
+    virtual ~SCACOPFProblem();
     OptProblem opt_prob;
     
     virtual bool default_assembly();

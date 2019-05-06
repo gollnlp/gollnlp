@@ -1,4 +1,4 @@
-#include "ACOPFProblem.hpp"
+#include "SCACOPFProblem.hpp"
 
 #include "OPFConstraints.hpp"
 #include "CouplingConstraints.hpp"
@@ -13,13 +13,13 @@ using namespace std;
 
 namespace gollnlp {
 
-ACOPFProblem::~ACOPFProblem()
+SCACOPFProblem::~SCACOPFProblem()
 {
   for(auto d: data_K)
     delete d;
 }
 
-bool ACOPFProblem::default_assembly()
+bool SCACOPFProblem::default_assembly()
 {
   useQPen = true;
   slacks_scale = 1.;
@@ -114,7 +114,7 @@ bool ACOPFProblem::default_assembly()
 
   return true;
 }
-void ACOPFProblem::add_cons_coupling(SCACOPFData& dB)
+void SCACOPFProblem::add_cons_coupling(SCACOPFData& dB)
 {
   int K_id = dB.K_Contingency[0];
 
@@ -132,7 +132,7 @@ void ACOPFProblem::add_cons_coupling(SCACOPFData& dB)
 
 // Gk are the indexes of all gens other than the outgen (for generator contingencies) 
 // in data_sc.G_Generator
-void ACOPFProblem::add_cons_PVPQ(SCACOPFData& dB, const std::vector<int>& Gk)
+void SCACOPFProblem::add_cons_PVPQ(SCACOPFData& dB, const std::vector<int>& Gk)
 {
   auto G_Nidx_Gk = selectfrom(data_sc.G_Nidx, Gk);
   //extra check
@@ -245,7 +245,7 @@ void ACOPFProblem::add_cons_PVPQ(SCACOPFData& dB, const std::vector<int>& Gk)
 	 num_qgens_fixed, num_buses_all_qgen_fixed);
 }
 
-void ACOPFProblem::add_cons_nonanticip(SCACOPFData& dB, const std::vector<int>& G_idxs_no_AGC)
+void SCACOPFProblem::add_cons_nonanticip(SCACOPFData& dB, const std::vector<int>& G_idxs_no_AGC)
 {
   if(G_idxs_no_AGC.size()>0) {
 
@@ -280,7 +280,7 @@ void ACOPFProblem::add_cons_nonanticip(SCACOPFData& dB, const std::vector<int>& 
   printf("AGC: %d gens NOT participating: added one nonanticip constraint for each\n", G_idxs_no_AGC.size());
 }
 
-void ACOPFProblem::add_cons_AGC(SCACOPFData& dB, const std::vector<int>& G_idxs_AGC)
+void SCACOPFProblem::add_cons_AGC(SCACOPFData& dB, const std::vector<int>& G_idxs_AGC)
 {
   if(G_idxs_AGC.size()==0) {
     printf("AGC: NO gens participating !?! in contingency %d\n", dB.id);
@@ -338,7 +338,7 @@ void ACOPFProblem::add_cons_AGC(SCACOPFData& dB, const std::vector<int>& G_idxs_
   printf("AGC: %d gens participating: added %d constraints\n", G_idxs_AGC.size(), cons->n);
 }
   
-void ACOPFProblem::add_variables(SCACOPFData& d)
+void SCACOPFProblem::add_variables(SCACOPFData& d)
 {
 
   auto v_n = new OptVariablesBlock(data_sc.N_Bus.size(), var_name("v_n",d), 
@@ -420,7 +420,7 @@ void ACOPFProblem::add_variables(SCACOPFData& d)
 
 }
 
-void ACOPFProblem::add_cons_lines_pf(SCACOPFData& d)
+void SCACOPFProblem::add_cons_lines_pf(SCACOPFData& d)
 {
   auto p_li1 = variable("p_li1",d), p_li2 = variable("p_li2",d);
   auto v_n = variable("v_n",d), theta_n = variable("theta_n",d);
@@ -501,7 +501,7 @@ void ACOPFProblem::add_cons_lines_pf(SCACOPFData& d)
   pf_cons1->compute_power(q_li1); q_li1->providesStartingPoint=true;
   pf_cons2->compute_power(q_li2); q_li2->providesStartingPoint=true;
 }
-void ACOPFProblem::add_cons_transformers_pf(SCACOPFData& d)
+void SCACOPFProblem::add_cons_transformers_pf(SCACOPFData& d)
 {
   auto v_n = variable("v_n",d), theta_n = variable("theta_n",d);
   {
@@ -603,7 +603,7 @@ void ACOPFProblem::add_cons_transformers_pf(SCACOPFData& d)
   }
 }
 
-void ACOPFProblem::add_cons_active_powbal(SCACOPFData& d)
+void SCACOPFProblem::add_cons_active_powbal(SCACOPFData& d)
 {
   //!temp 
   bool useQPenActiveBalance = useQPen; //double slacks_scale=1.;
@@ -644,7 +644,7 @@ void ACOPFProblem::add_cons_active_powbal(SCACOPFData& d)
   }
 }
 
-void ACOPFProblem::add_cons_reactive_powbal(SCACOPFData& d)
+void SCACOPFProblem::add_cons_reactive_powbal(SCACOPFData& d)
 {
   //!temp 
   bool useQPenReactiveBalance = useQPen; //double slacks_scale=1.;
@@ -689,7 +689,7 @@ void ACOPFProblem::add_cons_reactive_powbal(SCACOPFData& d)
 //
 //thermal line limits
 //
-void ACOPFProblem::add_cons_thermal_li_lims(SCACOPFData& d, bool SysCond_BaseCase)
+void SCACOPFProblem::add_cons_thermal_li_lims(SCACOPFData& d, bool SysCond_BaseCase)
 {
   //! temp
   bool useQPenLi1 = useQPen, useQPenLi2 = useQPen; //double slacks_scale=1.;
@@ -759,7 +759,7 @@ void ACOPFProblem::add_cons_thermal_li_lims(SCACOPFData& d, bool SysCond_BaseCas
 //
 //thermal transformer limits
 //
-void ACOPFProblem::add_cons_thermal_ti_lims(SCACOPFData& d, bool SysCond_BaseCase)
+void SCACOPFProblem::add_cons_thermal_ti_lims(SCACOPFData& d, bool SysCond_BaseCase)
 {
   //! temp
   bool useQPenTi1=useQPen, useQPenTi2=useQPen; //double slacks_scale=1.;
@@ -825,7 +825,7 @@ void ACOPFProblem::add_cons_thermal_ti_lims(SCACOPFData& d, bool SysCond_BaseCas
   }
 }
 
-void ACOPFProblem::add_obj_prod_cost(SCACOPFData& d)
+void SCACOPFProblem::add_obj_prod_cost(SCACOPFData& d)
 {
   //piecewise linear objective and corresponding constraints
   //all active generators
@@ -842,7 +842,7 @@ void ACOPFProblem::add_obj_prod_cost(SCACOPFData& d)
   prod_cost_cons->compute_t_h(t_h); t_h->providesStartingPoint = true;
 }
 
-void ACOPFProblem::print_p_g(SCACOPFData& dB)
+void SCACOPFProblem::print_p_g(SCACOPFData& dB)
 {
   auto p_g = variable("p_g", dB);
 
@@ -852,7 +852,7 @@ void ACOPFProblem::print_p_g(SCACOPFData& dB)
     printf("[%4d] [%4d] %12.5e  %12.5e %12.5e\n", i, dB.G_Generator[i]+1, p_g->x[i], dB.G_Plb[i], dB.G_Pub[i]);
   }
 }
-void ACOPFProblem::print_p_g_with_coupling_info(SCACOPFData& dB)
+void SCACOPFProblem::print_p_g_with_coupling_info(SCACOPFData& dB)
 {
   auto p_gk = variable("p_g", dB);
   auto p_g  = variable("p_g", data_sc);
@@ -884,7 +884,7 @@ void ACOPFProblem::print_p_g_with_coupling_info(SCACOPFData& dB)
   }
 }
 
-void ACOPFProblem::print_PVPQ_info(SCACOPFData& dB)
+void SCACOPFProblem::print_PVPQ_info(SCACOPFData& dB)
 {
   //indexes in data_sc.G_Generator
   vector<int> Gk, Gkp, Gknop;
@@ -983,7 +983,7 @@ void ACOPFProblem::print_PVPQ_info(SCACOPFData& dB)
 
 }
 
-  void ACOPFProblem::print_Transf_powers(SCACOPFData& dB, bool SysCond_BaseCase)
+void SCACOPFProblem::print_Transf_powers(SCACOPFData& dB, bool SysCond_BaseCase)
 {
   auto p_ti1 = variable("p_ti1", dB),  p_ti2 = variable("p_ti2", dB);
   auto q_ti1 = variable("q_ti1", dB),  q_ti2 = variable("q_ti2", dB);

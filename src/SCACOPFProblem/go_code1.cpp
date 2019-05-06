@@ -1,6 +1,6 @@
 #include "go_code1.hpp"
 
-#include "ACOPFProblem.hpp"
+#include "SCACOPFProblem.hpp"
 #include "goTimer.hpp"
 
 using namespace std;
@@ -17,7 +17,7 @@ int myexe1_function(const std::string& InFile1, const std::string& InFile2,
   SCACOPFData d;
   d.readinstance(InFile1, InFile2, InFile3, InFile4);
 
-  ACOPFProblem ac_prob(d);
+  SCACOPFProblem ac_prob(d);
   ac_prob.default_assembly();
 
   ttot.stop();
