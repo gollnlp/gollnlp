@@ -408,8 +408,8 @@ readinstance(const std::string& raw, const std::string& rop, const std::string& 
 	sgen_mod += to_string(G_BusUnitNum[g]) + "/" + to_string(G_Bus[g]) + " ";
       }
     }
-    if(sgen_inf.size()>0) cout << "generators with infeasible starting points: " << sgen_inf << endl;
-    if(sgen_mod.size()>0) cout << "generators with with inconsistent cost functions: " << sgen_mod << endl;
+    if(sgen_inf.size()>0) cout << "SCACOPFData: generators with infeasible starting points: " << sgen_inf << endl;
+    if(sgen_mod.size()>0) cout << "SCACOPFData: generators with with inconsistent cost functions: " << sgen_mod << endl;
 
     //printvecvec(G_CostPi, "Pi");
     //printvecvec(G_CostCi, "Ci");
@@ -524,6 +524,9 @@ readinstance(const std::string& raw, const std::string& rop, const std::string& 
   P_Penalties[pP] = {1E3*MVAbase, 5E3*MVAbase, 1E6*MVAbase};
   P_Penalties[pQ] = {1E3*MVAbase, 5E3*MVAbase, 1E6*MVAbase};
   P_Penalties[pS] = {1E3*MVAbase, 5E3*MVAbase, 1E6*MVAbase};
+  // P_Penalties[pP] = {1E0*MVAbase, 5E0*MVAbase, 1E1*MVAbase};
+  // P_Penalties[pQ] = {1E0*MVAbase, 5E0*MVAbase, 1E1*MVAbase};
+  // P_Penalties[pS] = {1E0*MVAbase, 5E0*MVAbase, 1E1*MVAbase};
 
 
   buildindexsets();

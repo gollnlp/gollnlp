@@ -12,8 +12,6 @@ using namespace std;
 
 namespace gollnlp {
 
-static int one=1;
-
 static void printnnz(int nnz, int* i, int*j, double* M=NULL)
 {
   std::cout << "matrix with " << nnz << " nnz." << std::endl;
@@ -82,9 +80,15 @@ bool OptProblem::eval_gradobj (const double* x, bool new_x, double* grad)
   for(int i=0; i<vars_primal->n(); i++) grad[i]=0.;
 
   if(new_x) vars_primal->attach_to(x);
-  for(auto& ot: obj->vterms)
+  for(auto& ot: obj->vterms) {
     if(!ot->eval_grad(*vars_primal, new_x, grad))
       return false;
+#ifdef DEBUG
+    //int nn=vars_primal->n();
+    //double nrm=DNRM2(&nn, grad, &ione);
+    //printf("Norm of grad: %g after eval grad of %s.\n", nrm, ot->id.c_str());
+#endif    
+  }
   return true;
 }
 
@@ -167,9 +171,15 @@ bool OptProblem::eval_Jaccons (const double* x, bool new_x, const int& nnz, int*
   for(int i=0; i<nnz; i++) M[i]=0.;
 
   if(new_x) vars_primal->attach_to(x);
-  for(auto& con: cons->vblocks)
+  for(auto& con: cons->vblocks) {
     if(!con->eval_Jac(*vars_primal, new_x, nnz, i,j,M))
       return false;
+#ifdef DEBUG
+    //double maxmag=0.;
+    //for(int ii=0; ii<nnz; ii++) if(fabs(M[ii]) > maxmag) maxmag=fabs(M[ii]);
+    //printf("Jacob entries max mag is %g after evaluating constraints %s.\n", maxmag, con->id.c_str());
+#endif    
+  }
   return true;
 }
 
@@ -253,7 +263,7 @@ bool OptProblem::eval_HessLagr(const double* x, bool new_x,
 void OptProblem::fill_primal_vars(double* x) 
 { 
   for(auto b: vars_primal->vblocks) {
-    DCOPY(&(b->n), b->x, &one, x + b->index, &one);
+    DCOPY(&(b->n), b->x, &ione, x + b->index, &ione);
   }
 }
 
@@ -270,14 +280,14 @@ void OptProblem::fill_vars_lower_bounds(double* lb)
 {
   
   for(auto b: vars_primal->vblocks) {
-    DCOPY(&(b->n), b->lb, &one, lb + b->index, &one);
+    DCOPY(&(b->n), b->lb, &ione, lb + b->index, &ione);
   }
 }
 void OptProblem::fill_vars_upper_bounds(double* ub)
 {
   
   for(auto b: vars_primal->vblocks) {
-    DCOPY(&(b->n), b->ub, &one, ub + b->index, &one);
+    DCOPY(&(b->n), b->ub, &ione, ub + b->index, &ione);
   }
 }
 void OptProblem::fill_cons_lower_bounds(double* lb)
@@ -286,13 +296,13 @@ void OptProblem::fill_cons_lower_bounds(double* lb)
   for(auto b: cons->vblocks) {
     assert(b->n>=0);
     assert(b->index>=0);
-    DCOPY(&(b->n), b->lb, &one, lb + b->index, &one);
+    DCOPY(&(b->n), b->lb, &ione, lb + b->index, &ione);
   }
 }
 void OptProblem::fill_cons_upper_bounds(double* ub)
 {
   for(auto b: cons->vblocks) {
-    DCOPY(&(b->n), b->ub, &one, ub + b->index, &one);
+    DCOPY(&(b->n), b->ub, &ione, ub + b->index, &ione);
   }
 }
 
@@ -421,7 +431,7 @@ bool OptProblem::fill_primal_start(double* x)
 {
   for(auto b: vars_primal->vblocks) {
     if(b->providesStartingPoint)
-      DCOPY(&(b->n), b->x, &one, x + b->index, &one);
+      DCOPY(&(b->n), b->x, &ione, x + b->index, &ione);
     else for(int i=b->index; i<b->n+b->index; i++) x[i]=0.; 
   }
   return true;
@@ -431,7 +441,7 @@ bool OptProblem::fill_dual_cons_start(double* lambda)
 {
   for(auto b: vars_duals_cons->vblocks) {
     if(b->providesStartingPoint)
-      DCOPY(&(b->n), b->x, &one, lambda + b->index, &one);
+      DCOPY(&(b->n), b->x, &ione, lambda + b->index, &ione);
     else for(int i=0; i<b->n; i++) lambda[i]=0.; 
   }
   return true;
@@ -581,13 +591,13 @@ OptVariablesBlock::OptVariablesBlock(const int& n_, const std::string& id_, doub
   int i;
   lb = new double[n];
   if(lb_)
-    DCOPY(&n, lb_, &one, lb, &one);
+    DCOPY(&n, lb_, &ione, lb, &ione);
   else
     for(i=0; i<n; i++) lb[i] = -1e+20;
 
   ub = new double[n];
   if(ub_)
-    DCOPY(&n, ub_, &one, ub, &one);
+    DCOPY(&n, ub_, &ione, ub, &ione);
   else
     for(i=0; i<n; i++) ub[i] = +1e+20;
 }
