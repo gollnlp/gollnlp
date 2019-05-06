@@ -64,6 +64,7 @@ namespace gollnlp {
     //printing
     void print_p_g(SCACOPFData& dB);
     void print_p_g_with_coupling_info(SCACOPFData& dB);
+    void print_PVPQ_info(SCACOPFData& dB);
   };
 
 }

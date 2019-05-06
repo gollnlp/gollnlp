@@ -4,6 +4,8 @@
 #include "CouplingConstraints.hpp"
 #include "OPFObjectiveTerms.hpp"
 
+#include "OptObjTerms.hpp"
+
 #include <numeric>
 #include <typeinfo> 
 
@@ -19,8 +21,8 @@ ACOPFProblem::~ACOPFProblem()
 
 bool ACOPFProblem::default_assembly()
 {
-  useQPen = true;
-  slacks_scale = 128.;
+  useQPen = false;
+  slacks_scale = 1.;
 
   SCACOPFData& d = data_sc; //shortcut
 
@@ -42,8 +44,11 @@ bool ACOPFProblem::default_assembly()
 
   //vector<int> K_Cont = {8, 83, 366}; //net 01; gen, line, transf, id out=[27,61,126]
   //vector<int> K_Cont = {0, 71, 85, 97, 98}; //net 03 scen 9
-  vector<int> K_Cont ={0, 386, 428, 435}; //net 10 scen 9; first two are gen, then a line and a trans
+  //vector<int> K_Cont ={0, 386, 428, 435}; //net 10 scen 9; first two are gen, then a line and a trans
   //vector<int> K_Cont ={386};
+  //vector<int> K_Cont ={570,646,155,495,497};
+  vector<int> K_Cont = {};//{919}; //network 07-O scenario 9, large penalty
+
   int nK = K_Cont.size();
   //for(auto K : data_sc.K_Contingency) {
   for(auto K : K_Cont) {
@@ -61,13 +66,13 @@ bool ACOPFProblem::default_assembly()
     add_cons_active_powbal(dK);
     add_cons_reactive_powbal(dK);
     add_cons_thermal_li_lims(dK,SysCond_BaseCase);
-    add_cons_thermal_ti_lims(dK,SysCond_BaseCase);
+    //add_cons_thermal_ti_lims(dK,SysCond_BaseCase);
 
     //coupling AGC and PVPQ; also creates delta_k
-    add_cons_coupling(dK);
+    //add_cons_coupling(dK);
   }
 
-  //print_summary();
+  print_summary();
 
   use_nlp_solver("ipopt");
   //set options
@@ -78,11 +83,19 @@ bool ACOPFProblem::default_assembly()
   //prob.set_solver_option("print_level", 6);
   bool bret = optimize("ipopt");
 
+
+  //auto ssl_ti2 = vars_block("sslack_ti_trans_limits2_0");
+  //ssl_ti2->print(); 
+
+  auto pti1 = vars_block("p_ti1_0");
+  pti1->print();
   
   //print_p_g(data_sc);
   //for(auto d: data_K)
   //  print_p_g_with_coupling_info(*d);
   
+  for(auto d: data_K)
+    print_PVPQ_info(*d);
       
   //this->problem_changed();
   //t_solver_option("max_iter", 50);
@@ -118,10 +131,10 @@ void ACOPFProblem::add_cons_PVPQ(SCACOPFData& dB, const std::vector<int>& Gk)
   assert(G_Nidx_Gk == dB.G_Nidx);
 
   sort(G_Nidx_Gk.begin(), G_Nidx_Gk.end());
-  printvec(G_Nidx_Gk);
+  //printvec(G_Nidx_Gk);
   auto last = unique(G_Nidx_Gk.begin(), G_Nidx_Gk.end());
   G_Nidx_Gk.erase(last, G_Nidx_Gk.end());
-  printvec(G_Nidx_Gk);
+  //printvec(G_Nidx_Gk);
   auto &N_PVPQ = G_Nidx_Gk; //nodes with PVPQ generators;
 
   //(aggregated) non-fixed q_g generator ids at each node/bus
@@ -131,7 +144,8 @@ void ACOPFProblem::add_cons_PVPQ(SCACOPFData& dB, const std::vector<int>& Gk)
   vector<int> idxs_bus_pvpq;
   //aggregated lb and ub on reactive power at each PVPQ bus
   vector<double> Qlb, Qub;
-  int nPVPQGens=0, nPVPQCons=0; int num_buses_all_qgen_fixed=0;
+  int nPVPQGens=0, nPVPQCons=0; 
+  int num_buses_all_qgen_fixed=0, num_qgens_fixed=0;
 
   for(auto n: N_PVPQ) {
     assert(dB.Gn[n].size()>0);
@@ -147,9 +161,9 @@ void ACOPFProblem::add_cons_PVPQ(SCACOPFData& dB, const std::vector<int>& Gk)
 	assert(data_sc.G_Generator[dB.K_outidx[0]]!=dB.G_Generator[g]);
 #endif
       if(abs(dB.G_Qub[g]-dB.G_Qlb[g])<=1e-8) {
-	numfixed++;
-	printf("PVPQ: gen ID=%d p_q at bus %d is fixed; will not add PVPQ constraint\n",
-	       dB.G_Generator[g], dB.G_Nidx[g]);
+	numfixed++; num_qgens_fixed++;
+	printf("PVPQ: gen ID=%d p_q at bus idx %d id %d is fixed; will not add PVPQ constraint\n",
+	       dB.G_Generator[g], dB.G_Nidx[g], data_sc.N_Bus[dB.G_Nidx[g]]);
 	continue;
       }
       idxs_gen_agg.back().push_back(g);
@@ -175,10 +189,53 @@ void ACOPFProblem::add_cons_PVPQ(SCACOPFData& dB, const std::vector<int>& Gk)
   assert(N_PVPQ.size()  == num_buses_all_qgen_fixed+idxs_gen_agg.size());
   assert(idxs_bus_pvpq.size() == idxs_gen_agg.size());
 
-  for(int i=0; i<Qlb.size(); i++) {
-    printf("%d %g %g \n", N_PVPQ[i], Qlb[i], Qub[i]);
-    printvec(idxs_gen_agg[i]);
+  //for(int i=0; i<Qlb.size(); i++) {
+  //  printf("%d %g %g \n", N_PVPQ[i], Qlb[i], Qub[i]);
+  //  printvec(idxs_gen_agg[i]);
+  //}
+
+  auto v_n0 = variable("v_n", data_sc);
+  auto v_nk = variable("v_n", dB);
+  auto q_gk = variable("q_g", dB);
+  if(NULL==v_n0) {
+    printf("Contingency %d: v_n var not found in the base case; will NOT add PVPQ constraints.\n", dB.id);
+    return;
   }
+  if(NULL==v_nk) {
+    printf("Contingency %d: v_n var not found in conting problem; will NOT add PVPQ constraints.\n", dB.id);
+    return;
+  }
+  if(NULL==q_gk) {
+    printf("Contingency %d: q_g var not found in the base case; will NOT add PVPQ constraints.\n", dB.id);
+    return;
+  }
+  
+  double PVPQSmoothing = 1e-2;
+  auto cons = new PVPQComplementarityCons(con_name("PVPQ", dB), 3*idxs_gen_agg.size(),
+					  v_n0, v_nk, q_gk,
+					  idxs_bus_pvpq, idxs_gen_agg,
+					  Qlb, Qub, 
+					  PVPQSmoothing);
+
+  append_constraints(cons);
+
+  //starting point for nup and num that were added by PVPQComplementarityCons
+  auto nup=cons->get_nup(), num=cons->get_num();
+  cons->compute_nus(nup, num);
+  nup->providesStartingPoint=true; num->providesStartingPoint=true;
+
+  append_objterm(new LinearPenaltyObjTerm(string("bigMpen_")+num->id, num, 1.));
+  append_objterm(new LinearPenaltyObjTerm(string("bigMpen_")+nup->id, nup, 1.));
+  
+  //for(int i=0; i<rhop->n; i++) 
+  //  printf("%g %g   %g\n", rhop->x[i], rhom->x[i], cons->gb[i]);
+  //printf("\n");
+
+  printf("PVPQ: participating %d gens at %d buses: added %d constraints;"
+	 "total PVPQ: %d gens | %d buses; were fixed: %d gens | %d buses with all gens fixed.\n",
+	 nPVPQGens-num_qgens_fixed, idxs_bus_pvpq.size(), cons->n,
+	 Gk.size(), N_PVPQ.size(),
+	 num_qgens_fixed, num_buses_all_qgen_fixed);
 }
 
 void ACOPFProblem::add_cons_nonanticip(SCACOPFData& dB, const std::vector<int>& G_idxs_no_AGC)
@@ -251,7 +308,7 @@ void ACOPFProblem::add_cons_AGC(SCACOPFData& dB, const std::vector<int>& G_idxs_
   append_variables(deltaK);
   deltaK->set_start_to(0.);
 
-  double AGCSmoothing = 1e-5;
+  double AGCSmoothing = 1e-2;
   auto cons = new AGCComplementarityCons(con_name("AGC", dB), 3*G_idxs_AGC.size(),
 					 pg0, pgK, deltaK, 
 					 G_idxs_AGC, conting_matching_idxs,
@@ -274,56 +331,77 @@ void ACOPFProblem::add_cons_AGC(SCACOPFData& dB, const std::vector<int>& G_idxs_
   
 void ACOPFProblem::add_variables(SCACOPFData& d)
 {
+
   auto v_n = new OptVariablesBlock(data_sc.N_Bus.size(), var_name("v_n",d), 
 				   data_sc.N_Vlb.data(), data_sc.N_Vub.data()); 
   append_variables(v_n);
   v_n->set_start_to(data_sc.N_v0.data());
   //v_n->print();
+  //append_objterm(new DummySingleVarQuadrObjTerm("v_nsq", v_n));
+
 
   auto theta_n = new OptVariablesBlock(data_sc.N_Bus.size(), var_name("theta_n",d));
   append_variables(theta_n);
   theta_n->set_start_to(data_sc.N_theta0.data());
   int RefBus = data_sc.bus_with_largest_gen();
-
+  printf("RefBus=%d\n", RefBus);
   theta_n->lb[RefBus] = theta_n->ub[RefBus] = data_sc.N_theta0[RefBus];
   if(data_sc.N_theta0[RefBus]!=0) {
     printf("We should set theta at RefBus to 0");
   }
+  //append_objterm(new DummySingleVarQuadrObjTerm("theta_sq", theta_n));
 
+  // LINES
   auto p_li1 = new OptVariablesBlock(d.L_Line.size(), var_name("p_li1",d));
   append_variables(p_li1);
   auto p_li2 = new OptVariablesBlock(d.L_Line.size(), var_name("p_li2",d));
   append_variables(p_li2);
+  //append_objterm(new DummySingleVarQuadrObjTerm("pli1_sq", p_li1));
+  //append_objterm(new DummySingleVarQuadrObjTerm("pli2_sq", p_li2));
+
 
   auto q_li1 = new OptVariablesBlock(d.L_Line.size(), var_name("q_li1",d));
   auto q_li2 = new OptVariablesBlock(d.L_Line.size(), var_name("q_li2",d));
   append_variables(q_li1); 
   append_variables(q_li2);
- 
+  //append_objterm(new DummySingleVarQuadrObjTerm("qli1_sq", q_li1));
+  //append_objterm(new DummySingleVarQuadrObjTerm("qli2_sq", q_li2));
+  
+
+  //TRANSFORMERS
   auto p_ti1 = new OptVariablesBlock(d.T_Transformer.size(), var_name("p_ti1",d));
   auto p_ti2 = new OptVariablesBlock(d.T_Transformer.size(), var_name("p_ti2",d));
   append_variables(p_ti1); 
   append_variables(p_ti2); 
+  //append_objterm(new DummySingleVarQuadrObjTerm("pti1_sq", p_ti1));
+  //append_objterm(new DummySingleVarQuadrObjTerm("pti2_sq", p_ti2));
+
 
   auto q_ti1 = new OptVariablesBlock(d.T_Transformer.size(), var_name("q_ti1",d));
   auto q_ti2 = new OptVariablesBlock(d.T_Transformer.size(), var_name("q_ti2",d));
-  append_variables(q_ti1); append_variables(q_ti2); 
-      
+  append_variables(q_ti1); 
+  append_variables(q_ti2); 
+  //append_objterm(new DummySingleVarQuadrObjTerm("qti1_sq", q_ti1));
+  //append_objterm(new DummySingleVarQuadrObjTerm("qti2_sq", q_ti2));
+
   auto b_s = new OptVariablesBlock(data_sc.SSh_SShunt.size(), var_name("b_s",d), 
   				   data_sc.SSh_Blb.data(), data_sc.SSh_Bub.data());
   b_s->set_start_to(data_sc.SSh_B0.data());
   append_variables(b_s);
+  //append_objterm(new DummySingleVarQuadrObjTerm("b_s_sq", b_s));
+
 
   auto p_g = new OptVariablesBlock(d.G_Generator.size(), var_name("p_g",d), 
 				   d.G_Plb.data(), d.G_Pub.data());
   append_variables(p_g); 
   p_g->set_start_to(d.G_p0.data());
-  //append_objterm(new DummySingleVarQuadrObjTerm("p_g_sq", p_g));
 
   auto q_g = new OptVariablesBlock(d.G_Generator.size(), var_name("q_g",d), 
   				   d.G_Qlb.data(), d.G_Qub.data());
   q_g->set_start_to(d.G_q0.data());
   append_variables(q_g); 
+  //append_objterm(new DummySingleVarQuadrObjTerm("q_g_sq", q_g));
+
 }
 
 void ACOPFProblem::add_cons_lines_pf(SCACOPFData& d)
@@ -523,7 +601,7 @@ void ACOPFProblem::add_cons_active_powbal(SCACOPFData& d)
   //pslackm_n and pslackp_n
   OptVariablesBlock* pslacks_n = pf_p_bal->slacks();
   pf_p_bal->compute_slacks(pslacks_n); pslacks_n->providesStartingPoint=true;
-      
+
   if(useQPenActiveBalance) {
     append_objterm( new PFPenaltyQuadrApproxObjTerm("quadr_pen_" + pslacks_n->id, pslacks_n, 
 						    d.P_Penalties[SCACOPFData::pP], d.P_Quantities[SCACOPFData::pP], 
@@ -598,7 +676,6 @@ void ACOPFProblem::add_cons_thermal_li_lims(SCACOPFData& d, bool SysCond_BaseCas
   auto p_li1 = variable("p_li1", d), q_li1 = variable("q_li1", d);
   vector<double>& L_Rate = SysCond_BaseCase ? d.L_RateBase : d.L_RateEmer;
   {
-
     auto pf_line_lim1 = new PFLineLimits(con_name("line_limits1",d), d.L_Line.size(),
 					 p_li1, q_li1, v_n, 
 					 d.L_Nidx[0], L_Rate, slacks_scale);
@@ -666,12 +743,10 @@ void ACOPFProblem::add_cons_thermal_ti_lims(SCACOPFData& d, bool SysCond_BaseCas
   bool useQPenTi1=useQPen, useQPenTi2=useQPen; //double slacks_scale=1.;
   auto p_ti1 = variable("p_ti1", d), q_ti1 = variable("q_ti1", d);
   vector<double>& T_Rate = SysCond_BaseCase ? d.T_RateBase : d.T_RateEmer;
-
-  {
-    
+  if(true){
     auto pf_trans_lim1 = new PFTransfLimits(con_name("trans_limits1",d), d.T_Transformer.size(),
 					    p_ti1, q_ti1, 
-					    d.T_Nidx[0], T_Rate, slacks_scale);
+					    T_Rate, slacks_scale);
     append_constraints(pf_trans_lim1);
     //sslack_ti1
     OptVariablesBlock* sslack_ti1 = pf_trans_lim1->slacks();
@@ -695,21 +770,26 @@ void ACOPFProblem::add_cons_thermal_ti_lims(SCACOPFData& d, bool SysCond_BaseCas
     }
   }
   auto p_ti2 = variable("p_ti2", d), q_ti2 = variable("q_ti2", d);
-  {
+  if(true){
     auto pf_trans_lim2 = new PFTransfLimits(con_name("trans_limits2",d), d.T_Transformer.size(),
 					    p_ti2, q_ti2,
-					    d.T_Nidx[1], T_Rate, slacks_scale);
+					    T_Rate, slacks_scale);
     append_constraints(pf_trans_lim2);
     //sslack_ti2
     OptVariablesBlock* sslack_ti2 = pf_trans_lim2->slacks();
+
+    //! append_variables(sslack_ti2);
+
     pf_trans_lim2->compute_slacks(sslack_ti2); sslack_ti2->providesStartingPoint=true;
 
     if(useQPenTi2) {
-      append_objterm( new PFPenaltyQuadrApproxObjTerm("quadr_pen_" + sslack_ti2->id,
-						      sslack_ti2,
-						      d.P_Penalties[SCACOPFData::pS], 
-						      d.P_Quantities[SCACOPFData::pS], 
-						      d.PenaltyWeight, slacks_scale) );
+        append_objterm( new PFPenaltyQuadrApproxObjTerm2("quadr_pen_" + sslack_ti2->id,
+         						      sslack_ti2,
+         						      d.P_Penalties[SCACOPFData::pS], 
+         						      d.P_Quantities[SCACOPFData::pS], 
+         						      d.PenaltyWeight, slacks_scale) );
+	//append_objterm( new DummySingleVarQuadrObjTerm("QDu_pen_" + sslack_ti2->id, sslack_ti2));
+	//append_objterm( new DummySingleVarQuadrObjTerm("QDu_pen2_" + sslack_ti2->id, sslack_ti2));
     } else {
       PFPenaltyAffineCons* cons_ti2_pen = 
 	new PFPenaltyAffineCons(string("pcwslin_cons_") + sslack_ti2->id, sslack_ti2->n, sslack_ti2, 
@@ -780,6 +860,105 @@ void ACOPFProblem::print_p_g_with_coupling_info(SCACOPFData& dB)
 	     p_g->x[base_idx], p_gk->x[i], dB.G_Plb[i], dB.G_Pub[i]);
     }
   }
+}
+
+void ACOPFProblem::print_PVPQ_info(SCACOPFData& dB)
+{
+  //indexes in data_sc.G_Generator
+  vector<int> Gk, Gkp, Gknop;
+  int K_id = dB.K_Contingency[0];
+  data_sc.get_AGC_participation(K_id, Gk, Gkp, Gknop);
+  assert(Gk.size() == dB.G_Generator.size());
+  auto G_Nidx_Gk = selectfrom(data_sc.G_Nidx, Gk);
+  //extra check
+  assert(G_Nidx_Gk == dB.G_Nidx);
+
+  sort(G_Nidx_Gk.begin(), G_Nidx_Gk.end());
+  //printvec(G_Nidx_Gk);
+  auto last = unique(G_Nidx_Gk.begin(), G_Nidx_Gk.end());
+  G_Nidx_Gk.erase(last, G_Nidx_Gk.end());
+  //printvec(G_Nidx_Gk);
+  auto &N_PVPQ = G_Nidx_Gk; //nodes with PVPQ generators;
+
+  //(aggregated) non-fixed q_g generator ids at each node/bus
+  // with PVPQ generators that have at least one non-fixed q_g 
+  vector<vector<int> > idxs_gen_agg;
+  //bus indexes that have at least one non-fixed q_g
+  vector<int> idxs_bus_pvpq;
+  //aggregated lb and ub on reactive power at each PVPQ bus
+  vector<double> Qlb, Qub;
+  int nPVPQGens=0, nPVPQCons=0; 
+  int num_buses_all_qgen_fixed=0, num_qgens_fixed=0;
+
+  auto v_n0 = variable("v_n", data_sc);
+  auto v_nk = variable("v_n", dB);
+  auto q_gk = variable("q_g", dB);
+  auto rhop = variable("nup_PVPQ", dB);
+  auto rhom = variable("num_PVPQ", dB);
+  printf("busidx busid     v_n0         v_nk         num          nup      | genidx q_gk qlb qub : \n");
+
+  for(auto n: N_PVPQ) {
+    assert(dB.Gn[n].size()>0);
+    double Qagglb=0., Qaggub=0.;
+
+    int numfixed = 0;
+    idxs_gen_agg.push_back( vector<int>() );
+
+
+    for(auto g: dB.Gn[n]) {
+#ifdef DEBUG
+      assert(dB.K_Contingency.size()==1);
+      assert(dB.K_outidx.size()==1);
+      if(dB.K_ConType[0]==SCACOPFData::kGenerator) 
+	assert(data_sc.G_Generator[dB.K_outidx[0]]!=dB.G_Generator[g]);
+#endif
+      if(abs(dB.G_Qub[g]-dB.G_Qlb[g])<=1e-8) {
+	numfixed++; num_qgens_fixed++;
+
+
+	//printf("PVPQ: gen ID=%d p_q at bus %d is fixed; will not add PVPQ constraint\n",
+	//       dB.G_Generator[g], dB.G_Nidx[g]);
+	continue;
+      }
+      idxs_gen_agg.back().push_back(g);
+      Qagglb += dB.G_Qlb[g];
+      Qaggub += dB.G_Qub[g];
+    }
+
+
+
+    assert(idxs_gen_agg.back().size()+numfixed == dB.Gn[n].size());
+    nPVPQGens += idxs_gen_agg.back().size()+numfixed;
+
+    if(idxs_gen_agg.back().size()==0) {
+      assert(Qagglb==0. && Qaggub==0.);
+      idxs_gen_agg.pop_back();
+      num_buses_all_qgen_fixed++;
+
+      printf("%5d %5d %12.5e %12.5e        na      na       | ", n, data_sc.N_Bus[n], v_n0->x[n], v_nk->x[n]);
+      for(auto g: dB.Gn[n])
+	printf("%4d %12.5e %12.5e %12.5e : ", g, q_gk->x[g], dB.G_Qlb[g], dB.G_Qub[g]);
+      printf("\n");
+
+    } else {
+      Qlb.push_back(Qagglb);
+      Qub.push_back(Qaggub);
+      idxs_bus_pvpq.push_back(n);
+
+      int idx_nu = idxs_bus_pvpq.size()-1;
+
+      printf("%5d %5d %12.5e %12.5e %12.5e %12.5e | ", n, data_sc.N_Bus[n], 
+	     v_n0->x[n], v_nk->x[n], rhom->x[idx_nu], rhop->x[idx_nu]);
+      for(auto g: dB.Gn[n])
+	printf("%4d %12.5e %12.5e %12.5e : ", g, q_gk->x[g], dB.G_Qlb[g], dB.G_Qub[g]);
+      printf("\n");
+    }
+  }
+  assert(idxs_gen_agg.size() == Qlb.size());
+  assert(idxs_gen_agg.size() == Qub.size());
+  assert(N_PVPQ.size()  == num_buses_all_qgen_fixed+idxs_gen_agg.size());
+  assert(idxs_bus_pvpq.size() == idxs_gen_agg.size());
+
 }
 
 } //end namespace
