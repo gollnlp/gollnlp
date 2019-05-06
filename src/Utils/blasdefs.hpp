@@ -22,6 +22,7 @@
 namespace gollnlp
 {
 
+static int izero=0;
 static int ione=1;
 static double done=1.;
 static double dminusone=-1.;
