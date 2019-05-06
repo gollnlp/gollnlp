@@ -418,8 +418,8 @@ bool PFActiveBalance::eval_body (const OptVariables& vars_primal, bool new_x, do
     }
   }
 #ifdef DEBUG
-  body -= n;
-  double r=DNRM2(&n, body, &ione);
+  //body -= n;
+  //double r=DNRM2(&n, body, &ione);
   //printf("Evaluated constraint '%s' -> resid norm %g\n", id.c_str(), r);
 #endif
 
@@ -655,10 +655,10 @@ void PFActiveBalance::compute_slacks(OptVariablesBlock* slacksv) const
 
     if(pslackp_n[i]<0) {
       pslackm_n[i] = -pslackp_n[i]/r;
-      pslackp_n[i] = 0;
+      pslackp_n[i] = 0.;
     } else {
       pslackp_n[i] = pslackp_n[i]/r;
-      pslackm_n[i] = 0;
+      pslackm_n[i] = 0.;
     }
   }
 }
@@ -1338,11 +1338,10 @@ OptObjectiveTerm* PFLineLimits::create_objterm()
 PFTransfLimits::PFTransfLimits(const std::string& id_, int numcons,
 			       OptVariablesBlock* p_ti_, 
 			       OptVariablesBlock* q_ti_,
-			       const std::vector<int>& T_Nidx_,
 			       const std::vector<double>& T_Rate_,
 			       const double& slacks_rescale)
   : OptConstraintsBlock(id_, numcons), 
-    p_ti(p_ti_), q_ti(q_ti_), Nidx(T_Nidx_), T_Rate(T_Rate_), sslack_ti(NULL)
+    p_ti(p_ti_), q_ti(q_ti_), T_Rate(T_Rate_)
 {
   assert(T_Rate.size()==n);
   r = slacks_rescale>0 ? 1/slacks_rescale : 1.;
@@ -1350,7 +1349,10 @@ PFTransfLimits::PFTransfLimits(const std::string& id_, int numcons,
   for(int i=0; i<n; i++)
     lb[i]=-1e+20;
   for(int i=0; i<n; i++)
-    ub[i]=0;
+    ub[i]=0.;
+
+  sslack_ti = new OptVariablesBlock(n, string("sslack_ti_")+id, 0, 1e+20);
+
   J_nz_idxs = NULL;
   H_nz_idxs = NULL;
 }
@@ -1365,9 +1367,7 @@ bool PFTransfLimits::eval_body (const OptVariables& vars_primal, bool new_x, dou
 {
   assert(sslack_ti); 
   assert(n == T_Rate.size());
-  assert(n == Nidx.size());
   double* body = body_ + this->index;
-  double* slacks = const_cast<double*>(sslack_ti->xref);
 
   for(int i=0; i<n; i++)
     *body++ += p_ti->xref[i]*p_ti->xref[i];
@@ -1377,7 +1377,6 @@ bool PFTransfLimits::eval_body (const OptVariables& vars_primal, bool new_x, dou
   body -= n;
 
   const double* Rate = T_Rate.data();
-  const int* L_Nidx = Nidx.data();
   double aux;
   for(int i=0; i<n; i++) {
     aux = Rate[i] + r*sslack_ti->xref[i];
@@ -1390,7 +1389,6 @@ void PFTransfLimits::compute_slacks(OptVariablesBlock* sslackti)
 {
   assert(sslack_ti->n == n); 
   assert(n == T_Rate.size());
-  assert(n == Nidx.size());
   double* body  = sslackti->x;
 
   for(int i=0; i<n; i++)
@@ -1422,7 +1420,7 @@ bool PFTransfLimits::eval_Jac(const OptVariables& primal_vars, bool new_x,
 #ifdef DEBUG
   int nnz_loc=get_Jacob_nnz();
 #endif
-  int row, *itnz=J_nz_idxs; const int* L_Nidx = Nidx.data();
+  int row, *itnz=J_nz_idxs; 
   if(NULL==M) {
     for(int it=0; it<n; it++) {
       row = this->index+it;
@@ -1448,7 +1446,7 @@ bool PFTransfLimits::eval_Jac(const OptVariables& primal_vars, bool new_x,
 }
 
 // p_ti[t,i]^2 + q_ti[t,i]^2 - (Rate[t] + r*sslack_ti[t,i])^2) <=0
-// Jacobian : let  c = Rate[l] + r*sslack_ti[l,i]
+// Jacobian : let  c = Rate[t] + r*sslack_ti[t,i]
 // w.r.t to:   p_ti    q_ti   sslack_ti
 //            2*p_ti   2*q_ti    -2*c*r
 int PFTransfLimits::get_Jacob_nnz(){ 
@@ -1515,8 +1513,8 @@ bool PFTransfLimits::eval_HessLagr(const OptVariables& vars_primal, bool new_x,
   return true;
 }
 
-// p_ti[l,i]^2 + q_ti[l,i]^2 - (L[Rate][l]*v_n[L_Nidx[l,i]] + r*sslack_ti[l,i])^2) <=0
-// Jacobian : let  c = Rate[l] + r*sslack_ti[l,i]
+// p_ti[t,i]^2 + q_ti[t,i]^2 - (T[Rate][t] + r*sslack_ti[t,i])^2) <=0
+// Jacobian : let  c = Rate[t] + r*sslack_ti[t,i]
 // w.r.t to:    p_ti    q_ti   sslack_ti
 //             2*p_ti   2*q_ti    -2*c*r
 // Hessian
@@ -1552,8 +1550,6 @@ bool PFTransfLimits::get_HessLagr_ij(std::vector<OptSparseEntry>& vij)
   
 OptVariablesBlock* PFTransfLimits::create_varsblock() 
 { 
-  assert(sslack_ti==NULL);
-  sslack_ti = new OptVariablesBlock(n, string("sslack_ti_")+id, 0, 1e+20);
   return sslack_ti; 
 }
 OptObjectiveTerm* PFTransfLimits::create_objterm() 
@@ -1581,12 +1577,12 @@ PFProdCostAffineCons(const std::string& id_, int numcons,
   assert(p_g->n == G_idx_.size());
 
   //rhs of this block
-  lb = new double[n];
+  //lb = new double[n];
   for(int i=0; i<n; ) {
     lb[i++] = 1.; lb[i++] = 0.;
   }
 
-  ub = new double[n];
+  //ub = new double[n];
   DCOPY(&n, lb, &ione, ub, &ione);
 
   int sz_t_h = 0;
@@ -1806,10 +1802,10 @@ PFPenaltyAffineCons(const std::string& id_, int numcons,
   S1=pen_segm[0]*rescale;  S2=pen_segm[1]*rescale;  S3=pen_segm[2]*rescale;
 
   //rhs of this block
-  lb = new double[n];
+  //lb = new double[n];
   for(int i=0; i<n; i++) lb[i] = 0.; 
 
-  ub = new double[n];
+  //ub = new double[n];
   DCOPY(&n, lb, &ione, ub, &ione);
 
   //for(int i=0; i<n; ) {ub[i++] = S1; ub[i++] = S2; ub[i++] = S3;} 

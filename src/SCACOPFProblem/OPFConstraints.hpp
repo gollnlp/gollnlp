@@ -295,7 +295,6 @@ namespace gollnlp {
     PFTransfLimits(const std::string& id_, int numcons,
 		   OptVariablesBlock* p_ti_, 
 		   OptVariablesBlock* q_ti_,
-		   const std::vector<int>& T_Nidx_,
 		   const std::vector<double>& T_Rate_,
 		   const double& slacks_rescale=1.);
     virtual ~PFTransfLimits();
@@ -304,7 +303,7 @@ namespace gollnlp {
     virtual bool eval_body (const OptVariables& vars_primal, bool new_x, double* body);
     virtual bool eval_Jac(const OptVariables& primal_vars, bool new_x, 
 			  const int& nnz, int* i, int* j, double* M);
-    int get_Jacob_nnz();
+    virtual int get_Jacob_nnz();
     virtual bool get_Jacob_ij(std::vector<OptSparseEntry>& vij);
 
     virtual bool eval_HessLagr(const OptVariables& vars_primal, bool new_x, 
@@ -317,7 +316,6 @@ namespace gollnlp {
     virtual OptObjectiveTerm* create_objterm();
   protected:
     OptVariablesBlock *p_ti, *q_ti;
-    const std::vector<int> &Nidx;
     const std::vector<double> &T_Rate;
     double r;
     OptVariablesBlock *sslack_ti; // sslackp_ti1 or sslackm_ti2;
