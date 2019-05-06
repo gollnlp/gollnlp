@@ -1652,10 +1652,15 @@ void PFProdCostAffineCons::compute_t_h(OptVariablesBlock* th)
     if(p_g->x[it]>Pi[idx_max]) {
       printf("Warning: p_g[%d] is too much outside the max of generation cost points. will adjust it.\n", it);
       p_g->x[it] = Pi[idx_max];
-    } 
+    }
     for(i=0; i<sz; i++, it_th++) {
       if(Pi[i]>p_g->x[it]) break;
       *it_th = 0.;
+    }
+    if(i==sz) {
+      assert(p_g->x[it] == Pi[sz-1]);
+      i = i-1;
+      it_th--;
     }
     assert(i>=1);
     assert(i<sz);
