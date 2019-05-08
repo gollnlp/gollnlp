@@ -14,8 +14,8 @@ public:
   virtual ~NlpSolver() {};
 
   //any NlpSolver specific init and finalize
-  virtual bool initialize() {};
-  virtual bool finalize() {};
+  virtual bool initialize() {return true;}
+  virtual bool finalize() {return true;}
 
   virtual bool set_start_type(OptProblem::RestartType t)=0;
 

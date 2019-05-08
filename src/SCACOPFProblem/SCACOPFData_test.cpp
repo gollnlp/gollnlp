@@ -63,30 +63,31 @@ vector<vector<string> > loadinstances(const string& file)
     return vInst;
   }
   string line; 
-  bool ret = getline(f, line); 
+  bool ret = (bool)getline(f, line); 
   while(ret) {
     trim(line);
     //root
     vInst.push_back(vector<string>());
     vInst.back().push_back(line);
     //raw - relative to root
-    ret = getline(f, line); assert(ret); trim(line);
+    ret = (bool)getline(f, line); assert(ret); trim(line);
     vInst.back().push_back(vInst.back()[0]+"/"+line);
     //rop - relative to root
-    ret = getline(f, line); assert(ret); trim(line);
+    ret = (bool)getline(f, line); assert(ret); trim(line);
     vInst.back().push_back(vInst.back()[0]+"/"+line);
     //inl - relative to root
-    ret = getline(f, line); assert(ret); trim(line);
+    ret = (bool)getline(f, line); assert(ret); trim(line);
     vInst.back().push_back(vInst.back()[0]+"/"+line);
     //con- relative to root
-    ret = getline(f, line); assert(ret); trim(line);
+    ret = (bool)getline(f, line); assert(ret); trim(line);
     vInst.back().push_back(vInst.back()[0]+"/"+line);
     //results line
-    ret = getline(f, line); assert(ret); trim(line);
+    ret = (bool)getline(f, line); assert(ret); trim(line);
     vInst.back().push_back(line);
 
-    ret = getline(f, line);
+    ret = (bool)getline(f, line);
   }
+  return vInst;
 }
 
 string computechecks(const SCACOPFData& d)

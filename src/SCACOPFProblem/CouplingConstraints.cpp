@@ -409,6 +409,7 @@ bool AGCComplementarityCons::get_HessLagr_ij(std::vector<OptSparseEntry>& vij)
     i = uppertr_swap(i,j,aux);
     vij.push_back(OptSparseEntry(i,j,H_nz_idxs+2*it+1)); //w.r.t. (pk,rhom)
   }
+  return true;
 }
 
 OptVariablesBlock* AGCComplementarityCons::create_varsblock()
