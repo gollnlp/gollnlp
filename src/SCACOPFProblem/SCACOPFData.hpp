@@ -114,6 +114,7 @@ namespace gollnlp {
       friend std::ostream& operator<<(std::ostream& os, const GeneratorContingency& o)
       {
 	os << o.Bus << ":" << o.unit;
+	return os;
       }
       virtual ~GeneratorContingency() {};
     };

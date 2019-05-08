@@ -6,7 +6,7 @@
 #include <iostream>
 #include <algorithm>
 #include <vector>
-
+#include <numeric>
 #include <cassert>
 
 namespace gollnlp {
@@ -56,6 +56,7 @@ static inline bool mygetline(std::ifstream& file, std::string& line)
   if(line.size()==0) return true;
   std::string::iterator last = line.end()-1;
   if(*last=='\r') line.erase(last);
+  return true;
 }
 template<class T> inline void printvec(const std::vector<T>& v, const std::string& msg="") 
 { 
@@ -93,12 +94,12 @@ template<class T> inline int indexin(const std::vector<T>& v, const T& e)
 template<class T> inline std::vector<int> indexin(const std::vector<T>& v, const std::vector<T>& in)
 {
   std::vector<int> vIdx(v.size());
-  iota(vIdx.begin(), vIdx.end(), 0);
+  std::iota(vIdx.begin(), vIdx.end(), 0);
   //sort permutation for v
   sort(vIdx.begin(), vIdx.end(), [&](const int& a, const int& b) { return (v[a] < v[b]); } );
 
   std::vector<int> inIdx(in.size());
-  iota(inIdx.begin(), inIdx.end(), 0);
+  std::iota(inIdx.begin(), inIdx.end(), 0);
   //sort permutation for in
   sort(inIdx.begin(), inIdx.end(), [&](const int& a, const int& b) { return (in[a] < in[b]); } );
 
