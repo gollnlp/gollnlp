@@ -18,7 +18,6 @@ namespace gollnlp {
       : data_sc(d_in), 
 	useQPen(false), slacks_scale(1.),  PVPQSmoothing(0.01), AGCSmoothing(0.01){}
     virtual ~SCACOPFProblem();
-    OptProblem opt_prob;
     
     virtual bool default_assembly();
 
