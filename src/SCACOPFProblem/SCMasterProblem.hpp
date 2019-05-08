@@ -15,6 +15,9 @@ namespace gollnlp {
     virtual ~SCMasterProblem() {}
 
     virtual bool default_assembly();
+
+    virtual OptVariablesBlock* p_g0_vars() {return variable("p_g", data_sc);}
+    virtual OptVariablesBlock* v_n0_vars() {return variable("v_n", data_sc);}
   public:
     std::vector<int> Contingencies;
   };

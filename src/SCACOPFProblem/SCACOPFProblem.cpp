@@ -75,15 +75,15 @@ bool SCACOPFProblem::default_assembly()
 
   //print_summary();
 
-  use_nlp_solver("ipopt");
-  //set options
-  set_solver_option("linear_solver", "ma57");
-  set_solver_option("mu_init", 1.);
-  //set_solver_option("print_timing_statistics", "yes");
-  set_solver_option("max_iter", 1000);
-  //set_solver_option("tol", 1e-10);
-  //prob.set_solver_option("print_level", 6);
-  bool bret = optimize("ipopt");
+  // use_nlp_solver("ipopt");
+  // //set options
+  // set_solver_option("linear_solver", "ma57");
+  // set_solver_option("mu_init", 1.);
+  // //set_solver_option("print_timing_statistics", "yes");
+  // set_solver_option("max_iter", 1000);
+  // //set_solver_option("tol", 1e-10);
+  // //prob.set_solver_option("print_level", 6);
+  // bool bret = optimize("ipopt");
 
 
   //auto ssl_ti2 = vars_block("sslack_ti_trans_limits2_0");
