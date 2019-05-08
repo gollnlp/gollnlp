@@ -238,8 +238,8 @@ void SCACOPFProblem::add_cons_PVPQ(SCACOPFData& dB, const std::vector<int>& Gk)
   //  printf("%g %g   %g\n", rhop->x[i], rhom->x[i], cons->gb[i]);
   //printf("\n");
 
-  printf("PVPQ: participating %d gens at %d buses: added %d constraints;"
-	 "total PVPQ: %d gens | %d buses; were fixed: %d gens | %d buses with all gens fixed.\n",
+  printf("PVPQ: participating %d gens at %lu buses: added %d constraints;"
+	 "total PVPQ: %lu gens | %lu buses; were fixed: %d gens | %d buses with all gens fixed.\n",
 	 nPVPQGens-num_qgens_fixed, idxs_bus_pvpq.size(), cons->n,
 	 Gk.size(), N_PVPQ.size(),
 	 num_qgens_fixed, num_buses_all_qgen_fixed);
@@ -277,7 +277,7 @@ void SCACOPFProblem::add_cons_nonanticip(SCACOPFData& dB, const std::vector<int>
 				   pg0, pgK, G_idxs_no_AGC, conting_matching_idxs);
     append_constraints(cons);
   }
-  printf("AGC: %d gens NOT participating: added one nonanticip constraint for each\n", G_idxs_no_AGC.size());
+  printf("AGC: %lu gens NOT participating: added one nonanticip constraint for each\n", G_idxs_no_AGC.size());
 }
 
 void SCACOPFProblem::add_cons_AGC(SCACOPFData& dB, const std::vector<int>& G_idxs_AGC)
@@ -335,7 +335,7 @@ void SCACOPFProblem::add_cons_AGC(SCACOPFData& dB, const std::vector<int>& G_idx
   //  printf("%g %g   %g\n", rhop->x[i], rhom->x[i], cons->gb[i]);
   //printf("\n");
 
-  printf("AGC: %d gens participating: added %d constraints\n", G_idxs_AGC.size(), cons->n);
+  printf("AGC: %lu gens participating: added %d constraints\n", G_idxs_AGC.size(), cons->n);
 }
   
 void SCACOPFProblem::add_variables(SCACOPFData& d)
