@@ -624,7 +624,7 @@ readRAW(const std::string& raw, double& MVAbase,
     return false;
   }
   bool ret; string line; 
-  ret = getline(rawfile, line); assert(ret);
+  ret = (bool)getline(rawfile, line); assert(ret);
   
   auto tokens = split(line, ',');
   if(tokens.size()<2) {
@@ -634,8 +634,8 @@ readRAW(const std::string& raw, double& MVAbase,
   MVAbase = strtod(tokens[1].c_str(), NULL);
 
   //skip the next two lines
-  ret = getline(rawfile, line); assert(ret);
-  ret = getline(rawfile, line); assert(ret);
+  ret = (bool)getline(rawfile, line); assert(ret);
+  ret = (bool)getline(rawfile, line); assert(ret);
 
   size_t pos; string delimiter=","; int i;
 
@@ -646,7 +646,7 @@ readRAW(const std::string& raw, double& MVAbase,
   for(int i=0; i<=12; i++) buses.push_back(vector<string>());
   
   while(true) {
-    ret = getline(rawfile, line); assert(ret);
+    ret = (bool)getline(rawfile, line); assert(ret);
     if(isEndOrStartOfSection(line)) break;
     
     for(i=0; i<=12; i++) {
@@ -672,7 +672,7 @@ readRAW(const std::string& raw, double& MVAbase,
   //
   for(int i=0; i<14; i++) loads.push_back(vector<string>());
   while(true) {
-    ret = getline(rawfile, line); assert(ret);
+    ret = (bool)getline(rawfile, line); assert(ret);
     if(isEndOrStartOfSection(line)) break;
     
     for(i=0; i<14; i++) {
@@ -700,7 +700,7 @@ readRAW(const std::string& raw, double& MVAbase,
   //
   for(int i=0; i<5; i++) fixedbusshunts.push_back(vector<string>());
   while(true) {
-    ret = getline(rawfile, line); assert(ret);
+    ret = (bool)getline(rawfile, line); assert(ret);
     if(isEndOrStartOfSection(line)) break;
     
     for(i=0; i<5; i++) {
@@ -729,7 +729,7 @@ readRAW(const std::string& raw, double& MVAbase,
   //
   for(int i=0; i<28; i++) generators.push_back(vector<string>());
   while(true) {
-    ret = getline(rawfile, line); assert(ret);
+    ret = (bool)getline(rawfile, line); assert(ret);
     if(isEndOrStartOfSection(line)) break;
     
     for(i=0; i<28; i++) {
@@ -760,7 +760,7 @@ readRAW(const std::string& raw, double& MVAbase,
   //
   for(i=0; i<24; i++) ntbranches.push_back(vector<string>());
   while(true) {
-    ret = getline(rawfile, line); assert(ret);
+    ret = (bool)getline(rawfile, line); assert(ret);
     if(isEndOrStartOfSection(line)) break;
     
     for(i=0; i<24; i++) {
@@ -790,7 +790,7 @@ readRAW(const std::string& raw, double& MVAbase,
   //
   for(i=0; i<43; i++) tbranches.push_back(vector<string>());
   while(true) {
-    ret = getline(rawfile, line); assert(ret);
+    ret = (bool)getline(rawfile, line); assert(ret);
     if(isEndOrStartOfSection(line)) break;
 
     for(i=0; i<21; i++) {
@@ -803,7 +803,7 @@ readRAW(const std::string& raw, double& MVAbase,
       }
     }
     //line 2
-    ret = getline(rawfile, line); assert(ret);
+    ret = (bool)getline(rawfile, line); assert(ret);
     assert(!isEndOrStartOfSection(line));
     for(i=21; i<24; i++) {
       if( (pos = line.find(delimiter)) != string::npos ) {
@@ -815,7 +815,7 @@ readRAW(const std::string& raw, double& MVAbase,
       }
     }
     //line 3
-    ret = getline(rawfile, line); assert(ret);
+    ret = (bool)getline(rawfile, line); assert(ret);
     assert(!isEndOrStartOfSection(line));
     for(i=24; i<41; i++) {
       if( (pos = line.find(delimiter)) != string::npos ) {
@@ -827,7 +827,7 @@ readRAW(const std::string& raw, double& MVAbase,
       }
     }
     //line 4
-    ret = getline(rawfile, line); assert(ret);
+    ret = (bool)getline(rawfile, line); assert(ret);
     assert(!isEndOrStartOfSection(line));
     for(i=41; i<43; i++) {
       if( (pos = line.find(delimiter)) != string::npos ) {
@@ -853,7 +853,7 @@ readRAW(const std::string& raw, double& MVAbase,
 
   int section=8;
   while(section<18) {
-    ret = getline(rawfile, line); assert(ret);
+    ret = (bool)getline(rawfile, line); assert(ret);
     if(isEndOrStartOfSection(line)) section++;
   }
 #ifdef DEBUG
@@ -866,7 +866,7 @@ readRAW(const std::string& raw, double& MVAbase,
   //
   for(i=0; i<26; i++) switchedshunts.push_back(vector<string>());
   while(true) {
-    ret = getline(rawfile, line); assert(ret);
+    ret = (bool)getline(rawfile, line); assert(ret);
     if(isEndOrStartOfSection(line)) break;
     
     for(i=0; i<26; i++) {
@@ -905,7 +905,7 @@ readROP(const std::string& rop, VVStr& generatordsp, VVStr& activedsptables,
   bool ret; string line; 
   bool isGenDispSec=false, isCostCurvesSec=false, isActiveDispSec=false;
   bool loadedGenDispSec=false, loadedCostCurvesSec=false, loadedActiveDispSec=false;
-  ret = getline(file, line); assert(ret);
+  ret = (bool)getline(file, line); assert(ret);
   while(ret) {
     if(isEndOrStartOfSection(line)) {
       std::transform(line.begin(), line.end(), line.begin(), ::tolower);
@@ -916,7 +916,7 @@ readROP(const std::string& rop, VVStr& generatordsp, VVStr& activedsptables,
     ////////////////////////////////////////////////////////////////////////////////////
     if(isGenDispSec) {
       while(true) {
-	ret = getline(file, line); assert(ret);
+	ret = (bool)getline(file, line); assert(ret);
 	if(isEndOrStartOfSection(line)) {
 	  isGenDispSec=false;
 	  loadedGenDispSec=true;
@@ -948,7 +948,7 @@ readROP(const std::string& rop, VVStr& generatordsp, VVStr& activedsptables,
     ////////////////////////////////////////////////////////////////////////////////////
     if(isActiveDispSec) {
       while(true) {
-	ret = getline(file, line); assert(ret);
+	ret = (bool)getline(file, line); assert(ret);
 	if(isEndOrStartOfSection(line)) {
 	  isActiveDispSec=false;
 	  loadedActiveDispSec=true;
@@ -974,7 +974,7 @@ readROP(const std::string& rop, VVStr& generatordsp, VVStr& activedsptables,
     if(isCostCurvesSec) {
       int npairs, p; 
       while(true) {
-	ret = getline(file, line); assert(ret);
+	ret = (bool)getline(file, line); assert(ret);
 	if(isEndOrStartOfSection(line)) {
 	  isCostCurvesSec=false;
 	  loadedCostCurvesSec=true;
@@ -993,7 +993,7 @@ readROP(const std::string& rop, VVStr& generatordsp, VVStr& activedsptables,
 	npairs = atoi(line.c_str());
         costcurves_xi.push_back(vector<double>()); costcurves_yi.push_back(vector<double>());
 	for(p=0; p<npairs; p++) {
-	  ret = getline(file, line); assert(ret);
+	  ret = (bool)getline(file, line); assert(ret);
 	  assert(!isEndOrStartOfSection(line));
 	  pos = line.find(delimiter); assert(pos!=string::npos);
 	  costcurves_xi.back().push_back(atof(line.substr(0,pos).c_str()));
@@ -1012,7 +1012,7 @@ readROP(const std::string& rop, VVStr& generatordsp, VVStr& activedsptables,
     }// if(isCostCurvesSec)
     
     assert(!isGenDispSec && !isActiveDispSec && !isCostCurvesSec);
-    ret = getline(file, line); 
+    ret = (bool)getline(file, line); 
   }
   return true;
 }
@@ -1031,7 +1031,7 @@ readINL(const std::string& inl, VVStr& governorresponse)
   bool ret; string line; 
 
   while(true) {
-    ret = getline(file, line); assert(ret);
+    ret = (bool)getline(file, line); assert(ret);
     if(isEndOrStartOfSection(line)) break;
 
     for(i=0; i<7; i++) {
@@ -1064,7 +1064,7 @@ bool SCACOPFData::readCON(const string& con,
   size_t pos; bool ret; string line; 
 
   while(true) {
-    ret = getline(file, line); assert(ret);
+    ret = (bool)getline(file, line); assert(ret);
 
     if(line.substr(0,3)=="END") break;
 
@@ -1094,7 +1094,7 @@ bool SCACOPFData::readCON(const string& con,
       assert(false && "expected REMOVE or OPEN");
     }    
 
-    ret = getline(file, line); assert(ret);
+    ret = (bool)getline(file, line); assert(ret);
     assert(line.substr(0,3)=="END");
 
   } // end of while
