@@ -31,8 +31,8 @@ int main(int argc, char *argv[])
     net = name + "/";
     scen = "scenario_9/";
     root = root+net;
-    return myexe1_function(root+scen+"case.raw",  root+"case.rop", root+"case.inl", root+scen+"case.con", 
-    			   2700.,  2, name);
+    //return myexe1_function(root+scen+"case.raw",  root+"case.rop", root+"case.inl", root+scen+"case.con", 
+    //			   2700.,  2, name);
 
 
     name = "Network_03O-10/";
@@ -49,8 +49,8 @@ int main(int argc, char *argv[])
     net = name + "/";
     scen = "scenario_9/";
     root = root+net; 
-    //return myexe1_function(root+scen+"case.raw",  root+"case.rop", root+"case.inl", root+scen+"case.con", 
-    //			   2700.,  2, name);
+    return myexe1_function(root+scen+"case.raw",  root+"case.rop", root+"case.inl", root+scen+"case.con", 
+    			   2700.,  2, name);
 
     name = "Network_07O-10/";
     root = "../../goinstances/challenge1/Original_Dataset_1-4/Original_Dataset_Offline_Edition_1/";
