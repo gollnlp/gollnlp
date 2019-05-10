@@ -124,6 +124,7 @@ public:
   {
     //SmartPtr< const IteratesVector > a = 	ip_data->curr () ;
     //IteratesVector b = *a;
+    prob->set_obj_value(obj_value);
     prob->set_primal_vars(x);
     prob->set_duals_vars_bounds(z_L, z_U);
     prob->set_duals_vars_cons(lambda);
