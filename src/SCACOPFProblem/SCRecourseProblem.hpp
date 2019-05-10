@@ -43,8 +43,15 @@ namespace gollnlp {
     //these indexes exclude 'outidx' when K_idx is a generator contingency
     std::vector<int> pgK_nonpartic_idxs, pg0_nonpartic_idxs;
     // set lb = ub =pg0 for p_gK  for non-AGC generators
-    void add_cons_nonanticip_using(OptVariablesBlock* pg0);
-    void update_cons_nonanticip_using(OptVariablesBlock* pg0);
+    void bodyof_cons_nonanticip_using(OptVariablesBlock* pg0);
+    inline void add_cons_nonanticip_using(OptVariablesBlock* pg0) {
+      bodyof_cons_nonanticip_using(pg0);
+      printf("SCRecourseProblem K_id %d: AGC: %lu gens NOT participating: fixed all of "
+	     "them.\n", K_idx, pg0_nonpartic_idxs.size());
+    }
+    inline void update_cons_nonanticip_using(OptVariablesBlock* pg0) {
+      bodyof_cons_nonanticip_using(pg0);
+    }
     void add_grad_pg0_nonanticip_part_to(double* grad);
 
     std::vector<int> pgK_partic_idxs, pg0_partic_idxs;
@@ -58,6 +65,8 @@ namespace gollnlp {
   protected:
     int K_idx;
     bool restart;
+    //options
+    double relax_factor_nonanticip_fixing;
   };
 } //end namespace
 

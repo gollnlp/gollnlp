@@ -1,6 +1,7 @@
 #include "SCRecourseProblem.hpp"
 
 #include "goUtils.hpp"
+#include "goTimer.hpp"
 
 using namespace std;
 
@@ -26,9 +27,8 @@ namespace gollnlp {
       prob->use_nlp_solver("ipopt"); 
       prob->set_solver_option("linear_solver", "ma57"); //master_prob.set_solver_option("mu_init", 1.);
       prob->set_solver_option("print_frequency_iter", 10);
-      
-      prob->optimize("ipopt");
-      printf("SOLVED conting problem %d\n\n", prob->data_K[0]->K_Contingency[0]);
+      prob->set_solver_option("print_level", 2);
+      prob->set_solver_option("fixed_variable_treatment", "relax_bounds");
     }
   }
 
@@ -47,10 +47,12 @@ namespace gollnlp {
     for(int i=0; i<p_g0->n; i++) grad_p_g0[i]=0.;
     for(int i=0; i<v_n0->n; i++) grad_v_n0[i]=0.;
 
+    //p_g0->print();
     for(auto prob : recou_probs) {
       if(!prob->eval_recourse(p_g0, v_n0, f, grad_p_g0, grad_v_n0))
 	return false;
     }
+    return true;
   }
 
   bool SCRecourseObjTerm::
@@ -68,8 +70,8 @@ namespace gollnlp {
     if(new_x) {
       if(!eval_f_grad()) return false;
     }
-    DAXPY(&(p_g0->n), &done, p_g0->x, &ione, grad+p_g0->index, &ione);
-    DAXPY(&(v_n0->n), &done, v_n0->x, &ione, grad+v_n0->index, &ione);
+    DAXPY(&(p_g0->n), &done, grad_p_g0, &ione, grad+p_g0->index, &ione);
+    DAXPY(&(v_n0->n), &done, grad_v_n0, &ione, grad+v_n0->index, &ione);
     return true;
   }
 
@@ -86,6 +88,8 @@ namespace gollnlp {
     //data_sc = d_in (member of the parent)
     data_K.push_back(new SCACOPFData(data_sc)); 
     data_K[0]->rebuild_for_conting(K_idx,numK);
+
+    relax_factor_nonanticip_fixing = 1e-4;
   }
 
   SCRecourseProblem::~SCRecourseProblem()
@@ -94,6 +98,8 @@ namespace gollnlp {
   bool SCRecourseProblem::eval_recourse(OptVariablesBlock* pg0, OptVariablesBlock* vn0,
 					double& f, double* grad_pg0, double *grad_vn0)
   {
+
+    goTimer tmrec; tmrec.start();
     update_cons_nonanticip_using(pg0);
     update_cons_AGC_using(pg0);
     update_cons_PVPQ_using(vn0);
@@ -103,6 +109,10 @@ namespace gollnlp {
 	return false;
       restart = true;
     } else {
+
+      set_solver_option("mu_init", 1e-8);
+      set_solver_option("bound_push", 1e-16);
+      set_solver_option("slack_bound_push", 1e-16);
       if(!reoptimize(OptProblem::primalDualRestart))
 	return false;
     }
@@ -113,19 +123,35 @@ namespace gollnlp {
     add_grad_pg0_nonanticip_part_to(grad_pg0);
     add_grad_pg0_AGC_part_to(grad_pg0);
     add_grad_vn0_to(grad_vn0);
+
+    tmrec.stop();
+    printf("SCRecourseProblem K_id %d: eval_recourse took %g sec\n", K_idx, tmrec.getElapsedTime());
+    printf("SCRecourseProblem K_id %d: recourse obj_value %g\n", K_idx, this->obj_value);
+
+    if(true) {
+      int dim = pg0->n;
+      printf("p_g0 in\n");
+      for(int i=0; i<pg0->n; i++)
+	printf("%12.5e ", pg0->xref[i]);
+      printf("\n**************************************************\n");
+      printf("grad_p_g0 out\n");
+      for(int i=0; i<pg0->n; i++)
+	printf("%12.5e ", grad_pg0[i]);
+      printf("\n\n");
+    }
     return true;
   }
   bool SCRecourseProblem::default_assembly(OptVariablesBlock* pg0, OptVariablesBlock* vn0) 
   {
-
-    printf("SCRecourseProblem: assemblying for contingency K=%d IDOut=%d "
-	   "outidx=%d Type=%s\n",
+    printf("SCRecourseProblem K_id %d: assembly IDOut=%d outidx=%d Type=%s\n",
 	   K_idx, data_sc.K_IDout[K_idx], data_sc.K_outidx[K_idx],
 	   data_sc.cont_type_string(K_idx).c_str());
 
     assert(data_K.size()==1);
     SCACOPFData& dK = *data_K[0];
-    
+
+    useQPen = true;
+
     add_variables(dK);
     add_cons_lines_pf(dK);
     add_cons_transformers_pf(dK);
@@ -164,33 +190,50 @@ namespace gollnlp {
     return true;
   }
 
-  void SCRecourseProblem::add_cons_nonanticip_using(OptVariablesBlock* pg0)
+  void SCRecourseProblem::bodyof_cons_nonanticip_using(OptVariablesBlock* pg0)
   {
-    SCACOPFData& dK = *data_K[0];
+    SCACOPFData& dK = *data_K[0]; assert(dK.id-1 == K_idx);
     OptVariablesBlock* pgK = variable("p_g", dK);
     if(NULL==pgK) {
-      printf("[warning] Contingency %d: p_g var not found in contingency recourse"
-	     " problem; will not enforce non-ACG coupling constraints.\n", dK.id);
+      printf("[warning] SCRecourseProblem K_id %d: p_g var not found in contingency  "
+	     "recourse problem; will not enforce non-ACG coupling constraints.\n", dK.id);
       return;
     }
     
     int sz = pgK_nonpartic_idxs.size();
     assert(sz == pg0_nonpartic_idxs.size());
     int *pgK_idxs = pgK_nonpartic_idxs.data(), *pg0_idxs = pg0_nonpartic_idxs.data();
-    int idxK;
-    //for(int i0=0, iK=0; i0<sz; i0++, iK++) {
+    int idxK; double pg0_val, lb, ub, aux; double& f = relax_factor_nonanticip_fixing;
     for(int i=0; i<sz; i++) {
-      idxK = pgK_idxs[i];
-      pgK->lb[idxK] = pgK->ub[idxK] = pg0->x[pg0_idxs[i]];
+      //pgK->lb[idxK] = pgK->ub[idxK] = pg0->xref[pg0_idxs[i]];
+      //pgK->lb[idxK] -= 1e-6;
       assert(pg0_idxs[i]<pg0->n && pg0_idxs[i]>=0);
-      assert(idxK<pgK->n && idxK>=0);
+      assert(pgK_idxs[i]<pgK->n && pgK_idxs[i]>=0);
+
+      idxK = pgK_idxs[i];
+      pg0_val = pg0->xref[pg0_idxs[i]];
+      lb = pg0->lb[pg0_idxs[i]];
+      ub = pg0->ub[pg0_idxs[i]];
+      aux = ub-lb;
+      assert(aux>1e-6);
+      if(aux<1e-2) aux = 1e-2;
+      aux = aux*f;
+      if(fabs(pg0_val-lb)<1e-8) {
+	pgK->lb[idxK] = pg0_val; 
+	pgK->ub[idxK] = pg0_val+aux;
+	continue;
+      }
+      if(fabs(ub-pg0_val)<1e-8) {
+	pgK->ub[idxK] = pg0_val;
+	pgK->lb[idxK] = pg0_val-aux;
+	continue;
+      }
+      aux = aux/2;
+      pgK->lb[idxK] = pg0_val-aux;
+      pgK->ub[idxK] = pg0_val+aux;
+      
     }
-    printf("Recourse K_id %d: AGC: %lu gens NOT participating: fixed all of "
-	   "them.\n", K_idx, pg0_nonpartic_idxs.size());
-  }
-  void SCRecourseProblem::update_cons_nonanticip_using(OptVariablesBlock* pg0)
-  {
-    add_cons_nonanticip_using(pg0);
+    
   }
 
   void SCRecourseProblem::add_grad_pg0_nonanticip_part_to(double* grad_pg0)
@@ -201,13 +244,13 @@ namespace gollnlp {
     const OptVariablesBlock* duals_pgK_bounds = vars_duals_bounds->get_block(string("duals_bnd_") + pgK->id);
     assert(duals_pgK_bounds);
     assert(duals_pgK_bounds->n == pgK->n);
-
+    //assert(false);
     int sz = pgK_nonpartic_idxs.size(); assert(sz == pg0_nonpartic_idxs.size());
     int *pgK_idxs = pgK_nonpartic_idxs.data(), *pg0_idxs = pg0_nonpartic_idxs.data();
     for(int i=0; i<sz; i++) {
       grad_pg0[pg0_idxs[i]] += duals_pgK_bounds->x[pgK_idxs[i]];
     }
-
+    //printf("SCRecourseProblem K_id %d: evaluated grad_pg0_nonanticip\n", K_idx);
   }
 
   void SCRecourseProblem::add_cons_AGC_using(OptVariablesBlock* pg0)

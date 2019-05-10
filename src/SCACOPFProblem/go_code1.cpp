@@ -25,7 +25,11 @@ int myexe1_function(const std::string& InFile1, const std::string& InFile2,
 
   //use a small list of contingencies for testing/serial
   //  std::vector<int> cont_list = {0, 88, 89, 92};//, 407};
-  std::vector<int> cont_list = {88, 992};//, 407};
+  //net 07R scenario 9
+  std::vector<int> cont_list = {426, //line conting, penalty $417
+				960, // gen conting, penalty $81,xxx
+				961,
+				963};// gen conting, penalty $52,xxx
   
   
   SCACOPFData d;
@@ -37,21 +41,28 @@ int myexe1_function(const std::string& InFile1, const std::string& InFile2,
   //
   //phase 1
   //
-  master_prob.use_nlp_solver("ipopt"); master_prob.set_solver_option("linear_solver", "ma57"); master_prob.set_solver_option("mu_init", 1.);
+  master_prob.use_nlp_solver("ipopt"); 
+  master_prob.set_solver_option("linear_solver", "ma57"); 
+  master_prob.set_solver_option("mu_init", 1.);
   bool bret = master_prob.optimize("ipopt");
+
+  printf("*** PHASE 1 finished - master problem solved: obj_value %g\n\n", master_prob.objective_value());
 
   //
   //phase 2
   //
   master_prob.append_objterm(new SCRecourseObjTerm(d, master_prob.p_g0_vars(), master_prob.v_n0_vars(), cont_list));
   //master_prob.append_objterm(new SCRecourseObjTerm(d, master_prob.p_g0_vars(), master_prob.v_n0_vars()));
-  ttot.stop();
+
   //bret = master_prob.optimize("ipopt");
-  master_prob.set_solver_option("mu_init", 1e-6);
+  master_prob.set_solver_option("mu_init", 1e-8);
+  master_prob.set_solver_option("bound_push", 1e-16);
+  master_prob.set_solver_option("slack_bound_push", 1e-16);
   bret = master_prob.reoptimize(OptProblem::primalDualRestart); //warm_start_target_mu
 
+  printf("*** PHASE 2 finished - master problem solved: obj_value %g\n\n", master_prob.objective_value());
 
-  printf("MyExe1 took %g sec.\n", ttot.getElapsedTime());
+  ttot.stop(); printf("MyExe1 took %g sec.\n", ttot.getElapsedTime());
   return 0;
 }
 
