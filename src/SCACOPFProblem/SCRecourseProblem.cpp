@@ -5,7 +5,9 @@
 using namespace std;
 
 namespace gollnlp {
-  SCRecourseObjTerm::SCRecourseObjTerm(SCACOPFData& d_in, OptVariablesBlock* pg0, OptVariablesBlock* vn0, const std::vector<int>& K_Cont_) 
+  SCRecourseObjTerm::SCRecourseObjTerm(SCACOPFData& d_in,
+				       OptVariablesBlock* pg0, OptVariablesBlock* vn0,
+				       const std::vector<int>& K_Cont_) 
     : OptObjectiveTerm("recourse_term"), data_sc(d_in), p_g0(pg0), v_n0(vn0)
   {
     auto K_Cont = K_Cont_;
@@ -35,11 +37,13 @@ namespace gollnlp {
       delete p;
   }
 
-  bool SCRecourseObjTerm::eval_f(const OptVariables& vars_primal, bool new_x, double& obj_val)
+  bool SCRecourseObjTerm::
+  eval_f(const OptVariables& vars_primal, bool new_x, double& obj_val)
   {
     return true;
   }
-  bool SCRecourseObjTerm::eval_grad(const OptVariables& vars_primal, bool new_x, double* grad)
+  bool SCRecourseObjTerm::
+  eval_grad(const OptVariables& vars_primal, bool new_x, double* grad)
   {
     return true;
   }
@@ -54,18 +58,26 @@ namespace gollnlp {
     int numK = 1; //!
 
     assert(0==data_K.size());
-    data_K.push_back(new SCACOPFData(data_sc)); //data_sc = d_in (member of the parent)
+    //data_sc = d_in (member of the parent)
+    data_K.push_back(new SCACOPFData(data_sc)); 
     data_K[0]->rebuild_for_conting(K_idx,numK);
   }
 
   SCRecourseProblem::~SCRecourseProblem()
   {
   }
+  bool SCRecourseProblem::eval_recourse(OptVariablesBlock* pg0, OptVariablesBlock* vn0,
+					double& f, double* grad)
+  {
+    return true;
+  }
   bool SCRecourseProblem::default_assembly(OptVariablesBlock* pg0, OptVariablesBlock* vn0) 
   {
 
-    printf("SCRecourseProblem: assemblying for contingency K=%d IDOut=%d outidx=%d Type=%s\n", 
-	   K_idx, data_sc.K_IDout[K_idx], data_sc.K_outidx[K_idx], data_sc.cont_type_string(K_idx).c_str());
+    printf("SCRecourseProblem: assemblying for contingency K=%d IDOut=%d "
+	   "outidx=%d Type=%s\n",
+	   K_idx, data_sc.K_IDout[K_idx], data_sc.K_outidx[K_idx],
+	   data_sc.cont_type_string(K_idx).c_str());
 
     assert(data_K.size()==1);
     SCACOPFData& dK = *data_K[0];
@@ -96,7 +108,8 @@ namespace gollnlp {
       //all dB.G_Generator should be in data_sc.G_Generator
       assert(pgK_nonpartic_idxs[iK]>=0); 
       //all ids should match in order
-      assert(dK.G_Generator[pgK_nonpartic_idxs[iK]] == data_sc.G_Generator[pg0_nonpartic_idxs[i0]]);
+      assert(dK.G_Generator[pgK_nonpartic_idxs[iK]] ==
+	     data_sc.G_Generator[pg0_nonpartic_idxs[i0]]);
     }
 #endif
     enforce_nonanticip_coupling(pg0);
@@ -122,7 +135,8 @@ namespace gollnlp {
       assert(i0<pg0->n);
       assert(iK<pgK->n);
     }
-    printf("Recourse K_id %d: AGC: %lu gens NOT participating: fixed all of them.\n", K_idx, pg0_nonpartic_idxs.size());
+    printf("Recourse K_id %d: AGC: %lu gens NOT participating: fixed all of "
+	   "them.\n", K_idx, pg0_nonpartic_idxs.size());
   }
 
   void SCRecourseProblem::add_cons_AGC(OptVariablesBlock* pg0)

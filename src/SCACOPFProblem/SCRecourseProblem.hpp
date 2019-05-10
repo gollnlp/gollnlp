@@ -30,7 +30,10 @@ namespace gollnlp {
     virtual ~SCRecourseProblem();
 
     virtual bool default_assembly(OptVariablesBlock* pg0, OptVariablesBlock* vn0);
-
+    // evaluates recourse for pg0 and vn0 (these are in arguments) and returns
+    // the value of the recourse in 'f' and of the gradient in 'grad' if grad!=NULL
+    virtual bool eval_recourse(OptVariablesBlock* pg0, OptVariablesBlock* vn0,
+			       double& f, double* grad=NULL);
   protected: 
     //indexes of non-participating AGC generators in data_K[0] and data_sc, respectively
     //these indexes exclude 'outidx' when K_idx is a generator contingency

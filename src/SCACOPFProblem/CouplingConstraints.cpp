@@ -117,7 +117,8 @@ bool NonAnticipCons::get_Jacob_ij(std::vector<OptSparseEntry>& vij)
 /////////////////////////////////////////////////////////////////////////////////
 AGCComplementarityCons::
 AGCComplementarityCons(const std::string& id_, int numcons,
-		       OptVariablesBlock* pg0_, OptVariablesBlock* pgK_, OptVariablesBlock* deltaK_,
+		       OptVariablesBlock* pg0_,
+		       OptVariablesBlock* pgK_, OptVariablesBlock* deltaK_,
 		       const std::vector<int>& idx0_, const std::vector<int>& idxK_,
 		       const std::vector<double>& Plb_, const std::vector<double>& Pub_, 
 		       const std::vector<double>& G_alpha_,
@@ -187,7 +188,8 @@ AGCComplementarityCons::~AGCComplementarityCons()
   delete[] J_nz_idxs;
 } 
 
-bool AGCComplementarityCons::eval_body (const OptVariables& vars_primal, bool new_x, double* body)
+bool AGCComplementarityCons::
+eval_body (const OptVariables& vars_primal, bool new_x, double* body)
 {
   double* g = body+this->index;
   // p0 + alpha*deltak - pk - gb * rhop + gb * rhom = 0
