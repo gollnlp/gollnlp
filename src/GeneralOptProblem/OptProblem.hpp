@@ -329,12 +329,13 @@ public:
   bool eval_obj     (const double* x, bool new_x, double& obj);
   bool eval_cons    (const double* x, bool new_x, double* cons);
   bool eval_gradobj (const double* x, bool new_x, double* grad);
-  bool eval_Jaccons (const double* x, bool new_x, const int& nnz, int* i, int* j, double* M);
+  bool eval_Jaccons (const double* x, bool new_x, 
+		     const int& nnz, int* i, int* j, double* M);
   bool eval_HessLagr(const double* x, bool new_x, 
 		     const double& obj_factor, 
 		     const double* lambda, bool new_lambda,
 		     const int& nnz, int* i, int* j, double* M);
-  //getters -> copy to x; x should be allocated
+  //getters -> copy to x; x is expected to be allocated
   void fill_primal_vars(double* x);
   void fill_vars_lower_bounds(double* lb);
   void fill_vars_upper_bounds(double* ub);
@@ -352,6 +353,7 @@ public:
   bool fill_dual_cons_start(double* lambda);
 
   //setters
+  void set_obj_value(const double& f);
   void set_primal_vars(const double* x);
   void set_duals_vars_bounds(const double* zL, const double* zU);
   void set_duals_vars_cons(const double* lambda);
@@ -375,6 +377,7 @@ protected:
   OptVariables*    vars_primal;
   OptConstraints*  cons;
   OptObjective*    obj;
+  double obj_value;
 
   OptVariables*    vars_duals_bounds;
   OptVariables*    vars_duals_cons;

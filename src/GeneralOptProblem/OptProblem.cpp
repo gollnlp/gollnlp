@@ -27,6 +27,7 @@ OptProblem::OptProblem()
   vars_primal = new OptVariables();
   cons = new OptConstraints();
   obj = new OptObjective();
+  obj_value = 0.;
 
   vars_duals_bounds = NULL;
   vars_duals_cons = NULL;
@@ -266,6 +267,13 @@ void OptProblem::fill_primal_vars(double* x)
     DCOPY(&(b->n), b->x, &ione, x + b->index, &ione);
   }
 }
+
+
+void OptProblem::set_obj_value(const double& f)
+{
+  obj_value = f;
+}
+
 
 void OptProblem::set_primal_vars(const double* x)
 {
