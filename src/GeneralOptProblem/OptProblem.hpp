@@ -317,6 +317,9 @@ public:
 
   virtual bool optimize(const std::string& nlpsolver);
   virtual bool reoptimize(RestartType t=primalRestart);
+
+  inline double objective_value() const { return obj_value; }
+
   // Callbacks
   // This method is called by NlpSolver instance after each iteration (if supported by the solver)
   // Derive a class from OptProblem to hook your code
@@ -388,6 +391,8 @@ protected:
 
   //these two vectors have limited storage lifetime
   std::vector<OptSparseEntry> ij_Jac, ij_Hess;
+
+  bool new_x_fgradf;
 };
   
 } //end namespace

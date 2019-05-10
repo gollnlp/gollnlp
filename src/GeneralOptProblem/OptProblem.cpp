@@ -34,6 +34,8 @@ OptProblem::OptProblem()
 
   nnz_Jac = nnz_Hess = -1;
   nlp_solver = NULL;
+
+  new_x_fgradf = true;
 }
 
 OptProblem::~OptProblem()
@@ -51,7 +53,11 @@ OptProblem::~OptProblem()
 bool OptProblem::eval_obj(const double* x, bool new_x, double& obj_val)
 {
   obj_val=0.;
-  if(new_x) vars_primal->attach_to(x);
+  if(new_x) {
+    vars_primal->attach_to(x);
+  } else {
+    if(new_x_fgradf) { new_x=true; new_x_fgradf=false; }
+  }
   for(auto& ot: obj->vterms) {
 #ifdef DEBUG
     double obj_val_before=obj_val;
@@ -69,7 +75,10 @@ bool OptProblem::eval_cons(const double* x, bool new_x, double* g)
 {
   for(int i=0; i<cons->m(); i++) g[i]=0.;
 
-  if(new_x) vars_primal->attach_to(x);
+  if(new_x) {
+    new_x_fgradf = true;
+    vars_primal->attach_to(x);
+  }
   for(auto& con: cons->vblocks) {
     if(!con->eval_body(*vars_primal, new_x, g))
       return false;
@@ -80,7 +89,11 @@ bool OptProblem::eval_gradobj (const double* x, bool new_x, double* grad)
 {
   for(int i=0; i<vars_primal->n(); i++) grad[i]=0.;
 
-  if(new_x) vars_primal->attach_to(x);
+  if(new_x) {
+    vars_primal->attach_to(x);
+  } else {
+    if(new_x_fgradf) { new_x=true; new_x_fgradf=false; }
+  }
   for(auto& ot: obj->vterms) {
     if(!ot->eval_grad(*vars_primal, new_x, grad))
       return false;
@@ -157,8 +170,12 @@ int OptProblem::get_nnzJaccons()
   // we assume that eval_Jaccons is called after get_nnzJaccons
 bool OptProblem::eval_Jaccons (const double* x, bool new_x, const int& nnz, int* i, int* j, double* M)
 {
+  if(new_x) {
+    new_x_fgradf=true;
+    vars_primal->attach_to(x);
+  }
   if(M==NULL) {
-    if(new_x) vars_primal->attach_to(x);
+
 
     for(auto& con: cons->vblocks) {
       if(!con->eval_Jac(*vars_primal, new_x, nnz, i,j,M)) {
@@ -171,7 +188,6 @@ bool OptProblem::eval_Jaccons (const double* x, bool new_x, const int& nnz, int*
   // case of M!=NULL > just fill in the values
   for(int i=0; i<nnz; i++) M[i]=0.;
 
-  if(new_x) vars_primal->attach_to(x);
   for(auto& con: cons->vblocks) {
     if(!con->eval_Jac(*vars_primal, new_x, nnz, i,j,M))
       return false;
@@ -229,7 +245,10 @@ bool OptProblem::eval_HessLagr(const double* x, bool new_x,
 			       const double* lambda, bool new_lambda,
 			       const int& nnz, int* i, int* j, double* M)
 {
-  if(new_x) vars_primal->attach_to(x);
+  if(new_x) {
+    new_x_fgradf=true; 
+    vars_primal->attach_to(x);
+  }
   if(new_lambda) vars_duals_cons->attach_to(lambda);
   if(M==NULL) {
     for(auto& ot: obj->vterms) {
@@ -327,7 +346,7 @@ void OptProblem::set_duals_vars_bounds(const double* zL, const double* zU)
       } else if(b->ub[i] >=1e+20) {
 	bdual->x[i] = zL[b->index+i];
       } else { 
-	bdual->x[i] = max(zL[b->index+i], zL[b->index+i]);
+	bdual->x[i] = max(zL[b->index+i], zU[b->index+i]);
       }
       // printf("[%d] zL=%g zU=%g    x=%g lb=%g lu=%g   our dual=%g\n", b->index+i, 
       //	     zL[b->index+i], zU[b->index+i], 
