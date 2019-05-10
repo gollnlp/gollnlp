@@ -58,7 +58,7 @@ public:
                                   Ipopt::Index m, bool init_lambda,
                                   Number* lambda)
   {
-    std::cout << init_x << " " << init_z << " " << init_lambda << std::endl;
+    //std::cout << init_x << " " << init_z << " " << init_lambda << std::endl;
     if(init_x)
       if(!prob->fill_primal_start(x)) return false;
     if(init_z)
@@ -125,6 +125,7 @@ public:
     //SmartPtr< const IteratesVector > a = 	ip_data->curr () ;
     //IteratesVector b = *a;
     prob->set_obj_value(obj_value);
+    //assert(false);
     prob->set_primal_vars(x);
     prob->set_duals_vars_bounds(z_L, z_U);
     prob->set_duals_vars_cons(lambda);
@@ -220,7 +221,7 @@ public:
     ApplicationReturnStatus status = app->OptimizeTNLP(ipopt_nlp_spec);
 
     if (status == Ipopt::Solve_Succeeded) {
-      printf("\n\n*** The problem solved!\n");
+      //printf("\n\n*** The problem solved!\n");
       return true;
     }
     else {

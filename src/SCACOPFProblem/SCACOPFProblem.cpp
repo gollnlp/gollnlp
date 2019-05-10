@@ -353,7 +353,7 @@ void SCACOPFProblem::add_variables(SCACOPFData& d)
   append_variables(theta_n);
   theta_n->set_start_to(data_sc.N_theta0.data());
   int RefBus = data_sc.bus_with_largest_gen();
-  printf("RefBus=%d\n", RefBus);
+  //printf("RefBus=%d\n", RefBus);
 
   if(data_sc.N_theta0[RefBus]!=0.) {
     for(int b=0; b<theta_n->n; b++) {
