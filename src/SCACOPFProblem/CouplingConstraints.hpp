@@ -59,9 +59,11 @@ namespace gollnlp {
 			   const std::vector<double>& Plb, const std::vector<double>& Pub, 
 			   const std::vector<double>& G_alpha_,
 			   const double& r_,
-			   bool add_penalty_obj=false, const double& bigM=0);
+			   bool add_penalty_obj=false, const double& bigM=0,
+			   bool fix_p_g0=false);
     virtual ~AGCComplementarityCons();
 
+    OptVariablesBlock* get_p_g0() { return p0; }
     OptVariablesBlock* get_rhop() { return rhop; }
     OptVariablesBlock* get_rhom() { return rhom; }
     void compute_rhos(OptVariablesBlock* rp, OptVariablesBlock* rm);
@@ -92,6 +94,7 @@ namespace gollnlp {
     const double* G_alpha; //size ngen base case, accessed via idx0
     int* J_nz_idxs; 
     int* H_nz_idxs;
+    bool fixed_p_g0;
   };
 
   ///////////////////////////////////////////////////////////////////////////////////

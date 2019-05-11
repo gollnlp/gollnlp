@@ -123,9 +123,10 @@ AGCComplementarityCons(const std::string& id_, int numcons,
 		       const std::vector<double>& Plb_, const std::vector<double>& Pub_, 
 		       const std::vector<double>& G_alpha_,
 		       const double& r_,
-		       bool add_penalty_obj/*=false*/, const double& bigM/*=0*/)
+		       bool add_penalty_obj/*=false*/, const double& bigM/*=0*/,
+		       bool fix_p_g0_/*=false*/)
   : OptConstraintsBlock(id_, numcons), p0(pg0_), pk(pgK_), deltak(deltaK_), r(r_),
-    J_nz_idxs(NULL), H_nz_idxs(NULL)
+  J_nz_idxs(NULL), H_nz_idxs(NULL), fixed_p_g0(fix_p_g0_)
 {
   assert(idx0_.size()==idxK_.size());
   assert(idx0_.size()==n/3);
@@ -244,10 +245,14 @@ eval_Jac(const OptVariables& primal_vars, bool new_x,
     assert(rhop->n == n/3);
     for(int it=0; it<dim; it++) {
       row = this->index+it;
-      idxnz = J_nz_idxs[it];
-      assert(idxnz+4<nnz && idxnz>=0);
-      
-      ia[idxnz]=row; ja[idxnz]=p0->index+idx0[it];   idxnz++; // w.r.t. p0
+      idxnz = J_nz_idxs[it];   
+   
+      if(!fixed_p_g0) {
+	assert(idxnz+4<nnz && idxnz>=0);
+	ia[idxnz]=row; ja[idxnz]=p0->index+idx0[it];   idxnz++; // w.r.t. p0
+      } else {
+	assert(idxnz+3<nnz && idxnz>=0);
+      }
       ia[idxnz]=row; ja[idxnz]=pk->index+idxk[it];   idxnz++; // w.r.t. pk
       ia[idxnz]=row; ja[idxnz]=deltak->index;        idxnz++; // w.r.t. delta
       ia[idxnz]=row; ja[idxnz]=rhop->index+it;       idxnz++; // w.r.t. rhop
@@ -272,16 +277,28 @@ eval_Jac(const OptVariables& primal_vars, bool new_x,
     }
     assert(row == this->index+this->n);
   } else {
-
-    for(int it=0; it<dim; it++) {
-      idxnz = J_nz_idxs[it];
-      assert(idxnz<nnz && idxnz>=0);
-      
-      M[idxnz++] += 1.; // w.r.t. p0
-      M[idxnz++] -= 1.; // w.r.t. pk
-      M[idxnz++] += G_alpha[idx0[it]]; // w.r.t. delta
-      M[idxnz++] -= gb[it]; // w.r.t. rhop
-      M[idxnz++] += gb[it]; // w.r.t. rhom
+    if(!fixed_p_g0) {
+      for(int it=0; it<dim; it++) {
+	idxnz = J_nz_idxs[it];
+	assert(idxnz<nnz && idxnz>=0);
+	
+	M[idxnz++] += 1.; // w.r.t. p0
+	M[idxnz++] -= 1.; // w.r.t. pk
+	M[idxnz++] += G_alpha[idx0[it]]; // w.r.t. delta
+	M[idxnz++] -= gb[it]; // w.r.t. rhop
+	M[idxnz++] += gb[it]; // w.r.t. rhom
+      }
+    } else { //fixed_p_g0 == true
+      for(int it=0; it<dim; it++) {
+	idxnz = J_nz_idxs[it];
+	assert(idxnz<nnz && idxnz>=0);
+	
+	//M[idxnz++] += 1.; // w.r.t. p0
+	M[idxnz++] -= 1.; // w.r.t. pk
+	M[idxnz++] += G_alpha[idx0[it]]; // w.r.t. delta
+	M[idxnz++] -= gb[it]; // w.r.t. rhop
+	M[idxnz++] += gb[it]; // w.r.t. rhom
+      }
     }
     int idx;
     for(int it=0; it<dim; it++) {
@@ -304,7 +321,11 @@ eval_Jac(const OptVariables& primal_vars, bool new_x,
 
 int AGCComplementarityCons::get_Jacob_nnz()
 {
-  return 3*n; //  = n/3 * (5+2+2);
+  if(!fixed_p_g0) {
+    return 3*n; //  = n/3 * (5+2+2);
+  } else {
+    return (n/3)*8;
+  }
 }
 
 bool AGCComplementarityCons::get_Jacob_ij(std::vector<OptSparseEntry>& vij)
@@ -321,8 +342,12 @@ bool AGCComplementarityCons::get_Jacob_ij(std::vector<OptSparseEntry>& vij)
   int row=0; 
   for(int it=0; it<n/3; it++) {
     row = this->index+it;
-    vij.push_back(OptSparseEntry(row, p0->index+idx0[it], J_nz_idxs+it)); //p0
-    vij.push_back(OptSparseEntry(row, pk->index+idxk[it], NULL)); //pk
+    if(!fixed_p_g0) {
+      vij.push_back(OptSparseEntry(row, p0->index+idx0[it], J_nz_idxs+it)); //p0
+      vij.push_back(OptSparseEntry(row, pk->index+idxk[it], NULL));         //pk
+    } else {
+      vij.push_back(OptSparseEntry(row, pk->index+idxk[it], J_nz_idxs+it)); //pk
+    }
     vij.push_back(OptSparseEntry(row, deltak->index, NULL)); //delta
     vij.push_back(OptSparseEntry(row, rhop->index+it, NULL)); //rhop
     vij.push_back(OptSparseEntry(row, rhom->index+it, NULL)); //rhom
