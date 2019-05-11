@@ -63,6 +63,9 @@ namespace gollnlp {
     inline std::string con_name(const std::string& prefix, const SCACOPFData& d) { 
       return prefix+"_"+std::to_string(d.id); 
     }
+    inline OptConstraintsBlock* constraint(const std::string& prefix, const SCACOPFData& d) { 
+      return constraints_block(con_name(prefix, d));
+    }
     //printing
     void print_p_g(SCACOPFData& dB);
     void print_p_g_with_coupling_info(SCACOPFData& dB);
