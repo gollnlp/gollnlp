@@ -3,6 +3,7 @@
 
 #include "SCACOPFProblem.hpp"
 
+#include <cmath>
 #include <vector>
 
 namespace gollnlp {
