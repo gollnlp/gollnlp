@@ -24,6 +24,8 @@ namespace gollnlp {
     OptVariablesBlock *p_g0, *v_n0;
     double f;
     double *grad_p_g0, *grad_v_n0;
+  public:
+    bool stop_evals;
   };
 
   class SCRecourseProblem : public SCACOPFProblem

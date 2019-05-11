@@ -25,11 +25,12 @@ int myexe1_function(const std::string& InFile1, const std::string& InFile2,
 
   //use a small list of contingencies for testing/serial
   //  std::vector<int> cont_list = {0, 88, 89, 92};//, 407};
+
   //net 07R scenario 9
-  std::vector<int> cont_list = {426, //line conting, penalty $417
-				960, // gen conting, penalty $81,xxx
-				961,
-				963};// gen conting, penalty $52,xxx
+  std::vector<int> cont_list = {426//, //line/trans conting, penalty $417
+				//960, // gen conting, penalty $81,xxx
+				//961
+				};//963};// gen conting, penalty $52,xxx
   
   
   SCACOPFData d;
@@ -51,7 +52,8 @@ int myexe1_function(const std::string& InFile1, const std::string& InFile2,
   //
   //phase 2
   //
-  master_prob.append_objterm(new SCRecourseObjTerm(d, master_prob.p_g0_vars(), master_prob.v_n0_vars(), cont_list));
+  SCRecourseObjTerm* rec;
+  master_prob.append_objterm(rec=new SCRecourseObjTerm(d, master_prob.p_g0_vars(), master_prob.v_n0_vars(), cont_list));
   //master_prob.append_objterm(new SCRecourseObjTerm(d, master_prob.p_g0_vars(), master_prob.v_n0_vars()));
 
   //bret = master_prob.optimize("ipopt");
@@ -61,6 +63,13 @@ int myexe1_function(const std::string& InFile1, const std::string& InFile2,
   bret = master_prob.reoptimize(OptProblem::primalDualRestart); //warm_start_target_mu
 
   printf("*** PHASE 2 finished - master problem solved: obj_value %g\n\n", master_prob.objective_value());
+
+
+  master_prob.set_solver_option("mu_init", 1e-2);
+  master_prob.set_solver_option("bound_push", 1e-16);
+  master_prob.set_solver_option("slack_bound_push", 1e-16);
+  rec->stop_evals=false;
+  bret = master_prob.reoptimize(OptProblem::primalDualRestart); //warm_start_target_mu
 
   ttot.stop(); printf("MyExe1 took %g sec.\n", ttot.getElapsedTime());
   return 0;
