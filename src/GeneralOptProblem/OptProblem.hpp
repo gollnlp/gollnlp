@@ -281,7 +281,7 @@ public:
     obj->append_objterm(objterm);
   }
 
-  inline OptConstraintsBlock* get_constraints_block(const std::string& id)
+  inline OptConstraintsBlock* constraints_block(const std::string& id)
   {
     return cons->get_block(id);
   }

@@ -41,7 +41,7 @@ int main()
 
   //
   //modify rhs of constraints2 from 0 to 0.1 and resolve
-  OptConstraintsBlock* con2 = prob.get_constraints_block("constraint2");
+  OptConstraintsBlock* con2 = prob.constraints_block("constraint2");
   assert(con2);
   for(int i=0; i<con2->n; i++)
     con2->lb[i] = con2->ub[i] = 0.01;
