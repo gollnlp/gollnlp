@@ -32,7 +32,7 @@ namespace gollnlp {
     for(auto prob : recou_probs) {
       prob->use_nlp_solver("ipopt");
       prob->set_solver_option("mu_init", 1e-2);
-      prob->set_solver_option("mu_target", 1e-9);
+      prob->set_solver_option("mu_target", 1e-10);
       
       prob->set_solver_option("linear_solver", "ma57"); //master_prob.set_solver_option("mu_init", 1.);
       prob->set_solver_option("print_frequency_iter", 20);
@@ -192,7 +192,7 @@ double lala=0.;
 
     tmrec.stop();
     //printf("SCRecourseProblem K_id %d: eval_recourse took %g sec\n", K_idx, tmrec.getElapsedTime());
-    printf("SCRecourseProblem K_id %d: recourse obj_value %g\n\n", K_idx, this->obj_value);
+    printf("SCRecourseProblem K_id %d: recourse obj_value %g\n", K_idx, this->obj_value);
 
     if(false) {
       int dim = pg0->n;
