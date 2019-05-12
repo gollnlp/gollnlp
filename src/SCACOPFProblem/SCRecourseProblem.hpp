@@ -16,6 +16,15 @@ namespace gollnlp {
     virtual ~SCRecourseObjTerm();
     virtual bool eval_f(const OptVariables& vars_primal, bool new_x, double& obj_val);
     virtual bool eval_grad(const OptVariables& vars_primal, bool new_x, double* grad);
+
+    virtual bool eval_HessLagr(const OptVariables& vars_primal, bool new_x, 
+			       const double& obj_factor,
+			       const int& nnz, int* i, int* j, double* M);
+    
+    virtual int get_HessLagr_nnz() ;
+    // (i,j) entries in the HessLagr to which this term contributes to
+    virtual bool get_HessLagr_ij(std::vector<OptSparseEntry>& vij);
+    
   protected:
     virtual bool eval_f_grad();
   private:
@@ -24,6 +33,7 @@ namespace gollnlp {
     OptVariablesBlock *p_g0, *v_n0;
     double f;
     double *grad_p_g0, *grad_v_n0;
+    int* H_nz_idxs;
   public:
     bool stop_evals;
   };

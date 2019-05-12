@@ -14,7 +14,7 @@ namespace gollnlp {
 				       OptVariablesBlock* pg0, OptVariablesBlock* vn0,
 				       const std::vector<int>& K_Cont_) 
     : OptObjectiveTerm("recourse_term"), data_sc(d_in), 
-      p_g0(pg0), v_n0(vn0), f(0.), grad_p_g0(NULL), grad_v_n0(NULL)
+      p_g0(pg0), v_n0(vn0), f(0.), grad_p_g0(NULL), grad_v_n0(NULL), H_nz_idxs(NULL)
   {
     auto K_Cont = K_Cont_;
     if(0==K_Cont.size())
@@ -23,14 +23,19 @@ namespace gollnlp {
     for(auto K : K_Cont)
       recou_probs.push_back(new SCRecourseProblem(data_sc, K));
 
+
     for(auto prob : recou_probs) {
       //prob->useQPen=true;
       prob->default_assembly(p_g0, v_n0);
     }
+
     for(auto prob : recou_probs) {
-      prob->use_nlp_solver("ipopt"); 
+      prob->use_nlp_solver("ipopt");
+      prob->set_solver_option("mu_init", 1e-2);
+      prob->set_solver_option("mu_target", 1e-9);
+      
       prob->set_solver_option("linear_solver", "ma57"); //master_prob.set_solver_option("mu_init", 1.);
-      prob->set_solver_option("print_frequency_iter", 10);
+      prob->set_solver_option("print_frequency_iter", 20);
       prob->set_solver_option("print_level", 2);
       prob->set_solver_option("tol", 1e-10);
       //prob->set_solver_option("fixed_variable_treatment", "relax_bounds");
@@ -38,7 +43,7 @@ namespace gollnlp {
     }
     stop_evals = false;
   }
-
+double lala=0.;
   SCRecourseObjTerm::~SCRecourseObjTerm()
   {
     delete [] grad_p_g0;
@@ -49,19 +54,20 @@ namespace gollnlp {
   bool SCRecourseObjTerm::eval_f_grad()
   {
     if(grad_p_g0==NULL) grad_p_g0 = new double[p_g0->n];
-    if(grad_v_n0==NULL) grad_v_n0 = new double[v_n0->n];
+    //if(grad_v_n0==NULL) grad_v_n0 = new double[v_n0->n];
 
     if(!stop_evals) {
       f =0.;
       for(int i=0; i<p_g0->n; i++) grad_p_g0[i]=0.;
-      for(int i=0; i<v_n0->n; i++) grad_v_n0[i]=0.;
+      //for(int i=0; i<v_n0->n; i++) grad_v_n0[i]=0.;
       
       //p_g0->print();
       for(auto prob : recou_probs) {
 	if(!prob->eval_recourse(p_g0, v_n0, f, grad_p_g0, grad_v_n0))
 	  return false;
       }
-      
+
+      for(int i=0; i<p_g0->n; i++) f += 0.5*lala*p_g0->xref[i]*p_g0->xref[i];
       //if(f<1) stop_evals=true;
 
     }
@@ -87,7 +93,51 @@ namespace gollnlp {
     double a=1.;
     
     DAXPY(&(p_g0->n), &a, grad_p_g0, &ione, grad+p_g0->index, &ione);
-    DAXPY(&(v_n0->n), &a, grad_v_n0, &ione, grad+v_n0->index, &ione);
+
+    a=lala;
+    DAXPY(&(p_g0->n), &a, const_cast<double*>(p_g0->xref),
+	  &ione, grad+p_g0->index, &ione);
+    //DAXPY(&(v_n0->n), &a, grad_v_n0, &ione, grad+v_n0->index, &ione);
+    return true;
+  }
+  
+  bool SCRecourseObjTerm::
+  eval_HessLagr(const OptVariables& vars_primal, bool new_x, 
+		const double& obj_factor,
+		const int& nnz, int* i, int* j, double* M)
+  {
+    if(NULL==M) {
+      int idx;
+      for(int it=0; it<p_g0->n; it++) {
+	idx = H_nz_idxs[it]; 
+	assert(idx>=0);
+	//if(idx<0) return false;
+	i[idx] = j[idx] = p_g0->index+it;
+      }
+    } else {
+      double aux = lala*obj_factor;
+      for(int it=0; it<p_g0->n; it++) {
+	assert(H_nz_idxs[it]>=0);
+	assert(H_nz_idxs[it]<nnz);
+	M[H_nz_idxs[it]] += aux;
+      }
+    }
+    return true;
+  }
+  int SCRecourseObjTerm::get_HessLagr_nnz() {
+    return p_g0->n;
+  }
+  bool SCRecourseObjTerm::get_HessLagr_ij(std::vector<OptSparseEntry>& vij)
+  {
+    if(NULL==H_nz_idxs)
+      H_nz_idxs = new int[p_g0->n];
+    
+    int i;
+    for(int it=0; it<p_g0->n; it++) {
+      i = p_g0->index+it;
+      vij.push_back(OptSparseEntry(i,i,H_nz_idxs+it));
+    }
+		    
     return true;
   }
 
@@ -117,8 +167,8 @@ namespace gollnlp {
 
     goTimer tmrec; tmrec.start();
     update_cons_nonanticip_using(pg0);
-    update_cons_AGC_using(pg0);
-    update_cons_PVPQ_using(vn0);
+    //update_cons_AGC_using(pg0);
+    //update_cons_PVPQ_using(vn0);
 
     if(!restart) {
       if(!optimize("ipopt"))
@@ -126,7 +176,7 @@ namespace gollnlp {
       restart = true;
     } else {
 
-      set_solver_option("mu_init", 1e-5);
+
       //set_solver_option("bound_push", 1e-16);
       //set_solver_option("slack_bound_push", 1e-16);
       if(!reoptimize(OptProblem::primalDualRestart))
@@ -137,12 +187,12 @@ namespace gollnlp {
     f += this->obj_value;
     //update the grad based on the multipliers
     add_grad_pg0_nonanticip_part_to(grad_pg0);
-    add_grad_pg0_AGC_part_to(grad_pg0);
-    add_grad_vn0_to(grad_vn0);
+    //add_grad_pg0_AGC_part_to(grad_pg0);
+    //add_grad_vn0_to(grad_vn0);
 
     tmrec.stop();
     //printf("SCRecourseProblem K_id %d: eval_recourse took %g sec\n", K_idx, tmrec.getElapsedTime());
-    printf("SCRecourseProblem K_id %d: recourse obj_value %g\n", K_idx, this->obj_value);
+    printf("SCRecourseProblem K_id %d: recourse obj_value %g\n\n", K_idx, this->obj_value);
 
     if(false) {
       int dim = pg0->n;
