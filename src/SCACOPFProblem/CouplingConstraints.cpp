@@ -841,9 +841,9 @@ int PVPQComplementarityCons::get_HessLagr_nnz()
 bool PVPQComplementarityCons::get_HessLagr_ij(std::vector<OptSparseEntry>& vij)
 {
   if(n==0) return true;
-  int nnz;
+  int nnz=get_HessLagr_nnz();
   if(NULL==H_nz_idxs) {
-    H_nz_idxs = new int[nnz=get_HessLagr_nnz()];
+    H_nz_idxs = new int[nnz];
   }
   int i,j, dim=n/3, aux, itnz=0;
   for(int it=0; it<n/3; it++) {
