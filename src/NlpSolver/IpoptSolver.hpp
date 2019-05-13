@@ -4,7 +4,10 @@
 #include "OptProblem.hpp"
 #include "NlpSolver.hpp"
 
+#include "IpIpoptCalculatedQuantities.hpp"
 #include "IpIpoptApplication.hpp"
+#include "IpTNLPAdapter.hpp"
+#include "IpOrigIpoptNLP.hpp"
 #include "IpTNLP.hpp"
 #include "IpIpoptData.hpp"
 
@@ -144,7 +147,30 @@ public:
 				     IpoptCalculatedQuantities* ip_cq)
 
   {
-    return true;
+    //! this is working code - commented out since it is not needed anymore
+    // Ipopt::TNLPAdapter* tnlp_adapter = NULL;
+    // if( ip_cq != NULL ) {
+    //   bool bret;
+    //   Ipopt::OrigIpoptNLP* orignlp;
+    //   orignlp = dynamic_cast<OrigIpoptNLP*>(GetRawPtr(ip_cq->GetIpoptNLP()));
+    //   if( orignlp != NULL ) {
+    // 	tnlp_adapter = dynamic_cast<TNLPAdapter*>(GetRawPtr(orignlp->nlp()));
+
+    // 	int n = prob->get_num_variables();
+    // 	double* primals = new double[n];
+    // 	tnlp_adapter->ResortX(*ip_data->curr()->x(), primals);
+    // 	bret = prob->iterate_callback(iter, obj_value, primals, inf_pr, inf_du, mu, 
+    // 				      alpha_du, alpha_pr, ls_trials);
+    // 	delete[] primals;
+    // 	return bret;
+    //   } else {
+    // 	// orignlp == NULL
+    // 	//Ipopt in restauration -> call with primals = NULL
+    //   }
+    // } 
+    // restoration or some other abnormal situation -> primals=NULL
+    return prob->iterate_callback(iter, obj_value, NULL, inf_pr, inf_du, mu, 
+				    alpha_du, alpha_pr, ls_trials);
   }
 
   virtual bool get_warm_start_iterate(IteratesVector& warm_start_iterate)

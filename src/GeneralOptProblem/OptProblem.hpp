@@ -308,11 +308,13 @@ public:
   //More specifically, OptProblem will check if any of the blocks 'b' in the primal and dual
   //variables has b.providesStartingPoint==true and will use exactly b.x; otherwise will use zeros
 
-  // NLP optimization
-
+  //
+  // NLP optimization and reoptimization
+  //
   enum RestartType{primalRestart, primalDualRestart, advancedPrimalDualRestart};
   
-  // method should be called before 'optimize' whenever the size or the sparsity pattern of the derivatives changes
+  // method should be called before 'optimize' whenever the size or the sparsity 
+  // pattern of the derivatives changes
   virtual void problem_changed();
 
   virtual bool optimize(const std::string& nlpsolver);
@@ -320,10 +322,17 @@ public:
 
   inline double objective_value() const { return obj_value; }
 
+  //
   // Callbacks
+  //
   // This method is called by NlpSolver instance after each iteration (if supported by the solver)
   // Derive a class from OptProblem to hook your code
-  //virtual bool iterate_callback() {return true;}
+  virtual bool iterate_callback(int iter, const double& obj_value, const double* primals,
+				const double& inf_pr, const double& inf_du, 
+				const double& mu, 
+				const double& alpha_du, const double& alpha_pr,
+				int ls_trials) 
+  { return true; }
 public:
   //
   // internal NLP functions evaluators fed to the NLP solver
