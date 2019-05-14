@@ -25,6 +25,7 @@ namespace gollnlp {
     // (i,j) entries in the HessLagr to which this term contributes to
     virtual bool get_HessLagr_ij(std::vector<OptSparseEntry>& vij);
     
+    void end_of_iteration(int iter_num);
   protected:
     virtual bool eval_f_grad();
   private:
@@ -34,6 +35,24 @@ namespace gollnlp {
     double f;
     double *grad_p_g0, *grad_v_n0;
     int* H_nz_idxs;
+
+    //Quasi-Newton Barzilei-Borwein approximation stuff
+    //spectral multiple of identity
+    double sigma;
+
+    // Barzilei-Borwein-like strategies for sigma, inspired from ipopt
+    // sigma_update = 
+    // 1: sigma = sTy/sTs  (DEFAULT)
+    // 2: sigma = yTy/sTy
+    // 3: arithmetic average of scalar1 and scalar2
+    // 4: geometric average of scalar1 and scalar2
+    int sigma_update; 
+    void update_Hessian_approx();
+    //history of iterates and gradients -> only the last two for now
+    double *p_g0_curr, *p_g0_prev;
+    double *grad_p_g0_curr, *grad_p_g0_prev; 
+    //changes in iter and gradient
+    double *s, *y; 
   public:
     bool stop_evals;
   };
@@ -50,6 +69,9 @@ namespace gollnlp {
     // 'out' arguments 'grad_' if grad_xxx!=NULL
     virtual bool eval_recourse(OptVariablesBlock* pg0, OptVariablesBlock* vn0,
 			       double& f, double* grad_pg0=NULL, double *grad_vn0=NULL);
+
+    //overwrites of OptProblem
+ 
   protected: 
     //indexes of non-participating AGC generators in data_K[0] and data_sc, respectively
     //these indexes exclude 'outidx' when K_idx is a generator contingency
@@ -79,6 +101,9 @@ namespace gollnlp {
     bool restart;
     //options
     double relax_factor_nonanticip_fixing;
+
+    //Hessian approx: caching of iterates and gradients
+
   };
 } //end namespace
 

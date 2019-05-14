@@ -14,7 +14,10 @@ namespace gollnlp {
 				       OptVariablesBlock* pg0, OptVariablesBlock* vn0,
 				       const std::vector<int>& K_Cont_) 
     : OptObjectiveTerm("recourse_term"), data_sc(d_in), 
-      p_g0(pg0), v_n0(vn0), f(0.), grad_p_g0(NULL), grad_v_n0(NULL), H_nz_idxs(NULL)
+      p_g0(pg0), v_n0(vn0), f(0.), grad_p_g0(NULL), grad_v_n0(NULL), H_nz_idxs(NULL),
+      sigma(100.), sigma_update(1),
+      p_g0_curr(NULL), p_g0_prev(NULL), grad_p_g0_curr(NULL), grad_p_g0_prev(NULL),
+      s(NULL), y(NULL)
   {
     auto K_Cont = K_Cont_;
     if(0==K_Cont.size())
@@ -33,7 +36,10 @@ namespace gollnlp {
       prob->use_nlp_solver("ipopt");
       prob->set_solver_option("mu_init", 1e-2);
       prob->set_solver_option("mu_target", 1e-10);
-      
+
+      //set_solver_option("bound_push", 1e-16);
+      //set_solver_option("slack_bound_push", 1e-16);
+
       prob->set_solver_option("linear_solver", "ma57"); //master_prob.set_solver_option("mu_init", 1.);
       prob->set_solver_option("print_frequency_iter", 20);
       prob->set_solver_option("print_level", 2);
@@ -43,13 +49,19 @@ namespace gollnlp {
     }
     stop_evals = false;
   }
-double lala=0.;
+
   SCRecourseObjTerm::~SCRecourseObjTerm()
   {
     delete [] grad_p_g0;
     delete [] grad_v_n0;
     for(auto p : recou_probs) 
       delete p;
+    delete[] p_g0_curr;
+    delete[] p_g0_prev;
+    delete[] grad_p_g0_curr;
+    delete[] grad_p_g0_prev;
+    delete[] s;
+    delete[] y;
   }
   bool SCRecourseObjTerm::eval_f_grad()
   {
@@ -66,10 +78,11 @@ double lala=0.;
 	if(!prob->eval_recourse(p_g0, v_n0, f, grad_p_g0, grad_v_n0))
 	  return false;
       }
+      if(f<1e-4) {
 
-      for(int i=0; i<p_g0->n; i++) f += 0.5*lala*p_g0->xref[i]*p_g0->xref[i];
-      //if(f<1) stop_evals=true;
-
+	printf("Small fcn .. grad will be set to 0\n");
+	for(int i=0; i<p_g0->n; i++) grad_p_g0[i]=0.;
+      }
     }
 
     return true;
@@ -90,14 +103,8 @@ double lala=0.;
     if(new_x) {
       if(!eval_f_grad()) return false;
     }
-    double a=1.;
-    
-    DAXPY(&(p_g0->n), &a, grad_p_g0, &ione, grad+p_g0->index, &ione);
+    DAXPY(&(p_g0->n), &done, grad_p_g0, &ione, grad+p_g0->index, &ione);
 
-    a=lala;
-    DAXPY(&(p_g0->n), &a, const_cast<double*>(p_g0->xref),
-	  &ione, grad+p_g0->index, &ione);
-    //DAXPY(&(v_n0->n), &a, grad_v_n0, &ione, grad+v_n0->index, &ione);
     return true;
   }
   
@@ -115,7 +122,7 @@ double lala=0.;
 	i[idx] = j[idx] = p_g0->index+it;
       }
     } else {
-      double aux = lala*obj_factor;
+      double aux = sigma*obj_factor;
       for(int it=0; it<p_g0->n; it++) {
 	assert(H_nz_idxs[it]>=0);
 	assert(H_nz_idxs[it]<nnz);
@@ -141,6 +148,66 @@ double lala=0.;
     return true;
   }
 
+  void SCRecourseObjTerm::end_of_iteration(int iter_num)
+  {
+    if(p_g0_curr==NULL) p_g0_curr = new double[p_g0->n];
+    if(p_g0_prev==NULL) p_g0_prev = new double[p_g0->n];
+    if(grad_p_g0_curr==NULL) grad_p_g0_curr = new double[p_g0->n];
+    if(grad_p_g0_prev==NULL) grad_p_g0_prev = new double[p_g0->n];
+    if(iter_num==0)  {
+      //for(int i=0; i<p_g0->n; i++) p_g0_prev[i]=0.;
+    } else {
+      //avoid a copy and, instead, swap pointers
+      double *paux = p_g0_curr;
+      p_g0_curr = p_g0_prev; 
+      p_g0_prev = paux;      
+
+      paux = grad_p_g0_curr;
+      grad_p_g0_curr = grad_p_g0_prev; 
+      grad_p_g0_prev = paux;      
+
+    }
+    assert(p_g0->xref);
+    memcpy(p_g0_curr, p_g0->xref, p_g0->n*sizeof(double));
+
+    assert(grad_p_g0);
+    DCOPY(&(p_g0->n), grad_p_g0, &ione, grad_p_g0_curr, &ione);
+    if(iter_num==0) {
+      sigma = 100;
+    } else {
+      update_Hessian_approx();
+    }
+  }
+
+  void SCRecourseObjTerm::update_Hessian_approx()
+  {
+    if(NULL==s) s = new double[p_g0->n];
+    if(NULL==y) y = new double[p_g0->n];
+
+    //s = x+ - x
+    DCOPY(&(p_g0->n), p_g0_curr, &ione, s, &ione);
+    DAXPY(&(p_g0->n), &dminusone, p_g0_prev, &ione, s, &ione);
+
+    //y = y+ - y
+    DCOPY(&(p_g0->n), grad_p_g0_curr, &ione, y, &ione);
+    DAXPY(&(p_g0->n), &dminusone, grad_p_g0_prev, &ione, y, &ione);
+
+    double sTy = DDOT(&(p_g0->n), s, &ione, y, &ione);
+    if(sigma_update==1) {
+      double sTs = DDOT(&(p_g0->n), s, &ione, s, &ione);
+      if(sTs<2e-16) sigma = 1e+6;
+      sigma = sTy/sTs;
+      if(sigma<1e-2) sigma = 1e-2;
+      
+      if(sigma>1e4) sigma = 1e4;
+      double ynrm = DNRM2(&(p_g0->n), y, &ione);
+      //sigma=100;
+      printf("!!! updated sigma to %g sTy=%g nrms=%g nrmy=%g\n", sigma, sTy, sqrt(sTs),ynrm);
+    } else {
+      assert(false && "not yet implemented");
+    }
+    
+  }
 
   //////////////////////////////////////////////////////////////////////////////////////////
   // SCRecourseProblem
@@ -161,13 +228,14 @@ double lala=0.;
   SCRecourseProblem::~SCRecourseProblem()
   {
   }
+
   bool SCRecourseProblem::eval_recourse(OptVariablesBlock* pg0, OptVariablesBlock* vn0,
 					double& f, double* grad_pg0, double *grad_vn0)
   {
 
     goTimer tmrec; tmrec.start();
     update_cons_nonanticip_using(pg0);
-    //update_cons_AGC_using(pg0);
+    update_cons_AGC_using(pg0);
     //update_cons_PVPQ_using(vn0);
 
     if(!restart) {
@@ -177,19 +245,21 @@ double lala=0.;
     } else {
 
 
-      //set_solver_option("bound_push", 1e-16);
-      //set_solver_option("slack_bound_push", 1e-16);
+
       if(!reoptimize(OptProblem::primalDualRestart))
 	return false;
     }
 
     // objective value
     f += this->obj_value;
+
+
     //update the grad based on the multipliers
     add_grad_pg0_nonanticip_part_to(grad_pg0);
-    //add_grad_pg0_AGC_part_to(grad_pg0);
+    add_grad_pg0_AGC_part_to(grad_pg0);
     //add_grad_vn0_to(grad_vn0);
 
+    
     tmrec.stop();
     //printf("SCRecourseProblem K_id %d: eval_recourse took %g sec\n", K_idx, tmrec.getElapsedTime());
     printf("SCRecourseProblem K_id %d: recourse obj_value %g\n", K_idx, this->obj_value);
@@ -235,8 +305,8 @@ double lala=0.;
     data_sc.get_AGC_participation(K_idx, Gk, pg0_partic_idxs, pg0_nonpartic_idxs);
     assert(pg0->n == Gk.size() || pg0->n == 1+Gk.size());
 
-    pg0_nonpartic_idxs=Gk;
-    pg0_partic_idxs={};
+    //pg0_nonpartic_idxs=Gk;
+    //pg0_partic_idxs={};
 
     // indexes in data_K (for the recourse's contingency)
     auto ids_no_AGC = selectfrom(data_sc.G_Generator, pg0_nonpartic_idxs);
@@ -265,7 +335,7 @@ double lala=0.;
       
 #endif
     add_cons_nonanticip_using(pg0);
-    //add_cons_AGC_using(pg0);
+    add_cons_AGC_using(pg0);
     //PVPQSmoothing = AGCSmoothing = 1e-2;
     //coupling AGC and PVPQ; also creates delta_k
     //add_cons_coupling(dK);
@@ -393,7 +463,7 @@ double lala=0.;
     append_variables(deltaK);
     deltaK->set_start_to(0.);
     
-    AGCSmoothing = 1e-3;
+    AGCSmoothing = 1e-2;
     auto cons = new AGCComplementarityCons(con_name("AGC", dK), 3*pgK_partic_idxs.size(),
 					   pg0, pgK, deltaK, 
 					   pg0_partic_idxs, pgK_partic_idxs, 
@@ -415,8 +485,12 @@ double lala=0.;
     //for(int i=0; i<rhop->n; i++) 
     //  printf("%g %g   %g\n", rhop->x[i], rhom->x[i], cons->gb[i]);
     //printf("\n");
+
+
+
     printf("SCRecourseProblem K_id %d: AGC %lu gens participating (out of %d)\n", 
 	   K_idx, pgK_partic_idxs.size(), pgK->n);
+    printvec(pg0_partic_idxs, "partic idxs");
   }
   void SCRecourseProblem::update_cons_AGC_using(OptVariablesBlock* pg0)
   {
