@@ -18,7 +18,15 @@ namespace gollnlp {
       : data_sc(d_in), 
 	useQPen(false), slacks_scale(1.),  PVPQSmoothing(0.01), AGCSmoothing(0.01){}
     virtual ~SCACOPFProblem();
-    
+
+        //overwrites of OptProblem
+    virtual bool iterate_callback(int iter, const double& obj_value, const double* primals,
+				  const double& inf_pr, const double& inf_du, 
+				  const double& mu, 
+				  const double& alpha_du, const double& alpha_pr,
+				  int ls_trials) 
+    { return true; }
+
     virtual bool default_assembly();
 
   protected:

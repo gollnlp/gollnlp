@@ -41,8 +41,13 @@ bool SCACOPFProblem::default_assembly()
   //
   // contingencies
   //
-
-  vector<int> K_Cont = {8, 83, 366}; //net 01; gen, line, transf, id out=[27,61,126]
+  vector<int> K_Cont = {
+    //426,//, //line/trans conting, penalty $417
+    //960, // gen conting, penalty $81,xxx
+    //961, 
+			963
+};
+  //vector<int> K_Cont = {8, 83, 366}; //net 01; gen, line, transf, id out=[27,61,126]
   //vector<int> K_Cont = {0, 71, 85, 97, 98}; //net 03 scen 9
   //vector<int> K_Cont ={0, 386, 428, 435}; //net 10 scen 9; first two are gen, then a line and a trans
   //vector<int> K_Cont ={386};
@@ -127,7 +132,7 @@ void SCACOPFProblem::add_cons_coupling(SCACOPFData& dB)
   add_cons_AGC(dB, Gkp);
 
   //voltages
-  add_cons_PVPQ(dB, Gk);
+  //add_cons_PVPQ(dB, Gk);
 }
 
 // Gk are the indexes of all gens other than the outgen (for generator contingencies) 

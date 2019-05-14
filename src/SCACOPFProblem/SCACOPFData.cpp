@@ -524,9 +524,9 @@ readinstance(const std::string& raw, const std::string& rop, const std::string& 
   P_Penalties[pP] = {1E3*MVAbase, 5E3*MVAbase, 1E6*MVAbase};
   P_Penalties[pQ] = {1E3*MVAbase, 5E3*MVAbase, 1E6*MVAbase};
   P_Penalties[pS] = {1E3*MVAbase, 5E3*MVAbase, 1E6*MVAbase};
-  P_Penalties[pP] = {1E0*MVAbase, 5E0*MVAbase, 1E3*MVAbase};
-  P_Penalties[pQ] = {1E0*MVAbase, 5E0*MVAbase, 1E3*MVAbase};
-  P_Penalties[pS] = {1E0*MVAbase, 5E0*MVAbase, 1E3*MVAbase};
+  //P_Penalties[pP] = {1E0*MVAbase, 5E0*MVAbase, 1E3*MVAbase};
+  //P_Penalties[pQ] = {1E0*MVAbase, 5E0*MVAbase, 1E3*MVAbase};
+  //P_Penalties[pS] = {1E0*MVAbase, 5E0*MVAbase, 1E3*MVAbase};
 
 
   buildindexsets();
