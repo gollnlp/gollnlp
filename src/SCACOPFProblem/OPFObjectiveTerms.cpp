@@ -163,7 +163,7 @@ bool PFPenaltyQuadrApproxObjTerm::eval_f(const OptVariables& vars_primal, bool n
   for(int i=0; i<x->n; i++)
     aux += x->xref[i];
 
-  assert(aux>=0);
+  //assert(aux>=0);
 
   obj_val += b*aux;
 

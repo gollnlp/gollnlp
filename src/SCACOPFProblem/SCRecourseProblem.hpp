@@ -10,7 +10,7 @@ namespace gollnlp {
 
   class SCRecourseObjTerm : public OptObjectiveTerm {
   public:
-    SCRecourseObjTerm(SCACOPFData& d_in, 
+    SCRecourseObjTerm(SCACOPFData& d_in, SCACOPFProblem& master_prob,
 		      OptVariablesBlock* pg0, OptVariablesBlock* vn0, 
 		      const std::vector<int>& K_Cont={});
     virtual ~SCRecourseObjTerm();
@@ -26,12 +26,14 @@ namespace gollnlp {
     virtual bool get_HessLagr_ij(std::vector<OptSparseEntry>& vij);
     
     void end_of_iteration(int iter_num);
+
   protected:
     virtual bool eval_f_grad();
   private:
     std::vector<SCRecourseProblem*> recou_probs;
     SCACOPFData& data_sc;
     OptVariablesBlock *p_g0, *v_n0;
+    SCACOPFProblem& master_prob;
     double f;
     double *grad_p_g0, *grad_v_n0;
     int* H_nz_idxs;
@@ -72,6 +74,13 @@ namespace gollnlp {
 
     //overwrites of OptProblem
  
+    //
+    // warm-starting
+    //
+    // these functions return false whenever there is a discrepancy between 
+    // the this' and srcProb's variables
+    bool set_warm_start_from_base_of(SCACOPFProblem& srcProb);
+    bool set_warm_start_from_contingency_of(SCACOPFProblem& srcProb);
   protected: 
     //indexes of non-participating AGC generators in data_K[0] and data_sc, respectively
     //these indexes exclude 'outidx' when K_idx is a generator contingency
@@ -96,8 +105,9 @@ namespace gollnlp {
     void add_cons_PVPQ_using(OptVariablesBlock* vn0);
     void update_cons_PVPQ_using(OptVariablesBlock* vn0);
     void add_grad_vn0_to(double* grad);
-  protected:
+  public:
     int K_idx;
+  protected:
     bool restart;
     //options
     double relax_factor_nonanticip_fixing;

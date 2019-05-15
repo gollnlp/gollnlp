@@ -53,7 +53,9 @@ int myexe1_function(const std::string& InFile1, const std::string& InFile2,
   //phase 2
   //
   SCRecourseObjTerm* rec;
-  master_prob.append_objterm(rec=new SCRecourseObjTerm(d, master_prob.p_g0_vars(), master_prob.v_n0_vars(), cont_list));
+  master_prob.append_objterm(rec=new SCRecourseObjTerm(d, master_prob, 
+						       master_prob.p_g0_vars(), master_prob.v_n0_vars(), 
+						       cont_list));
   //master_prob.append_objterm(new SCRecourseObjTerm(d, master_prob.p_g0_vars(), master_prob.v_n0_vars()));
 
   //bret = master_prob.optimize("ipopt");

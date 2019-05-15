@@ -63,13 +63,13 @@ public:
     return  vblocks.size()>0 ? vblocks.back()->index + vblocks.back()->n : 0;
   }
 
-  friend class OptProblem;
-private:
+public:
   // "list" of pointers to blocks
   std::vector<OptVariablesBlock*> vblocks;
   // "dict" with the pointers for quick lookups by name
   std::map<std::string, OptVariablesBlock*> mblocks;
-
+friend class OptProblem;
+private:
   // appends b to list of blocks; updates this->n and b->index
   bool append_varsblock(OptVariablesBlock* b);
   bool append_varsblocks(std::vector<OptVariablesBlock*> vVarBlocks);
@@ -383,8 +383,6 @@ public:
 public:
   //utilities
   void print_summary() const;
-protected:
-
 protected:
   OptVariables*    vars_primal;
   OptConstraints*  cons;

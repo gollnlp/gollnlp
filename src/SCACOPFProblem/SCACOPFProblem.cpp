@@ -42,10 +42,11 @@ bool SCACOPFProblem::default_assembly()
   // contingencies
   //
   vector<int> K_Cont = {
+    380,
     //426,//, //line/trans conting, penalty $417
     //960, // gen conting, penalty $81,xxx
     //961, 
-			963
+    //963
 };
   //vector<int> K_Cont = {8, 83, 366}; //net 01; gen, line, transf, id out=[27,61,126]
   //vector<int> K_Cont = {0, 71, 85, 97, 98}; //net 03 scen 9

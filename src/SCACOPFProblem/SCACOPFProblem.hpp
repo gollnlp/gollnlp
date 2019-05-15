@@ -60,19 +60,31 @@ namespace gollnlp {
     bool useQPen;
     double slacks_scale;
     double AGCSmoothing, PVPQSmoothing;
-  protected:
+  public:
     //variables and constraints accessers
     inline std::string var_name(const std::string& prefix, const SCACOPFData& d) { 
-      return prefix+"_"+std::to_string(d.id); 
+      return var_name(prefix, d.id); 
+    }
+    inline std::string var_name(const std::string& prefix, int Kid) { 
+      return prefix+"_"+std::to_string(Kid); 
     }
     inline OptVariablesBlock* variable(const std::string& prefix, const SCACOPFData& d) { 
       return vars_block(var_name(prefix, d));
     }
+    inline OptVariablesBlock* variable(const std::string& prefix, int Kid) { 
+      return vars_block(var_name(prefix, Kid));
+    }
+    inline std::string con_name(const std::string& prefix, int Kid) { 
+      return prefix+"_"+std::to_string(Kid); 
+    }
     inline std::string con_name(const std::string& prefix, const SCACOPFData& d) { 
-      return prefix+"_"+std::to_string(d.id); 
+      return con_name(prefix, d.id);
     }
     inline OptConstraintsBlock* constraint(const std::string& prefix, const SCACOPFData& d) { 
       return constraints_block(con_name(prefix, d));
+    }
+    inline OptConstraintsBlock* constraint(const std::string& prefix, int Kid) {
+      return constraints_block(con_name(prefix, Kid));
     }
     //printing
     void print_p_g(SCACOPFData& dB);

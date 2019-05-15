@@ -3,18 +3,25 @@
 #include "CouplingConstraints.hpp"
 #include "OPFObjectiveTerms.hpp"
 #include "OptObjTerms.hpp"
+#include "OPFConstraints.hpp"
 
 #include "goUtils.hpp"
 #include "goTimer.hpp"
 
 using namespace std;
 
+
+
 namespace gollnlp {
-  SCRecourseObjTerm::SCRecourseObjTerm(SCACOPFData& d_in,
+
+SCACOPFProblem* gprob;
+
+  SCRecourseObjTerm::SCRecourseObjTerm(SCACOPFData& d_in, SCACOPFProblem& master_prob_,
 				       OptVariablesBlock* pg0, OptVariablesBlock* vn0,
 				       const std::vector<int>& K_Cont_) 
     : OptObjectiveTerm("recourse_term"), data_sc(d_in), 
-      p_g0(pg0), v_n0(vn0), f(0.), grad_p_g0(NULL), grad_v_n0(NULL), H_nz_idxs(NULL),
+      p_g0(pg0), v_n0(vn0),  master_prob(master_prob_), 
+      f(0.), grad_p_g0(NULL), grad_v_n0(NULL), H_nz_idxs(NULL),
       sigma(100.), sigma_update(1),
       p_g0_curr(NULL), p_g0_prev(NULL), grad_p_g0_curr(NULL), grad_p_g0_prev(NULL),
       s(NULL), y(NULL)
@@ -23,6 +30,8 @@ namespace gollnlp {
     if(0==K_Cont.size())
       K_Cont = data_sc.K_Contingency;
 
+    gprob = &master_prob;
+
     for(auto K : K_Cont)
       recou_probs.push_back(new SCRecourseProblem(data_sc, K));
 
@@ -30,6 +39,12 @@ namespace gollnlp {
     for(auto prob : recou_probs) {
       //prob->useQPen=true;
       prob->default_assembly(p_g0, v_n0);
+
+      if(!prob->set_warm_start_from_contingency_of(master_prob)) {
+	printf("RecourseObjTerm: RecourseProblem id %d could not be initialized from "
+	       "the contingency of the master_problem\n", prob->K_idx+1);
+	prob->set_warm_start_from_base_of(master_prob);
+      }
     }
 
     for(auto prob : recou_probs) {
@@ -37,15 +52,17 @@ namespace gollnlp {
       prob->set_solver_option("mu_init", 1e-2);
       prob->set_solver_option("mu_target", 1e-10);
 
-      //set_solver_option("bound_push", 1e-16);
-      //set_solver_option("slack_bound_push", 1e-16);
+      prob->set_solver_option("bound_push", 1e-16);
+      prob->set_solver_option("slack_bound_push", 1e-16);
 
       prob->set_solver_option("linear_solver", "ma57"); //master_prob.set_solver_option("mu_init", 1.);
-      prob->set_solver_option("print_frequency_iter", 20);
-      prob->set_solver_option("print_level", 2);
+      //prob->set_solver_option("print_frequency_iter", 5);
+      prob->set_solver_option("print_level", 5);
       prob->set_solver_option("tol", 1e-10);
       //prob->set_solver_option("fixed_variable_treatment", "relax_bounds");
       prob->set_solver_option("fixed_variable_treatment", "make_parameter");
+
+      //prob->print_summary();
     }
     stop_evals = false;
   }
@@ -201,7 +218,7 @@ namespace gollnlp {
       
       if(sigma>1e4) sigma = 1e4;
       double ynrm = DNRM2(&(p_g0->n), y, &ione);
-      //sigma=100;
+      sigma=0.;
       printf("!!! updated sigma to %g sTy=%g nrms=%g nrmy=%g\n", sigma, sTy, sqrt(sTs),ynrm);
     } else {
       assert(false && "not yet implemented");
@@ -242,6 +259,7 @@ namespace gollnlp {
       if(!optimize("ipopt"))
 	return false;
       restart = true;
+      this->set_solver_option("mu_init", 1e-6);
     } else {
 
 
@@ -289,6 +307,7 @@ namespace gollnlp {
     useQPen = true;
 
     add_variables(dK);
+
     add_cons_lines_pf(dK);
     add_cons_transformers_pf(dK);
     add_cons_active_powbal(dK);
@@ -336,6 +355,7 @@ namespace gollnlp {
 #endif
     add_cons_nonanticip_using(pg0);
     add_cons_AGC_using(pg0);
+    print_summary();
     //PVPQSmoothing = AGCSmoothing = 1e-2;
     //coupling AGC and PVPQ; also creates delta_k
     //add_cons_coupling(dK);
@@ -527,9 +547,241 @@ namespace gollnlp {
   {
     
   }
+
+
   void SCRecourseProblem::add_grad_vn0_to(double* grad)
   {
     
   }
-				       
+
+  bool SCRecourseProblem::set_warm_start_from_base_of(SCACOPFProblem& srcProb)
+  {
+    assert(data_K.size()==1);
+    SCACOPFData& dK = *data_K[0]; assert(dK.id==K_idx+1);
+
+    assert(useQPen==true); assert(srcProb.useQPen==true);
+    variable("v_n", dK)->set_start_to(*srcProb.variable("v_n", data_sc));
+    variable("theta_n", dK)->set_start_to(*srcProb.variable("theta_n", data_sc));
+    variable("b_s", dK)->set_start_to(*srcProb.variable("b_s", data_sc));
+
+    if(dK.K_ConType[0] == SCACOPFData::kGenerator) {
+      auto p_gK = variable("p_g", dK), p_g0 = srcProb.variable("p_g", data_sc);
+      for(int i=0; i<pg0_nonpartic_idxs.size(); i++) {
+	p_gK->x[pgK_nonpartic_idxs[i]] = p_g0->x[pg0_nonpartic_idxs[i]];
+      }
+      for(int i=0; i<pg0_partic_idxs.size(); i++) {
+	p_gK->x[pgK_partic_idxs[i]] = p_g0->x[pg0_partic_idxs[i]];
+      }
+      p_gK->providesStartingPoint = true;
+
+      auto q_gK = variable("q_g", dK), q_g0 = srcProb.variable("q_g", data_sc);
+      for(int i=0; i<pg0_nonpartic_idxs.size(); i++) {
+	q_gK->x[pgK_nonpartic_idxs[i]] = q_g0->x[pg0_nonpartic_idxs[i]];
+      }
+      for(int i=0; i<pg0_partic_idxs.size(); i++) {
+	q_gK->x[pgK_partic_idxs[i]] = q_g0->x[pg0_partic_idxs[i]];
+      }
+      q_gK->providesStartingPoint = true;
+      
+    } else {
+#ifdef DEBUG
+      variable("p_g", dK)->n == srcProb.variable("p_g", data_sc)->n;
+      variable("q_g", dK)->n == srcProb.variable("q_g", data_sc)->n;
+#endif
+      variable("p_g", dK)->set_start_to(*srcProb.variable("p_g", data_sc));
+      variable("q_g", dK)->set_start_to(*srcProb.variable("q_g", data_sc));
+    }
+    
+    if(dK.K_ConType[0] == SCACOPFData::kLine) {
+      auto idxs_of_K_in_0 = indexin(dK.L_Line, data_sc.L_Line);
+      size_t sz = idxs_of_K_in_0.size(); int i, *idxs_in_0 = idxs_of_K_in_0.data();
+
+      auto var_K = variable("p_li1", dK), var_0 = srcProb.variable("p_li1", data_sc);
+      assert(var_K->n+1 == var_0->n);
+      assert(sz == var_K->n);
+      for(i=0; i<sz; i++) {
+	assert(idxs_in_0[i]>=0 && idxs_in_0[i]<var_0->n);
+	var_K->x[i] = var_0->x[idxs_in_0[i]];
+      }
+      var_K->providesStartingPoint = true;
+
+      var_K = variable("p_li2", dK); var_0 = srcProb.variable("p_li2", data_sc);
+      assert(var_K->n+1 == var_0->n);
+      assert(sz == var_K->n);
+      for(i=0; i<sz; i++) {
+	assert(idxs_in_0[i]>=0 && idxs_in_0[i]<var_0->n);
+	var_K->x[i] = var_0->x[idxs_in_0[i]];
+      }
+      var_K->providesStartingPoint = true;
+
+      var_K = variable("q_li1", dK); var_0 = srcProb.variable("q_li1", data_sc);
+      assert(var_K->n+1 == var_0->n);
+      assert(sz == var_K->n);
+      for(i=0; i<sz; i++) {
+	assert(idxs_in_0[i]>=0 && idxs_in_0[i]<var_0->n);
+	var_K->x[i] = var_0->x[idxs_in_0[i]];
+      }
+      var_K->providesStartingPoint = true;
+
+      var_K = variable("q_li2", dK); var_0 = srcProb.variable("q_li2", data_sc);
+      assert(var_K->n+1 == var_0->n);
+      assert(sz == var_K->n);
+      for(i=0; i<sz; i++) {
+	assert(idxs_in_0[i]>=0 && idxs_in_0[i]<var_0->n);
+	var_K->x[i] = var_0->x[idxs_in_0[i]];
+      }
+      var_K->providesStartingPoint = true;
+
+    } else {
+      variable("p_li1", dK)->n == srcProb.variable("p_li1", data_sc)->n;
+      variable("p_li2", dK)->n == srcProb.variable("p_li2", data_sc)->n;
+      variable("q_li1", dK)->n == srcProb.variable("q_li1", data_sc)->n;
+      variable("q_li2", dK)->n == srcProb.variable("q_li2", data_sc)->n;
+
+      variable("p_li1", dK)->set_start_to(*srcProb.variable("p_li1", data_sc));
+      variable("p_li2", dK)->set_start_to(*srcProb.variable("p_li2", data_sc));
+      variable("q_li1", dK)->set_start_to(*srcProb.variable("q_li1", data_sc));
+      variable("q_li2", dK)->set_start_to(*srcProb.variable("q_li2", data_sc));
+    }
+
+    if(dK.K_ConType[0] == SCACOPFData::kTransformer) {
+      auto idxs_of_K_in_0 = indexin(dK.T_Transformer, data_sc.T_Transformer);
+      size_t sz = idxs_of_K_in_0.size(); int i, *idxs_in_0 = idxs_of_K_in_0.data();
+
+      auto var_K = variable("p_ti1", dK), var_0 = srcProb.variable("p_ti1", data_sc);
+      assert(var_K->n+1 == var_0->n);
+      assert(sz == var_K->n);
+      for(i=0; i<sz; i++) {
+    	assert(idxs_in_0[i]>=0 && idxs_in_0[i]<var_0->n);
+    	var_K->x[i] = var_0->x[idxs_in_0[i]];
+      }
+      var_K->providesStartingPoint = true;
+
+      var_K = variable("p_ti2", dK); var_0 = srcProb.variable("p_ti2", data_sc);
+      assert(var_K->n+1 == var_0->n);
+      assert(sz == var_K->n);
+      for(i=0; i<sz; i++) {
+    	assert(idxs_in_0[i]>=0 && idxs_in_0[i]<var_0->n);
+    	var_K->x[i] = var_0->x[idxs_in_0[i]];
+      }
+      var_K->providesStartingPoint = true;
+
+      var_K = variable("q_ti1", dK); var_0 = srcProb.variable("q_ti1", data_sc);
+      assert(var_K->n+1 == var_0->n);
+      assert(sz == var_K->n);
+      for(i=0; i<sz; i++) {
+    	assert(idxs_in_0[i]>=0 && idxs_in_0[i]<var_0->n);
+    	var_K->x[i] = var_0->x[idxs_in_0[i]];
+      }
+      var_K->providesStartingPoint = true;
+
+      var_K = variable("q_ti2", dK); var_0 = srcProb.variable("q_ti2", data_sc);
+      assert(var_K->n+1 == var_0->n);
+      assert(sz == var_K->n);
+      for(i=0; i<sz; i++) {
+    	assert(idxs_in_0[i]>=0 && idxs_in_0[i]<var_0->n);
+    	var_K->x[i] = var_0->x[idxs_in_0[i]];
+      }
+      var_K->providesStartingPoint = true;
+
+
+    } else {
+      variable("p_ti1", dK)->n == srcProb.variable("p_ti1", data_sc)->n;
+      variable("p_ti2", dK)->n == srcProb.variable("p_ti2", data_sc)->n;
+      variable("q_ti1", dK)->n == srcProb.variable("q_ti1", data_sc)->n;
+      variable("q_ti2", dK)->n == srcProb.variable("q_ti2", data_sc)->n;
+
+      variable("p_ti1", dK)->set_start_to(*srcProb.variable("p_ti1", data_sc));
+      variable("p_ti2", dK)->set_start_to(*srcProb.variable("p_ti2", data_sc));
+      variable("q_ti1", dK)->set_start_to(*srcProb.variable("q_ti1", data_sc));
+      variable("q_ti2", dK)->set_start_to(*srcProb.variable("q_ti2", data_sc));
+    }
+
+    //    
+    // recompute compute slacks
+    //
+    {
+      auto cons = dynamic_cast<PVPQComplementarityCons*>(constraint("PVPQ", dK));
+      if(cons) {
+    	auto nup=cons->get_nup(), num=cons->get_num();
+    	cons->compute_nus(nup, num);
+    	nup->providesStartingPoint=true; num->providesStartingPoint=true;
+      }
+    }
+    {
+      auto cons = dynamic_cast<AGCComplementarityCons*>(constraint("AGC", dK));
+      if(cons) {
+    	auto rhop=cons->get_rhop(), rhom=cons->get_rhom();
+    	cons->compute_rhos(rhop, rhom);
+    	rhop->providesStartingPoint=true; rhom->providesStartingPoint=true;
+      }
+    }
+    {
+      auto pf_cons1 = dynamic_cast<PFConRectangular*>(constraint("p_li1_powerflow", dK));
+      auto pf_cons2 = dynamic_cast<PFConRectangular*>(constraint("p_li2_powerflow", dK));
+      auto p_li1 = variable("p_li1", dK), p_li2 = variable("p_li2", dK);
+      pf_cons1->compute_power(p_li1); p_li1->providesStartingPoint=true;
+      pf_cons2->compute_power(p_li2); p_li2->providesStartingPoint=true;
+    }
+    {
+      auto pf_cons1 = dynamic_cast<PFConRectangular*>(constraint("p_ti1_powerflow", dK));
+      auto pf_cons2 = dynamic_cast<PFConRectangular*>(constraint("p_ti2_powerflow", dK));
+      auto p_ti1 = variable("p_ti1", dK), p_ti2 = variable("p_ti2", dK);
+      pf_cons1->compute_power(p_ti1); p_ti1->providesStartingPoint=true;
+      pf_cons2->compute_power(p_ti2); p_ti2->providesStartingPoint=true;
+    }
+
+    {
+      auto pf_p_bal = dynamic_cast<PFActiveBalance*>(constraint("p_balance", dK));
+      OptVariablesBlock* pslacks_n = pf_p_bal->slacks();
+      pf_p_bal->compute_slacks(pslacks_n); pslacks_n->providesStartingPoint=true;
+    }
+    {
+      auto pf_q_bal = dynamic_cast<PFReactiveBalance*>(constraint("q_balance", dK));
+      OptVariablesBlock* qslacks_n = pf_q_bal->slacks();
+      pf_q_bal->compute_slacks(qslacks_n); qslacks_n->providesStartingPoint=true;
+    }
+    {
+      auto pf_line_lim1 = dynamic_cast<PFLineLimits*>(constraint("line_limits1",dK));
+      OptVariablesBlock* sslack_li1 = pf_line_lim1->slacks();
+      pf_line_lim1->compute_slacks(sslack_li1); sslack_li1->providesStartingPoint=true;      
+    }
+    {
+      auto pf_line_lim2 = dynamic_cast<PFLineLimits*>(constraint("line_limits2",dK));
+      OptVariablesBlock* sslack_li2 = pf_line_lim2->slacks();
+      pf_line_lim2->compute_slacks(sslack_li2); sslack_li2->providesStartingPoint=true;      
+    }
+    {
+      auto pf_trans_lim1 = dynamic_cast<PFTransfLimits*>(constraint("trans_limits1",dK));
+      OptVariablesBlock* sslack_ti1 = pf_trans_lim1->slacks();
+      pf_trans_lim1->compute_slacks(sslack_ti1); sslack_ti1->providesStartingPoint=true;
+    }
+    {
+      auto pf_trans_lim2 = dynamic_cast<PFTransfLimits*>(constraint("trans_limits2",dK));
+      OptVariablesBlock* sslack_ti2 = pf_trans_lim2->slacks();
+      pf_trans_lim2->compute_slacks(sslack_ti2); sslack_ti2->providesStartingPoint=true;
+    }
+    return true;
+  }
+  bool SCRecourseProblem::
+  set_warm_start_from_contingency_of(SCACOPFProblem& srcProb)
+  {
+    assert(data_K.size()==1); 
+    SCACOPFData& dK = *data_K[0]; assert(dK.id==K_idx+1);
+    bool bfound = false;
+    for(auto d : srcProb.data_K) if(d->id == dK.id) bfound=true;
+    if(!bfound) {
+      printf("set_warm_start_from_contingency_of SCACOPFProblem: src does not have "
+	     "the contingency id %d required by destination\n", dK.id);
+      return false;
+    }
+      
+    for(auto v : vars_primal->vblocks) {
+      auto vsrc = srcProb.vars_block(v->id);
+      if(!vsrc) return false;
+      assert(v->n == vsrc->n);
+      v->set_start_to(*vsrc);
+    }
+    return true;
+  }
 } //end namespace

@@ -24,9 +24,9 @@ int main(int argc, char *argv[])
 		 root+scen+"case.con");
   //net 07R scenario 9
   std::vector<int> cont_list = {
-    //426,//, //line/trans conting, penalty $417
-    //960, // gen conting, penalty $81,xxx
-    //961,
+    426,//, //line/trans conting, penalty $417
+    960, // gen conting, penalty $81,xxx
+    961,
     963
   };// gen conting, penalty $52,xxx
   
@@ -41,6 +41,9 @@ int main(int argc, char *argv[])
   master_prob.use_nlp_solver("ipopt"); 
   master_prob.set_solver_option("linear_solver", "ma57"); 
   master_prob.set_solver_option("mu_init", 1.);
+
+  master_prob.set_solver_option("mu_target", 1e-10);
+
   //master_prob.set_solver_option("hessian_approximation", "limited-memory");
   bool bret = master_prob.optimize("ipopt");
 
@@ -63,7 +66,7 @@ int main(int argc, char *argv[])
     
     printf("creating recourse objective\n");
     SCRecourseObjTerm* rec;
-    p.append_recourse_obj(rec=new SCRecourseObjTerm(d,
+    p.append_recourse_obj(rec=new SCRecourseObjTerm(d, p, 
 						    p_g0,
 						    NULL, //master_prob.v_n0_vars(),
 						    cont_list));
@@ -89,15 +92,18 @@ int main(int argc, char *argv[])
     p.optimize("ipopt");
   } else {
     SCRecourseObjTerm* rec;
-    master_prob.append_recourse_obj(rec=new SCRecourseObjTerm(d, 
+    master_prob.append_recourse_obj(rec=new SCRecourseObjTerm(d, master_prob,
     							 master_prob.vars_block("p_g_0"), 
     							 NULL, 
     							 cont_list));
-    master_prob.set_solver_option("mu_init", 1e-9);
+    //master_prob.print_summary();
+    master_prob.set_solver_option("mu_init", 1e-8);
+    master_prob.set_solver_option("mu_target", 1e-8);
     master_prob.set_solver_option("bound_push", 1e-18);
     master_prob.set_solver_option("slack_bound_push", 1e-18);
     master_prob.problem_changed();
     //master_prob.reoptimize("ipopt");
+    //master_prob.set_solver_option("hessian_approximation", "limited-memory");
     bret = master_prob.reoptimize(OptProblem::primalDualRestart); //warm_start_target_mu
   }
   
