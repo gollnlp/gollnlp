@@ -39,6 +39,7 @@ public:
     m = prob->get_num_constraints();
     nnz_jac_g = prob->get_nnzJaccons();
     nnz_h_lag = prob->get_nnzHessLagr();
+    index_style = C_STYLE;
     return true;
   }
 
@@ -132,7 +133,7 @@ public:
     prob->set_primal_vars(x);
     prob->set_duals_vars_bounds(z_L, z_U);
     prob->set_duals_vars_cons(lambda);
-    iter_vector = ip_data->curr () ;
+    //iter_vector = ip_data->curr () ;
   }
 
   
@@ -181,6 +182,7 @@ public:
     if(have_adv_pd_restart) {
 	printf("Using advanced pd restart\n");
 	goTimer t; t.start();
+	assert(false && "do not use -- needs work");
 	warm_start_iterate.Copy(*iter_vector);
 	t.stop();
 	printf("copy took %g sec\n", t.getElapsedTime());
