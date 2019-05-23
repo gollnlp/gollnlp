@@ -585,8 +585,8 @@ SCACOPFProblem* gprob;
       
     } else {
 #ifdef DEBUG
-      variable("p_g", dK)->n == srcProb.variable("p_g", data_sc)->n;
-      variable("q_g", dK)->n == srcProb.variable("q_g", data_sc)->n;
+      assert(variable("p_g", dK)->n == srcProb.variable("p_g", data_sc)->n);
+      assert(variable("q_g", dK)->n == srcProb.variable("q_g", data_sc)->n);
 #endif
       variable("p_g", dK)->set_start_to(*srcProb.variable("p_g", data_sc));
       variable("q_g", dK)->set_start_to(*srcProb.variable("q_g", data_sc));
@@ -633,10 +633,10 @@ SCACOPFProblem* gprob;
       var_K->providesStartingPoint = true;
 
     } else {
-      variable("p_li1", dK)->n == srcProb.variable("p_li1", data_sc)->n;
-      variable("p_li2", dK)->n == srcProb.variable("p_li2", data_sc)->n;
-      variable("q_li1", dK)->n == srcProb.variable("q_li1", data_sc)->n;
-      variable("q_li2", dK)->n == srcProb.variable("q_li2", data_sc)->n;
+      assert(variable("p_li1", dK)->n == srcProb.variable("p_li1", data_sc)->n);
+      assert(variable("p_li2", dK)->n == srcProb.variable("p_li2", data_sc)->n);
+      assert(variable("q_li1", dK)->n == srcProb.variable("q_li1", data_sc)->n);
+      assert(variable("q_li2", dK)->n == srcProb.variable("q_li2", data_sc)->n);
 
       variable("p_li1", dK)->set_start_to(*srcProb.variable("p_li1", data_sc));
       variable("p_li2", dK)->set_start_to(*srcProb.variable("p_li2", data_sc));
@@ -686,10 +686,10 @@ SCACOPFProblem* gprob;
 
 
     } else {
-      variable("p_ti1", dK)->n == srcProb.variable("p_ti1", data_sc)->n;
-      variable("p_ti2", dK)->n == srcProb.variable("p_ti2", data_sc)->n;
-      variable("q_ti1", dK)->n == srcProb.variable("q_ti1", data_sc)->n;
-      variable("q_ti2", dK)->n == srcProb.variable("q_ti2", data_sc)->n;
+      assert(variable("p_ti1", dK)->n == srcProb.variable("p_ti1", data_sc)->n);
+      assert(variable("p_ti2", dK)->n == srcProb.variable("p_ti2", data_sc)->n);
+      assert(variable("q_ti1", dK)->n == srcProb.variable("q_ti1", data_sc)->n);
+      assert(variable("q_ti2", dK)->n == srcProb.variable("q_ti2", data_sc)->n);
 
       variable("p_ti1", dK)->set_start_to(*srcProb.variable("p_ti1", data_sc));
       variable("p_ti2", dK)->set_start_to(*srcProb.variable("p_ti2", data_sc));
