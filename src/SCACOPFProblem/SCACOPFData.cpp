@@ -554,7 +554,6 @@ void SCACOPFData::buildindexsets(bool ommit_K_related)
   //    Lin[L_Nidx[i][l]].push_back(i);
   //}
 
-  //!
   Lidxn1 = Lidxn2 = VVInt(nbus, VInt());
   for(size_t l=0; l<nline; l++) {
     Lidxn1[L_Nidx[0][l]].push_back(l);
@@ -567,7 +566,6 @@ void SCACOPFData::buildindexsets(bool ommit_K_related)
   //    Tin[T_Nidx[i][t]].push_back(i);
   //}
 
-  //!
   Tidxn1 = Tidxn2 = VVInt(nbus, VInt());
   for(size_t t=0; t<ntran; t++) {
     Tidxn1[T_Nidx[0][t]].push_back(t);

@@ -88,16 +88,14 @@ namespace gollnlp {
     std::vector<int> SSh_Nidx;
     //indexin(G[:Bus], N[:Bus])
     std::vector<int> G_Nidx;
-    //same as above but for reverse referencing (from buses to X)
-    std::vector<std::vector<int> > Lidxn, Lin;
-    //!replacing the above with (the above will be removed at some point)
+
+    //size nbus -> each vector element 'b' contains a (vector of) lines/transformers
+    //attached to bus 'b' 
     std::vector<std::vector<int> > Lidxn1, Lidxn2;
-
-
-    std::vector<std::vector<int> > Tidxn, Tin;
-    //!replacing the above with (the above will be removed at some point)
     std::vector<std::vector<int> > Tidxn1, Tidxn2;
 
+    //size nbus -> each vector element 'b' contains a (vector of) shunts/generators
+    //attached to 'b'
     std::vector<std::vector<int> > SShn, Gn;
 
     //indexes of the out element (gen, line, transf) in the corresponding
