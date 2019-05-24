@@ -27,7 +27,9 @@ public:
   { assert(prob); } 
 
   /** default destructor */
-  virtual ~IpoptNlp() {};
+  virtual ~IpoptNlp()
+  {
+  }
 
   /**@name Overloaded from TNLP */
   //@{
@@ -65,8 +67,13 @@ public:
     //std::cout << init_x << " " << init_z << " " << init_lambda << std::endl;
     if(init_x)
       if(!prob->fill_primal_start(x)) return false;
-    if(init_z)
-      if(!prob->fill_dual_bounds_start(z_L, z_U)) return false;
+    if(init_z) {
+      bool bret = prob->fill_dual_bounds_start(z_L, z_U);
+#ifdef DEBUG
+      for(int i=0; i<n; i++) printf("[outt] %4d %15.8e %15.8e\n", i, z_L[i], z_U[i]);
+#endif
+      if(!bret) return false;
+    }
     if(init_lambda)
       if(!prob->fill_dual_cons_start(lambda)) return false;	
     return true;
@@ -129,13 +136,16 @@ public:
     //SmartPtr< const IteratesVector > a = 	ip_data->curr () ;
     //IteratesVector b = *a;
     prob->set_obj_value(obj_value);
+    prob->set_obj_value_barrier(ip_cq->curr_barrier_obj());
     //assert(false);
     prob->set_primal_vars(x);
     prob->set_duals_vars_bounds(z_L, z_U);
+#ifdef DEBUG
+    for(int i=0; i<n; i++) printf("[inn] %4d %15.8e %15.8e\n", i, z_L[i], z_U[i]);
+#endif    
     prob->set_duals_vars_cons(lambda);
     //iter_vector = ip_data->curr () ;
   }
-
   
   virtual bool intermediate_callback(AlgorithmMode mode,
 				     Ipopt::Index iter, Number obj_value,
@@ -220,7 +230,7 @@ public:
     } else {
       if(t==OptProblem::primalRestart)
 	app->Options()->SetStringValue("warm_start_init_point", "no");
-      else {		
+      else { //	advancedPrimalDualRestart	
 	app->Options()->SetStringValue("warm_start_init_point", "yes");
 	app->Options()->SetStringValue("warm_start_entire_iterate", "yes");
 	ipopt_nlp_spec->set_advanced_primaldual_restart(true);
@@ -230,6 +240,8 @@ public:
   }
 
   virtual bool initialize() {
+
+    //printf("*******************\n*******************\n Initialize\n");
     app = IpoptApplicationFactory();
     // Intialize the IpoptApplication and process the options
     ApplicationReturnStatus status = app->Initialize();

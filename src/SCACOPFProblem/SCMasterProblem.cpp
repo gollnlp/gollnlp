@@ -27,18 +27,20 @@ bool SCMasterProblem::default_assembly()
 
   return true;
 }
-  bool SCMasterProblem::iterate_callback(int iter, const double& obj_value, const double* primals,
-					 const double& inf_pr, const double& inf_du, 
-					 const double& mu, 
-					 const double& alpha_du, const double& alpha_pr,
-					 int ls_trials)
-  {
-    if(NULL != recou_objterm) {
-
-      auto p_g0 = p_g0_vars(); 
-      recou_objterm->end_of_iteration(iter); 
-      //printf("SCMasterProblem end of iter %d\n", iter, obj_value);
-    }
-    return true;
+bool SCMasterProblem::iterate_callback(int iter, const double& obj_value,
+				       const double* primals,
+				       const double& inf_pr, const double& inf_du, 
+				       const double& mu, 
+				       const double& alpha_du, const double& alpha_pr,
+				       int ls_trials)
+{
+  if(NULL != recou_objterm) {
+    
+    auto p_g0 = p_g0_vars(); 
+    recou_objterm->end_of_iteration(iter); 
+    //printf("SCMasterProblem end of iter %d\n", iter, obj_value);
   }
+  return true;
+}
+  
 } //end namespace

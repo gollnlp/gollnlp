@@ -27,6 +27,7 @@ namespace gollnlp {
     
     void end_of_iteration(int iter_num);
 
+    void set_log_barr_mu(const double& mu) { mu_logbarr = mu; }    
   protected:
     virtual bool eval_f_grad();
   private:
@@ -38,7 +39,7 @@ namespace gollnlp {
     double *grad_p_g0, *grad_v_n0;
     int* H_nz_idxs;
 
-    //Quasi-Newton Barzilei-Borwein approximation stuff
+    //Quasi-Newton Barzilei-Borwein approximation 
     //spectral multiple of identity
     double sigma;
 
@@ -54,7 +55,10 @@ namespace gollnlp {
     double *p_g0_curr, *p_g0_prev;
     double *grad_p_g0_curr, *grad_p_g0_prev; 
     //changes in iter and gradient
-    double *s, *y; 
+    double *s, *y;
+
+    //log-barrier-related members
+    double mu_logbarr;
   public:
     bool stop_evals;
   };
@@ -81,6 +85,8 @@ namespace gollnlp {
     // the this' and srcProb's variables
     bool set_warm_start_from_base_of(SCACOPFProblem& srcProb);
     bool set_warm_start_from_contingency_of(SCACOPFProblem& srcProb);
+
+    void set_log_barr_mu(const double& mu) { mu_logbarr = mu; }
   protected: 
     //indexes of non-participating AGC generators in data_K[0] and data_sc, respectively
     //these indexes exclude 'outidx' when K_idx is a generator contingency
@@ -114,6 +120,8 @@ namespace gollnlp {
 
     //Hessian approx: caching of iterates and gradients
 
+    //log-barrier-related members
+    double mu_logbarr;
   };
 } //end namespace
 

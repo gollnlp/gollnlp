@@ -35,6 +35,7 @@ int main(int argc, char *argv[])
   //SCACOPFProblem master_prob(d);
   master_prob.default_assembly();
 
+  
   //
   //phase 1
   //
@@ -42,7 +43,7 @@ int main(int argc, char *argv[])
   master_prob.set_solver_option("linear_solver", "ma57"); 
   master_prob.set_solver_option("mu_init", 1.);
 
-  master_prob.set_solver_option("mu_target", 1e-10);
+  master_prob.set_solver_option("mu_target", 1e-6);
 
   //master_prob.set_solver_option("hessian_approximation", "limited-memory");
   bool bret = master_prob.optimize("ipopt");
@@ -77,8 +78,8 @@ int main(int argc, char *argv[])
     //p.set_solver_option("derivative_test_perturbation",  1e-2);
     //p.set_solver_option("derivative_test_tol", 1e-3);
     
-    p.set_solver_option("mu_init", 1e-6);
-    p.set_solver_option("mu_target", 1e-6);
+    p.set_solver_option("mu_init", 1e-4);
+    p.set_solver_option("mu_target", 1e-4);
     p.set_solver_option("tol", 1e-4);
     
     if(false) {
@@ -91,20 +92,54 @@ int main(int argc, char *argv[])
     }
     p.optimize("ipopt");
   } else {
-    SCRecourseObjTerm* rec;
-    master_prob.append_recourse_obj(rec=new SCRecourseObjTerm(d, master_prob,
-    							 master_prob.vars_block("p_g_0"), 
-    							 NULL, 
-    							 cont_list));
+    double mu_target = 1e-6;
+    // auto rec=new SCRecourseObjTerm(d, master_prob,
+    // 				   master_prob.vars_block("p_g_0"), 
+    // 				   NULL, 
+    // 				   cont_list);
+    // rec->set_log_barr_mu(1e-4);
+    //master_prob.append_recourse_obj(rec);
     //master_prob.print_summary();
-    master_prob.set_solver_option("mu_init", 1e-8);
-    master_prob.set_solver_option("mu_target", 1e-8);
+    master_prob.set_solver_option("mu_init", mu_target);
+    master_prob.set_solver_option("mu_target", mu_target);
+
     master_prob.set_solver_option("bound_push", 1e-18);
     master_prob.set_solver_option("slack_bound_push", 1e-18);
-    master_prob.problem_changed();
+
+
+    //warm-starting
+    master_prob.set_solver_option("warm_start_init_point", "yes");
+    //warm_start_init_point       yes
+    //warm_start_bound_push       1e-9
+    //warm_start_bound_frac       1e-9
+    //warm_start_slack_bound_frac 1e-9
+    //warm_start_slack_bound_push 1e-9
+    //warm_start_mult_bound_push  1e-9
+    
+    master_prob.set_solver_option("warm_start_bound_push", 1e-19);
+    master_prob.set_solver_option("warm_start_slack_bound_push", 1e-19);
+    master_prob.set_solver_option("warm_start_mult_bound_push", 1e-19);
+    master_prob.set_solver_option("warm_start_bound_frac", 1e-19);
+    master_prob.set_solver_option("warm_start_slack_bound_frac", 1e-19);
+    master_prob.set_solver_option("max_iter", 23);
+    
+    master_prob.set_solver_option("warm_start_mult_init_max", 1e+9);
+
+    //bound_mult_init_method "constant" or "mu-based"
+    
+    //master_prob.problem_changed();
     //master_prob.reoptimize("ipopt");
     //master_prob.set_solver_option("hessian_approximation", "limited-memory");
     bret = master_prob.reoptimize(OptProblem::primalDualRestart); //warm_start_target_mu
+
+    master_prob.set_solver_option("mu_init", mu_target);
+    master_prob.set_solver_option("warm_start_same_structure", "yes");
+    //mu_target /= 10;
+    //rec->set_log_barr_mu(1e-8);
+    master_prob.set_solver_option("mu_target", mu_target);
+    master_prob.set_solver_option("max_iter", 500);
+    //bret = master_prob.reoptimize(OptProblem::primalDualRestart);
+    
   }
   
   printf("Test finished\n");

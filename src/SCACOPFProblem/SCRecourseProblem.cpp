@@ -24,7 +24,7 @@ SCACOPFProblem* gprob;
       f(0.), grad_p_g0(NULL), grad_v_n0(NULL), H_nz_idxs(NULL),
       sigma(100.), sigma_update(1),
       p_g0_curr(NULL), p_g0_prev(NULL), grad_p_g0_curr(NULL), grad_p_g0_prev(NULL),
-      s(NULL), y(NULL)
+      s(NULL), y(NULL), mu_logbarr(1e-8)
   {
     auto K_Cont = K_Cont_;
     if(0==K_Cont.size())
@@ -47,18 +47,23 @@ SCACOPFProblem* gprob;
       }
     }
 
+    //temp stuff
+    double mu_init=1e-8, mu_target=1e-8;
+    
     for(auto prob : recou_probs) {
+      prob->set_log_barr_mu(mu_target);
+      
       prob->use_nlp_solver("ipopt");
-      prob->set_solver_option("mu_init", 1e-2);
-      prob->set_solver_option("mu_target", 1e-10);
+      prob->set_solver_option("mu_init", mu_init);
+      prob->set_solver_option("mu_target", mu_target);
 
       prob->set_solver_option("bound_push", 1e-16);
       prob->set_solver_option("slack_bound_push", 1e-16);
 
       prob->set_solver_option("linear_solver", "ma57"); //master_prob.set_solver_option("mu_init", 1.);
       //prob->set_solver_option("print_frequency_iter", 5);
-      prob->set_solver_option("print_level", 5);
-      prob->set_solver_option("tol", 1e-10);
+      prob->set_solver_option("print_level", 2);
+      prob->set_solver_option("tol", 1e-9);
       //prob->set_solver_option("fixed_variable_treatment", "relax_bounds");
       prob->set_solver_option("fixed_variable_treatment", "make_parameter");
 
@@ -95,11 +100,11 @@ SCACOPFProblem* gprob;
 	if(!prob->eval_recourse(p_g0, v_n0, f, grad_p_g0, grad_v_n0))
 	  return false;
       }
-      if(f<1e-4) {
-
-	printf("Small fcn .. grad will be set to 0\n");
-	for(int i=0; i<p_g0->n; i++) grad_p_g0[i]=0.;
-      }
+      //if(f<1e-4) {
+      //
+      //printf("Small fcn .. grad will be set to 0\n");
+      //for(int i=0; i<p_g0->n; i++) grad_p_g0[i]=0.;
+      //}
     }
 
     return true;
@@ -121,6 +126,7 @@ SCACOPFProblem* gprob;
       if(!eval_f_grad()) return false;
     }
     DAXPY(&(p_g0->n), &done, grad_p_g0, &ione, grad+p_g0->index, &ione);
+    //compute the log barrier term 
 
     return true;
   }
@@ -230,7 +236,7 @@ SCACOPFProblem* gprob;
   // SCRecourseProblem
   //////////////////////////////////////////////////////////////////////////////////////////
   SCRecourseProblem::SCRecourseProblem(SCACOPFData& d_in, int K_idx_) 
-    : SCACOPFProblem(d_in), K_idx(K_idx_), restart(false)
+    : SCACOPFProblem(d_in), K_idx(K_idx_), restart(false), mu_logbarr(1e-8)
   {
     int numK = 1; //!
 
@@ -270,7 +276,8 @@ SCACOPFProblem* gprob;
 
     // objective value
     f += this->obj_value;
-
+    f += this->obj_barrier;
+    //ipopt does not return the value of the log-barrier
 
     //update the grad based on the multipliers
     add_grad_pg0_nonanticip_part_to(grad_pg0);
@@ -355,7 +362,7 @@ SCACOPFProblem* gprob;
 #endif
     add_cons_nonanticip_using(pg0);
     add_cons_AGC_using(pg0);
-    print_summary();
+    //print_summary();
     //PVPQSmoothing = AGCSmoothing = 1e-2;
     //coupling AGC and PVPQ; also creates delta_k
     //add_cons_coupling(dK);
