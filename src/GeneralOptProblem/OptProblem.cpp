@@ -28,7 +28,7 @@ OptProblem::OptProblem()
   cons = new OptConstraints();
   obj = new OptObjective();
   obj_value = 0.;
-
+  
   vars_duals_bounds = NULL;
   vars_duals_cons = NULL;
 
@@ -292,7 +292,10 @@ void OptProblem::set_obj_value(const double& f)
 {
   obj_value = f;
 }
-
+void OptProblem::set_obj_value_barrier(const double& f)
+{
+  obj_barrier = f;
+}
 
 void OptProblem::set_primal_vars(const double* x)
 {

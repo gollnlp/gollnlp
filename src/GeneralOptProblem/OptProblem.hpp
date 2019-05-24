@@ -321,13 +321,15 @@ public:
   virtual bool reoptimize(RestartType t=primalRestart);
 
   inline double objective_value() const { return obj_value; }
+  inline double objective_value_barrier() const { return obj_barrier; }
 
   //
   // Callbacks
   //
   // This method is called by NlpSolver instance after each iteration (if supported by the solver)
   // Derive a class from OptProblem to hook your code
-  virtual bool iterate_callback(int iter, const double& obj_value, const double* primals,
+  virtual bool iterate_callback(int iter, const double& obj_value,
+				const double* primals,
 				const double& inf_pr, const double& inf_du, 
 				const double& mu, 
 				const double& alpha_du, const double& alpha_pr,
@@ -366,6 +368,7 @@ public:
 
   //setters
   void set_obj_value(const double& f);
+  void set_obj_value_barrier(const double& flogbar);
   void set_primal_vars(const double* x);
   void set_duals_vars_bounds(const double* zL, const double* zU);
   void set_duals_vars_cons(const double* lambda);
@@ -387,7 +390,7 @@ protected:
   OptVariables*    vars_primal;
   OptConstraints*  cons;
   OptObjective*    obj;
-  double obj_value;
+  double obj_value, obj_barrier;
 
   OptVariables*    vars_duals_bounds;
   OptVariables*    vars_duals_cons;
