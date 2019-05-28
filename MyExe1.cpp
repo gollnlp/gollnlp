@@ -2,10 +2,33 @@
 #include <string>
 #include <iostream>
 
+#include "goTimer.hpp"
+
+// just for testing
+// to be removed
+int myexe1_function(const std::string& InFile1, const std::string& InFile2,
+		    const std::string& InFile3, const std::string& InFile4,
+		    double TimeLimitInSeconds, 
+		    int ScoringMethod, 
+		    const std::string& NetworkModel)
+{
+  
+  MyCode1 code1(InFile1, InFile2, InFile3, InFile4,
+		TimeLimitInSeconds, ScoringMethod, NetworkModel);
+  
+  if(!code1.initialize(0, NULL)) {
+    printf("Error initializing code1\n");
+    return -1;
+  }
+  return code1.go();
+}
+
 int main(int argc, char *argv[])
 {
+  int retcode=0;
+  gollnlp::goTimer ttot; ttot.start();
   if(argc==8) {
-    std::cout << "MyExe1 - v. April 12, 2019" << std::endl;
+    std::cout << "MyExe1 - v. May 26, 2019" << std::endl;
     double timeLimit = atof(argv[5]);
     int scoringMethod = atoi(argv[6]);
 
@@ -17,9 +40,20 @@ int main(int argc, char *argv[])
       std::cout << "invalid scoring method? > " << argv[6] << std::endl;
     }
 
+    MyCode1 code1(argv[1], argv[2], argv[3], argv[4], 
+		  timeLimit, scoringMethod, argv[7]);
 
-    return myexe1_function(argv[1], argv[2], argv[3], argv[4], 
-			   timeLimit, scoringMethod, argv[7]);
+    if(!(retcode=code1.initialize(argc, argv))) {
+      printf("Error initializing code1\n");
+    } else {
+      retcode = code1.go();
+    }
+    if(!retcode) {
+      printf("Something went wrong with code1: return code %d; it took %g seconds\n",
+	     retcode, ttot.stop());
+    }
+    return retcode;
+    
   } else {
     std::string root, net, scen, name;
 

@@ -7,21 +7,69 @@
 using namespace std;
 using namespace gollnlp;
 
-static void display_instance_info(const std::string& InFile1, const std::string& InFile2,
-		    const std::string& InFile3, const std::string& InFile4,
-		    double TimeLimitInSeconds, 
-		    int ScoringMethod, 
-				  const std::string& NetworkModel);
 
-int myexe1_function(const std::string& InFile1, const std::string& InFile2,
-		    const std::string& InFile3, const std::string& InFile4,
-		    double TimeLimitInSeconds, 
-		    int ScoringMethod, 
-		    const std::string& NetworkModel)
+MyCode1::MyCode1(const std::string& InFile1_, const std::string& InFile2_,
+		 const std::string& InFile3_, const std::string& InFile4_,
+		 double TimeLimitInSeconds, 
+		 int ScoringMethod_, 
+		 const std::string& NetworkModelName,
+		 MPI_Comm comm_world_)
+  : InFile1(InFile1_), InFile2(InFile2_), InFile3(InFile3_), InFile4(InFile4_),
+    TimeLimitInSec(TimeLimitInSeconds), ScoringMethod(ScoringMethod_),
+    NetworkModel(NetworkModelName),
+    rank_master(-1), rank_solver_master(-1),
+    comm_world(comm_world_), comm_solver(MPI_COMM_NULL)
+{
+  iAmMaster=iAmSolver=iAmEvaluator=false;
+  my_rank = -1;
+}
+
+MyCode1::~MyCode1()
+{
+
+}
+
+int MyCode1::initialize(int argc, char *argv[])
+{
+  int ret;
+  ret = MPI_Init(&argc, &argv); assert(ret==MPI_SUCCESS);
+  if(MPI_SUCCESS != ret) {
+    return -1;
+  }
+
+  //decide ranks allocation
+  decide_rank_allocation();
+  
+  
+  return 0;
+}
+void MyCode1::decide_rank_allocation()
+{
+  assert(comm_world != MPI_COMM_NULL);
+  int ret, comm_size;
+
+  ret = MPI_Comm_rank(comm_world, &my_rank); assert(ret==MPI_SUCCESS);
+  ret = MPI_Comm_size(comm_world, &comm_size); assert(ret==MPI_SUCCESS);
+  if(my_rank == 0) iAmMaster=true;
+  if(comm_size==1) {
+    iAmSolver=true; iAmEvaluator=true;
+  } else {
+    if(my_rank==1) {
+      iAmSolver=true;}
+    else {
+      //ranks 0, 2, 3, 4
+      iAmEvaluator=true; //rank 0 is also an evaluator as long as comm_size<4
+      if(my_rank==0 && comm_size>=4) iAmEvaluator=false;
+    }
+  }
+}
+  
+int MyCode1::go()
 {
   goTimer ttot; ttot.start();
 
-  display_instance_info(InFile1, InFile2, InFile3, InFile4, TimeLimitInSeconds, ScoringMethod, NetworkModel);
+  if(iAmMaster)
+    display_instance_info();
 
   //use a small list of contingencies for testing/serial
   //  std::vector<int> cont_list = {0, 88, 89, 92};//, 407};
@@ -77,14 +125,9 @@ int myexe1_function(const std::string& InFile1, const std::string& InFile2,
   return 0;
 }
 
-void 
-display_instance_info(const std::string& InFile1, const std::string& InFile2,
-		      const std::string& InFile3, const std::string& InFile4,
-		      double TimeLimitInSeconds, 
-		      int ScoringMethod, 
-		      const std::string& NetworkModel)
+void MyCode1::display_instance_info()
 {
-  printf("Model %s ScoringMethod %d TimeLimit %g\n", NetworkModel.c_str(), ScoringMethod, TimeLimitInSeconds);
+  printf("Model %s ScoringMethod %d TimeLimit %g\n", NetworkModel.c_str(), ScoringMethod, TimeLimitInSec);
   printf("Paths to data files:\n");
   printf("[%s]\n[%s]\n[%s]\n[%s]\n\n", InFile1.c_str(), InFile2.c_str(), InFile3.c_str(), InFile4.c_str());
 }
