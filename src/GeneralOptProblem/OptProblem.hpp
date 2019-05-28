@@ -290,7 +290,10 @@ public:
     auto it = vars_primal->mblocks.find(id);
     if(it != vars_primal->mblocks.end())
       return it->second;
+#ifdef DEBUG
+    printf("inquiry for vars_block '%s' failed.\n", id.c_str());
     assert(false);
+#endif    
     return NULL;
   }
 

@@ -30,6 +30,7 @@ bool SCACOPFProblem::default_assembly()
   // base case
   //
   add_variables(d);
+
   add_cons_lines_pf(d);
   add_cons_transformers_pf(d);
   add_cons_active_powbal(d);
@@ -38,27 +39,34 @@ bool SCACOPFProblem::default_assembly()
   add_cons_thermal_ti_lims(d);
   add_obj_prod_cost(d);
 
+  return true;
+}
   //
-  // contingencies
+  // contingencies for testing
   //
-  vector<int> K_Cont = {
-    380,
+  //vector<int> K_Cont = {
+  //  380,
     //426,//, //line/trans conting, penalty $417
     //960, // gen conting, penalty $81,xxx
     //961, 
     //963
-};
+  //};
   //vector<int> K_Cont = {8, 83, 366}; //net 01; gen, line, transf, id out=[27,61,126]
   //vector<int> K_Cont = {0, 71, 85, 97, 98}; //net 03 scen 9
   //vector<int> K_Cont ={0, 386, 428, 435}; //net 10 scen 9; first two are gen, then a line and a trans
   //vector<int> K_Cont ={386};
   //vector<int> K_Cont ={570,646,155,495,497};
   //vector<int> K_Cont = {919,960,961}; //network 07-R scenario 9, large penalty in pre-trial 1
-
+bool SCACOPFProblem::assembly(const std::vector<int> K_Cont)
+{
+  //assemble base case first
+  default_assembly();
+  
+  SCACOPFData& d = data_sc; //shortcut
   int nK = K_Cont.size();
-  //for(auto K : data_sc.K_Contingency) {
+
   for(auto K : K_Cont) {
-    bool SysCond_BaseCase = false;
+
     data_K.push_back(new SCACOPFData(data_sc));
     SCACOPFData& dK = *(data_K).back(); //shortcut
     dK.rebuild_for_conting(K,nK);
@@ -71,14 +79,17 @@ bool SCACOPFProblem::default_assembly()
     add_cons_transformers_pf(dK);
     add_cons_active_powbal(dK);
     add_cons_reactive_powbal(dK);
+
+    bool SysCond_BaseCase = false;
     add_cons_thermal_li_lims(dK,SysCond_BaseCase);
     add_cons_thermal_ti_lims(dK,SysCond_BaseCase);
 
-    AGCSmoothing = 1e-2;
     //coupling AGC and PVPQ; also creates delta_k
     add_cons_coupling(dK);
+    print_summary();
   }
-
+  return true;
+}
   //print_summary();
 
   // use_nlp_solver("ipopt");
@@ -118,8 +129,7 @@ bool SCACOPFProblem::default_assembly()
   //for(auto d: data_K)
   //  print_PVPQ_info(*d);
 
-  return true;
-}
+
 void SCACOPFProblem::add_cons_coupling(SCACOPFData& dB)
 {
   int K_id = dB.K_Contingency[0];
@@ -133,7 +143,7 @@ void SCACOPFProblem::add_cons_coupling(SCACOPFData& dB)
   add_cons_AGC(dB, Gkp);
 
   //voltages
-  //add_cons_PVPQ(dB, Gk);
+  add_cons_PVPQ(dB, Gk);
 }
 
 // Gk are the indexes of all gens other than the outgen (for generator contingencies) 

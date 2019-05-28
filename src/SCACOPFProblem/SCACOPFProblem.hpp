@@ -19,7 +19,7 @@ namespace gollnlp {
 	useQPen(false), slacks_scale(1.),  PVPQSmoothing(0.01), AGCSmoothing(0.01){}
     virtual ~SCACOPFProblem();
 
-        //overwrites of OptProblem
+    //overwrites of OptProblem
     virtual bool iterate_callback(int iter, const double& obj_value, const double* primals,
 				  const double& inf_pr, const double& inf_du, 
 				  const double& mu, 
@@ -27,7 +27,10 @@ namespace gollnlp {
 				  int ls_trials) 
     { return true; }
 
+    //only base case case, no contingencies and no coupling
     virtual bool default_assembly();
+    //base case + the variables and blocks needed by contingencies specified by 'K_idxs'
+    virtual bool assembly(const std::vector<int> K_idxs);
 
   protected:
     // for all add_ methods, dB is the block data (base case or contingency)
