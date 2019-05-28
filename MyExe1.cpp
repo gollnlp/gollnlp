@@ -15,9 +15,9 @@ int myexe1_function(const std::string& InFile1, const std::string& InFile2,
   
   MyCode1 code1(InFile1, InFile2, InFile3, InFile4,
 		TimeLimitInSeconds, ScoringMethod, NetworkModel);
-  
+
   if(!code1.initialize(0, NULL)) {
-    printf("Error initializing code1\n");
+    printf("Error initializing code1 tmp\n");
     return -1;
   }
   return code1.go();
@@ -50,7 +50,7 @@ int main(int argc, char *argv[])
     }
     if(!retcode) {
       printf("Something went wrong with code1: return code %d; it took %g seconds\n",
-	     retcode, ttot.stop());
+           retcode, ttot.stop());
     }
     return retcode;
     

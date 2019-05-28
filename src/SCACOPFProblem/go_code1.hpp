@@ -5,6 +5,7 @@
 #include <string>
 #include <vector>
 
+#include "SCACOPFProblem.hpp"
 
 class MyCode1
 {
@@ -22,13 +23,39 @@ public:
   virtual void display_instance_info();
 
 private: //methods
-  void decide_rank_allocation();
+  //
+  // phase 1 - solve SCACOPF with small number of scenarios, possibly 0
+  //
+  void phase1_ranks_allocation();
+  std::vector<int> phase1_SCACOPF_contingencies();
+
+  bool do_phase1();
+  // SCACOPF problem, maintained on solver ranks
+  gollnlp::SCACOPFProblem *scacopf_prob; //on solver ranks
+  //
+  // phase 2 - evaluate contingencies scenarios corresponding to phase 1 solution
+  // Only a limited number of contingencies: until a small number of contingencies
+  // with high penalty is found
+  //
+  void phase2_ranks_allocation();
+
+  //
+  // phase 3 - solve SCACOPF with the (addtl) contingencies found in phase 2
+  // 
+  //
+  void phase3_ranks_allocation();
+
 private: //data members
   std::string InFile1, InFile2, InFile3, InFile4;
   double TimeLimitInSec;
   int ScoringMethod;
   std::string NetworkModel;
 
+  gollnlp::SCACOPFData data;
+  
+  //
+  // communication
+  //
   bool iAmMaster;    //master rank that deals with centralizing the communication
   bool iAmSolver;    //rank(s) that solve SC-ACOPF problem
   bool iAmEvaluator; //ranks that evaluate recourse given SC-ACOPF base case solution
@@ -46,5 +73,6 @@ private: //data members
   
   MPI_Comm comm_world;
   MPI_Comm comm_solver;
+
 };
 #endif
