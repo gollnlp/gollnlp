@@ -70,7 +70,7 @@ public:
     if(init_z) {
       bool bret = prob->fill_dual_bounds_start(z_L, z_U);
 #ifdef DEBUG
-      for(int i=0; i<n; i++) printf("[outt] %4d %15.8e %15.8e\n", i, z_L[i], z_U[i]);
+      //for(int i=0; i<n; i++) printf("[outt] %4d %15.8e %15.8e\n", i, z_L[i], z_U[i]);
 #endif
       if(!bret) return false;
     }
@@ -141,7 +141,7 @@ public:
     prob->set_primal_vars(x);
     prob->set_duals_vars_bounds(z_L, z_U);
 #ifdef DEBUG
-    for(int i=0; i<n; i++) printf("[inn] %4d %15.8e %15.8e\n", i, z_L[i], z_U[i]);
+    //for(int i=0; i<n; i++) printf("[inn] %4d %15.8e %15.8e\n", i, z_L[i], z_U[i]);
 #endif    
     prob->set_duals_vars_cons(lambda);
     //iter_vector = ip_data->curr () ;
