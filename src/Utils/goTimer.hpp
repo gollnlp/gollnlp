@@ -32,7 +32,7 @@ public:
 #endif
   }
 
-  inline void stop()
+  inline double stop()
   {
 #ifdef GOLLNLP_USE_MPI
     tmElapsed += ( MPI_Wtime()-tmStart );
@@ -40,6 +40,7 @@ public:
     gettimeofday(&tv, NULL);
     tmElapsed += ( static_cast<double>(tv.tv_sec) + static_cast<double>(tv.tv_usec)/1000000.0  - tmStart );
 #endif
+    return getElapsedTime();
   }
 
   inline void reset() {
