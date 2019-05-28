@@ -376,8 +376,9 @@ public:
   void set_have_start();
 
   //other internal methods
-  virtual OptVariables* new_duals_vec_cons();
-  virtual OptVariables* new_duals_vec_bounds();
+  virtual OptVariables* new_duals_cons();
+  virtual OptVariables* new_duals_lower_bounds();
+  virtual OptVariables* new_duals_upper_bounds();
 
   int get_nnzJaccons();
   int get_nnzHessLagr();
@@ -392,8 +393,8 @@ protected:
   OptObjective*    obj;
   double obj_value, obj_barrier;
 
-  OptVariables*    vars_duals_bounds;
-  OptVariables*    vars_duals_cons;
+  OptVariables *vars_duals_bounds_L, *vars_duals_bounds_U;
+  OptVariables *vars_duals_cons;
 
   int nnz_Jac, nnz_Hess;
 

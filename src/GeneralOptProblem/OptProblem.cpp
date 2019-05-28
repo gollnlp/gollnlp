@@ -29,7 +29,7 @@ OptProblem::OptProblem()
   obj = new OptObjective();
   obj_value = 0.;
   
-  vars_duals_bounds = NULL;
+  vars_duals_bounds_L = vars_duals_bounds_U = NULL;
   vars_duals_cons = NULL;
 
   nnz_Jac = nnz_Hess = -1;
@@ -44,7 +44,8 @@ OptProblem::~OptProblem()
     nlp_solver->finalize();
   delete obj;
   delete cons;
-  delete vars_duals_bounds;
+  delete vars_duals_bounds_L;
+  delete vars_duals_bounds_U;
   delete vars_duals_cons;
   delete vars_primal;
   delete nlp_solver;
@@ -339,94 +340,95 @@ void OptProblem::fill_cons_upper_bounds(double* ub)
 void OptProblem::set_duals_vars_bounds(const double* zL, const double* zU)
 {
   for(auto b: vars_primal->vblocks) {
-    auto* bdual = vars_duals_bounds->get_block(string("duals_bnd_") + b->id);
-
-    for(int i=0; i<b->n; i++) {
-      if(b->lb[i]<=-1e20 && b->ub[i] >=1e+20) {
-	bdual->x[i]=0.;
-      } else if(b->lb[i]<=-1e20) {
-	bdual->x[i] = zU[b->index+i];
-      } else if(b->ub[i] >=1e+20) {
-	bdual->x[i] = zL[b->index+i];
-      } else { 
-	bdual->x[i] = max(zL[b->index+i], zU[b->index+i]);
-      }
-      // printf("[%d] zL=%g zU=%g    x=%g lb=%g lu=%g   our dual=%g\n", b->index+i, 
-      //	     zL[b->index+i], zU[b->index+i], 
-      //     b->x[i], b->lb[i], b->ub[i], bdual->x[i]);
-    }
+    auto* bdualL = vars_duals_bounds_L->get_block(string("duals_bndL_") + b->id);
+    auto* bdualU = vars_duals_bounds_U->get_block(string("duals_bndU_") + b->id);
+    assert(bdualL->n == b->n);
+    assert(bdualU->n == b->n);
+    memcpy(bdualL->x, zL + b->index, b->n*sizeof(double));
+    memcpy(bdualU->x, zU + b->index, b->n*sizeof(double));
+    // for(int i=0; i<b->n; i++) {
+    //   if(b->lb[i]<=-1e20 && b->ub[i] >=1e+20) {
+    // 	bdual->x[i]=0.;
+    //   } else if(b->lb[i]<=-1e20) {
+    // 	bdual->x[i] = zU[b->index+i];
+    //   } else if(b->ub[i] >=1e+20) {
+    // 	bdual->x[i] = zL[b->index+i];
+    //   } else { 
+    // 	bdual->x[i] = max(zL[b->index+i], zU[b->index+i]);
+    //   }
+    // }
   }
 }
 
 void OptProblem::fill_dual_vars_bounds(double* zL, double* zU)
 {
   for(auto b: vars_primal->vblocks) {
-    auto* bdual = vars_duals_bounds->get_block(string("duals_bnd_") + b->id);
-
-    for(int i=0; i<b->n; i++) {
-      if(b->lb[i]<=-1e20 && b->ub[i] >=1e+20) {
-	zL[b->index+i] = zU[b->index+i] = 0; assert(bdual->x[i]==0);
-      } else if(b->lb[i]<=-1e20) {
-	zU[b->index+i] = bdual->x[i];
-	zL[b->index+i] = 0.;
-      } else if(b->ub[i] >=1e+20) {
-	zL[b->index+i] = bdual->x[i];
-	zU[b->index+i] = 0.;
-      } else { 
-	if( (b->x[i] - b->lb[i]) > (b->ub[i] - b->x[i]) ) {
-	  zU[b->index+i] = bdual->x[i];
-	  zL[b->index+i] = 0.;
-	} else {
-	  zL[b->index+i] = bdual->x[i];
-	  zU[b->index+i] = 0.;
-	}
-      }
-      // printf("[%d] zL=%g zU=%g    x=%g lb=%g lu=%g   our dual=%g\n", b->index+i, 
-      //	     zL[b->index+i], zU[b->index+i], 
-      //     b->x[i], b->lb[i], b->ub[i], bdual->x[i]);
-    }
+    auto* bdualL = vars_duals_bounds_L->get_block(string("duals_bndL_") + b->id);
+    auto* bdualU = vars_duals_bounds_U->get_block(string("duals_bndU_") + b->id);
+    DCOPY(&(b->n), bdualL->x, &ione, zL + b->index, &ione);
+    DCOPY(&(b->n), bdualU->x, &ione, zU + b->index, &ione);
+    
+    // for(int i=0; i<b->n; i++) {
+    //   if(b->lb[i]<=-1e20 && b->ub[i] >=1e+20) {
+    // 	zL[b->index+i] = zU[b->index+i] = 0; assert(bdual->x[i]==0);
+    //   } else if(b->lb[i]<=-1e20) {
+    // 	zU[b->index+i] = bdual->x[i];
+    // 	zL[b->index+i] = 0.;
+    //   } else if(b->ub[i] >=1e+20) {
+    // 	zL[b->index+i] = bdual->x[i];
+    // 	zU[b->index+i] = 0.;
+    //   } else { 
+    // 	if( (b->x[i] - b->lb[i]) > (b->ub[i] - b->x[i]) ) {
+    // 	  zU[b->index+i] = bdual->x[i];
+    // 	  zL[b->index+i] = 0.;
+    // 	} else {
+    // 	  zL[b->index+i] = bdual->x[i];
+    // 	  zU[b->index+i] = 0.;
+    // 	}
+    //   }
+    // }
   }
 }
 
 bool OptProblem::fill_dual_bounds_start(double* zL, double* zU)
 {
   for(auto b: vars_primal->vblocks) {
-    auto* bdual = vars_duals_bounds->get_block(string("duals_bnd_") + b->id);
+    auto* bdualL = vars_duals_bounds_L->get_block(string("duals_bndL_") + b->id);
+    auto* bdualU = vars_duals_bounds_U->get_block(string("duals_bndU_") + b->id);
 
-    if(!bdual->providesStartingPoint) {
+    if(!bdualL->providesStartingPoint) {
+      assert(false == bdualU->providesStartingPoint);
       for(int i=0; i<b->n; i++) {
-	zL[b->index+i] = zU[b->index+i] =0.;
+	zL[b->index+i] = zU[b->index+i] = 0.;
       }
       continue;
     }
 
-    for(int i=0; i<b->n; i++) {
-      if(b->lb[i]<=-1e20 && b->ub[i] >=1e+20) {
-	zL[b->index+i] = zU[b->index+i] = 0; assert(bdual->x[i]==0);
-      } else if(b->lb[i]<=-1e20) {
-	zU[b->index+i] = bdual->x[i];
-	zL[b->index+i] = 0.;
-      } else if(b->ub[i] >=1e+20) {
-	zL[b->index+i] = bdual->x[i];
-	zU[b->index+i] = 0.;
-      } else { 
-	if( (b->x[i] - b->lb[i]) > (b->ub[i] - b->x[i]) ) {
-	  zU[b->index+i] = bdual->x[i];
-	  zL[b->index+i] = 0.;
-	} else {
-	  zL[b->index+i] = bdual->x[i];
-	  zU[b->index+i] = 0.;
-	}
-      }
-      // printf("[%d] zL=%g zU=%g    x=%g lb=%g lu=%g   our dual=%g\n", b->index+i, 
-      //	     zL[b->index+i], zU[b->index+i], 
-      //     b->x[i], b->lb[i], b->ub[i], bdual->x[i]);
-    }
+    DCOPY(&(b->n), bdualL->x, &ione, zL + b->index, &ione);
+    DCOPY(&(b->n), bdualU->x, &ione, zU + b->index, &ione);
+    // for(int i=0; i<b->n; i++) {
+    //   if(b->lb[i]<=-1e20 && b->ub[i] >=1e+20) {
+    // 	zL[b->index+i] = zU[b->index+i] = 0; assert(bdual->x[i]==0);
+    //   } else if(b->lb[i]<=-1e20) {
+    // 	zU[b->index+i] = bdual->x[i];
+    // 	zL[b->index+i] = 0.;
+    //   } else if(b->ub[i] >=1e+20) {
+    // 	zL[b->index+i] = bdual->x[i];
+    // 	zU[b->index+i] = 0.;
+    //   } else { 
+    // 	if( (b->x[i] - b->lb[i]) > (b->ub[i] - b->x[i]) ) {
+    // 	  zU[b->index+i] = bdual->x[i];
+    // 	  zL[b->index+i] = 0.;
+    // 	} else {
+    // 	  zL[b->index+i] = bdual->x[i];
+    // 	  zU[b->index+i] = 0.;
+    // 	}
+    //   }
   }  
   return true;
 }
 
-OptVariables*  OptProblem::new_duals_vec_cons()
+OptVariables*  OptProblem::new_duals_cons()
 {
   OptVariables* duals = new OptVariables();
   for(auto b: cons->vblocks) {
@@ -434,11 +436,19 @@ OptVariables*  OptProblem::new_duals_vec_cons()
   }
   return duals;
 }
-OptVariables*  OptProblem::new_duals_vec_bounds()
+OptVariables*  OptProblem::new_duals_lower_bounds()
 {
   OptVariables* duals = new OptVariables();
   for(auto b: vars_primal->vblocks) {
-    duals->append_varsblock(new OptVariablesBlock(b->n, string("duals_bnd_") + b->id));
+    duals->append_varsblock(new OptVariablesBlock(b->n, string("duals_bndL_") + b->id));
+  }
+  return duals;
+}
+OptVariables*  OptProblem::new_duals_upper_bounds()
+{
+  OptVariables* duals = new OptVariables();
+  for(auto b: vars_primal->vblocks) {
+    duals->append_varsblock(new OptVariablesBlock(b->n, string("duals_bndU_") + b->id));
   }
   return duals;
 }
@@ -499,10 +509,12 @@ void OptProblem::problem_changed()
 
 bool OptProblem::optimize(const std::string& solver_name)
 {
-  if(vars_duals_bounds) delete vars_duals_bounds;
+  if(vars_duals_bounds_L) delete vars_duals_bounds_L;
+  if(vars_duals_bounds_U) delete vars_duals_bounds_U;
   if(vars_duals_cons) delete vars_duals_cons;
-  vars_duals_bounds = new_duals_vec_bounds();
-  vars_duals_cons = new_duals_vec_cons();
+  vars_duals_bounds_L = new_duals_lower_bounds();
+  vars_duals_bounds_U = new_duals_upper_bounds();
+  vars_duals_cons = new_duals_cons();
 
   if(!nlp_solver) {
     cout << "call 'use_nlp_solver' first\n";
@@ -519,7 +531,8 @@ bool OptProblem::optimize(const std::string& solver_name)
 
 bool OptProblem::reoptimize(RestartType t)
 {
-  assert(vars_duals_bounds && "call optimize instead");
+  assert(vars_duals_bounds_L && "firt call optimize instead");
+  assert(vars_duals_bounds_U && "first call optimize instead");
   assert(vars_duals_cons && "call optimize instead");
 
   nlp_solver->set_start_type(t);
@@ -535,7 +548,8 @@ void OptProblem::set_have_start()
 {
   //var_primals were updated with the values from the solver's finalize method
   for(auto b: vars_primal->vblocks) b->providesStartingPoint=true;
-  for(auto b: vars_duals_bounds->vblocks) b->providesStartingPoint=true;
+  for(auto b: vars_duals_bounds_L->vblocks) b->providesStartingPoint=true;
+  for(auto b: vars_duals_bounds_U->vblocks) b->providesStartingPoint=true;
   for(auto b: vars_duals_cons->vblocks) b->providesStartingPoint=true;
 }
 
