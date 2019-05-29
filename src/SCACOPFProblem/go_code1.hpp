@@ -30,15 +30,16 @@ private: //methods
   std::vector<int> phase1_SCACOPF_contingencies();
 
   bool do_phase1();
-  // SCACOPF problem, maintained on solver ranks
-  gollnlp::SCACOPFProblem *scacopf_prob; //on solver ranks
+  // SCACOPF problem, maintained on solver ranks, but created on others as well as
+  // a template
+  gollnlp::SCACOPFProblem *scacopf_prob; 
   //
   // phase 2 - evaluate contingencies scenarios corresponding to phase 1 solution
-  // Only a limited number of contingencies: until a small number of contingencies
-  // with high penalty is found
+  // stop after a limited number of contingencies with high penalty are found
   //
   void phase2_ranks_allocation();
 
+  bool do_phase2();
   //
   // phase 3 - solve SCACOPF with the (addtl) contingencies found in phase 2
   // 
@@ -65,9 +66,9 @@ private: //data members
   //rank of the master, usually 0, available on all ranks
   int rank_master;
 
-  //rank of the solver master within the 'comm_world' communicator; relevant and
-  //used on the master rank 
-  int rank_solver_master;
+  // rank of the solver master rank (or rank 0 in 'comm_solver') within
+  // the 'comm_world' communicator
+  int rank_solver_rank0;
   // ranks of the evaluators, used on the master rank
   std::vector<int> ranks_evaluators; 
   

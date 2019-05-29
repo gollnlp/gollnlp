@@ -5,6 +5,8 @@
 #include <cassert>
 #include <vector>
 #include <map>
+
+#include "mpi.h"
 namespace gollnlp {
 
 class NlpSolver;
@@ -69,6 +71,10 @@ public:
   // "dict" with the pointers for quick lookups by name
   std::map<std::string, OptVariablesBlock*> mblocks;
 friend class OptProblem;
+
+public: //MPI_Helpers
+  //broadcasts 'this'; of non-null, 'buffer' will be used to pack/unpack variables blocks
+  int MPI_Bcast_x(int root, MPI_Comm comm, int my_rank, double* buffer=NULL);
 private:
   // appends b to list of blocks; updates this->n and b->index
   bool append_varsblock(OptVariablesBlock* b);
@@ -261,6 +267,11 @@ public:
   inline int get_num_variables() const { return vars_primal->n(); }
 
 public:
+  inline OptVariables* primal_variables() { return vars_primal; }
+  inline OptVariables* duals_bounds_lower() { return vars_duals_bounds_L; }
+  inline OptVariables* duals_bounds_upper() { return vars_duals_bounds_U; }
+  inline OptVariables* duals_constraints() { return vars_duals_cons; }
+  
   inline void append_variables(OptVariablesBlock* vars)
   {
     vars_primal->append_varsblock(vars);
@@ -383,6 +394,8 @@ public:
   virtual OptVariables* new_duals_lower_bounds();
   virtual OptVariables* new_duals_upper_bounds();
 
+  //OptVariables* new_copy_of_primal_vars();
+  
   int get_nnzJaccons();
   int get_nnzHessLagr();
 

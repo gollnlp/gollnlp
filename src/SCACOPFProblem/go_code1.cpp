@@ -17,7 +17,7 @@ MyCode1::MyCode1(const std::string& InFile1_, const std::string& InFile2_,
   : InFile1(InFile1_), InFile2(InFile2_), InFile3(InFile3_), InFile4(InFile4_),
     TimeLimitInSec(TimeLimitInSeconds), ScoringMethod(ScoringMethod_),
     NetworkModel(NetworkModelName),
-    rank_master(-1), rank_solver_master(-1),
+    rank_master(-1), rank_solver_rank0(-1),
     comm_world(comm_world_), comm_solver(MPI_COMM_NULL)
 {
   iAmMaster=iAmSolver=iAmEvaluator=false;
@@ -57,9 +57,12 @@ void MyCode1::phase1_ranks_allocation()
   assert(comm_world != MPI_COMM_NULL);
   int ret, comm_size;
   ret = MPI_Comm_size(comm_world, &comm_size); assert(ret==MPI_SUCCESS);
+
+  rank_solver_rank0 = 1;
   if(my_rank == 0) iAmMaster=true;
   if(comm_size==1) {
     iAmSolver=true; iAmEvaluator=true;
+    rank_solver_rank0 = 0;
   } else {
     if(my_rank==1) {
       iAmSolver=true;
@@ -105,32 +108,7 @@ void MyCode1::phase3_ranks_allocation()
   phase1_ranks_allocation();
 }
 
-bool MyCode1::do_phase1()
-{
-  vector<int> K_idxs = phase1_SCACOPF_contingencies();
-  assert(NULL == scacopf_prob);
 
-  phase1_ranks_allocation();
-  
-  if(iAmSolver) {
-    scacopf_prob = new SCACOPFProblem(data);
-    scacopf_prob->assembly(K_idxs);
-    scacopf_prob->use_nlp_solver("ipopt"); 
-    scacopf_prob->set_solver_option("linear_solver", "ma57"); 
-    scacopf_prob->set_solver_option("mu_init", 1.);
-    scacopf_prob->set_solver_option("print_frequency_iter", 5);
-    scacopf_prob->set_solver_option("print_level", 5);
-    bool bret = scacopf_prob->optimize("ipopt");
-    
-    
-  } else {
-    //master and evaluators do nothing
-  }
-
-  //communication -> solver rank0 bcasts basecase solution
-  MPI_Barrier(comm_world);
-  return true;
-}
 vector<int> MyCode1::phase1_SCACOPF_contingencies()
 {
   bool testing = true;
@@ -145,6 +123,65 @@ vector<int> MyCode1::phase1_SCACOPF_contingencies()
     return vector<int>();
   }
 }
+bool MyCode1::do_phase1()
+{
+  vector<int> K_idxs = phase1_SCACOPF_contingencies();
+  assert(NULL == scacopf_prob);
+
+  phase1_ranks_allocation();
+
+
+  //
+  // solver scacopf problem on solver rank(s)
+  //
+  scacopf_prob = new SCACOPFProblem(data);
+  scacopf_prob->assembly(K_idxs);
+  scacopf_prob->use_nlp_solver("ipopt"); 
+  scacopf_prob->set_solver_option("linear_solver", "ma57"); 
+  scacopf_prob->set_solver_option("mu_init", 1.);
+  scacopf_prob->set_solver_option("print_frequency_iter", 5);
+
+  
+  if(iAmSolver) {
+    scacopf_prob->set_solver_option("print_level", 5);
+
+  } else {
+    //master and evaluators do not solve, but we call optimize to force an
+    //allocation of the internals, such as the dual variables
+    scacopf_prob->set_solver_option("print_level", 1);
+    scacopf_prob->set_solver_option("max_iter", 1);
+  }
+  
+  bool bret = scacopf_prob->optimize("ipopt");
+
+
+  //
+  //communication -> solver rank0 bcasts basecase solutions
+  //
+  scacopf_prob->primal_variables()->
+    MPI_Bcast_x(rank_solver_rank0, comm_world, my_rank);
+  scacopf_prob->duals_bounds_lower()->
+    MPI_Bcast_x(rank_solver_rank0, comm_world, my_rank);
+  scacopf_prob->duals_bounds_upper()->
+    MPI_Bcast_x(rank_solver_rank0, comm_world, my_rank);
+  scacopf_prob->duals_constraints()->
+    MPI_Bcast_x(rank_solver_rank0, comm_world, my_rank);
+  
+  //force a have_start set
+  if(!iAmSolver) {
+    scacopf_prob->set_have_start();
+  }
+  
+  //MPI_Barrier(comm_world);
+  return true;
+}
+
+bool MyCode1::do_phase2()
+{
+
+  return true;
+}
+
 int MyCode1::go()
 {
   goTimer ttot; ttot.start();
@@ -156,12 +193,15 @@ int MyCode1::go()
     printf("Error occured in phase 1\n");
     return -1;
   }
+  printf("Phase 1 completed on rank %d\n", my_rank);
 
-  //if(!do_phase2()) {
-  //  printf("Error occured in phase 2\n");
-  //  return -1;
-  //}
+  if(!do_phase2()) {
+    printf("Error occured in phase 2\n");
+    return -1;
+  }
+  printf("Phase 2 completed on rank %d\n", my_rank);
 
+ 
   //if(!do_phase3()) {
   //  printf("Error occured in phase 3\n");
   //  return -1;

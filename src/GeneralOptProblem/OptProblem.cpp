@@ -610,6 +610,37 @@ void OptVariables::attach_to(const double *x)
   for(auto b: vblocks) b->xref = x + b->index;
 }
 
+int OptVariables::MPI_Bcast_x(int root,
+			      MPI_Comm comm,
+			      int my_rank, double* buffer)
+{
+  int dealloc=false;
+  if(NULL == buffer) {
+    buffer = new double[this->n()];
+    dealloc=true;
+  }
+  //pack
+  if(my_rank==root) {
+    for(auto b: vblocks)
+      memcpy(buffer+b->index, b->x, b->n*sizeof(double));
+  }
+
+  int ierr = MPI_Bcast(buffer, this->n(), MPI_DOUBLE, root, comm);
+  assert(MPI_SUCCESS==ierr);
+
+  //unpack
+  if(my_rank!=root) {
+    for(auto b: vblocks)
+      memcpy(b->x, buffer+b->index, b->n*sizeof(double));
+  }
+  
+  if(dealloc) {
+    delete[] buffer;
+    buffer = NULL;
+  }
+  return ierr;
+}
+
 OptVariablesBlock::OptVariablesBlock(const int& n_, const std::string& id_)
   : n(n_), id(id_), index(-1), xref(NULL), providesStartingPoint(false)
 {
