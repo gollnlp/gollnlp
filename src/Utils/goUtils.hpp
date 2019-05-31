@@ -140,8 +140,24 @@ template<class T> inline bool erase_elem_from(std::vector<T>& v, const T& e)
 }
 
 //erase elem at index 'i' from the vector
-template<class T> inline void erase_idx_from(std::vector<T>& v, const int& idx) { v.erase(v.begin()+idx); }
+template<class T> inline void erase_idx_from(std::vector<T>& v, const int& idx)
+{
+  assert(idx>=0);
+  v.erase(v.begin()+idx);
+}
 
+//return difference A\B
+//this function is not optimized for large B
+template<class T>
+inline std::vector<T> set_diff(const std::vector<T>& A, const std::vector<T>& B)
+{
+  std::vector<T> diff=A;
+  auto idxs_B_in_A = indexin(B,A);
+  for(auto idx : idxs_B_in_A) {
+    if(idx>=0) erase_idx_from(diff,idx);
+  }
+  return diff;
+}
 
 template<class T> std::vector<T> selectfrom(const std::vector<T>& v, const std::vector<int>& idx)
 {

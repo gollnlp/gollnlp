@@ -2,7 +2,9 @@
 
 #include "SCMasterProblem.hpp"
 #include "SCRecourseProblem.hpp"
+
 #include "goTimer.hpp"
+#include "goUtils.hpp"
 
 using namespace std;
 using namespace gollnlp;
@@ -96,9 +98,24 @@ void MyCode1::phase2_ranks_allocation()
     if(my_rank==0 && comm_size>=4) iAmEvaluator=false;
     
   }
+
+  //on master
+  if(iAmMaster) {
+    type_of_rank.clear();
+
+    //rank 0
+    int type = 1; //master
+    //rank 0 is also an evaluator as long as comm_size<4
+    if(comm_size<4) type = 5;
+    type_of_rank.push_back(type);
+    
+    for(int r=1; r<comm_size; r++) 
+      type_of_rank.push_back(4);
+  }
   printf("[Phase 2] Rank %d ismaster %d issolver %d isevaluator %d\n",
   	 my_rank, iAmMaster, iAmSolver, iAmEvaluator);
 }
+
 void MyCode1::phase3_ranks_allocation()
 {
   //to do: grow the pool of solvers with the contingencies considered in
@@ -125,7 +142,7 @@ vector<int> MyCode1::phase1_SCACOPF_contingencies()
 }
 bool MyCode1::do_phase1()
 {
-  vector<int> K_idxs = phase1_SCACOPF_contingencies();
+  K_SCACOPF_phase1 = phase1_SCACOPF_contingencies();
   assert(NULL == scacopf_prob);
 
   phase1_ranks_allocation();
@@ -135,7 +152,7 @@ bool MyCode1::do_phase1()
   // solver scacopf problem on solver rank(s)
   //
   scacopf_prob = new SCACOPFProblem(data);
-  scacopf_prob->assembly(K_idxs);
+  scacopf_prob->assembly(K_SCACOPF_phase1);
   scacopf_prob->use_nlp_solver("ipopt"); 
   scacopf_prob->set_solver_option("linear_solver", "ma57"); 
   scacopf_prob->set_solver_option("mu_init", 1.);
@@ -176,9 +193,84 @@ bool MyCode1::do_phase1()
   return true;
 }
 
+std::vector<int> MyCode1::phase2_contingencies()
+{
+  //return data.K_Contingency;
+  
+  //or, for testing purposes
+  //return {0,1,2,3,4,5,6,7,8,9};
+  return {17, 426, 960, 961};
+}
+
+void MyCode1::phase2_initial_contingency_distribution()
+{
+  if(!iAmMaster) return;
+
+  //num ranks
+  int R = type_of_rank.size(); assert(R>0); assert(type_of_rank[0]>=1);
+  int num_ranks = R;
+  for(int r=0; r<num_ranks; r++) {
+    if(type_of_rank[r]==4 || type_of_rank[r]==5 || type_of_rank[r]==6) {
+      //evaluator rank
+    } else {
+      R--;
+    }
+  }
+
+  //initialize K_on_rank (vector of K idxs on each rank)
+  hardclear(K_on_rank);
+  for(int it=0; it<num_ranks; it++)
+    K_on_rank.push_back(vector<int>());
+  
+  //num contingencies; K_phase2 contains contingencies ids in increasing order
+  int S = K_phase2.size();
+  //assert(S >= R);
+  
+  int perRank = S/R; int remainder = S-R*(S/R);
+  printf("evaluators=%d contingencies=%d perRank=%d remainder=%d\n",
+  	 R, S, perRank, remainder);
+
+  //each rank gets one contingency idx = r*perRank
+  int nEvaluators=-1;
+  for(int r=0; r<num_ranks; r++) {
+    if(type_of_rank[r]==4 || type_of_rank[r]==5 || type_of_rank[r]==6) {
+      //evaluator rank
+      nEvaluators++;
+      
+      int K_idx = nEvaluators*perRank;
+      if(nEvaluators<remainder)
+	K_idx += nEvaluators;
+      else
+	K_idx += remainder;
+
+      if(nEvaluators<S) {
+	//printf("r=%d K_idx=%d  K_value=%d\n", r, K_idx, K_phase2[K_idx]);
+	assert(K_idx < K_phase2.size());
+	K_on_rank[r].push_back(K_phase2[K_idx]);
+      }
+    }
+  }
+  assert(nEvaluators+1==R);
+  printvecvec(K_on_rank);
+}
+
 bool MyCode1::do_phase2()
 {
+  phase2_ranks_allocation();
 
+  //contingencies to be considered in phase 2
+  K_phase2 = set_diff(phase2_contingencies(), K_SCACOPF_phase1);
+
+  phase2_initial_contingency_distribution();
+  
+  
+  if(iAmMaster) {
+    
+  }
+  if(iAmEvaluator) {
+    
+  }
+  
   return true;
 }
 
@@ -189,12 +281,18 @@ int MyCode1::go()
   if(iAmMaster)
     display_instance_info();
 
+  //
+  //phase 1
+  //
   if(!do_phase1()) {
     printf("Error occured in phase 1\n");
     return -1;
   }
   printf("Phase 1 completed on rank %d\n", my_rank);
 
+  //
+  // phase 2
+  //
   if(!do_phase2()) {
     printf("Error occured in phase 2\n");
     return -1;
