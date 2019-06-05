@@ -47,6 +47,15 @@ private: //methods
   // evaluators ranks
   void phase2_initial_contingency_distribution();
 
+  //computes the next contingency idx given the last one
+  //
+  //default implementation just finds the next consecutive contingency
+  //from the rank's chunk that has not been evaluated yet. If no 
+  //contingency left, looks for a non-evaluated one starting at the beginning
+  //
+  //returns -1 when no contingencies are left, otherwise the next contingency
+  int get_next_contingency(int Kidx_last, int rank);
+  
   //the above contingencies minus the ones in SCACOPF phase1
   std::vector<int> K_phase2;
 
@@ -59,14 +68,70 @@ private: //methods
   //inner vector empty for contingencies with small penalty
   std::vector<std::vector<double> > K_primals_phase2;
 
-  //contingencies of each rank 
+  //contingencies processed on each rank
+  //on master has outer size num_ranks
+  //on evaluator has outer size 1
   std::vector<std::vector<int> > K_on_rank;
 
+  //
+  // tags
+  //
+  int Tag0;// = 10000;
+  int MSG_TAG_SZ;//=num_K
+  // send/recv Kidxs: Tag0 + Kidx_sendrecv_counter_for_rank
+  // send/recv penalty obj: Tag0+MSG_TAG_SZ+sendrecv_penalty_counter_for_rank
+  // send/recv solution large penalty: Tag0+2*MSG_TAG_SZ+sendrecv_solution_counter_for_rank
+  // 
+  
+  struct ReqKidx
+  {
+    ReqKidx() : ReqKidx(-1) {}
+    ReqKidx(const int& K_idx_)
+      : K_idx(K_idx_)
+    {
+      buffer[0]=K_idx_;
+    }
+    int K_idx; //for which contingency
+    MPI_Request request;
+    int buffer[1];
+  };
+  //on master rank
+  std::vector<std::vector<ReqKidx*> > req_send_K_idx_for_rank;
+  //on evaluator rank
+  ReqKidx* req_recv_K_idx;
+  
+  struct ReqPenalty
+  {
+    ReqPenalty() : ReqPenalty(-1) {}
+    ReqPenalty(const int& K_idx_)
+      : K_idx(K_idx_)
+    {
+      buffer[0]=-1e+20;
+    }
+    int K_idx; //for which contingency
+    MPI_Request request;
+    double buffer[1];
+  };
+
+  //on master rank
+  //size num_ranks; at most one request per evaluator rank
+  std::vector<std::vector<ReqPenalty*> > req_recv_penalty_for_rank;
+  //on evaluator rank
+  ReqPenalty* req_send_penalty;
+  
   //ranks types: master (1), solver(2), evaluator(4) and combintations of them
   // master and evaluator 5, solver and evaluator 6, ...
   std::vector<int> type_of_rank;
-  bool do_phase2();
+
+
+
   
+  bool do_phase2();
+
+  //returns true when finished: no more contingency left and send/recv
+  //messages completed
+  bool do_phase2_master_part();
+  bool do_phase2_evaluator_part();
   //
   // phase 3 - solve SCACOPF with the (addtl) contingencies found in phase 2
   // 
