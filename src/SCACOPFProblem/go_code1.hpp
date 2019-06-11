@@ -69,9 +69,13 @@ private: //methods
   std::vector<std::vector<double> > K_primals_phase2;
 
   //contingencies processed on each rank
-  //on master has outer size num_ranks
-  //on evaluator has outer size 1
+  //outer size num_ranks, maintained only on master rank
+  // -1 will be sent to (and pushed_back for) each rank to signal the end of evaluations
+  // -2 will be pushed_back to mark that no more sends needs to be posted for the rank
   std::vector<std::vector<int> > K_on_rank;
+
+  //contingencies processed by current rank
+  std::vector<int> K_on_my_rank;
 
   //
   // tags
@@ -96,6 +100,7 @@ private: //methods
     int buffer[1];
   };
   //on master rank
+  //size num_ranks; at most one request per evaluator rank
   std::vector<std::vector<ReqKidx*> > req_send_K_idx_for_rank;
   //on evaluator rank
   ReqKidx* req_recv_K_idx;
@@ -125,7 +130,7 @@ private: //methods
 
 
 
-  
+  void phase2_initialization();
   bool do_phase2();
 
   //returns true when finished: no more contingency left and send/recv
