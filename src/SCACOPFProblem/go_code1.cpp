@@ -9,6 +9,7 @@
 using namespace std;
 using namespace gollnlp;
 
+//#define DEBUG_COMM 1
 
 MyCode1::MyCode1(const std::string& InFile1_, const std::string& InFile2_,
 		 const std::string& InFile3_, const std::string& InFile4_,
@@ -79,8 +80,10 @@ void MyCode1::phase1_ranks_allocation()
       if(my_rank==0) iAmEvaluator=false;
     }
   }
+#ifdef DEBUG_COMM
   printf("[Phase 1] Rank %d ismaster %d issolver %d isevaluator %d\n",
   	 my_rank, iAmMaster, iAmSolver, iAmEvaluator);
+#endif
 }
 
 void MyCode1::phase2_ranks_allocation()   
@@ -116,8 +119,10 @@ void MyCode1::phase2_ranks_allocation()
     for(int r=1; r<comm_size; r++) 
       type_of_rank.push_back(4);
   }
+#ifdef DEBUG_COMM  
   printf("[Phase 2] Rank %d ismaster %d issolver %d isevaluator %d\n",
   	 my_rank, iAmMaster, iAmSolver, iAmEvaluator);
+#endif
 }
 
 void MyCode1::phase3_ranks_allocation()
@@ -241,8 +246,8 @@ void MyCode1::phase2_initial_contingency_distribution()
   //assert(S >= R);
   
   int perRank = S/R; int remainder = S-R*(S/R);
-  printf("evaluators=%d contingencies=%d perRank=%d remainder=%d\n",
-  	 R, S, perRank, remainder);
+  //printf("evaluators=%d contingencies=%d perRank=%d remainder=%d\n",
+  //	 R, S, perRank, remainder);
 
   //each rank gets one contingency idx = r*perRank
   int nEvaluators=-1;
@@ -266,7 +271,6 @@ void MyCode1::phase2_initial_contingency_distribution()
     }
   }
   assert(nEvaluators+1==R);
-  printvecvec(K_on_rank, "contingencies on rank");
 }
 
 int MyCode1::get_next_contingency(int Kidx_last, int rank)
@@ -296,8 +300,10 @@ int MyCode1::get_next_contingency(int Kidx_last, int rank)
     }
 			    
     if(!found) {
+#ifdef DEBUG_COMM
       printf("Master: found next  contingency for K_idx=%d to have idx=%d (value=%d)\n",
 	     Kidx_last, Kidx_next, K_phase2[Kidx_next]);
+#endif      
       return Kidx_next;
     }
 
@@ -307,8 +313,10 @@ int MyCode1::get_next_contingency(int Kidx_last, int rank)
       done=true;
     }
   }
+#ifdef DEBUG_COMM  
   printf("Master: did NOT find a next  contingency for K_idx=%d, will return K_idx=-1\n",
 	 Kidx_last);
+#endif
   return -1;
 }
 
@@ -328,7 +336,9 @@ bool MyCode1::do_phase2_master_part()
     //done with communication for this rank since it was marked as not having any
     //contingencies left
     if(K_on_rank[r].back()==-2) {
+#ifdef DEBUG_COMM
       printf("Master : no more comm for rank=%d. it was marked with -2\n", r);
+#endif
       continue;
     }
     
@@ -344,7 +354,9 @@ bool MyCode1::do_phase2_master_part()
       if(mpi_test_flag != 0) {
 	//completed
 	double penalty = req_pen->buffer[0];
+#ifdef DEBUG_COMM
 	printf("Master: recv penalty=%g from rank=%d completed\n", penalty, r);
+#endif
 	
 	// if completed and penalty large, irecv the solution
 	// to do
@@ -376,8 +388,9 @@ bool MyCode1::do_phase2_master_part()
       assert(ierr == MPI_SUCCESS);
       if(mpi_test_flag != 0) {
 	//completed
+#ifdef DEBUG_COMM	
 	printf("Master: send K_idx=%d to rank=%d completed\n", req_K_idx->K_idx, r);
-	
+#endif
 	//was this one the last one (K_idx==-1) ?
 	if(req_K_idx->K_idx==-1) {
 	  //we're done with this rank -> do not send a new one
@@ -401,10 +414,11 @@ bool MyCode1::do_phase2_master_part()
       
       int K_idx_next = K_on_rank[r].back();
 
+#ifdef DEBUG_COMM   
       char msg[100];
       sprintf(msg, "K_on_rank[%d]", r);
       printvec(K_on_rank[r], msg);
-
+#endif
       
       //
       {
@@ -413,18 +427,15 @@ bool MyCode1::do_phase2_master_part()
 	int tag = Tag0 + K_on_rank[r].size();
 	ierr = MPI_Isend(req_K_idx->buffer, 1, MPI_INT, r,
 			 tag, comm_world, &req_K_idx->request);
-
+#ifdef DEBUG_COMM
 	printf("Master posted send for K_idx=%d to rank=%d tag=%d\n",
 	       K_idx_next, r, tag);
-	
+#endif
 	assert(MPI_SUCCESS == ierr);
 	req_send_K_idx_for_rank[r].push_back(req_K_idx);
 	
 	if( K_idx_next>=0 ) {
 
-	  //aaa
-	  //printvec(K_on_rank[r], "master K_on_rank");
-	  
 	  //post the irecv for penalty
 	  ReqPenalty* req_pen = new ReqPenalty( K_idx_next );
 	  tag = Tag0 + MSG_TAG_SZ + K_on_rank[r].size();
@@ -432,9 +443,10 @@ bool MyCode1::do_phase2_master_part()
 			   tag, comm_world, &req_pen->request);
 	  assert(MPI_SUCCESS == ierr);
 	  req_recv_penalty_for_rank[r].push_back(req_pen);
-
+#ifdef DEBUG_COMM
 	  printf("Master posted recv for penalty for K_idx=%d rank=%d tag=%d\n",
 		 K_idx_next, r, tag);
+#endif
 	}
       }
     } // end of the new send
@@ -466,21 +478,32 @@ bool MyCode1::do_phase2_evaluator_part()
       int K_idx = req_recv_K_idx->buffer[0];
       if(K_idx<0) {
 	//no more contingencies coming from master
+#ifdef DEBUG_COMM	
 	printf("Evaluator Rank %d recv K_idx=-1 finished evaluations\n", my_rank);
+#endif
 	if(req_send_penalty==NULL)
 	  return true;
 	
       } else {
+#ifdef DEBUG_COMM
 	printf("Evaluator Rank %d recv K_idx=%d completed\n", my_rank, K_idx);
+#endif
 	K_on_my_rank.push_back(K_idx);
-	//solve recourse
-	// to do
-	double recourse = 100*my_rank+K_on_my_rank.size();
+
+	//
+	// solve recourse problem
+	//
+
+	// this will reuse the solution of the basecase from scacopf_prob
+	// or from the previous recourse problem to warm start K_idx
+	double penalty = solve_recourse(K_idx);
+	
+	double penalty = 100*my_rank+K_on_my_rank.size();
 
 	//send penalty
 	assert(req_send_penalty == NULL);
 	req_send_penalty = new ReqPenalty(K_idx);
-	req_send_penalty->buffer[0] = recourse;
+	req_send_penalty->buffer[0] = penalty;
 
 	
 	int tag = Tag0 + MSG_TAG_SZ + K_on_my_rank.size();
@@ -488,13 +511,10 @@ bool MyCode1::do_phase2_evaluator_part()
 			 rank_master, tag, comm_world, &req_send_penalty->request);
 	assert(MPI_SUCCESS == ierr);
 
-	//aaa
-	//printvec(K_on_rank[0], "evaluator K_on_my_rank");
-
-	
+#ifdef DEBUG_COMM	
 	printf("Evaluator Rank %d posted penalty send value=%g for Kidx=%d "
-	       "to master rank %d  tag=%d\n", my_rank, recourse, K_idx, rank_master, tag);
-	
+	       "to master rank %d  tag=%d\n", my_rank, penalty, K_idx, rank_master, tag);
+#endif
 	//delete recv request
 	delete req_recv_K_idx;
 	req_recv_K_idx = NULL;
@@ -509,9 +529,10 @@ bool MyCode1::do_phase2_evaluator_part()
 
     if(mpi_test_flag != 0) {
       //completed
+#ifdef DEBUG_COMM
       printf("Evaluator Rank %d send penalty for K_idx=%d completed with penalty=%g\n",
 	     my_rank, req_send_penalty->K_idx, req_send_penalty->buffer[0]);
-      
+#endif
       delete req_send_penalty; req_send_penalty=NULL;
     }
   }
@@ -523,8 +544,9 @@ bool MyCode1::do_phase2_evaluator_part()
     int tag = Tag0 + K_on_my_rank.size()+1;
     ierr = MPI_Irecv(&req_recv_K_idx->buffer, 1, MPI_INT, rank_master, tag,
 		     comm_world, &req_recv_K_idx->request);
-    
+#ifdef DEBUG_COMM
     printf("Evaluator Rank %d posted recv for K_idx tag=%d\n", my_rank, tag);
+#endif
     assert(MPI_SUCCESS == ierr);
   }
   
@@ -578,11 +600,8 @@ bool MyCode1::do_phase2()
       {
       usleep(2000); //microseconds
       std::this_thread::sleep_for(std::chrono::milliseconds(2));
-      //std::this_thread::sleep_for(std::chrono::milliseconds(100));
-
-      
+      //std::this_thread::sleep_for(std::chrono::milliseconds(100));      
     }
-      printf("\n\n");
   }
   
   return true;

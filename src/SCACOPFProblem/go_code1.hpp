@@ -23,22 +23,25 @@ public:
   virtual void display_instance_info();
 
 private: //methods
-  //
+  /////////////////////////////////////////////////////////////////////////////////
   // phase 1 - solve SCACOPF with small number of scenarios, possibly 0
-  //
+  /////////////////////////////////////////////////////////////////////////////////
   void phase1_ranks_allocation();
   std::vector<int> phase1_SCACOPF_contingencies();
   std::vector<int> K_SCACOPF_phase1;
   
   bool do_phase1();
   // SCACOPF problem, maintained on solver ranks, but created on others as well as
-  // a template
+  // a template, which is used to get sizes (of primal and dual solutions, etc)
+  //
+  // on evaluators, primal and dual variables are initialized with the master's
+  // respective solutions (Bcast)
   gollnlp::SCACOPFProblem *scacopf_prob;
   
   /////////////////////////////////////////////////////////////////////////////////
   // phase 2 - evaluate contingencies using phase 1 solution
   // stop after a limited number of contingencies with high penalty are found
-  //
+  /////////////////////////////////////////////////////////////////////////////////
   void phase2_ranks_allocation();
 
   //contingencies that need to be considered
