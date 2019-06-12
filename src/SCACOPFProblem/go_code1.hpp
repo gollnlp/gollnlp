@@ -6,7 +6,7 @@
 #include <vector>
 
 #include "SCACOPFProblem.hpp"
-
+#include "ContingencyProblem.hpp"
 class MyCode1
 {
 public:
@@ -28,6 +28,8 @@ private: //methods
   /////////////////////////////////////////////////////////////////////////////////
   void phase1_ranks_allocation();
   std::vector<int> phase1_SCACOPF_contingencies();
+  //K idxs considered in phase1 SCACOPF
+  //holds indexes of contingencies in data.K_Contingency
   std::vector<int> K_SCACOPF_phase1;
   
   bool do_phase1();
@@ -60,6 +62,7 @@ private: //methods
   int get_next_contingency(int Kidx_last, int rank);
   
   //the above contingencies minus the ones in SCACOPF phase1
+  //holds indexes of contingencies in data.K_Contingency
   std::vector<int> K_phase2;
 
   //contingencies penalty:  -1e+20 when the contingency has not been processed
@@ -146,6 +149,14 @@ private: //methods
   //
   void phase3_ranks_allocation();
 
+  //
+  //utilities
+  //
+
+  //K_idx is the index in data.K_Contingency that will be solved for
+  //status is on return OK=0 or failure<0 or OK-ish>0
+  //return penalty/objective for the contingency problem
+  double solve_contingency(int K_idx, int& status);
 private: //data members
   std::string InFile1, InFile2, InFile3, InFile4;
   double TimeLimitInSec;

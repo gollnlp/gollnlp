@@ -496,9 +496,10 @@ bool MyCode1::do_phase2_evaluator_part()
 
 	// this will reuse the solution of the basecase from scacopf_prob
 	// or from the previous recourse problem to warm start K_idx
-	double penalty = solve_recourse(K_idx);
+	int status;
+	double penalty = solve_contingency(K_idx, status);
 	
-	double penalty = 100*my_rank+K_on_my_rank.size();
+	//double penalty = 100*my_rank+K_on_my_rank.size();
 
 	//send penalty
 	assert(req_send_penalty == NULL);
@@ -644,6 +645,48 @@ int MyCode1::go()
   delete scacopf_prob;
   MPI_Finalize();
   return 0;
+}
+
+//K_idx is the index in data.K_Contingency
+//status is OK=0 or failure<0 or OK-ish>0
+//return penalty/objective for the contingency problem
+double MyCode1::solve_contingency(int K_idx, int& status)
+{
+  assert(iAmEvaluator);
+  assert(scacopf_prob != NULL);
+  
+  status = 0; //be positive
+  auto p_g0 = scacopf_prob->variable("p_g", data); 
+  auto v_n0 = scacopf_prob->variable("v_n", data);
+
+  goTimer t;
+  
+  ContingencyProblem prob(data, K_idx, my_rank);
+  
+  if(!prob.default_assembly(p_g0, v_n0)) {
+    printf("Evaluator Rank %d failed in default_assembly for contingency K_idx=%d\n",
+	   my_rank, K_idx);
+    status = -1;
+    return 1e+20;
+  }
+
+  if(!prob.set_warm_start_from_base_of(*scacopf_prob)) {
+    status = -2;
+    return 1e+20;
+  }
+  
+  double penalty;
+  if(!prob.eval_obj(p_g0, v_n0, penalty)) {
+    printf("Evaluator Rank %d failed in the evaluation of contingency K_idx=%d\n",
+	   my_rank, K_idx);
+    status = -3;
+    return 1e+20;
+  }
+
+  printf("Evaluator Rank %d K_idx=%d finished with penalty=%g in %g sec\n",
+	 my_rank, K_idx, penalty, t.stop());
+  
+  return penalty;
 }
   //use a small list of contingencies for testing/serial
   //  std::vector<int> cont_list = {0, 88, 89, 92};//, 407};
