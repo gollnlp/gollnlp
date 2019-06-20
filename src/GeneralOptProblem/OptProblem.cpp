@@ -428,7 +428,7 @@ bool OptProblem::fill_dual_bounds_start(double* zL, double* zU)
   return true;
 }
 
-OptVariables*  OptProblem::new_duals_cons()
+OptVariables* OptProblem::new_duals_cons()
 {
   OptVariables* duals = new OptVariables();
   for(auto b: cons->vblocks) {
@@ -436,7 +436,7 @@ OptVariables*  OptProblem::new_duals_cons()
   }
   return duals;
 }
-OptVariables*  OptProblem::new_duals_lower_bounds()
+OptVariables* OptProblem::new_duals_lower_bounds()
 {
   OptVariables* duals = new OptVariables();
   for(auto b: vars_primal->vblocks) {
@@ -444,7 +444,7 @@ OptVariables*  OptProblem::new_duals_lower_bounds()
   }
   return duals;
 }
-OptVariables*  OptProblem::new_duals_upper_bounds()
+OptVariables* OptProblem::new_duals_upper_bounds()
 {
   OptVariables* duals = new OptVariables();
   for(auto b: vars_primal->vblocks) {
@@ -525,13 +525,12 @@ bool OptProblem::optimize(const std::string& solver_name)
     this->set_have_start();
   }
 
-  //solver.finalize();
   return true;
 }
 
 bool OptProblem::reoptimize(RestartType t)
 {
-  assert(vars_duals_bounds_L && "firt call optimize instead");
+  assert(vars_duals_bounds_L && "first call optimize instead");
   assert(vars_duals_bounds_U && "first call optimize instead");
   assert(vars_duals_cons && "call optimize instead");
 
@@ -599,6 +598,15 @@ bool OptVariables::append_varsblock(OptVariablesBlock* b)
   return true;
 }
 
+void OptVariables::print_summary(const std::string var_name) const
+{
+  printf("Optimization variable %s\n", var_name.c_str());
+  for(auto& b: vblocks)
+    printf("    '%s' size %d startsAt %d providesStPoint %d\n", 
+	   b->id.c_str(), b->n, b->index, b->providesStartingPoint);
+  
+}
+
 bool OptVariables::append_varsblocks(std::vector<OptVariablesBlock*> v)
 {
   for(auto& b: v) if(!append_varsblock(b)) return false;
@@ -639,6 +647,14 @@ int OptVariables::MPI_Bcast_x(int root,
     buffer = NULL;
   }
   return ierr;
+}
+
+bool OptVariables::provides_start()
+{
+  for(auto& b: vblocks)
+    if(!b->providesStartingPoint)
+      return false;
+  return true;
 }
 
 OptVariablesBlock::OptVariablesBlock(const int& n_, const std::string& id_)

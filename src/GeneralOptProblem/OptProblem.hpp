@@ -59,12 +59,30 @@ public:
       return it->second;
     return NULL;
   }
+
+  //non-const version of the above accepting a name of the variables (used
+  //for debugging purposes)
+  OptVariablesBlock* vars_block(const std::string& id, const std::string& var_name="") 
+  {
+    auto it = mblocks.find(id);
+    if(it != mblocks.end())
+      return it->second;
+#ifdef DEBUG
+    printf("Warning: block id '%s' was not found in optimiz variables '%s'\n", 
+	   id.c_str(), var_name==""?"name_not_passed":var_name.c_str());
+#endif
+    return NULL;
+  }
+
+  bool provides_start();
+
   //total number of vars
   inline int n() 
   {
     return  vblocks.size()>0 ? vblocks.back()->index + vblocks.back()->n : 0;
   }
 
+  void print_summary(const std::string var_name="") const;
 public:
   // "list" of pointers to blocks
   std::vector<OptVariablesBlock*> vblocks;
@@ -298,14 +316,27 @@ public:
   }
   inline OptVariablesBlock* vars_block(const std::string& id)
   {
-    auto it = vars_primal->mblocks.find(id);
-    if(it != vars_primal->mblocks.end())
-      return it->second;
-#ifdef DEBUG
-    printf("inquiry for vars_block '%s' failed.\n", id.c_str());
-    assert(false);
-#endif    
-    return NULL;
+//     auto it = vars_primal->mblocks.find(id);
+//     if(it != vars_primal->mblocks.end())
+//       return it->second;
+// #ifdef DEBUG
+//     printf("inquiry for vars_block '%s' failed.\n", id.c_str());
+//     assert(false);
+// #endif    
+//     return NULL;
+    return vars_primal->vars_block(id, "vars_primal");
+  }
+  inline OptVariablesBlock* vars_block_duals_bounds_lower(const std::string& id)
+  {
+    return vars_duals_bounds_L->vars_block(id, "vars_duals_bounds_L");
+  }
+  inline OptVariablesBlock* vars_block_duals_bounds_upper(const std::string& id)
+  {
+    return vars_duals_bounds_U->vars_block(id, "vars_duals_bounds_U");
+  }
+  inline OptVariablesBlock* vars_block_duals_cons(const std::string& id)
+  {
+    return vars_duals_cons->vars_block(id, "vars_cons");
   }
 
   //

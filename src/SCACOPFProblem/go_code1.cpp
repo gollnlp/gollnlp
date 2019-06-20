@@ -206,11 +206,13 @@ bool MyCode1::do_phase1()
 
 std::vector<int> MyCode1::phase2_contingencies()
 {
+  //assert(false);
   //return data.K_Contingency;
   
   //or, for testing purposes
+  return {204, 117};
   //return {0,10,20,30,40,50,60,70,80,90};
-  return {0,1,2,3,4,5,6,7,8,9};
+  //return {204,1,2,3,4,5,6,7,8,9};
   //return {0,1,2,3};
   //return {17, 426, 960, 961}; //network 7
 }
@@ -670,11 +672,18 @@ double MyCode1::solve_contingency(int K_idx, int& status)
     return 1e+20;
   }
 
+
+
+
   if(!prob.set_warm_start_from_base_of(*scacopf_prob)) {
     status = -2;
     return 1e+20;
   }
-  
+
+  //scacopf_prob->duals_bounds_lower()->print_summary("duals bounds lower");
+  //scacopf_prob->duals_bounds_upper()->print_summary("duals bounds upper");
+  //scacopf_prob->duals_constraints()->print_summary("duals constraints");
+
   double penalty;
   if(!prob.eval_obj(p_g0, v_n0, penalty)) {
     printf("Evaluator Rank %d failed in the evaluation of contingency K_idx=%d\n",
@@ -682,6 +691,11 @@ double MyCode1::solve_contingency(int K_idx, int& status)
     status = -3;
     return 1e+20;
   }
+
+  //prob.duals_bounds_lower()->print_summary("duals bounds lower");
+  //prob.duals_bounds_upper()->print_summary("duals bounds upper");
+  //prob.duals_constraints()->print_summary("duals constraints");
+
 
   printf("Evaluator Rank %d K_idx=%d finished with penalty=%g in %g sec\n",
 	 my_rank, K_idx, penalty, t.stop());

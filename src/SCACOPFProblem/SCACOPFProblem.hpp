@@ -89,6 +89,17 @@ namespace gollnlp {
     inline OptConstraintsBlock* constraint(const std::string& prefix, int Kid) {
       return constraints_block(con_name(prefix, Kid));
     }
+    
+    inline OptVariablesBlock* variable_duals_lower(const std::string& prefix, const SCACOPFData& d) {
+      return vars_block_duals_bounds_lower(prefix+"_"+std::to_string(d.id));
+    }
+    inline OptVariablesBlock* variable_duals_upper(const std::string& prefix, const SCACOPFData& d) {
+      return vars_block_duals_bounds_upper(prefix+"_"+std::to_string(d.id));
+    }
+    inline OptVariablesBlock* variable_duals_cons(const std::string& prefix, const SCACOPFData& d) {
+      return vars_block_duals_cons(prefix+"_"+std::to_string(d.id));
+    }
+
     //printing
     void print_p_g(SCACOPFData& dB);
     void print_p_g_with_coupling_info(SCACOPFData& dB);

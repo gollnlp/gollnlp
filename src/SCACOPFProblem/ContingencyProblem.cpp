@@ -103,13 +103,16 @@ namespace gollnlp {
     update_cons_AGC_using(pg0);
     //!update_cons_PVPQ_using(vn0);
 
+    use_nlp_solver("ipopt");
 
-    if(!reoptimize(OptProblem::primalDualRestart)) {
+    //if(!optimize("ipopt")) {
+    //if(!reoptimize(OptProblem::primalDualRestart)) {
+    if(!reoptimize(OptProblem::primalRestart)) {
       return false;
     }
 
     // objective value
-    f += this->obj_value;
+    f = this->obj_value;
 
     tmrec.stop();
     //printf("ContingencyProblem K_id %d: eval_recourse took %g sec\n", K_idx, tmrec.getElapsedTime());
@@ -442,6 +445,218 @@ namespace gollnlp {
       OptVariablesBlock* sslack_ti2 = pf_trans_lim2->slacks();
       pf_trans_lim2->compute_slacks(sslack_ti2); sslack_ti2->providesStartingPoint=true;
     }
+
+    //
+    //dual variables part
+    //
+    string prefix;
+    {
+      if(NULL == vars_duals_bounds_L)
+	vars_duals_bounds_L = new_duals_lower_bounds();
+      
+      //lower bounds duals
+      prefix = "duals_bndL_v_n";
+      variable_duals_lower(prefix, dK)->set_start_to(*srcProb.variable_duals_lower(prefix, data_sc));
+      prefix = "duals_bndL_theta_n";
+      variable_duals_lower(prefix, dK)->set_start_to(*srcProb.variable_duals_lower(prefix, data_sc));
+      prefix = "duals_bndL_p_li1";
+      variable_duals_lower(prefix, dK)->set_start_to(*srcProb.variable_duals_lower(prefix, data_sc));
+      prefix = "duals_bndL_p_li2";
+      variable_duals_lower(prefix, dK)->set_start_to(*srcProb.variable_duals_lower(prefix, data_sc));
+      prefix = "duals_bndL_q_li1";
+      variable_duals_lower(prefix, dK)->set_start_to(*srcProb.variable_duals_lower(prefix, data_sc));
+      prefix = "duals_bndL_q_li2";
+      variable_duals_lower(prefix, dK)->set_start_to(*srcProb.variable_duals_lower(prefix, data_sc));
+      prefix = "duals_bndL_p_ti1";
+      variable_duals_lower(prefix, dK)->set_start_to(*srcProb.variable_duals_lower(prefix, data_sc));
+      prefix = "duals_bndL_p_ti2";
+      variable_duals_lower(prefix, dK)->set_start_to(*srcProb.variable_duals_lower(prefix, data_sc));
+      prefix = "duals_bndL_q_ti1";
+      variable_duals_lower(prefix, dK)->set_start_to(*srcProb.variable_duals_lower(prefix, data_sc));
+      prefix = "duals_bndL_q_ti2";
+      variable_duals_lower(prefix, dK)->set_start_to(*srcProb.variable_duals_lower(prefix, data_sc));
+      prefix = "duals_bndL_b_s";
+      variable_duals_lower(prefix, dK)->set_start_to(*srcProb.variable_duals_lower(prefix, data_sc));
+
+      prefix = "duals_bndL_p_g";
+      if(dK.K_ConType[0] == SCACOPFData::kGenerator) {
+	//variable_duals_lower(prefix, dK)->set_start_to(*srcProb.variable_duals_lower(prefix, data_sc));
+	auto p_gK = variable_duals_lower(prefix, dK), p_g0 = srcProb.variable_duals_lower(prefix, data_sc);
+	assert(p_gK->n == p_g0->n - 1);
+	assert(p_g0->n == 1+pg0_nonpartic_idxs.size()+pg0_partic_idxs.size());
+	assert(p_gK->n == pgK_nonpartic_idxs.size()+pgK_partic_idxs.size());
+	
+	for(int i=0; i<pg0_nonpartic_idxs.size(); i++) {
+	  p_gK->x[pgK_nonpartic_idxs[i]] = p_g0->x[pg0_nonpartic_idxs[i]];
+	}
+	for(int i=0; i<pg0_partic_idxs.size(); i++) {
+	  p_gK->x[pgK_partic_idxs[i]] = p_g0->x[pg0_partic_idxs[i]];
+	}
+	p_gK->providesStartingPoint = true;
+      } else {
+	variable_duals_lower(prefix, dK)->set_start_to(*srcProb.variable_duals_lower(prefix, data_sc));
+      }
+
+      prefix = "duals_bndL_q_g";
+      if(dK.K_ConType[0] == SCACOPFData::kGenerator) {
+	auto q_gK = variable_duals_lower(prefix, dK), q_g0 = srcProb.variable_duals_lower(prefix, data_sc);
+	assert(q_gK->n == q_g0->n -1);
+	for(int i=0; i<pg0_nonpartic_idxs.size(); i++) {
+	  q_gK->x[pgK_nonpartic_idxs[i]] = q_g0->x[pg0_nonpartic_idxs[i]];
+	}
+	for(int i=0; i<pg0_partic_idxs.size(); i++) {
+	  q_gK->x[pgK_partic_idxs[i]] = q_g0->x[pg0_partic_idxs[i]];
+	}
+	q_gK->providesStartingPoint = true;
+      } else {
+	variable_duals_lower(prefix, dK)->set_start_to(*srcProb.variable_duals_lower(prefix, data_sc));
+      }
+
+      prefix = "duals_bndL_pslack_n_p_balance";
+      variable_duals_lower(prefix, dK)->set_start_to(*srcProb.variable_duals_lower(prefix, data_sc));
+      prefix = "duals_bndL_qslack_n_q_balance";
+      variable_duals_lower(prefix, dK)->set_start_to(*srcProb.variable_duals_lower(prefix, data_sc));
+      prefix = "duals_bndL_sslack_li_line_limits1";
+      variable_duals_lower(prefix, dK)->set_start_to(*srcProb.variable_duals_lower(prefix, data_sc));
+      prefix = "duals_bndL_sslack_li_line_limits2";
+      variable_duals_lower(prefix, dK)->set_start_to(*srcProb.variable_duals_lower(prefix, data_sc));
+      prefix = "duals_bndL_sslack_ti_trans_limits1";
+      variable_duals_lower(prefix, dK)->set_start_to(*srcProb.variable_duals_lower(prefix, data_sc));
+      prefix = "duals_bndL_sslack_ti_trans_limits2";
+      variable_duals_lower(prefix, dK)->set_start_to(*srcProb.variable_duals_lower(prefix, data_sc));
+      
+      prefix = "duals_bndL_delta";
+      variable_duals_lower(prefix, dK)->set_start_to(0.);
+      prefix = "duals_bndL_rhop_AGC";
+      variable_duals_lower(prefix, dK)->set_start_to(0.);
+      prefix = "duals_bndL_rhom_AGC";
+      variable_duals_lower(prefix, dK)->set_start_to(0.);
+
+      assert(vars_duals_bounds_L->provides_start());
+    }
+    //
+    //upper bounds duals
+    //
+    {
+      if(NULL == vars_duals_bounds_U)
+	vars_duals_bounds_U = new_duals_upper_bounds();
+      prefix = "duals_bndU_v_n";
+      variable_duals_upper(prefix, dK)->set_start_to(*srcProb.variable_duals_upper(prefix, data_sc));
+      prefix = "duals_bndU_theta_n";
+      variable_duals_upper(prefix, dK)->set_start_to(*srcProb.variable_duals_upper(prefix, data_sc));
+      prefix = "duals_bndU_p_li1";
+      variable_duals_upper(prefix, dK)->set_start_to(*srcProb.variable_duals_upper(prefix, data_sc));
+      prefix = "duals_bndU_p_li2";
+      variable_duals_upper(prefix, dK)->set_start_to(*srcProb.variable_duals_upper(prefix, data_sc));
+      prefix = "duals_bndU_q_li1";
+      variable_duals_upper(prefix, dK)->set_start_to(*srcProb.variable_duals_upper(prefix, data_sc));
+      prefix = "duals_bndU_q_li2";
+      variable_duals_upper(prefix, dK)->set_start_to(*srcProb.variable_duals_upper(prefix, data_sc));
+      prefix = "duals_bndU_p_ti1";
+      variable_duals_upper(prefix, dK)->set_start_to(*srcProb.variable_duals_upper(prefix, data_sc));
+      prefix = "duals_bndU_p_ti2";
+      variable_duals_upper(prefix, dK)->set_start_to(*srcProb.variable_duals_upper(prefix, data_sc));
+      prefix = "duals_bndU_q_ti1";
+      variable_duals_upper(prefix, dK)->set_start_to(*srcProb.variable_duals_upper(prefix, data_sc));
+      prefix = "duals_bndU_q_ti2";
+      variable_duals_upper(prefix, dK)->set_start_to(*srcProb.variable_duals_upper(prefix, data_sc));
+      prefix = "duals_bndU_b_s";
+      variable_duals_upper(prefix, dK)->set_start_to(*srcProb.variable_duals_upper(prefix, data_sc));
+
+      prefix = "duals_bndU_p_g";
+      //variable_duals_upper(prefix, dK)->set_start_to(*srcProb.variable_duals_upper(prefix, data_sc));
+      auto p_gK = variable_duals_upper(prefix, dK), p_g0 = srcProb.variable_duals_upper(prefix, data_sc);
+      assert(p_gK->n == p_g0->n - 1);
+      assert(p_g0->n == 1+pg0_nonpartic_idxs.size()+pg0_partic_idxs.size());
+      assert(p_gK->n == pgK_nonpartic_idxs.size()+pgK_partic_idxs.size());
+
+      for(int i=0; i<pg0_nonpartic_idxs.size(); i++) {
+	p_gK->x[pgK_nonpartic_idxs[i]] = p_g0->x[pg0_nonpartic_idxs[i]];
+      }
+      for(int i=0; i<pg0_partic_idxs.size(); i++) {
+	p_gK->x[pgK_partic_idxs[i]] = p_g0->x[pg0_partic_idxs[i]];
+      }
+      p_gK->providesStartingPoint = true;
+
+      prefix = "duals_bndU_q_g";
+      auto q_gK = variable_duals_upper(prefix, dK), q_g0 = srcProb.variable_duals_upper(prefix, data_sc);
+      assert(q_gK->n == q_g0->n -1);
+      for(int i=0; i<pg0_nonpartic_idxs.size(); i++) {
+	q_gK->x[pgK_nonpartic_idxs[i]] = q_g0->x[pg0_nonpartic_idxs[i]];
+      }
+      for(int i=0; i<pg0_partic_idxs.size(); i++) {
+	q_gK->x[pgK_partic_idxs[i]] = q_g0->x[pg0_partic_idxs[i]];
+      }
+      q_gK->providesStartingPoint = true;
+
+      prefix = "duals_bndU_pslack_n_p_balance";
+      variable_duals_upper(prefix, dK)->set_start_to(*srcProb.variable_duals_upper(prefix, data_sc));
+      prefix = "duals_bndU_qslack_n_q_balance";
+      variable_duals_upper(prefix, dK)->set_start_to(*srcProb.variable_duals_upper(prefix, data_sc));
+      prefix = "duals_bndU_sslack_li_line_limits1";
+      variable_duals_upper(prefix, dK)->set_start_to(*srcProb.variable_duals_upper(prefix, data_sc));
+      prefix = "duals_bndU_sslack_li_line_limits2";
+      variable_duals_upper(prefix, dK)->set_start_to(*srcProb.variable_duals_upper(prefix, data_sc));
+      prefix = "duals_bndU_sslack_ti_trans_limits1";
+      variable_duals_upper(prefix, dK)->set_start_to(*srcProb.variable_duals_upper(prefix, data_sc));
+      prefix = "duals_bndU_sslack_ti_trans_limits2";
+      variable_duals_upper(prefix, dK)->set_start_to(*srcProb.variable_duals_upper(prefix, data_sc));
+      
+      prefix = "duals_bndU_delta";
+      variable_duals_upper(prefix, dK)->set_start_to(0.);
+      prefix = "duals_bndU_rhop_AGC";
+      variable_duals_upper(prefix, dK)->set_start_to(0.);
+      prefix = "duals_bndU_rhom_AGC";
+      variable_duals_upper(prefix, dK)->set_start_to(0.);
+
+      assert(vars_duals_bounds_U->provides_start());
+    }
+    
+    //
+    //constraints duals
+    //
+    {
+      if(NULL == vars_duals_cons)
+	vars_duals_cons = new_duals_cons();
+    
+      prefix = "duals_p_li1_powerflow";
+      variable_duals_cons(prefix, dK)->set_start_to(*srcProb.variable_duals_cons(prefix, data_sc));
+      prefix = "duals_p_li2_powerflow";
+      variable_duals_cons(prefix, dK)->set_start_to(*srcProb.variable_duals_cons(prefix, data_sc));
+      prefix = "duals_q_li1_powerflow";
+      variable_duals_cons(prefix, dK)->set_start_to(*srcProb.variable_duals_cons(prefix, data_sc));
+      prefix = "duals_q_li2_powerflow";
+      variable_duals_cons(prefix, dK)->set_start_to(*srcProb.variable_duals_cons(prefix, data_sc));
+      prefix = "duals_p_ti1_powerflow";
+      variable_duals_cons(prefix, dK)->set_start_to(*srcProb.variable_duals_cons(prefix, data_sc));
+      prefix = "duals_p_ti2_powerflow";
+      variable_duals_cons(prefix, dK)->set_start_to(*srcProb.variable_duals_cons(prefix, data_sc));
+      prefix = "duals_q_ti1_powerflow";
+      variable_duals_cons(prefix, dK)->set_start_to(*srcProb.variable_duals_cons(prefix, data_sc));
+      prefix = "duals_q_ti2_powerflow";
+      variable_duals_cons(prefix, dK)->set_start_to(*srcProb.variable_duals_cons(prefix, data_sc));
+      prefix = "duals_p_balance";
+      variable_duals_cons(prefix, dK)->set_start_to(*srcProb.variable_duals_cons(prefix, data_sc));
+      prefix = "duals_q_balance";
+      variable_duals_cons(prefix, dK)->set_start_to(*srcProb.variable_duals_cons(prefix, data_sc));
+      prefix = "duals_line_limits1";
+      variable_duals_cons(prefix, dK)->set_start_to(*srcProb.variable_duals_cons(prefix, data_sc));
+      prefix = "duals_line_limits2";
+      variable_duals_cons(prefix, dK)->set_start_to(*srcProb.variable_duals_cons(prefix, data_sc));
+      prefix = "duals_trans_limits1";
+      variable_duals_cons(prefix, dK)->set_start_to(*srcProb.variable_duals_cons(prefix, data_sc));
+      prefix = "duals_trans_limits2";
+      variable_duals_cons(prefix, dK)->set_start_to(*srcProb.variable_duals_cons(prefix, data_sc));
+      prefix = "duals_AGC";
+      variable_duals_cons(prefix, dK)->set_start_to(0.);
+      assert(vars_duals_cons->provides_start());
+    }
+    
+
+    //srcProb.duals_bounds_lower()->print_summary("duals bounds lower");
+    //srcProb.duals_bounds_upper()->print_summary("duals bounds upper");
+    //srcProb.duals_constraints()->print_summary("duals constraints");
+
     return true;
   }
   bool ContingencyProblem::
