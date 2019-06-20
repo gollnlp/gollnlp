@@ -65,8 +65,9 @@ int main(int argc, char *argv[])
     net = name + "/";
     scen = "scenario_9/";
     root = root+net;
-    //return myexe1_function(root+scen+"case.raw",  root+"case.rop", root+"case.inl", root+scen+"case.con", 
-    //			   2700.,  2, name);
+    return myexe1_function(root+scen+"case.raw",  root+"case.rop",
+			   root+"case.inl", root+scen+"case.con", 
+    			   2700.,  2, name);
 
 
     name = "Network_03O-10/";

@@ -7,6 +7,8 @@ set (CMAKE_CXX_STANDARD 11)
 add_compile_options("$<$<CONFIG:DEBUG>:-DDEBUG>")
 add_compile_options("-std=c++11")
 
+#on macos
+#add_link_options("-w")
 # Create header for Fortran name mangling
 include(FortranCInterface)
 FortranCInterface_HEADER(FortranCInterface.hpp MACRO_NAMESPACE "FC_")
