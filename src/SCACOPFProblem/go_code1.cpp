@@ -210,7 +210,7 @@ std::vector<int> MyCode1::phase2_contingencies()
   //return data.K_Contingency;
   
   //or, for testing purposes
-  return {204, 117};
+  return {371, 204, 117};
   //return {0,10,20,30,40,50,60,70,80,90};
   //return {204,1,2,3,4,5,6,7,8,9};
   //return {0,1,2,3};
@@ -258,17 +258,17 @@ void MyCode1::phase2_initial_contingency_distribution()
       //evaluator rank
       nEvaluators++;
       
-      int K_idx = nEvaluators*perRank;
+      int K_idx_phase2 = nEvaluators*perRank;
       if(nEvaluators<remainder)
-	K_idx += nEvaluators;
+	K_idx_phase2 += nEvaluators;
       else
-	K_idx += remainder;
+	K_idx_phase2 += remainder;
 
       if(nEvaluators<S) {
 	//printf("r=%d K_idx=%d  K_value=%d\n", r, K_idx, K_phase2[K_idx]);
-	assert(K_idx < K_phase2.size());
+	assert(K_idx_phase2 < K_phase2.size());
 	//!K_on_rank[r].push_back(K_phase2[K_idx]);
-	K_on_rank[r].push_back(K_idx);
+	K_on_rank[r].push_back(K_idx_phase2);
       }
     }
   }
@@ -303,7 +303,7 @@ int MyCode1::get_next_contingency(int Kidx_last, int rank)
 			    
     if(!found) {
 #ifdef DEBUG_COMM
-      printf("Master: found next  contingency for K_idx=%d to have idx=%d (value=%d)\n",
+      printf("Master: found next  contingency for K_idx=%d to have idx=%d (global conting index=%d)\n",
 	     Kidx_last, Kidx_next, K_phase2[Kidx_next]);
 #endif      
       return Kidx_next;
@@ -497,9 +497,10 @@ bool MyCode1::do_phase2_evaluator_part()
 	//
 
 	// this will reuse the solution of the basecase from scacopf_prob
-	// or from the previous recourse problem to warm start K_idx
+	// or from the previous recourse problem to warm start contingency
+	// K_phase2[K_idx]
 	int status;
-	double penalty = solve_contingency(K_idx, status);
+	double penalty = solve_contingency(K_phase2[K_idx], status);
 	
 	//double penalty = 100*my_rank+K_on_my_rank.size();
 
@@ -661,7 +662,7 @@ double MyCode1::solve_contingency(int K_idx, int& status)
   auto p_g0 = scacopf_prob->variable("p_g", data); 
   auto v_n0 = scacopf_prob->variable("v_n", data);
 
-  goTimer t;
+  goTimer t; t.start();
   
   ContingencyProblem prob(data, K_idx, my_rank);
   
@@ -671,9 +672,6 @@ double MyCode1::solve_contingency(int K_idx, int& status)
     status = -1;
     return 1e+20;
   }
-
-
-
 
   if(!prob.set_warm_start_from_base_of(*scacopf_prob)) {
     status = -2;
