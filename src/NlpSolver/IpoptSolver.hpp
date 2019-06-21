@@ -137,6 +137,7 @@ public:
     //IteratesVector b = *a;
     prob->set_obj_value(obj_value);
     prob->set_obj_value_barrier(ip_cq->curr_barrier_obj());
+    prob->set_num_iters(ip_data->iter_count());
     //assert(false);
     prob->set_primal_vars(x);
     prob->set_duals_vars_bounds(z_L, z_U);

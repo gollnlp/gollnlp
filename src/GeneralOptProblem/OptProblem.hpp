@@ -367,7 +367,7 @@ public:
 
   inline double objective_value() const { return obj_value; }
   inline double objective_value_barrier() const { return obj_barrier; }
-
+  inline int number_of_iterations() const { return num_iter; }
   //
   // Callbacks
   //
@@ -414,6 +414,7 @@ public:
   //setters
   void set_obj_value(const double& f);
   void set_obj_value_barrier(const double& flogbar);
+  void set_num_iters(int n_iter);
   void set_primal_vars(const double* x);
   void set_duals_vars_bounds(const double* zL, const double* zU);
   void set_duals_vars_cons(const double* lambda);
@@ -439,6 +440,7 @@ protected:
   OptConstraints*  cons;
   OptObjective*    obj;
   double obj_value, obj_barrier;
+  int num_iter;
 
   OptVariables *vars_duals_bounds_L, *vars_duals_bounds_U;
   OptVariables *vars_duals_cons;

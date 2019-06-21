@@ -27,7 +27,9 @@ OptProblem::OptProblem()
   vars_primal = new OptVariables();
   cons = new OptConstraints();
   obj = new OptObjective();
-  obj_value = 0.;
+  obj_value   = -1e+20;
+  obj_barrier = -1e+20;
+  num_iter = -1;
   
   vars_duals_bounds_L = vars_duals_bounds_U = NULL;
   vars_duals_cons = NULL;
@@ -296,6 +298,11 @@ void OptProblem::set_obj_value(const double& f)
 void OptProblem::set_obj_value_barrier(const double& f)
 {
   obj_barrier = f;
+}
+
+void OptProblem::set_num_iters(int n_iter)
+{
+  num_iter = n_iter;
 }
 
 void OptProblem::set_primal_vars(const double* x)
@@ -757,7 +764,7 @@ OptConstraintsBlock* OptConstraints::get_block(const std::string& id)
   if(it!=mblocks.end()) {
     return it->second;
   } else {
-    cerr << "constraints block " << id << " was not found" << endl;
+    //cerr << "constraints block " << id << " was not found" << endl;
     return NULL;
   }
 }
