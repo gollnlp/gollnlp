@@ -22,6 +22,9 @@ namespace gollnlp {
     //
     // these functions return false whenever there is a discrepancy between 
     // this' and srcProb's variables
+
+    // warm-starts both primal and dual variables 
+    //safe to call "reoptimize" with PD warm-start
     bool set_warm_start_from_base_of(SCACOPFProblem& srcProb);
     bool set_warm_start_from_contingency_of(SCACOPFProblem& srcProb);
     bool set_warm_start_from(ContingencyProblem& srcProb)

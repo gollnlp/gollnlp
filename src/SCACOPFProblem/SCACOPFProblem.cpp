@@ -86,8 +86,8 @@ bool SCACOPFProblem::assembly(const std::vector<int> K_Cont)
 
     //coupling AGC and PVPQ; also creates delta_k
     add_cons_coupling(dK);
-    print_summary();
   }
+  //print_summary();
   return true;
 }
   //print_summary();
@@ -868,10 +868,12 @@ void SCACOPFProblem::print_p_g(SCACOPFData& dB)
     printf("[%4d] [%4d] %12.5e  %12.5e %12.5e\n", i, dB.G_Generator[i]+1, p_g->x[i], dB.G_Plb[i], dB.G_Pub[i]);
   }
 }
-void SCACOPFProblem::print_p_g_with_coupling_info(SCACOPFData& dB)
+void SCACOPFProblem::print_p_g_with_coupling_info(SCACOPFData& dB, OptVariablesBlock* p_g0)
 {
   auto p_gk = variable("p_g", dB);
-  auto p_g  = variable("p_g", data_sc);
+  auto p_g  = p_g0;
+  if(p_g==NULL) p_g = variable("p_g", data_sc);
+
   auto delta = variable("delta", dB);
   auto rhop = variable("rhop_AGC", dB);
   auto rhom = variable("rhom_AGC", dB);

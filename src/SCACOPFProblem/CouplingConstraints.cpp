@@ -1,5 +1,6 @@
 #include "CouplingConstraints.hpp"
 
+#include "goUtils.hpp"
 
 #include <string>
 #include <cassert>
@@ -153,6 +154,9 @@ AGCComplementarityCons(const std::string& id_, int numcons,
   DCOPY(&dim, Pub, &ione, gb, &ione);
   DAXPY(&dim, &dminusone, Plb, &ione, gb, &ione);
 
+  printvec(idxK_, "idxK");
+  printvec(idx0_, "idx0");
+
   //rhs of this constraints block
   assert(r>=0);
   ub = new double[n];
@@ -211,6 +215,10 @@ eval_body (const OptVariables& vars_primal, bool new_x, double* body)
     g[conidx] += (pk->xref[idxk[it]]-Plb[it])/gb[it] * rhom->xref[it];
     conidx++; it++;
   }
+
+  double nrm=0.;
+  for(int i=dim; i<2*n/3; i++) nrm += g[i]*g[i];
+  printf("eval_body returned %g  delta is %g dim is %d r is %g\n", sqrt(nrm), deltak->xref[0],n,r);
   return true;
 }
 void AGCComplementarityCons::compute_rhos(OptVariablesBlock* rp, OptVariablesBlock* rm)

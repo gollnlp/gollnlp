@@ -108,9 +108,9 @@ namespace gollnlp {
     use_nlp_solver("ipopt");
     set_solver_option("print_frequency_iter", 10);
     set_solver_option("linear_solver", "ma57"); 
-    set_solver_option("print_level", 2);
-    //if(!optimize("ipopt")) {
-    if(!reoptimize(OptProblem::primalDualRestart)) {
+    set_solver_option("print_level", 5);
+    if(!optimize("ipopt")) {
+    //if(!reoptimize(OptProblem::primalDualRestart)) {
     //if(!reoptimize(OptProblem::primalRestart)) {
       return false;
     }
@@ -119,7 +119,7 @@ namespace gollnlp {
     f = this->obj_value;
 #ifdef DEBUG
     tmrec.stop();
-    printf("ContingencyProblem K_id %d: eval_obj took %g sec\n", K_idx, tmrec.getElapsedTime());
+    printf("ContingencyProblem K_id %d: eval_obj took %g sec  %d iterations\n", K_idx, tmrec.getElapsedTime(), number_of_iterations());
     //printf("ContingencyProblem K_id %d: recourse obj_value %g\n", K_idx, this->obj_value);
 
     if(false) {
@@ -195,6 +195,7 @@ namespace gollnlp {
     if(NULL==pgK) {
       printf("[warning] ContingencyProblem K_id %d: p_g var not found in contingency  "
 	     "recourse problem; will not enforce non-ACG coupling constraints.\n", dK.id);
+      assert(false);
       return;
     }
     OptVariablesBlock* deltaK = new OptVariablesBlock(1, var_name("delta", dK));
@@ -205,8 +206,8 @@ namespace gollnlp {
     auto cons = new AGCComplementarityCons(con_name("AGC", dK), 3*pgK_partic_idxs.size(),
 					   pg0, pgK, deltaK, 
 					   pg0_partic_idxs, pgK_partic_idxs, 
-					   selectfrom(data_sc.G_Plb, pgK_partic_idxs), 
-					   selectfrom(data_sc.G_Pub, pgK_partic_idxs),
+					   selectfrom(data_sc.G_Plb, pg0_partic_idxs), 
+					   selectfrom(data_sc.G_Pub, pg0_partic_idxs),
 					   data_sc.G_alpha, AGCSmoothing,
 					   false, 0., //no internal penalty
 					   true); //fixed p_g0 

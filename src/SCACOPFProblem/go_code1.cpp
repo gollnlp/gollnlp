@@ -9,6 +9,10 @@
 using namespace std;
 using namespace gollnlp;
 
+#include "unistd.h"
+#include <chrono>
+#include <thread>
+
 //#define DEBUG_COMM 1
 
 MyCode1::MyCode1(const std::string& InFile1_, const std::string& InFile2_,
@@ -140,7 +144,8 @@ vector<int> MyCode1::phase1_SCACOPF_contingencies()
   bool testing = true;
   if(true) {
     //net 07R scenario 9
-    vector<int> cont_list = {10};
+    vector<int> cont_list = {0,1};//10,58,53,1};
+    //vector<int> cont_list = {0,1};//{73,58};
       //network 7
       //{426//, //line/trans conting, penalty $417
 				  //960, // gen conting, penalty $81,xxx
@@ -182,6 +187,7 @@ bool MyCode1::do_phase1()
   
   bool bret = scacopf_prob->optimize("ipopt");
 
+  scacopf_prob->print_p_g_with_coupling_info(*scacopf_prob->data_K[0]);
 
   //
   //communication -> solver rank0 bcasts basecase solutions
@@ -194,7 +200,7 @@ bool MyCode1::do_phase1()
     MPI_Bcast_x(rank_solver_rank0, comm_world, my_rank);
   scacopf_prob->duals_constraints()->
     MPI_Bcast_x(rank_solver_rank0, comm_world, my_rank);
-  
+
   //force a have_start set
   if(!iAmSolver) {
     scacopf_prob->set_have_start();
@@ -210,10 +216,10 @@ std::vector<int> MyCode1::phase2_contingencies()
   //return data.K_Contingency;
   
   //or, for testing purposes
-  return {371, 204, 117};
+  //return {371, 204, 117};
   //return {0,10,20,30,40,50,60,70,80,90};
   //return {204,1,2,3,4,5,6,7,8,9};
-  //return {0,1,2,3};
+  return {0,1,2,3};
   //return {17, 426, 960, 961}; //network 7
 }
 
@@ -575,16 +581,14 @@ void MyCode1::phase2_initialization()
   }
 }
 
-#include "unistd.h"
-#include <chrono>
-#include <thread>
+
 
 bool MyCode1::do_phase2()
 {
   phase2_ranks_allocation();
 
   //contingencies to be considered in phase 2
-  K_phase2 = set_diff(phase2_contingencies(), K_SCACOPF_phase1);
+  K_phase2 = phase2_contingencies();//set_diff(phase2_contingencies(), K_SCACOPF_phase1);
 
   phase2_initial_contingency_distribution();
 
@@ -662,6 +666,8 @@ double MyCode1::solve_contingency(int K_idx, int& status)
   auto p_g0 = scacopf_prob->variable("p_g", data); 
   auto v_n0 = scacopf_prob->variable("v_n", data);
 
+  p_g0->print();//aaa
+
   goTimer t; t.start();
   
   ContingencyProblem prob(data, K_idx, my_rank);
@@ -673,10 +679,10 @@ double MyCode1::solve_contingency(int K_idx, int& status)
     return 1e+20;
   }
 
-  if(!prob.set_warm_start_from_base_of(*scacopf_prob)) {
-    status = -2;
-    return 1e+20;
-  }
+  //if(!prob.set_warm_start_from_base_of(*scacopf_prob)) {
+  //  status = -2;
+  //  return 1e+20;
+  //}
 
   //scacopf_prob->duals_bounds_lower()->print_summary("duals bounds lower");
   //scacopf_prob->duals_bounds_upper()->print_summary("duals bounds upper");
@@ -690,65 +696,14 @@ double MyCode1::solve_contingency(int K_idx, int& status)
     return 1e+20;
   }
 
-  //prob.duals_bounds_lower()->print_summary("duals bounds lower");
-  //prob.duals_bounds_upper()->print_summary("duals bounds upper");
-  //prob.duals_constraints()->print_summary("duals constraints");
+  prob.print_p_g_with_coupling_info(*scacopf_prob->data_K[0], p_g0);
 
-
-  printf("Evaluator Rank %d K_idx=%d finished with penalty=%g in %g sec\n",
-	 my_rank, K_idx, penalty, t.stop());
+  if(penalty>25000)
+    printf("Evaluator Rank %3d K_idx %5d finished with penalty %12.3f in %5.3f sec and %3d iterations\n",
+	   my_rank, K_idx, penalty, t.stop(), prob.number_of_iterations());
   
   return penalty;
 }
-  //use a small list of contingencies for testing/serial
-  //  std::vector<int> cont_list = {0, 88, 89, 92};//, 407};
-
-  //net 07R scenario 9
-  // std::vector<int> cont_list = {426//, //line/trans conting, penalty $417
-  // 				//960, // gen conting, penalty $81,xxx
-  // 				//961
-  // 				};//963};// gen conting, penalty $52,xxx
-  
-  
-  // SCMasterProblem master_prob(data, cont_list);
-  // master_prob.default_assembly();
-
-  // //
-  // //phase 1
-  // //
-  // master_prob.use_nlp_solver("ipopt"); 
-  // master_prob.set_solver_option("linear_solver", "ma57"); 
-  // master_prob.set_solver_option("mu_init", 1.);
-  // bool bret = master_prob.optimize("ipopt");
-
-  // printf("*** PHASE 1 finished - master problem solved: obj_value %g\n\n", master_prob.objective_value());
-
-  // //
-  // //phase 2
-  // //
-  // SCRecourseObjTerm* rec;
-  // master_prob.append_objterm(rec=new SCRecourseObjTerm(d, master_prob, 
-  // 						       master_prob.p_g0_vars(), master_prob.v_n0_vars(), 
-  // 						       cont_list));
-  // //master_prob.append_objterm(new SCRecourseObjTerm(d, master_prob.p_g0_vars(), master_prob.v_n0_vars()));
-
-  // //bret = master_prob.optimize("ipopt");
-  // master_prob.set_solver_option("mu_init", 1e-8);
-  // master_prob.set_solver_option("bound_push", 1e-16);
-  // master_prob.set_solver_option("slack_bound_push", 1e-16);
-  // bret = master_prob.reoptimize(OptProblem::primalDualRestart); //warm_start_target_mu
-
-  // printf("*** PHASE 2 finished - master problem solved: obj_value %g\n\n", master_prob.objective_value());
-
-
-  // master_prob.set_solver_option("mu_init", 1e-2);
-  // master_prob.set_solver_option("bound_push", 1e-16);
-  // master_prob.set_solver_option("slack_bound_push", 1e-16);
-  // rec->stop_evals=false;
-  // bret = master_prob.reoptimize(OptProblem::primalDualRestart); //warm_start_target_mu
-
-  // ttot.stop(); printf("MyExe1 took %g sec.\n", ttot.getElapsedTime());
-
 
 void MyCode1::display_instance_info()
 {
