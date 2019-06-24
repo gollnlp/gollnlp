@@ -16,7 +16,7 @@ namespace gollnlp {
   public:
     SCACOPFProblem(SCACOPFData& d_in) 
       : data_sc(d_in), 
-	useQPen(false), slacks_scale(1.),  PVPQSmoothing(0.01), AGCSmoothing(0.01){}
+	useQPen(false), slacks_scale(1.),  PVPQSmoothing(0.01), AGCSmoothing(1e-4){}
     virtual ~SCACOPFProblem();
 
     //overwrites of OptProblem
@@ -44,8 +44,8 @@ namespace gollnlp {
 
     // 'SysCond_BaseCase' decides whether to use RateBase or RateEmer
     //  SysCond_BaseCase=true -> base case; =false -> contingency
-    void add_cons_thermal_li_lims(SCACOPFData& dB, bool SysCond_BaseCase=true);
-    void add_cons_thermal_ti_lims(SCACOPFData& dB, bool SysCond_BaseCase=true);
+    void add_cons_thermal_li_lims(SCACOPFData& dB, bool SysCond_BaseCase=true, double L_rate_reduction=1.);
+    void add_cons_thermal_ti_lims(SCACOPFData& dB, bool SysCond_BaseCase=true, double T_rate_reduction=1.);
 
     void add_obj_prod_cost(SCACOPFData& dB);
 

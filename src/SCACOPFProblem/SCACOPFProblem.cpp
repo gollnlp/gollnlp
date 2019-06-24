@@ -22,7 +22,7 @@ SCACOPFProblem::~SCACOPFProblem()
 bool SCACOPFProblem::default_assembly()
 {
   useQPen = true;
-  slacks_scale = 1.;
+  //slacks_scale = 128.;
 
   SCACOPFData& d = data_sc; //shortcut
 
@@ -35,28 +35,13 @@ bool SCACOPFProblem::default_assembly()
   add_cons_transformers_pf(d);
   add_cons_active_powbal(d);
   add_cons_reactive_powbal(d);
-  add_cons_thermal_li_lims(d);
+  add_cons_thermal_li_lims(d,true,0.8);
   add_cons_thermal_ti_lims(d);
   add_obj_prod_cost(d);
 
   return true;
 }
-  //
-  // contingencies for testing
-  //
-  //vector<int> K_Cont = {
-  //  380,
-    //426,//, //line/trans conting, penalty $417
-    //960, // gen conting, penalty $81,xxx
-    //961, 
-    //963
-  //};
-  //vector<int> K_Cont = {8, 83, 366}; //net 01; gen, line, transf, id out=[27,61,126]
-  //vector<int> K_Cont = {0, 71, 85, 97, 98}; //net 03 scen 9
-  //vector<int> K_Cont ={0, 386, 428, 435}; //net 10 scen 9; first two are gen, then a line and a trans
-  //vector<int> K_Cont ={386};
-  //vector<int> K_Cont ={570,646,155,495,497};
-  //vector<int> K_Cont = {919,960,961}; //network 07-R scenario 9, large penalty in pre-trial 1
+
 bool SCACOPFProblem::assembly(const std::vector<int> K_Cont)
 {
   //assemble base case first
@@ -90,45 +75,6 @@ bool SCACOPFProblem::assembly(const std::vector<int> K_Cont)
   //print_summary();
   return true;
 }
-  //print_summary();
-
-  // use_nlp_solver("ipopt");
-  // //set options
-  // set_solver_option("linear_solver", "ma57");
-  // set_solver_option("mu_init", 1.);
-  // //set_solver_option("print_timing_statistics", "yes");
-  // set_solver_option("max_iter", 1000);
-  // //set_solver_option("tol", 1e-10);
-  // //prob.set_solver_option("print_level", 6);
-  // bool bret = optimize("ipopt");
-
-
-  //auto ssl_ti2 = vars_block("sslack_ti_trans_limits2_0");
-  //ssl_ti2->print(); 
-
-  //auto pti1 = vars_block("p_ti1_0");
-  //pti1->print();
-  
-  //print_p_g(data_sc);
-  //for(auto d: data_K)
-  //  print_p_g_with_coupling_info(*d);
-  
-  //print_Transf_powers(data_sc);
-  
-  //for(auto d: data_K)
-  //  print_PVPQ_info(*d);
-      
-  //this->problem_changed();
-  //t_solver_option("max_iter", 50);
-  //set_solver_option("mu_init", 1e-8);
-  //CSmoothing=;
-  //PVPQSmoothing=1e-6;
-
-  //bret = reoptimize(OptProblem::primalDualRestart); //warm_start_target_mu
-
-  //for(auto d: data_K)
-  //  print_PVPQ_info(*d);
-
 
 void SCACOPFProblem::add_cons_coupling(SCACOPFData& dB)
 {
@@ -299,7 +245,7 @@ void SCACOPFProblem::add_cons_nonanticip(SCACOPFData& dB, const std::vector<int>
 void SCACOPFProblem::add_cons_AGC(SCACOPFData& dB, const std::vector<int>& G_idxs_AGC)
 {
   if(G_idxs_AGC.size()==0) {
-    printf("AGC: NO gens participating !?! in contingency %d\n", dB.id);
+    printf("SCACOPFProblem: add_cons_AGC: NO gens participating !?! in contingency %d\n", dB.id);
     return;
   }
   auto ids_agc = selectfrom(data_sc.G_Generator, G_idxs_AGC);
@@ -421,7 +367,6 @@ void SCACOPFProblem::add_variables(SCACOPFData& d)
   b_s->set_start_to(data_sc.SSh_B0.data());
   append_variables(b_s);
   //append_objterm(new DummySingleVarQuadrObjTerm("b_s_sq", b_s));
-
 
   auto p_g = new OptVariablesBlock(d.G_Generator.size(), var_name("p_g",d), 
 				   d.G_Plb.data(), d.G_Pub.data());
@@ -705,7 +650,7 @@ void SCACOPFProblem::add_cons_reactive_powbal(SCACOPFData& d)
 //
 //thermal line limits
 //
-void SCACOPFProblem::add_cons_thermal_li_lims(SCACOPFData& d, bool SysCond_BaseCase)
+void SCACOPFProblem::add_cons_thermal_li_lims(SCACOPFData& d, bool SysCond_BaseCase, double L_rate_reduction)
 {
   //! temp
   bool useQPenLi1 = useQPen, useQPenLi2 = useQPen; //double slacks_scale=1.;
@@ -716,7 +661,7 @@ void SCACOPFProblem::add_cons_thermal_li_lims(SCACOPFData& d, bool SysCond_BaseC
   {
     auto pf_line_lim1 = new PFLineLimits(con_name("line_limits1",d), d.L_Line.size(),
 					 p_li1, q_li1, v_n, 
-					 d.L_Nidx[0], L_Rate, slacks_scale);
+					 d.L_Nidx[0], L_Rate, slacks_scale, L_rate_reduction);
     append_constraints(pf_line_lim1);
     
     //sslack_li1
@@ -746,7 +691,7 @@ void SCACOPFProblem::add_cons_thermal_li_lims(SCACOPFData& d, bool SysCond_BaseC
   {
     auto pf_line_lim2 = new PFLineLimits(con_name("line_limits2",d), d.L_Line.size(),
 					 p_li2, q_li2, v_n, 
-					 d.L_Nidx[1], L_Rate, slacks_scale);
+					 d.L_Nidx[1], L_Rate, slacks_scale, L_rate_reduction);
     append_constraints(pf_line_lim2);
     //sslack_li2
     OptVariablesBlock* sslack_li2 = pf_line_lim2->slacks();
@@ -775,7 +720,7 @@ void SCACOPFProblem::add_cons_thermal_li_lims(SCACOPFData& d, bool SysCond_BaseC
 //
 //thermal transformer limits
 //
-void SCACOPFProblem::add_cons_thermal_ti_lims(SCACOPFData& d, bool SysCond_BaseCase)
+void SCACOPFProblem::add_cons_thermal_ti_lims(SCACOPFData& d, bool SysCond_BaseCase, double T_rate_reduction)
 {
   //! temp
   bool useQPenTi1=useQPen, useQPenTi2=useQPen; //double slacks_scale=1.;
@@ -877,13 +822,22 @@ void SCACOPFProblem::print_p_g_with_coupling_info(SCACOPFData& dB, OptVariablesB
   auto delta = variable("delta", dB);
   auto rhop = variable("rhop_AGC", dB);
   auto rhom = variable("rhom_AGC", dB);
+
+  if(NULL==delta) {
+    assert(rhop==NULL); 
+    assert(rhom==NULL);
+    printf("print_p_g_with_coupling_info called but no AGC constraints present. will print p_g\n");
+    print_p_g(dB);
+    return;
+  }
+
   int K_id = dB.K_Contingency[0];
   vector<int> Gk, Gkp, Gknop;
   data_sc.get_AGC_participation(K_id, Gk, Gkp, Gknop);
   auto ids_agc = selectfrom(data_sc.G_Generator, Gkp);
 
   printf("p_g for SC block %d: delta_k=%12.5e\n", dB.id, delta->x[0]);
-  printf("[ idx] [  id ]         p_g     p_gk             lb            ub         rhom        rhop   |   bodies AGC\n");
+  printf("[ idx] [  id ]         p_g     p_gk             lb            ub         rhom        rhop      |   bodies AGC\n");
   for(int i=0; i<dB.G_Generator.size(); i++) {
     int agc_idx = indexin(ids_agc, dB.G_Generator[i]); 
     int base_idx = indexin(data_sc.G_Generator, dB.G_Generator[i]);

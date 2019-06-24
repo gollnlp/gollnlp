@@ -107,8 +107,8 @@ bool NonAnticipCons::get_Jacob_ij(std::vector<OptSparseEntry>& vij)
 // 
 // p + alpha*deltak - pk - gb * rhop + gb * rhom = 0
 // rhop, rhom >=0
-// -r <= (pk-Pub)/gb * rhop <= r
-// -r <= (pk-Plb)/gb * rhom <= r
+// -r <= (pk-Pub)/gb * rhop <= r (or +inf)
+// -r (or -inf) <= (pk-Plb)/gb * rhom <= r
 //
 // when r=0, the last two constraints are enforced as equalities ==0
 // scaling parameter gb = generation band = Pub-Plb
@@ -154,21 +154,25 @@ AGCComplementarityCons(const std::string& id_, int numcons,
   DCOPY(&dim, Pub, &ione, gb, &ione);
   DAXPY(&dim, &dminusone, Plb, &ione, gb, &ione);
 
-  printvec(idxK_, "idxK");
-  printvec(idx0_, "idx0");
-
   //rhs of this constraints block
   assert(r>=0);
   ub = new double[n];
   for(int i=0; i<n/3; i++) ub[i] = 0.;
-  for(int i=n/3; i<n; i++) ub[i] = r; 
+  for(int i=n/3; i<n; i++) ub[i] = r;
+  
+  //for(int i=n/3; i<n; ) { ub[i++] = 1e+20; ub[i++] = r;}
+  //assert(r>0); 
+  //for(int i=n/3; i<n; ) { ub[i++] = -r; ub[i++] = r;}
   
   lb = new double[n];
   if(r==0)
     DCOPY(&n, ub, &ione, lb, &ione);
   else {
     for(int i=0; i<n/3; i++) lb[i] = 0.;
-    for(int i=n/3; i<n; i++) lb[i] = -r; 
+    for(int i=n/3; i<n; i++) lb[i] = -r;
+
+    //for(int i=n/3; i<n; ) { lb[i++] = -r; lb[i++] = -1e+20; }
+    //for(int i=n/3; i<n; ) { lb[i++] = -r; lb[i++] = r; }
   }
 
   rhop = new OptVariablesBlock(n/3, string("rhop_")+id, 0, 1e+20);
@@ -216,9 +220,6 @@ eval_body (const OptVariables& vars_primal, bool new_x, double* body)
     conidx++; it++;
   }
 
-  double nrm=0.;
-  for(int i=dim; i<2*n/3; i++) nrm += g[i]*g[i];
-  printf("eval_body returned %g  delta is %g dim is %d r is %g\n", sqrt(nrm), deltak->xref[0],n,r);
   return true;
 }
 void AGCComplementarityCons::compute_rhos(OptVariablesBlock* rp, OptVariablesBlock* rm)
@@ -324,8 +325,6 @@ eval_Jac(const OptVariables& primal_vars, bool new_x,
   }
   return true;
 }
-
-
 
 int AGCComplementarityCons::get_Jacob_nnz()
 {
