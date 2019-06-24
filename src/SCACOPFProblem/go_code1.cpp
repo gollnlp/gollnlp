@@ -143,14 +143,9 @@ vector<int> MyCode1::phase1_SCACOPF_contingencies()
 {
   bool testing = true;
   if(true) {
-    //net 07R scenario 9
-    vector<int> cont_list = {0,1};//10,58,53,1};
-    //vector<int> cont_list = {0,1};//{73,58};
-      //network 7
-      //{426//, //line/trans conting, penalty $417
-				  //960, // gen conting, penalty $81,xxx
-				  //961
-      //};//963};// gen conting, penalty $52,xxx
+ 
+    vector<int> cont_list = {};//650//10,58,53,1};
+ 
     return  cont_list;
   } else {
     return vector<int>();
@@ -172,41 +167,50 @@ bool MyCode1::do_phase1()
   scacopf_prob->use_nlp_solver("ipopt"); 
   scacopf_prob->set_solver_option("linear_solver", "ma57"); 
   scacopf_prob->set_solver_option("mu_init", 1.);
-  scacopf_prob->set_solver_option("print_frequency_iter", 5);
-
+  scacopf_prob->set_solver_option("print_frequency_iter", 1);
+  scacopf_prob->set_solver_option("mu_target", 1e-8);
   
-  if(iAmSolver) {
+  if(iAmSolver) {    assert(my_rank==rank_solver_rank0);
+    //if(true) {
     scacopf_prob->set_solver_option("print_level", 5);
 
   } else {
     //master and evaluators do not solve, but we call optimize to force an
     //allocation of the internals, such as the dual variables
-    scacopf_prob->set_solver_option("print_level", 1);
+    scacopf_prob->set_solver_option("print_level", 5);
     scacopf_prob->set_solver_option("max_iter", 1);
   }
   
   bool bret = scacopf_prob->optimize("ipopt");
 
-  scacopf_prob->print_p_g_with_coupling_info(*scacopf_prob->data_K[0]);
+  //scacopf_prob->print_p_g_with_coupling_info(*scacopf_prob->data_K[0]);
 
   //
   //communication -> solver rank0 bcasts basecase solutions
   //
+  if(true) {
+
   scacopf_prob->primal_variables()->
     MPI_Bcast_x(rank_solver_rank0, comm_world, my_rank);
+
+  //usleep(1e6*(1+my_rank));
+  //char msg[1024];
+  //sprintf(msg, "primal vars on rank %d", my_rank);
+  //scacopf_prob->primal_variables()->print(msg);
+
   scacopf_prob->duals_bounds_lower()->
     MPI_Bcast_x(rank_solver_rank0, comm_world, my_rank);
   scacopf_prob->duals_bounds_upper()->
     MPI_Bcast_x(rank_solver_rank0, comm_world, my_rank);
   scacopf_prob->duals_constraints()->
     MPI_Bcast_x(rank_solver_rank0, comm_world, my_rank);
-
+  }
   //force a have_start set
   if(!iAmSolver) {
     scacopf_prob->set_have_start();
+    //delete scacopf_prob; scacopf_problem=NULL;
   }
   
-  //MPI_Barrier(comm_world);
   return true;
 }
 
@@ -216,10 +220,12 @@ std::vector<int> MyCode1::phase2_contingencies()
   //return data.K_Contingency;
   
   //or, for testing purposes
-  //return {371, 204, 117};
+  return {0,1,2,3,4,5};
+  return {818, 1523, 275};
+  return {650,1391,1512, 1514, 1515, 1111, 1112, 696, 1525, 1526, 1652, 1653, 378, 1539, 275};
   //return {0,10,20,30,40,50,60,70,80,90};
   //return {204,1,2,3,4,5,6,7,8,9};
-  return {0,1,2,3};
+  //return {0,1,2,3};
   //return {17, 426, 960, 961}; //network 7
 }
 
@@ -309,7 +315,8 @@ int MyCode1::get_next_contingency(int Kidx_last, int rank)
 			    
     if(!found) {
 #ifdef DEBUG_COMM
-      printf("Master: found next  contingency for K_idx=%d to have idx=%d (global conting index=%d)\n",
+      printf("Master: found next  contingency for K_idx=%d to have "
+	     "idx=%d (global conting index=%d)\n",
 	     Kidx_last, Kidx_next, K_phase2[Kidx_next]);
 #endif      
       return Kidx_next;
@@ -322,7 +329,7 @@ int MyCode1::get_next_contingency(int Kidx_last, int rank)
     }
   }
 #ifdef DEBUG_COMM  
-  printf("Master: did NOT find a next  contingency for K_idx=%d, will return K_idx=-1\n",
+  printf("Master: did NOT find a next contingency for K_idx=%d, will return K_idx=-1\n",
 	 Kidx_last);
 #endif
   return -1;
@@ -345,7 +352,7 @@ bool MyCode1::do_phase2_master_part()
     //contingencies left
     if(K_on_rank[r].back()==-2) {
 #ifdef DEBUG_COMM
-      printf("Master : no more comm for rank=%d. it was marked with -2\n", r);
+      //printf("Master : no more comm for rank=%d. it was marked with -2\n", r);
 #endif
       continue;
     }
@@ -594,19 +601,25 @@ bool MyCode1::do_phase2()
 
   phase2_initialization();
   
-  bool finished=false;
+  bool finished=false; 
+  bool master_part_done=!iAmMaster;
+  bool evaluator_part_done=false;
   while(!finished) {
     if(iAmMaster) {
       finished = do_phase2_master_part();
+
+      if(finished) master_part_done = true;
     }
     
-    if(iAmEvaluator) {
+    if(iAmEvaluator && !evaluator_part_done) {
       finished = do_phase2_evaluator_part();
+
+      if(finished) evaluator_part_done=true;
+      finished = finished && master_part_done; 
     }
 
-    //if(iAmMaster && !iAmEvaluator)
-      {
-      usleep(2000); //microseconds
+    if(iAmMaster && !iAmEvaluator) {
+      //usleep(200); //microseconds
       std::this_thread::sleep_for(std::chrono::milliseconds(2));
       //std::this_thread::sleep_for(std::chrono::milliseconds(100));      
     }
@@ -650,6 +663,10 @@ int MyCode1::go()
   //cleanup
   //
   delete scacopf_prob;
+
+  if(my_rank==rank_master)
+    printf("--finished in %g seconds\n", ttot.stop());
+
   MPI_Finalize();
   return 0;
 }
@@ -666,7 +683,9 @@ double MyCode1::solve_contingency(int K_idx, int& status)
   auto p_g0 = scacopf_prob->variable("p_g", data); 
   auto v_n0 = scacopf_prob->variable("v_n", data);
 
-  p_g0->print();//aaa
+  //usleep(1e6*my_rank);
+  //p_g0->print();
+  //v_n0->print();
 
   goTimer t; t.start();
   
@@ -679,10 +698,10 @@ double MyCode1::solve_contingency(int K_idx, int& status)
     return 1e+20;
   }
 
-  //if(!prob.set_warm_start_from_base_of(*scacopf_prob)) {
-  //  status = -2;
-  //  return 1e+20;
-  //}
+  if(!prob.set_warm_start_from_base_of(*scacopf_prob)) {
+    status = -2;
+    return 1e+20;
+  }
 
   //scacopf_prob->duals_bounds_lower()->print_summary("duals bounds lower");
   //scacopf_prob->duals_bounds_upper()->print_summary("duals bounds upper");
@@ -696,11 +715,11 @@ double MyCode1::solve_contingency(int K_idx, int& status)
     return 1e+20;
   }
 
-  prob.print_p_g_with_coupling_info(*scacopf_prob->data_K[0], p_g0);
+  //prob.print_p_g_with_coupling_info(*prob.data_K[0], p_g0);
 
-  if(penalty>25000)
-    printf("Evaluator Rank %3d K_idx %5d finished with penalty %12.3f in %5.3f sec and %3d iterations\n",
-	   my_rank, K_idx, penalty, t.stop(), prob.number_of_iterations());
+  printf("Evaluator Rank %3d K_idx %5d finished with penalty %12.3f "
+	 "in %5.3f sec and %3d iterations\n",
+	 my_rank, K_idx, penalty, t.stop(), prob.number_of_iterations());
   
   return penalty;
 }
