@@ -7,7 +7,7 @@
 
 #include "goUtils.hpp"
 #include "goTimer.hpp"
-
+#include "unistd.h"
 using namespace std;
 
 namespace gollnlp {
@@ -37,6 +37,7 @@ namespace gollnlp {
     SCACOPFData& dK = *data_K[0];
 
     useQPen = true;
+    //slacks_scale = 1.;
 
     add_variables(dK);
 
@@ -87,6 +88,7 @@ namespace gollnlp {
 #endif
     add_cons_nonanticip_using(pg0);
     add_cons_AGC_using(pg0);
+    
     //print_summary();
     //PVPQSmoothing = AGCSmoothing = 1e-2;
     //coupling AGC and PVPQ; also creates delta_k
@@ -106,12 +108,14 @@ namespace gollnlp {
     //!update_cons_PVPQ_using(vn0);
 
     use_nlp_solver("ipopt");
-    set_solver_option("print_frequency_iter", 10);
+    set_solver_option("print_frequency_iter", 1);
     set_solver_option("linear_solver", "ma57"); 
-    set_solver_option("print_level", 5);
-    if(!optimize("ipopt")) {
-    //if(!reoptimize(OptProblem::primalDualRestart)) {
-    //if(!reoptimize(OptProblem::primalRestart)) {
+    set_solver_option("print_level", 2);
+    set_solver_option("mu_init", 1e-4);
+    set_solver_option("mu_target", 1e-9);
+    //if(!optimize("ipopt")) {
+    if(!reoptimize(OptProblem::primalDualRestart)) {
+      //if(!reoptimize(OptProblem::primalRestart)) {
       return false;
     }
 
@@ -119,14 +123,15 @@ namespace gollnlp {
     f = this->obj_value;
 #ifdef DEBUG
     tmrec.stop();
-    printf("ContingencyProblem K_id %d: eval_obj took %g sec  %d iterations\n", K_idx, tmrec.getElapsedTime(), number_of_iterations());
+    printf("ContingencyProblem K_id %d: eval_obj took %g sec  %d iterations on rank=%d\n", 
+	   K_idx, tmrec.getElapsedTime(), number_of_iterations(), my_rank);
     //printf("ContingencyProblem K_id %d: recourse obj_value %g\n", K_idx, this->obj_value);
 
     if(false) {
       int dim = pg0->n;
       printf("p_g0 in\n");
       for(int i=0; i<pg0->n; i++)
-	printf("%12.5e ", pg0->xref[i]);
+	printf("%12.5e ", pg0->x[i]);
       printf("\n\n");
     }
 #endif
@@ -147,49 +152,32 @@ namespace gollnlp {
     assert(sz == pg0_nonpartic_idxs.size());
     int *pgK_idxs = pgK_nonpartic_idxs.data(), *pg0_idxs = pg0_nonpartic_idxs.data();
     int idxK; double pg0_val, lb, ub; 
-  
-    for(int i=0; i<sz; i++) {
-      assert(pg0_idxs[i]<pg0->n && pg0_idxs[i]>=0);
-      assert(pgK_idxs[i]<pgK->n && pgK_idxs[i]>=0);
-      idxK = pgK_idxs[i];
-      pgK->lb[idxK] = pgK->ub[idxK] = pg0->xref[pg0_idxs[i]];
-    }
-    /* 
-    // code that set p_gK=p_g0 and relax the bounds a bit; if the bounds are not
-    // relaxed, Ipopt seems to return large bound multiplies (for both bounds!?!)
-    for(int i=0; i<sz; i++) {
-      //pgK->lb[idxK] = pgK->ub[idxK] = pg0->xref[pg0_idxs[i]];
-      //pgK->lb[idxK] -= 1e-6;
-      assert(pg0_idxs[i]<pg0->n && pg0_idxs[i]>=0);
-      assert(pgK_idxs[i]<pgK->n && pgK_idxs[i]>=0);
 
-      idxK = pgK_idxs[i];
-      pg0_val = pg0->xref[pg0_idxs[i]];
-      lb = pg0->lb[pg0_idxs[i]];
-      ub = pg0->ub[pg0_idxs[i]];
-      aux = ub-lb;
-      assert(aux>1e-6);
-      if(aux<1e-2) aux = 1e-2;
-      aux = aux*f;
-      if(fabs(pg0_val-lb)<1e-8) {
-	pgK->lb[idxK] = pg0_val; 
-	pgK->ub[idxK] = pg0_val+aux;
-	continue;
-      }
-      if(fabs(ub-pg0_val)<1e-8) {
-	pgK->ub[idxK] = pg0_val;
-	pgK->lb[idxK] = pg0_val-aux;
-	continue;
-      }
-      aux = aux/2;
-      pgK->lb[idxK] = pg0_val-aux;
-      pgK->ub[idxK] = pg0_val+aux;
-    }
-    */
+#ifdef DEBUG
+    assert(pg0->xref == pg0->x);
+
+    //usleep(1e6*my_rank);
+    // printf("cont %d rank %d\n", K_idx, my_rank);
+    // for(int i=0; i<sz; i++) {
+    //   assert(pg0_idxs[i]<pg0->n && pg0_idxs[i]>=0);
+    //   assert(pgK_idxs[i]<pgK->n && pgK_idxs[i]>=0);
+    //   idxK = pgK_idxs[i];
+    //   pgK->lb[idxK] = pgK->ub[idxK] = pg0->xref[pg0_idxs[i]];
+
+    //   printf("%g %g\n",  pg0->x[pg0_idxs[i]],  pg0->xref[pg0_idxs[i]]);
+    // }
+    // printf("-----------------\n\n");
+#endif
   }
 
   void ContingencyProblem::add_cons_AGC_using(OptVariablesBlock* pg0)
   {
+    if(pgK_partic_idxs.size()==0) {
+      //assert(pg0_partic_idxs.size()==0);
+      printf("ContingencyProblem: add_cons_AGC_using: NO gens participating !?!\n");
+      return;
+    }
+
     SCACOPFData& dK = *data_K[0];
     OptVariablesBlock* pgK = variable("p_g", dK);
     if(NULL==pgK) {
@@ -218,12 +206,8 @@ namespace gollnlp {
     cons->compute_rhos(rhop, rhom);
     rhop->providesStartingPoint=true; rhom->providesStartingPoint=true;
 
-    append_objterm(new LinearPenaltyObjTerm(string("bigMpen_")+rhom->id, rhom, 1.));
-    append_objterm(new LinearPenaltyObjTerm(string("bigMpen_")+rhop->id, rhop, 1.));
-    
-    //for(int i=0; i<rhop->n; i++) 
-    //  printf("%g %g   %g\n", rhop->x[i], rhom->x[i], cons->gb[i]);
-    //printf("\n");
+    //append_objterm(new LinearPenaltyObjTerm(string("bigMpen_")+rhom->id, rhom, 1e-2));
+    //append_objterm(new LinearPenaltyObjTerm(string("bigMpen_")+rhop->id, rhop, 1e-2));
 
     printf("ContingencyProblem K_id %d: AGC %lu gens participating (out of %d)\n", 
 	   K_idx, pgK_partic_idxs.size(), pgK->n);
@@ -231,6 +215,9 @@ namespace gollnlp {
   }
   void ContingencyProblem::update_cons_AGC_using(OptVariablesBlock* pg0)
   {
+    if(pgK_partic_idxs.size()==0) {
+      return;
+    }
     //pg0 pointer that AGCComplementarityCons should not change
 #ifdef DEBUG
     SCACOPFData& dK = *data_K[0];
@@ -704,13 +691,15 @@ namespace gollnlp {
 	variable_duals_lower(prefix, dK)->set_start_to(*srcProb.variable_duals_lower(prefix, data_sc));
       }
       
-      prefix = "duals_bndL_delta";
-      variable_duals_lower(prefix, dK)->set_start_to(SIGNED_DUALS_VAL);
-      prefix = "duals_bndL_rhop_AGC";
-      variable_duals_lower(prefix, dK)->set_start_to(SIGNED_DUALS_VAL);
-      prefix = "duals_bndL_rhom_AGC";
-      variable_duals_lower(prefix, dK)->set_start_to(SIGNED_DUALS_VAL);
 
+      if(pgK_partic_idxs.size()>0) {
+	prefix = "duals_bndL_delta";
+	variable_duals_lower(prefix, dK)->set_start_to(SIGNED_DUALS_VAL);
+	prefix = "duals_bndL_rhop_AGC";
+	variable_duals_lower(prefix, dK)->set_start_to(SIGNED_DUALS_VAL);
+	prefix = "duals_bndL_rhom_AGC";
+	variable_duals_lower(prefix, dK)->set_start_to(SIGNED_DUALS_VAL);
+      }
       assert(vars_duals_bounds_L->provides_start());
     }
     //
@@ -956,13 +945,14 @@ namespace gollnlp {
 	variable_duals_upper(prefix, dK)->set_start_to(*srcProb.variable_duals_upper(prefix, data_sc));
       }
       
-      prefix = "duals_bndU_delta";
-      variable_duals_upper(prefix, dK)->set_start_to(SIGNED_DUALS_VAL);
-      prefix = "duals_bndU_rhop_AGC";
-      variable_duals_upper(prefix, dK)->set_start_to(SIGNED_DUALS_VAL);
-      prefix = "duals_bndU_rhom_AGC";
-      variable_duals_upper(prefix, dK)->set_start_to(SIGNED_DUALS_VAL);
-
+      if(pgK_partic_idxs.size()>0) {
+	prefix = "duals_bndU_delta";
+	variable_duals_upper(prefix, dK)->set_start_to(SIGNED_DUALS_VAL);
+	prefix = "duals_bndU_rhop_AGC";
+	variable_duals_upper(prefix, dK)->set_start_to(SIGNED_DUALS_VAL);
+	prefix = "duals_bndU_rhom_AGC";
+	variable_duals_upper(prefix, dK)->set_start_to(SIGNED_DUALS_VAL);
+      }
       assert(vars_duals_bounds_U->provides_start());
     }
     
@@ -1171,9 +1161,10 @@ namespace gollnlp {
 	variable_duals_cons(prefix, dK)->set_start_to(*srcProb.variable_duals_cons(prefix, data_sc));
       }
 
-      prefix = "duals_AGC";
-      variable_duals_cons(prefix, dK)->set_start_to(SIGNED_DUALS_VAL);
-
+      if(pgK_partic_idxs.size()>0) {
+	prefix = "duals_AGC";
+	variable_duals_cons(prefix, dK)->set_start_to(SIGNED_DUALS_VAL);
+      }
       assert(vars_duals_cons->provides_start());
     }
     
