@@ -559,6 +559,8 @@ void OptProblem::set_have_start()
   for(auto b: vars_duals_cons->vblocks) b->providesStartingPoint=true;
 }
 
+
+
 void  OptProblem::print_summary() const
 {
   printf("\n*************************************************************************\n");
@@ -614,6 +616,18 @@ void OptVariables::print_summary(const std::string var_name) const
   
 }
 
+
+void OptVariables::print(const std::string var_name) const
+{
+  printf("--------------------\n");
+  printf("Optimization variable %s of size %d\n", var_name.c_str(), n());
+  for(auto b: vblocks) {
+    b->print();
+  }
+  printf("--------------------\n");
+}
+
+
 bool OptVariables::append_varsblocks(std::vector<OptVariablesBlock*> v)
 {
   for(auto& b: v) if(!append_varsblock(b)) return false;
@@ -636,17 +650,22 @@ int OptVariables::MPI_Bcast_x(int root,
   }
   //pack
   if(my_rank==root) {
-    for(auto b: vblocks)
+    for(auto b: vblocks) {
+      assert(b->index+b->n <=this->n());
       memcpy(buffer+b->index, b->x, b->n*sizeof(double));
+    }
   }
 
   int ierr = MPI_Bcast(buffer, this->n(), MPI_DOUBLE, root, comm);
   assert(MPI_SUCCESS==ierr);
-
+  
   //unpack
-  if(my_rank!=root) {
-    for(auto b: vblocks)
+  if(my_rank!=root) 
+  {
+    for(auto b: vblocks) {
+      assert(b->index+b->n <=this->n());
       memcpy(b->x, buffer+b->index, b->n*sizeof(double));
+    }
   }
   
   if(dealloc) {

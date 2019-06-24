@@ -23,6 +23,7 @@ public:
   void set_start_to(const double* values);
   void set_start_to(const OptVariablesBlock& block);
 
+  void inline set_xref_to_x() { xref=x; }
   //number of vars in the block
   int n; 
   // index at which the block starts within OptVariables
@@ -76,13 +77,21 @@ public:
 
   bool provides_start();
 
+  inline void set_xref_to_x() 
+  {
+    for(auto& b : vblocks) 
+      b->set_xref_to_x();
+  }
+
   //total number of vars
-  inline int n() 
+  inline int n()  const
   {
     return  vblocks.size()>0 ? vblocks.back()->index + vblocks.back()->n : 0;
   }
 
   void print_summary(const std::string var_name="") const;
+  void print(const std::string var_name="") const;
+
 public:
   // "list" of pointers to blocks
   std::vector<OptVariablesBlock*> vblocks;
@@ -380,6 +389,15 @@ public:
 				const double& alpha_du, const double& alpha_pr,
 				int ls_trials) 
   { return true; }
+
+  virtual bool iterate_finalize()
+  {
+    vars_primal->set_xref_to_x();
+    vars_duals_bounds_L->set_xref_to_x();
+    vars_duals_bounds_U->set_xref_to_x();
+    vars_duals_cons->set_xref_to_x();
+    return true;
+  }
 public:
   //
   // internal NLP functions evaluators fed to the NLP solver

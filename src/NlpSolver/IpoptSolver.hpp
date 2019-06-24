@@ -146,6 +146,8 @@ public:
 #endif    
     prob->set_duals_vars_cons(lambda);
     //iter_vector = ip_data->curr () ;
+
+    prob->iterate_finalize();
   }
   
   virtual bool intermediate_callback(AlgorithmMode mode,
