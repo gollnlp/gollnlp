@@ -37,11 +37,13 @@ void SCACOPFData::get_AGC_participation(int Kidx, vector<int>& Gk, vector<int>& 
   
   if(kGenerator==K_ConType[Kidx]) {
     int outidx = indexin(G_Generator,  K_IDout[Kidx]);
+    assert(outidx>=0);
     b = erase_elem_from(Gk,outidx); assert(b);
     Ak.push_back(N_Area[G_Nidx[outidx]]);
 
   } else if(kLine==K_ConType[Kidx]) {
     int outidx = indexin(L_Line,  K_IDout[Kidx]);
+    assert(outidx>=0);
     vector<int> idxs = {L_Nidx[0][outidx], L_Nidx[1][outidx]};
     auto Narea = selectfrom(N_Area, idxs);
     sort(Narea.begin(), Narea.end());
@@ -57,7 +59,8 @@ void SCACOPFData::get_AGC_participation(int Kidx, vector<int>& Gk, vector<int>& 
     for(auto v: Narea) Ak.push_back(v);
 
   } else if(kTransformer==K_ConType[Kidx]) {
-    int outidx = indexin(L_Line,  K_IDout[Kidx]);
+    int outidx = indexin(T_Transformer,  K_IDout[Kidx]);
+    assert(outidx>=0);
     vector<int> idxs = {T_Nidx[0][outidx], T_Nidx[1][outidx]};
     auto Narea = selectfrom(N_Area, idxs);
     sort(Narea.begin(), Narea.end());
@@ -85,6 +88,8 @@ void SCACOPFData::get_AGC_participation(int Kidx, vector<int>& Gk, vector<int>& 
     else
       Gknop.push_back(Gk[it]);
   }
+  //Gkp = {};
+  //Gknop = Gk;
   //printvec(Gk, "Gk");
   //printvec(Gknop, "Gknop");
 }
