@@ -107,12 +107,6 @@ namespace gollnlp {
     update_cons_AGC_using(pg0);
     //!update_cons_PVPQ_using(vn0);
 
-    use_nlp_solver("ipopt");
-    set_solver_option("print_frequency_iter", 1);
-    set_solver_option("linear_solver", "ma57"); 
-    set_solver_option("print_level", 5);
-    set_solver_option("mu_init", 1e-4);
-    set_solver_option("mu_target", 1e-8);
     //if(!optimize("ipopt")) {
     //if(!reoptimize(OptProblem::primalDualRestart)) {
     if(!reoptimize(OptProblem::primalRestart)) {

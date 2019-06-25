@@ -150,7 +150,7 @@ vector<int> MyCode1::phase1_SCACOPF_contingencies()
   bool testing = true;
   if(true) {
  
-    vector<int> cont_list = {1512, 696};//1512,650//10,58,53,1};
+    vector<int> cont_list = {};//1512, 696};//1512,650//10,58,53,1};
  
     return  cont_list;
   } else {
@@ -224,7 +224,7 @@ bool MyCode1::do_phase1()
     scacopf_prob->set_have_start();
     //delete scacopf_prob; scacopf_problem=NULL;
   }
-  exit(-1);
+
   return true;
 }
 
@@ -716,6 +716,20 @@ double MyCode1::solve_contingency(int K_idx, int& status)
     status = -2;
     return 1e+20;
   }
+
+  prob.use_nlp_solver("ipopt");
+  prob.set_solver_option("print_frequency_iter", 1);
+  prob.set_solver_option("linear_solver", "ma57"); 
+  prob.set_solver_option("print_level", 2);
+  prob.set_solver_option("mu_init", 1e-4);
+  prob.set_solver_option("mu_target", 1e-8);
+
+  //return if it takes too long in phase2
+  prob.set_solver_option("max_iter", 120);
+  prob.set_solver_option("acceptable_tol", 1e-3);
+  prob.set_solver_option("acceptable_constr_viol_tol", 1e-5);
+  prob.set_solver_option("acceptable_iter", 5);
+
 
   //scacopf_prob->duals_bounds_lower()->print_summary("duals bounds lower");
   //scacopf_prob->duals_bounds_upper()->print_summary("duals bounds upper");
