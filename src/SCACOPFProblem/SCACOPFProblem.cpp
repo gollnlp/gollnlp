@@ -35,8 +35,12 @@ bool SCACOPFProblem::default_assembly()
   add_cons_transformers_pf(d);
   add_cons_active_powbal(d);
   add_cons_reactive_powbal(d);
-  add_cons_thermal_li_lims(d,true,0.8);
-  add_cons_thermal_ti_lims(d);
+  double L_rate_reduction=0.8;
+  add_cons_thermal_li_lims(d, true, L_rate_reduction);
+
+  double T_rate_reduction=0.8;
+  add_cons_thermal_ti_lims(d, true, T_rate_reduction);
+
   add_obj_prod_cost(d);
 
   return true;
@@ -85,11 +89,23 @@ void SCACOPFProblem::add_cons_coupling(SCACOPFData& dB)
   data_sc.get_AGC_participation(K_id, Gk, Gkp, Gknop);
   assert(Gk.size() == dB.G_Generator.size());
 
-  add_cons_nonanticip(dB, Gknop);
-  add_cons_AGC(dB, Gkp);
+  if(AGC_as_nonanticip) {
+    add_cons_nonanticip(dB, Gk); 
+    add_cons_AGC(dB, {}); //just to print the "?!? no AGC" message
+  } else {
+    add_cons_nonanticip(dB, Gknop);
+    add_cons_AGC(dB, Gkp);
+  }
+
+
+
 
   //voltages
-  add_cons_PVPQ(dB, Gk);
+  if(PVPQ_as_nonanticip) {
+    assert(false && "not yet implemented");
+  } else {
+    add_cons_PVPQ(dB, Gk);
+  }
 }
 
 // Gk are the indexes of all gens other than the outgen (for generator contingencies) 

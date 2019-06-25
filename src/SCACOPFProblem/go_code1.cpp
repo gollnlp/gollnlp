@@ -15,6 +15,7 @@ using namespace gollnlp;
 
 //#define DEBUG_COMM 1
 
+
 MyCode1::MyCode1(const std::string& InFile1_, const std::string& InFile2_,
 		 const std::string& InFile3_, const std::string& InFile4_,
 		 double TimeLimitInSeconds, 
@@ -52,12 +53,17 @@ int MyCode1::initialize(int argc, char *argv[])
   if(MPI_SUCCESS != ret) {
     return false;
   }
+
+  rank_master = 0;
+  rank_solver_rank0 = 1;
+  if(my_rank == rank_master) iAmMaster=true;
   
   //load data
   if(!data.readinstance(InFile1, InFile2, InFile3, InFile4)) {
     printf("error occured while reading instance\n");
     return false;
   }
+
 
   return true;
 }
@@ -144,7 +150,7 @@ vector<int> MyCode1::phase1_SCACOPF_contingencies()
   bool testing = true;
   if(true) {
  
-    vector<int> cont_list = {};//650//10,58,53,1};
+    vector<int> cont_list = {1512, 696};//1512,650//10,58,53,1};
  
     return  cont_list;
   } else {
@@ -163,13 +169,21 @@ bool MyCode1::do_phase1()
   // solver scacopf problem on solver rank(s)
   //
   scacopf_prob = new SCACOPFProblem(data);
+
+  scacopf_prob->set_AGC_as_nonanticip(true);
+
   scacopf_prob->assembly(K_SCACOPF_phase1);
+
   scacopf_prob->use_nlp_solver("ipopt"); 
   scacopf_prob->set_solver_option("linear_solver", "ma57"); 
   scacopf_prob->set_solver_option("mu_init", 1.);
   scacopf_prob->set_solver_option("print_frequency_iter", 1);
   scacopf_prob->set_solver_option("mu_target", 1e-8);
-  
+
+  scacopf_prob->set_solver_option("acceptable_tol", 1e-3);
+  scacopf_prob->set_solver_option("acceptable_constr_viol_tol", 1e-5);
+  scacopf_prob->set_solver_option("acceptable_iter", 7);
+
   if(iAmSolver) {    assert(my_rank==rank_solver_rank0);
     //if(true) {
     scacopf_prob->set_solver_option("print_level", 5);
@@ -210,7 +224,7 @@ bool MyCode1::do_phase1()
     scacopf_prob->set_have_start();
     //delete scacopf_prob; scacopf_problem=NULL;
   }
-  
+  exit(-1);
   return true;
 }
 
@@ -220,8 +234,8 @@ std::vector<int> MyCode1::phase2_contingencies()
   //return data.K_Contingency;
   
   //or, for testing purposes
-  return {0,1,2,3,4,5};
-  return {818, 1523, 275};
+  //return {0,1,2,3,4,5};
+  //return {818, 1523, 275};
   return {650,1391,1512, 1514, 1515, 1111, 1112, 696, 1525, 1526, 1652, 1653, 378, 1539, 275};
   //return {0,10,20,30,40,50,60,70,80,90};
   //return {204,1,2,3,4,5,6,7,8,9};

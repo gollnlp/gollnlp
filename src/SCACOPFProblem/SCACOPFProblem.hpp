@@ -16,7 +16,10 @@ namespace gollnlp {
   public:
     SCACOPFProblem(SCACOPFData& d_in) 
       : data_sc(d_in), 
-	useQPen(false), slacks_scale(1.),  PVPQSmoothing(0.01), AGCSmoothing(1e-4){}
+	useQPen(false), slacks_scale(1.),  PVPQSmoothing(0.01), AGCSmoothing(1e-4),
+	AGC_as_nonanticip(false), PVPQ_as_nonanticip(false)
+    {
+    }
     virtual ~SCACOPFProblem();
 
     //overwrites of OptProblem
@@ -32,6 +35,16 @@ namespace gollnlp {
     //base case + the variables and blocks needed by contingencies specified by 'K_idxs'
     virtual bool assembly(const std::vector<int> K_idxs);
 
+    //controllers of how AGC and PVPQ constraints are enforced
+    inline void set_AGC_as_nonanticip(bool onOrOff)
+    {
+      AGC_as_nonanticip = onOrOff;
+    }
+    inline void set_PVPQ_as_nonanticip(bool onOrOff)
+    {
+      PVPQ_as_nonanticip = onOrOff;
+    }
+
   protected:
     // for all add_ methods, dB is the block data (base case or contingency)
     // all these methods use 'd' SCACOPFData as well since dB contains only a 
@@ -44,8 +57,10 @@ namespace gollnlp {
 
     // 'SysCond_BaseCase' decides whether to use RateBase or RateEmer
     //  SysCond_BaseCase=true -> base case; =false -> contingency
-    void add_cons_thermal_li_lims(SCACOPFData& dB, bool SysCond_BaseCase=true, double L_rate_reduction=1.);
-    void add_cons_thermal_ti_lims(SCACOPFData& dB, bool SysCond_BaseCase=true, double T_rate_reduction=1.);
+    void add_cons_thermal_li_lims(SCACOPFData& dB, bool SysCond_BaseCase=true, 
+				  double L_rate_reduction=1.);
+    void add_cons_thermal_ti_lims(SCACOPFData& dB, bool SysCond_BaseCase=true, 
+				  double T_rate_reduction=1.);
 
     void add_obj_prod_cost(SCACOPFData& dB);
 
@@ -63,6 +78,7 @@ namespace gollnlp {
     bool useQPen;
     double slacks_scale;
     double AGCSmoothing, PVPQSmoothing;
+    bool AGC_as_nonanticip, PVPQ_as_nonanticip;
   public:
     //variables and constraints accessers
     inline std::string var_name(const std::string& prefix, const SCACOPFData& d) { 
