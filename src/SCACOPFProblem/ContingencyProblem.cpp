@@ -110,12 +110,12 @@ namespace gollnlp {
     use_nlp_solver("ipopt");
     set_solver_option("print_frequency_iter", 1);
     set_solver_option("linear_solver", "ma57"); 
-    set_solver_option("print_level", 2);
+    set_solver_option("print_level", 5);
     set_solver_option("mu_init", 1e-4);
-    set_solver_option("mu_target", 1e-9);
+    set_solver_option("mu_target", 1e-8);
     //if(!optimize("ipopt")) {
-    if(!reoptimize(OptProblem::primalDualRestart)) {
-      //if(!reoptimize(OptProblem::primalRestart)) {
+    //if(!reoptimize(OptProblem::primalDualRestart)) {
+    if(!reoptimize(OptProblem::primalRestart)) {
       return false;
     }
 
@@ -190,7 +190,7 @@ namespace gollnlp {
     append_variables(deltaK);
     deltaK->set_start_to(0.);
     
-    AGCSmoothing = 1e-2;
+    AGCSmoothing = 1e-4;
     auto cons = new AGCComplementarityCons(con_name("AGC", dK), 3*pgK_partic_idxs.size(),
 					   pg0, pgK, deltaK, 
 					   pg0_partic_idxs, pgK_partic_idxs, 
@@ -206,8 +206,8 @@ namespace gollnlp {
     cons->compute_rhos(rhop, rhom);
     rhop->providesStartingPoint=true; rhom->providesStartingPoint=true;
 
-    //append_objterm(new LinearPenaltyObjTerm(string("bigMpen_")+rhom->id, rhom, 1e-2));
-    //append_objterm(new LinearPenaltyObjTerm(string("bigMpen_")+rhop->id, rhop, 1e-2));
+    //append_objterm(new LinearPenaltyObjTerm(string("bigMpen_")+rhom->id, rhom, 1));
+    //append_objterm(new LinearPenaltyObjTerm(string("bigMpen_")+rhop->id, rhop, 1));
 
     printf("ContingencyProblem K_id %d: AGC %lu gens participating (out of %d)\n", 
 	   K_idx, pgK_partic_idxs.size(), pgK->n);
