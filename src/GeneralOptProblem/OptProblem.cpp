@@ -683,6 +683,26 @@ bool OptVariables::provides_start()
   return true;
 }
 
+bool OptVariables::set_start_to(const OptVariables& src)
+{
+  for(auto b: this->vblocks) {
+    auto bsrc = src.get_block(b->id);
+    //assert(bsrc!=NULL);
+    if(bsrc==NULL) {
+#ifdef DEBUG
+      printf("warning: set_start_to could not get block [%s] from src\n", b->id.c_str());
+      src.print_summary("source");
+      print_summary("destination");
+#endif      
+      return false;
+    }
+    assert(b->n == bsrc->n);
+    if(b->n != bsrc->n) return false;
+    b->set_start_to(*bsrc);
+  }
+  return true;
+}
+
 OptVariablesBlock::OptVariablesBlock(const int& n_, const std::string& id_)
   : n(n_), id(id_), index(-1), xref(NULL), providesStartingPoint(false)
 {

@@ -89,6 +89,8 @@ public:
     return  vblocks.size()>0 ? vblocks.back()->index + vblocks.back()->n : 0;
   }
 
+  bool set_start_to(const OptVariables& src);
+
   void print_summary(const std::string var_name="") const;
   void print(const std::string var_name="") const;
 

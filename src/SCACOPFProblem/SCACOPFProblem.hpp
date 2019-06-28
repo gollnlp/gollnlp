@@ -45,6 +45,10 @@ namespace gollnlp {
       PVPQ_as_nonanticip = onOrOff;
     }
 
+    bool set_warm_start_from_base_of(SCACOPFProblem& srcProb);
+  protected:
+    bool set_warm_start_for_base_from_base_of(SCACOPFProblem& srcProb);
+    bool set_warm_start_for_cont_from_base_of(SCACOPFData& dB, SCACOPFProblem& srcProb);
   protected:
     // for all add_ methods, dB is the block data (base case or contingency)
     // all these methods use 'd' SCACOPFData as well since dB contains only a 

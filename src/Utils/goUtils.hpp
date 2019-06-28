@@ -166,6 +166,7 @@ template<class T> std::vector<T> selectfrom(const std::vector<T>& v, const std::
   std::vector<T> ret;
   for(auto& keep: idx) {
     assert(keep>=0);
+    assert(keep<v.size());
     ret.push_back(v[keep]);
   }
   return ret;
