@@ -157,15 +157,15 @@ static int inline uniquely_indexise(vector<OptSparseEntry>& ij)
 int OptProblem::get_nnzJaccons()
 {
   if(nnz_Jac<0) {
-    goTimer tm; tm.start();
+    //goTimer tm; tm.start();
 
     for(auto& con: cons->vblocks)
       con->get_Jacob_ij(ij_Jac);
 
     nnz_Jac = uniquely_indexise(ij_Jac);
 
-    tm.stop();
-    printf("Jacobian structure took %g sec\n", tm.getElapsedTime());
+    //tm.stop();
+    //printf("Jacobian structure took %g sec\n", tm.getElapsedTime());
   }
   return nnz_Jac;
 }
@@ -214,7 +214,7 @@ static bool check_is_upper(const vector<OptSparseEntry>& ij)
 int OptProblem::get_nnzHessLagr()
 {
   if(nnz_Hess<0) {
-    goTimer tm; tm.start();
+    //goTimer tm; tm.start();
 
     for(auto& ot: obj->vterms) {
       ot->get_HessLagr_ij(ij_Hess);
@@ -236,8 +236,8 @@ int OptProblem::get_nnzHessLagr()
     }
     nnz_Hess = uniquely_indexise(ij_Hess);
 
-    tm.stop();
-    printf("Hessian structure %g sec\n", tm.getElapsedTime());
+    //tm.stop();
+    //printf("Hessian structure %g sec\n", tm.getElapsedTime());
   }
   return nnz_Hess;
 }
