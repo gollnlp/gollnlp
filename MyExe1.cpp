@@ -63,19 +63,20 @@ int main(int argc, char *argv[])
     name = "Network_01O-10/";
     root = "../../goinstances/challenge1/Original_Dataset_1-4/Original_Dataset_Offline_Edition_1/";
     net = name + "/";
-    scen = "scenario_9/";
+    scen = "scenario_1/";
     root = root+net;
-    return myexe1_function(root+scen+"case.raw",  root+"case.rop",
-			   root+"case.inl", root+scen+"case.con", 
-    			   2700.,  2, name);
-
+    //return myexe1_function(root+scen+"case.raw",  root+"case.rop",
+    //			   root+"case.inl", root+scen+"case.con", 
+    //			   2700.,  2, name);
+    
 
     name = "Network_03O-10/";
     root = "../../goinstances/challenge1/Original_Dataset_1-4/Original_Dataset_Offline_Edition_1/";
     net = name + "/";
-    scen = "scenario_9/";
+    scen = "scenario_1/";
     root = root+net;
-    //return myexe1_function(root+scen+"case.raw",  root+"case.rop", root+"case.inl", root+scen+"case.con", 
+    //return myexe1_function(root+scen+"case.raw",  root+"case.rop", 
+    //			   root+"case.inl", root+scen+"case.con", 
     //			   2700.,  2, name);
 
 
@@ -84,22 +85,26 @@ int main(int argc, char *argv[])
     net = name + "/";
     scen = "scenario_9/";
     root = root+net; 
-    return myexe1_function(root+scen+"case.raw",  root+"case.rop", root+"case.inl", root+scen+"case.con", 
-    			   2700.,  2, name);
+    //return myexe1_function(root+scen+"case.raw",  root+"case.rop", 
+    //		   root+"case.inl", root+scen+"case.con", 
+    //			   2700.,  2, name);
 
     name = "Network_07O-10/";
     root = "../../goinstances/challenge1/Original_Dataset_1-4/Original_Dataset_Offline_Edition_1/";
     net = name + "/";
     scen = "scenario_9/";
     root = root+net;
-    //return myexe1_function(root+scen+"case.raw",  root+"case.rop", root+"case.inl", root+scen+"case.con", 
+    //return myexe1_function(root+scen+"case.raw",  root+"case.rop", 
+    //			   root+"case.inl", root+scen+"case.con", 
     //			   2700.,  2, name);
-    // return 
-    //   myexe1_function("../../goinstances/challenge1/Original_Dataset_1-4/Original_Dataset_Offline_Edition_1/Network_07O-10/scenario_9/case.raw",  
-    // 		      "../../goinstances/challenge1/Original_Dataset_1-4/Original_Dataset_Offline_Edition_1/Network_07O-10/case.rop", 
-    // 		      "../../goinstances/challenge1/Original_Dataset_1-4/Original_Dataset_Offline_Edition_1/Network_07O-10/case.inl",
-    // 		      "../../goinstances/challenge1/Original_Dataset_1-4/Original_Dataset_Offline_Edition_1/Network_07O-10/scenario_9/case.con", 
-    // 		      2700.,  2, "Network_03");
+
+    root = "../../goinstances/challenge1/Original_Dataset_1-4/Original_Dataset_Real-Time_Edition_1/";
+    name = "Network_10R-10/";
+    net = name + "/";
+    scen = "scenario_9/";
+    root = root+net;
+    //return myexe1_function(root+scen+"case.raw",  root+"case.rop", root+scen+"case.inl", root+scen+"case.con", 
+    //			   2700.,  2, name);
 
     root = "../../goinstances/challenge1/Original_Dataset_1-4/Original_Dataset_Offline_Edition_1/";
     name = "Network_10O-10/";
@@ -107,7 +112,7 @@ int main(int argc, char *argv[])
     scen = "scenario_9/";
     root = root+net;
     return myexe1_function(root+scen+"case.raw",  root+"case.rop", root+scen+"case.inl", root+scen+"case.con", 
-			   2700.,  2, name);
+			   2700.,  1, name);
   }
   return 0;
 }

@@ -15,6 +15,7 @@ using namespace gollnlp;
 
 //#define DEBUG_COMM 1
 
+#define MAX_NUM_Kidxs_SCACOPF 512
 
 MyCode1::MyCode1(const std::string& InFile1_, const std::string& InFile2_,
 		 const std::string& InFile3_, const std::string& InFile4_,
@@ -34,6 +35,24 @@ MyCode1::MyCode1(const std::string& InFile1_, const std::string& InFile2_,
 
   req_recv_K_idx = NULL;
   req_send_penalty = NULL;
+
+  phase3_max_K_evals_to_wait_for = -1;
+  phase3_initial_num_K_in_scacopf = -1;
+  phase3_max_K_to_start_solver = -1;
+
+  phase3_scacopf_passes_master=0;
+  phase3_scacopf_passes_solver=0;
+
+  
+  pen_threshold = 100; //dolars
+  high_pen_threshold_factor = 0.4; //40% relative to basecase cost
+  cost_basecase=0.;
+
+  req_send_KidxSCACOPF=NULL;
+  req_recv_KidxSCACOPF=NULL;
+
+  req_recv_penalty_solver=NULL;
+  req_send_penalty_solver=NULL;
 }
 
 MyCode1::~MyCode1()
@@ -64,6 +83,37 @@ int MyCode1::initialize(int argc, char *argv[])
     return false;
   }
 
+  phase3_initial_num_K_in_scacopf = (ScoringMethod==1 || ScoringMethod==3) ? 4 : 4;
+  phase3_max_K_evals_to_wait_for = 2*phase3_initial_num_K_in_scacopf;
+  phase3_max_K_to_start_solver = 1;//phase3_initial_num_K_in_scacopf;
+  phase3_adtl_num_K_at_each_pass = 4;
+
+  if(data.L_Line.size()>1999 || data.N_Bus.size()>1999) {
+    phase3_initial_num_K_in_scacopf = (ScoringMethod==1 || ScoringMethod==3) ? 4 : 4;
+    phase3_max_K_evals_to_wait_for = 2*phase3_initial_num_K_in_scacopf;
+    phase3_max_K_to_start_solver = 1;//phase3_initial_num_K_in_scacopf;
+    phase3_adtl_num_K_at_each_pass = 2;
+  }
+  if(data.L_Line.size()>4999 || data.N_Bus.size()>4999) {
+    phase3_initial_num_K_in_scacopf = (ScoringMethod==1 || ScoringMethod==3) ? 1 : 2;
+    phase3_max_K_evals_to_wait_for = 2*phase3_initial_num_K_in_scacopf;
+    phase3_max_K_to_start_solver = 1;//phase3_initial_num_K_in_scacopf;
+    phase3_adtl_num_K_at_each_pass = 1;
+  }
+  if(data.L_Line.size()>9999 || data.N_Bus.size()>9999) {
+    phase3_initial_num_K_in_scacopf = (ScoringMethod==1 || ScoringMethod==3) ? 1 : 2;
+    phase3_max_K_evals_to_wait_for = 2*phase3_initial_num_K_in_scacopf;
+    phase3_max_K_to_start_solver = 1;//phase3_initial_num_K_in_scacopf;
+    phase3_adtl_num_K_at_each_pass = 1;
+  }
+  if(data.L_Line.size()>14999 || data.N_Bus.size()>14999) {
+    phase3_initial_num_K_in_scacopf = (ScoringMethod==1 || ScoringMethod==3) ? 1 : 1;
+    phase3_max_K_evals_to_wait_for = phase3_initial_num_K_in_scacopf;
+    phase3_max_K_to_start_solver = 1;//phase3_initial_num_K_in_scacopf;
+    phase3_adtl_num_K_at_each_pass = 1;
+  }
+  phase3_scacopf_passes_solver = 0;
+  phase3_scacopf_passes_master = 0;
 
   return true;
 }
@@ -81,7 +131,7 @@ void MyCode1::phase1_ranks_allocation()
     iAmSolver=true; iAmEvaluator=true;
     rank_solver_rank0 = rank_master;
   } else {
-    if(my_rank==1) {
+    if(my_rank==rank_solver_rank0) {
       iAmSolver=true;
     } else {
       //ranks 0, 2, 3, 4, ...
@@ -102,9 +152,9 @@ void MyCode1::phase2_ranks_allocation()
   int ret, comm_size;
   ret = MPI_Comm_size(comm_world, &comm_size); assert(ret==MPI_SUCCESS);
 
-  //no solver work needed in this phase
-  //all solver ranks become evaluators
-  iAmSolver=false; 
+  //solver is rank_solver_rank0
+  iAmSolver = my_rank==rank_solver_rank0;
+
   if(my_rank == rank_master) {assert(iAmMaster); iAmMaster = true;}
   if(comm_size==1) {
     iAmEvaluator=true;
@@ -196,7 +246,9 @@ bool MyCode1::do_phase1()
   }
   
   bool bret = scacopf_prob->optimize("ipopt");
-
+  if(iAmSolver) {
+    cost_basecase = scacopf_prob->objective_value();
+  }
   //scacopf_prob->print_p_g_with_coupling_info(*scacopf_prob->data_K[0]);
 
   //
@@ -218,6 +270,8 @@ bool MyCode1::do_phase1()
     MPI_Bcast_x(rank_solver_rank0, comm_world, my_rank);
   scacopf_prob->duals_constraints()->
     MPI_Bcast_x(rank_solver_rank0, comm_world, my_rank);
+
+  MPI_Bcast(&cost_basecase, 1, MPI_DOUBLE, rank_solver_rank0, comm_world);
   }
   //force a have_start set
   if(!iAmSolver) {
@@ -225,18 +279,20 @@ bool MyCode1::do_phase1()
     //delete scacopf_prob; scacopf_problem=NULL;
   }
 
+  printf("rank %d works with penalty base case %g\n", my_rank, cost_basecase);
+
   return true;
 }
 
 std::vector<int> MyCode1::phase2_contingencies()
 {
   //assert(false);
-  //return data.K_Contingency;
+  return data.K_Contingency;
   
   //or, for testing purposes
-  //return {0,1,2,3,4,5};
+  return {0,1,2,3,4,5, 7, 8,  235,  405,  436,  763,  764,  828,  829 , 854 , 855,  961, 20, 17, 18};
   //return {818, 1523, 275};
-  return {650,1391,1512, 1514, 1515, 1111, 1112, 696, 1525, 1526, 1652, 1653, 378, 1539, 275};
+  return {0,1,2,3,4,5, 650,1391,1512, 1514, 1515, 1111, 1112, 696, 1525, 1526, 1652, 1653, 378, 1539, 275};
   //return {0,10,20,30,40,50,60,70,80,90};
   //return {204,1,2,3,4,5,6,7,8,9};
   //return {0,1,2,3};
@@ -355,7 +411,10 @@ bool MyCode1::do_phase2_master_part()
   int num_ranks = K_on_rank.size();
 
   bool finished = true;
-  
+
+  int num_high_penalties = number_of_high_penalties(K_penalty_phase2);
+  //printf("!!!!!!!! numhigh penalties %d\n", num_high_penalties);
+
   for(int r=0; r<num_ranks; r++) {
     if(K_on_rank[r].size()==0) {
       assert(r==rank_master);
@@ -366,7 +425,7 @@ bool MyCode1::do_phase2_master_part()
     //contingencies left
     if(K_on_rank[r].back()==-2) {
 #ifdef DEBUG_COMM
-      //printf("Master : no more comm for rank=%d. it was marked with -2\n", r);
+	//printf("Master : no more comm for rank=%d. it was marked with -2\n", r);
 #endif
       continue;
     }
@@ -386,7 +445,13 @@ bool MyCode1::do_phase2_master_part()
 #ifdef DEBUG_COMM
 	printf("Master: recv penalty=%g from rank=%d completed\n", penalty, r);
 #endif
-	
+
+	//save the value 
+	assert(req_pen->K_idx>=0);
+	assert(req_pen->K_idx<K_penalty_phase2.size());
+	assert(penalty>-1e+20);
+	K_penalty_phase2[req_pen->K_idx] = penalty;
+
 	// if completed and penalty large, irecv the solution
 	// to do
 	
@@ -397,11 +462,23 @@ bool MyCode1::do_phase2_master_part()
 
 
 	// the next K_idx/index in K_phase2 to be sent
+	// or put solver rank on hold
 	assert(K_on_rank[r].back()>=0); 
-	int K_idx_next = get_next_contingency(K_on_rank[r].back(), r);
-	assert(K_idx_next>=-1);
-	K_on_rank[r].push_back(K_idx_next);
+
 	
+	int K_idx_next;
+	if(r==rank_solver_rank0 && num_high_penalties>=phase3_max_K_to_start_solver) {
+	  K_idx_next=-1;
+#ifdef DEBUG_COMM
+	printf("Master: will send solver_start to rank %d (num_high_pen %d   its_thresh %d)\n", 
+	       r, num_high_penalties, phase3_max_K_to_start_solver);
+#endif
+	} else {
+	  K_idx_next = get_next_contingency(K_on_rank[r].back(), r);
+	  assert(K_idx_next>=-1);
+	}
+
+	K_on_rank[r].push_back(K_idx_next);
 	send_new_K_idx = true;
       }
     } else {
@@ -425,7 +502,12 @@ bool MyCode1::do_phase2_master_part()
 	  //we're done with this rank -> do not send a new one
 	  send_new_K_idx = false;
 	  K_on_rank[r].push_back(-2);
-	}
+	} 
+	//else if(req_K_idx->K_idx==-3) {
+	//  assert(r==rank_solver_rank0); 
+	//  send_new_K_idx = false;
+	//  K_on_rank[r].push_back(-3);
+	//}
 	
 	delete req_K_idx;
 	req_send_K_idx_for_rank[r].pop_back();
@@ -445,7 +527,7 @@ bool MyCode1::do_phase2_master_part()
 
 #ifdef DEBUG_COMM   
       char msg[100];
-      sprintf(msg, "K_on_rank[%d]", r);
+      sprintf(msg, "K_on_rank[%d] (on master)", r);
       printvec(K_on_rank[r], msg);
 #endif
       
@@ -488,16 +570,301 @@ bool MyCode1::do_phase2_master_part()
       finished=false;
     }
   } // end of 'for' loop over ranks
+
+
   return finished;
 }
 
-bool MyCode1::do_phase2_evaluator_part()
+
+int MyCode1::number_of_high_penalties(const std::vector<double>& K_penalties)
+{
+  int count=0;
+  for(auto pen: K_penalties)
+    //if(pen>= high_pen_threshold_factor*cost_basecase) count++;
+    if(pen >= pen_threshold) count++;
+
+  return count;
+}
+
+void remove_close_idxs(vector<int>& vidxs, int proximity, 
+		       const vector<double>& K_penalties, 
+		       const std::vector<int> K_idxs_global,
+		       const double& thresh_huge) 
+{
+  //remove close idxs
+  vector<int> to_remove;
+  int it=0, itf;
+  while(it<vidxs.size()) {
+    itf = it+1;
+    while(itf<vidxs.size() && K_idxs_global[vidxs[itf]]<K_idxs_global[vidxs[it]]+proximity) {
+      if(K_penalties[vidxs[itf]]<thresh_huge) {
+	to_remove.push_back(vidxs[itf]);
+      } else {
+	//remove large K_penalties[vidxs[itf]] if the neighbor is also huge
+	if(K_penalties[vidxs[it]]>=thresh_huge) {
+	  to_remove.push_back(vidxs[itf]);
+	}
+      }
+      itf++;
+    }
+    it = itf;
+  }
+  for(auto idx: to_remove) {
+    bool ret = erase_elem_from(vidxs, idx);
+    assert(ret==true);
+  }
+}
+
+std::vector<int> MyCode1::get_high_penalties_from(const std::vector<double>& K_penalties, const std::vector<int> K_idxs_global)
+{
+  vector<int> K_idxs_all; 
+  vector<int> K_idxs_new; 
+  vector<double> K_pens;
+
+  int max_num_K = phase3_initial_num_K_in_scacopf + phase3_scacopf_passes_master*phase3_adtl_num_K_at_each_pass;
+  if(max_num_K>K_idxs_phase3.size() + phase3_adtl_num_K_at_each_pass) {
+    max_num_K = K_idxs_phase3.size() + phase3_adtl_num_K_at_each_pass;
+  }
+
+  //this should not happen, but it's a quick peace-of-mind fix
+  if(max_num_K<=K_idxs_phase3.size()) {
+    max_num_K = K_idxs_phase3.size() + phase3_adtl_num_K_at_each_pass;
+  }
+
+  //printf("!!! highpen_from : max_num_K=%d pass=%d \n", max_num_K, phase3_scacopf_passes_master);
+  //printvec(K_idxs_phase3, "K_idxs_phase3 (before)");
+
+  double thresh = high_pen_threshold_factor * cost_basecase;
+  double thresh_huge = 4*thresh; 
+  double proximity=5;
+
+  bool done=false;
+  while(!done) {
+    K_idxs_all.clear();
+    for(int it=0; it<K_penalties.size(); it++) {
+      if(K_penalties[it]>=thresh)
+	K_idxs_all.push_back(it);
+
+    }
+    sort(K_idxs_all.begin(), K_idxs_all.end());
+    int max_num2 = max_num_K < K_idxs_all.size() ? max_num_K : K_idxs_all.size();
+
+    //printvec(K_idxs_all, "K_idxs_all");
+    //remove close idxs
+    remove_close_idxs(K_idxs_all, proximity, K_penalties, K_idxs_global, thresh_huge);
+
+    //printvec(K_idxs_all, "K_idxs_all after remove close");
+    
+    K_idxs_new = set_diff(K_idxs_all, K_idxs_phase3);  
+    //sort decreasingly based on penalties
+    sort(K_idxs_new.begin(), 
+	 K_idxs_new.end(), 
+	 [&](const int& a, const int& b) { return (K_penalties[a] > K_penalties[b]); });
+
+    bool have_huge_penalties=false;
+    for(auto idx: K_idxs_new)
+      if(K_penalties[idx]>=thresh_huge) {
+    	have_huge_penalties=true;
+	break;
+      }
+    //printvec(K_idxs_new, "K_idxs_new2222");
+
+    if(K_idxs_new.size()+K_idxs_phase3.size() >= max_num_K) {
+      assert(max_num_K>=K_idxs_phase3.size());
+      
+      int num_new_K_to_keep = max_num_K-K_idxs_phase3.size();
+      if(num_new_K_to_keep > phase3_adtl_num_K_at_each_pass && phase3_scacopf_passes_master>0)
+	num_new_K_to_keep = phase3_adtl_num_K_at_each_pass;
+      
+      if(0==phase3_scacopf_passes_master)
+	num_new_K_to_keep = phase3_initial_num_K_in_scacopf;
+
+      if(num_new_K_to_keep > K_idxs_new.size()) num_new_K_to_keep = K_idxs_new.size();
+
+      //if(phase3_scacopf_passes_master>0)
+      //num_new_K_to_keep = num_new_K_to_keep > phase3_adtl_num_K_at_each_pass ? phase3_adtl_num_K_at_each_pass : num_new_K_to_keep;
+      //printf("!!!!!!!!!!! num_new_K_to_keep=%d\n", num_new_K_to_keep);
+      K_idxs_new = vector<int>(K_idxs_new.begin(), K_idxs_new.begin() + num_new_K_to_keep);
+      done = true;
+    } else { //K_idxs_new.size() < max_num2
+      //not enough
+      if(have_huge_penalties) {
+	done = true;
+	assert(K_idxs_new.size()>0);
+      } else {
+	//if evaluations are done and we don't have up to max_num, lower high_pen_threshold_factor by 75% and repeat
+	thresh *= 0.5;
+#define ACCEPTABLE_PEN 50 //dolars
+	if(thresh < ACCEPTABLE_PEN)
+	  thresh = ACCEPTABLE_PEN;
+	assert(thresh<thresh_huge);
+	
+	proximity--;
+	
+	if(proximity<0)
+	    proximity=0;
+	
+	if(thresh == ACCEPTABLE_PEN && proximity==0)
+	  done = true;
+      }
+    }
+  }
+
+  //printvec(K_idxs_phase3, "K_idxs_phase3 - from get_high_penalties_from");
+
+  auto K_idxs = K_idxs_phase3;
+  for(auto idx: K_idxs_new) 
+    K_idxs.push_back(idx);
+  sort(K_idxs.begin(), K_idxs.end());
+
+  //printvec(K_idxs, "K_idxs - from get_high_penalties_from");
+  return K_idxs;    
+}
+
+bool MyCode1::do_phase3_master_solverpart(bool master_evalpart_done)
+{
+  int r = rank_solver_rank0; //shortcut
+
+#ifdef DEBUG_COMM   
+      char msg[100];
+      sprintf(msg, "solverpart K_on_rank[%d] (on master)", r);
+      //printvec(K_on_rank[r], msg);
+      //printf("[ph3] Master - starting solverpart with master_evalpart_done = %d\n", master_evalpart_done);
+#endif
+
+  int num_high_penalties = number_of_high_penalties(K_penalty_phase2);
+  //  printf("numhigh penalties = %d\n", num_high_penalties);
+  //printvec(K_penalty_phase2, "K_penalty_phase2");
+  int mpi_test_flag, ierr; MPI_Status mpi_status;
+
+  if(K_on_rank[r].back()==-2) {
+    if(req_send_KidxSCACOPF==NULL) {
+
+      //printf("numhigh penalties %d %d\n", num_high_penalties, phase3_max_K_evals_to_wait_for);
+
+      if((num_high_penalties < phase3_max_K_evals_to_wait_for) && !master_evalpart_done ) {
+	return false; //not enough yet
+      }
+
+      if( (num_high_penalties < phase3_max_K_evals_to_wait_for) && master_evalpart_done )
+	printf("[ph3] Master - starting solverpart with master_evalpart_done = true\n");
+
+      vector<int> K_idxs = get_high_penalties_from(K_penalty_phase2, K_phase2);
+      sort(K_idxs.begin(), K_idxs.end());
+      sort(K_idxs_phase3.begin(), K_idxs_phase3.end());
+
+      bool last_pass=false;
+      if(K_idxs == K_idxs_phase3) {
+	if(master_evalpart_done)
+	  last_pass=true;
+	else 
+	  return false;
+
+	K_idxs = {-2};
+      } else {
+	K_idxs_phase3 = K_idxs;
+      }
+
+      for(int i=K_idxs.size(); i<MAX_NUM_Kidxs_SCACOPF; i++)
+	K_idxs.push_back(-1);
+      assert(K_idxs.size() == MAX_NUM_Kidxs_SCACOPF);
+
+      req_send_KidxSCACOPF = new ReqKidxSCACOPF(K_idxs);
+      //
+      //post idxs send msg
+      //
+      int tag = Tag0 + 3*MSG_TAG_SZ + r + phase3_scacopf_passes_master;
+      ierr = MPI_Isend(req_send_KidxSCACOPF->buffer.data(), 
+		       req_send_KidxSCACOPF->buffer.size(), 
+		       MPI_INT, 
+		       r,
+		       tag, 
+		       comm_world, 
+		       &req_send_KidxSCACOPF->request);
+      assert(MPI_SUCCESS == ierr);
+      
+#ifdef DEBUG_COMM
+      printf("[ph3] Master posted send for scacopf K_idxs to (solver) rank %d   tag %d\n",
+	     r, tag);
+
+#endif
+      //
+      // post recv penalty from solver rank 
+      //
+      assert(req_recv_penalty_solver==NULL);
+      req_recv_penalty_solver = new ReqPenalty(1e6);
+      tag = Tag0 + 4*MSG_TAG_SZ + rank_solver_rank0 + phase3_scacopf_passes_master;
+      ierr = MPI_Irecv(req_recv_penalty_solver->buffer, 
+		       1, 
+		       MPI_DOUBLE, 
+		       rank_solver_rank0,
+		       tag, 
+		       comm_world, 
+		       &req_recv_penalty_solver->request);
+      assert(MPI_SUCCESS == ierr);
+#ifdef DEBUG_COMM
+      printf("[ph3] Master rank %d posted recv for scacopf penalty to (solver) rank %d   tag %d\n",
+	     my_rank, r, tag);
+#endif
+
+    } // end of if(req_send_KidxSCACOPF==NULL) 
+    else {
+
+      //Kidxs send posted -> check the solution/penalty recv
+      ierr = MPI_Test(&req_recv_penalty_solver->request, &mpi_test_flag, &mpi_status);
+      assert(ierr == MPI_SUCCESS);
+      if(mpi_test_flag != 0) {
+	bool last_pass = false;
+
+#ifdef DEBUG_COMM
+	printf("[ph3] Master rank %d recv-ed for scacopf penalty from (solver) rank %d  penalty %g pass %d\n",
+	       my_rank, r, req_recv_penalty_solver->buffer[0], phase3_scacopf_passes_master);
+#endif
+
+	assert(req_send_KidxSCACOPF != NULL);
+	if(req_send_KidxSCACOPF->buffer.size()>0) {
+	  if(req_send_KidxSCACOPF->buffer[0] == -2) {
+	    printf("[ph3] Master - pass %d will be the last one !!!\n");
+	    last_pass = true;
+	  }
+	}
+
+	phase3_scacopf_passes_master++;
+#ifdef DEBUG
+	ierr = MPI_Test(&req_send_KidxSCACOPF->request, &mpi_test_flag, &mpi_status); 
+	assert(ierr == MPI_SUCCESS);
+	if(mpi_test_flag != 0) {
+	  printf("[ph3] Master  completed send for scacopf idxs from (solver) rank %d\n", r);
+	} else {
+	  assert(false && "[ph3] Master did not complete send for scacopf idxs!?!");
+	}
+#endif
+	
+	delete req_recv_penalty_solver; 
+	req_recv_penalty_solver=NULL;
+	delete req_send_KidxSCACOPF;
+	req_send_KidxSCACOPF=NULL;
+
+	return last_pass;
+      }
+    } // end of else if(req_send_KidxSCACOPF==NULL) 
+
+
+  } else { //else for if(K_on_rank[rank_solver]==-2) 
+    //nothing -> phase3 has not started yet
+  }
+  
+  return false;
+}
+
+
+bool MyCode1::do_phase2_evaluator_part(int& switchToSolver)
 {
   int mpi_test_flag, ierr; MPI_Status mpi_status;
-  
 
   //test for recv of K_idx
   if(req_recv_K_idx!=NULL) {
+
     //test for completion
     ierr = MPI_Test(&req_recv_K_idx->request, &mpi_test_flag, &mpi_status);
     assert(MPI_SUCCESS == ierr);
@@ -506,12 +873,26 @@ bool MyCode1::do_phase2_evaluator_part()
       //completed
       int K_idx = req_recv_K_idx->buffer[0];
       if(K_idx<0) {
-	//no more contingencies coming from master
-#ifdef DEBUG_COMM	
-	printf("Evaluator Rank %d recv K_idx=-1 finished evaluations\n", my_rank);
-#endif
-	if(req_send_penalty==NULL)
+	//no more contingencies coming from master or switching to solver mode
+
+	K_on_my_rank.push_back(K_idx);
+
+	delete req_recv_K_idx;
+	req_recv_K_idx = NULL;
+
+	if(req_send_penalty==NULL) {
+	  if(iAmSolver) {
+	    assert(my_rank==rank_solver_rank0);
+	    switchToSolver = true;
+	    K_on_my_rank.push_back(-2);
+
+	    printf("Evaluator Rank %d recv K_idx %d - switching to solver (it may have finished evals)\n", my_rank, K_idx);
+	    return false;
+	  } else {
+	  printf("Evaluator Rank %d recv K_idx %d - finished evaluations\n", my_rank, K_idx);
 	  return true;
+	  }
+	}
 	
       } else {
 #ifdef DEBUG_COMM
@@ -529,8 +910,6 @@ bool MyCode1::do_phase2_evaluator_part()
 	int status;
 	double penalty = solve_contingency(K_phase2[K_idx], status);
 	
-	//double penalty = 100*my_rank+K_on_my_rank.size();
-
 	//send penalty
 	assert(req_send_penalty == NULL);
 	req_send_penalty = new ReqPenalty(K_idx);
@@ -602,7 +981,7 @@ void MyCode1::phase2_initialization()
   }
 }
 
-
+double counter=0.;
 
 bool MyCode1::do_phase2()
 {
@@ -610,26 +989,75 @@ bool MyCode1::do_phase2()
 
   //contingencies to be considered in phase 2
   K_phase2 = phase2_contingencies();//set_diff(phase2_contingencies(), K_SCACOPF_phase1);
+  
+  if(iAmMaster) {
+    K_penalty_phase2 = vector<double>(K_phase2.size(), -1e+20);
+  }
 
   phase2_initial_contingency_distribution();
 
   phase2_initialization();
   
   bool finished=false; 
-  bool master_part_done=!iAmMaster;
+  bool master_evalpart_done=!iAmMaster;
+  bool master_solvepart_done=!iAmMaster;
   bool evaluator_part_done=false;
   while(!finished) {
-    if(iAmMaster) {
-      finished = do_phase2_master_part();
 
-      if(finished) master_part_done = true;
+    if(iAmMaster) {
+
+      counter++;
+
+      if(!master_evalpart_done) {
+	finished = do_phase2_master_part();
+	if(finished)
+	  printf("master_evalpart finished=%d counter=%g master_evalpart_done=%d\n", finished, counter,master_evalpart_done);
+	if(finished) master_evalpart_done = true;
+      }
+
+      if(!master_solvepart_done) {
+	//solver related communication
+
+	bool finished_solverpart = do_phase3_master_solverpart(master_evalpart_done);
+	if(finished_solverpart)
+	  printf("master solverpart finished=%d counter=%g\n", finished_solverpart, counter);
+
+	if(finished_solverpart) {
+	  master_solvepart_done = true;
+	}
+      }
+      finished = master_solvepart_done && master_evalpart_done;
+    }
+
+    int switchToSolver=false;
+    if(iAmEvaluator && !evaluator_part_done) {
+      finished = do_phase2_evaluator_part(switchToSolver);
+
+      //if(finished)
+      //printf("evaluator part finished on rank %d\n", my_rank);
+
+      if(finished) {
+	evaluator_part_done=true;
+      } else {
+	//need to finish the send of penalty before switching
+	switchToSolver=false;
+      }
+      finished = finished && master_evalpart_done; 
     }
     
-    if(iAmEvaluator && !evaluator_part_done) {
-      finished = do_phase2_evaluator_part();
+    if(switchToSolver) {
+      assert(my_rank==rank_solver_rank0);
+#ifdef DEBUG_COMM
+      printf("Evaluator Rank %d switched to solver\n", my_rank);
+#endif
+    }
 
-      if(finished) evaluator_part_done=true;
-      finished = finished && master_part_done; 
+    if(iAmSolver) {
+      finished = do_phase3_solver_part();
+
+      //if(finished)
+      //printf("Solver part finished\n");
+      //printf("solver  part finished=%d\n", finished);
     }
 
     if(iAmMaster && !iAmEvaluator) {
@@ -638,8 +1066,99 @@ bool MyCode1::do_phase2()
       //std::this_thread::sleep_for(std::chrono::milliseconds(100));      
     }
   }
-  
+
+  if(iAmMaster) {
+    printvec(K_penalty_phase2, "penalties on master");
+  }  
   return true;
+}
+
+bool MyCode1::do_phase3_solver_part()
+{
+  assert(my_rank==rank_solver_rank0);
+  int mpi_test_flag, ierr; MPI_Status mpi_status;
+
+  if(K_on_my_rank.size()==0) {
+    return false;
+  }
+
+  if(K_on_my_rank.back() ==-2) {
+    if(req_recv_KidxSCACOPF==NULL) {
+      //post the recv
+      vector<int> K_idxs(MAX_NUM_Kidxs_SCACOPF, -1);
+      req_recv_KidxSCACOPF = new ReqKidxSCACOPF(K_idxs);
+
+      int tag = Tag0 + 3*MSG_TAG_SZ + rank_solver_rank0 + phase3_scacopf_passes_solver;
+      ierr = MPI_Irecv(req_recv_KidxSCACOPF->buffer.data(),
+		       req_recv_KidxSCACOPF->buffer.size(),
+		       MPI_INT, rank_master, tag, comm_world,
+		       &req_recv_KidxSCACOPF->request);
+      assert(MPI_SUCCESS == ierr);
+      printf("[ph3] Solver rank %3d posted recv for new SCACOPF contingencies to (master) rank %3d  tag %d pass %d\n",
+	     my_rank, rank_master, tag, phase3_scacopf_passes_solver);
+      return false;
+
+    } else {
+      //test req_recv_KidxSCACOPF
+      ierr = MPI_Test(&req_recv_KidxSCACOPF->request, &mpi_test_flag, &mpi_status);
+      if(mpi_test_flag != 0) {
+	//completed
+	vector<int> K_idxs;
+	assert(req_recv_KidxSCACOPF->buffer.size() == MAX_NUM_Kidxs_SCACOPF);
+	for(auto c: req_recv_KidxSCACOPF->buffer) {
+	  if(c!=-1) K_idxs.push_back(c);
+	}
+
+	printf("[ph3] Solver rank %3d recv-ed request for n=%3lu conting for SCACOPF solve pass %d: [ ", 
+	       my_rank, K_idxs.size(), phase3_scacopf_passes_solver);
+	for(auto c: K_idxs) { printf("%d  ", c); }; printf("]\n"); fflush(stdout);
+
+	bool last_pass = false;
+	assert(K_idxs.size()>0);
+	if(K_idxs.size()>0) {
+	  double penalty;
+	  if(K_idxs[0]>=0) {
+
+	    //solve SCACOPF
+	    penalty = 2e+6/(1+phase3_scacopf_passes_solver);
+	    std::this_thread::sleep_for(std::chrono::seconds(40));
+	    
+	  } else {
+	    assert(K_idxs[0]==-2);
+	    assert(K_idxs.size()==1);
+	    // this is the finish / last evaluation signal
+	    penalty = -2.;
+	    last_pass = true;
+	  }
+
+	  //send penalty/handshake 
+	  req_send_penalty_solver = new ReqPenalty();
+	  req_send_penalty_solver->buffer[0] = penalty;
+	  int tag = Tag0 + 4*MSG_TAG_SZ + rank_solver_rank0 + phase3_scacopf_passes_solver;
+	  // aaa ierr = MPI_Send(req_send_penalty_solver->buffer, 1, MPI_DOUBLE, rank_master, tag, comm_world);
+	  
+	  ierr = MPI_Isend(req_send_penalty_solver->buffer, 1, MPI_DOUBLE, rank_master, tag, 
+			   comm_world, &req_send_penalty_solver->request);
+	  assert(MPI_SUCCESS == ierr);
+#ifdef DEBUG_COMM
+	  printf("[ph3] Solver rank %d send (sent) scacopf penalty=%g to (master) rank %d   tag %d\n\n",
+		 my_rank, penalty, rank_master, tag);
+#endif
+	  
+	  phase3_scacopf_passes_solver++;
+	}
+	//cleanup requests to make myself available for another scacopf evaluation
+	delete req_recv_KidxSCACOPF;
+	req_recv_KidxSCACOPF=NULL;
+	delete req_send_penalty_solver;
+	req_send_penalty_solver=NULL;
+
+	return last_pass;
+      }
+    }
+  }
+
+  return false;
 }
 
 int MyCode1::go()
@@ -665,13 +1184,7 @@ int MyCode1::go()
     printf("Error occured in phase 2\n");
     return -1;
   }
-  printf("Phase 2 completed on rank %d\n", my_rank);
-
- 
-  //if(!do_phase3()) {
-  //  printf("Error occured in phase 3\n");
-  //  return -1;
-  //}
+  printf("Phase 2 completed/finished on rank %d\n", my_rank);
 
   //
   //cleanup

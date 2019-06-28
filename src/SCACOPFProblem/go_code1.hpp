@@ -68,7 +68,15 @@ private: //methods
   //contingencies penalty:  -1e+20 when the contingency has not been processed
   //the same order as in K_phase2
   std::vector<double> K_penalty_phase2;
-  
+
+  //high penalty threshold factor relative to the basecase ACOPF from phase1
+  double high_pen_threshold_factor;
+  double cost_basecase;
+  double pen_threshold;
+
+  // number of contingencies with penalty >= high_pen_threshold_factor*penalty_basecase
+  int number_of_high_penalties(const std::vector<double>& K_penalties);
+
   //primal solutions for contingencies
   //the same order as in K_phase2
   //inner vector empty for contingencies with small penalty
@@ -91,8 +99,11 @@ private: //methods
   // send/recv Kidxs: Tag0 + Kidx_sendrecv_counter_for_rank
   // send/recv penalty obj: Tag0+MSG_TAG_SZ+sendrecv_penalty_counter_for_rank
   // send/recv solution large penalty: Tag0+2*MSG_TAG_SZ+sendrecv_solution_counter_for_rank
-  // 
+  // send/recv scacopf Kidxs (between master and solver): Tag0+3*MSG_TAG_SZ+rank_solver+phase3_passes
+  // send/recv scacopf penalty/handshake (between master and solver): Tag0+4*MSG_TAG_SZ+rank_solver+phase3_passes
   
+  //K_idx =-1 means no more contingencies to evaluate
+  //K_idx =-3 is sent to solver rank to instruct him to stay on hold for scacopf solve
   struct ReqKidx
   {
     ReqKidx() : ReqKidx(-1) {}
@@ -129,12 +140,33 @@ private: //methods
   std::vector<std::vector<ReqPenalty*> > req_recv_penalty_for_rank;
   //on evaluator rank
   ReqPenalty* req_send_penalty;
-  
-  //ranks types: master (1), solver(2), evaluator(4) and combintations of them
+
+  struct ReqKidxSCACOPF
+  {
+    ReqKidxSCACOPF(const std::vector<int>& K_idx_scacopf)
+    {
+      buffer = K_idx_scacopf;
+    }
+    std::vector<int> buffer;
+    MPI_Request request;
+  private:
+    ReqKidxSCACOPF() {};
+  };
+  ReqKidxSCACOPF* req_send_KidxSCACOPF; //on master rank
+  ReqKidxSCACOPF* req_recv_KidxSCACOPF; //on solver rank
+
+  ReqPenalty* req_recv_penalty_solver; //on master rank
+  ReqPenalty* req_send_penalty_solver; //on solver rank
+  //struct ReqPDBaseCaseSolution
+  //{
+  // ReqPDBaseCaseSolution();
+  //private: 
+  // ReqPDBaseCaseSolution() {};
+  //};
+
+  //ranks types: master (1), solver(2), evaluator(4) and combinations of them
   // master and evaluator 5, solver and evaluator 6, ...
   std::vector<int> type_of_rank;
-
-
 
   void phase2_initialization();
   bool do_phase2();
@@ -142,12 +174,32 @@ private: //methods
   //returns true when finished: no more contingency left and send/recv
   //messages completed
   bool do_phase2_master_part();
-  bool do_phase2_evaluator_part();
+  bool do_phase2_evaluator_part(int& switchToSolver);
   //
   // phase 3 - solve SCACOPF with the (addtl) contingencies found in phase 2
   // 
   //
   void phase3_ranks_allocation();
+
+  //on master rank
+  bool do_phase3_master_solverpart(bool enforce_solve);
+  //on solver rank
+  bool do_phase3_solver_part(); 
+
+  int phase3_scacopf_passes_master;
+  int phase3_scacopf_passes_solver; 
+
+  //max high penalty contingencies to wait for initially
+  int phase3_max_K_evals_to_wait_for;
+  //max high penalty contingencies to put in the scacopf in phase3
+  int phase3_initial_num_K_in_scacopf;
+  //max high penalty to stop the solver rank from evaluating
+  int phase3_max_K_to_start_solver;
+  //how many additional contingencies to add to SCACOPF problem after each scacopf solve pass
+  int phase3_adtl_num_K_at_each_pass;
+
+  std::vector<int> K_idxs_phase3;
+  std::vector<int> get_high_penalties_from(const std::vector<double>& K_penalties, const std::vector<int> K_idxs_global);
 
   //
   //utilities
