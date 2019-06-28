@@ -13,7 +13,7 @@ using namespace gollnlp;
 #include <chrono>
 #include <thread>
 
-//#define DEBUG_COMM 1
+#define DEBUG_COMM 1
 
 #define MAX_NUM_Kidxs_SCACOPF 512
 
@@ -241,7 +241,7 @@ bool MyCode1::do_phase1()
   } else {
     //master and evaluators do not solve, but we call optimize to force an
     //allocation of the internals, such as the dual variables
-    scacopf_prob->set_solver_option("print_level", 5);
+    scacopf_prob->set_solver_option("print_level", 1);
     scacopf_prob->set_solver_option("max_iter", 1);
   }
   
@@ -277,6 +277,8 @@ bool MyCode1::do_phase1()
   if(!iAmSolver) {
     scacopf_prob->set_have_start();
     //delete scacopf_prob; scacopf_problem=NULL;
+  } else {
+    K_SCACOPF_phase3 = K_SCACOPF_phase1;
   }
 
   printf("rank %d works with penalty base case %g\n", my_rank, cost_basecase);
@@ -290,9 +292,10 @@ std::vector<int> MyCode1::phase2_contingencies()
   return data.K_Contingency;
   
   //or, for testing purposes
-  return {0,1,2,3,4,5, 7, 8,  235,  405,  436,  763,  764,  828,  829 , 854 , 855,  961, 20, 17, 18};
-  //return {818, 1523, 275};
-  return {0,1,2,3,4,5, 650,1391,1512, 1514, 1515, 1111, 1112, 696, 1525, 1526, 1652, 1653, 378, 1539, 275};
+  //return {235,  405,  436,  763,  764,  828,  829 , 854 , 855,  961, 20, 17, 18}; //07
+  return {0,1,2};
+  //return {1512, 1515, 1525, 5};
+  //return {5, 650,1391,1512, 1514, 1515, 1111, 1112, 696, 1525, 1526, 1652, 1653, 378, 1539};
   //return {0,10,20,30,40,50,60,70,80,90};
   //return {204,1,2,3,4,5,6,7,8,9};
   //return {0,1,2,3};
@@ -354,6 +357,7 @@ void MyCode1::phase2_initial_contingency_distribution()
       }
     }
   }
+  printvecvec(K_on_rank);
   assert(nEvaluators+1==R);
 }
 
@@ -417,13 +421,13 @@ bool MyCode1::do_phase2_master_part()
 
   for(int r=0; r<num_ranks; r++) {
     if(K_on_rank[r].size()==0) {
-      assert(r==rank_master);
-      continue;
+      if(r==rank_master)
+	continue;
     }
 
     //done with communication for this rank since it was marked as not having any
     //contingencies left
-    if(K_on_rank[r].back()==-2) {
+    if(K_on_rank[r].size()>0 && K_on_rank[r].back()==-2) {
 #ifdef DEBUG_COMM
 	//printf("Master : no more comm for rank=%d. it was marked with -2\n", r);
 #endif
@@ -431,9 +435,10 @@ bool MyCode1::do_phase2_master_part()
     }
     
     bool send_new_K_idx = false;
-    
+
     //check for recv of penalty
     if(req_recv_penalty_for_rank[r].size()>0) {
+
       ReqPenalty* req_pen = req_recv_penalty_for_rank[r].back();
       //test penalty receive
       ierr = MPI_Test(&req_pen->request, &mpi_test_flag, &mpi_status);
@@ -485,7 +490,6 @@ bool MyCode1::do_phase2_master_part()
       //post send <- we're at the first call (a K_idx has been put in K_on_rank[r])
       send_new_K_idx = true;
     }
-    
     //check if the send for the last idx is complete 
     if( req_send_K_idx_for_rank[r].size()>0 ) {
       assert(req_send_K_idx_for_rank[r].size()==1);
@@ -503,11 +507,6 @@ bool MyCode1::do_phase2_master_part()
 	  send_new_K_idx = false;
 	  K_on_rank[r].push_back(-2);
 	} 
-	//else if(req_K_idx->K_idx==-3) {
-	//  assert(r==rank_solver_rank0); 
-	//  send_new_K_idx = false;
-	//  K_on_rank[r].push_back(-3);
-	//}
 	
 	delete req_K_idx;
 	req_send_K_idx_for_rank[r].pop_back();
@@ -520,22 +519,26 @@ bool MyCode1::do_phase2_master_part()
     // i. post a new send for K idx
     // ii.post the recv for corresponding penalty objective
     if(send_new_K_idx) {
+
       assert(req_recv_penalty_for_rank[r].size() == 0);
       assert(req_send_K_idx_for_rank[r].size() == 0);
       
-      int K_idx_next = K_on_rank[r].back();
+      int K_idx_next = -1; // in case K_on_rank[r] is empty (no contingencies for this rank)
+      if(K_on_rank[r].size()>0) {
+	K_idx_next = K_on_rank[r].back();
 
 #ifdef DEBUG_COMM   
-      char msg[100];
-      sprintf(msg, "K_on_rank[%d] (on master)", r);
-      printvec(K_on_rank[r], msg);
+	char msg[100];
+	sprintf(msg, "K_on_rank[%d] (on master)", r);
+	printvec(K_on_rank[r], msg);
 #endif
+      }
       
       //
       {
 	//isend K_idx_next
 	ReqKidx* req_K_idx = new ReqKidx( K_idx_next );
-	int tag = Tag0 + K_on_rank[r].size();
+	int tag = Tag0 + (K_on_rank[r].size()==0 ? 1 : K_on_rank[r].size());
 	ierr = MPI_Isend(req_K_idx->buffer, 1, MPI_INT, r,
 			 tag, comm_world, &req_K_idx->request);
 #ifdef DEBUG_COMM
@@ -561,7 +564,7 @@ bool MyCode1::do_phase2_master_part()
 	}
       }
     } // end of the new send
-    
+
     if(req_recv_penalty_for_rank[r].size()==0 &&
        req_send_K_idx_for_rank[r].size() == 0) {
       //done on rank r, will return finished==true or false depending on
@@ -1116,24 +1119,28 @@ bool MyCode1::do_phase3_solver_part()
 	bool last_pass = false;
 	assert(K_idxs.size()>0);
 	if(K_idxs.size()>0) {
-	  double penalty;
+	  double objective;
 	  if(K_idxs[0]>=0) {
 
 	    //solve SCACOPF
-	    penalty = 2e+6/(1+phase3_scacopf_passes_solver);
-	    std::this_thread::sleep_for(std::chrono::seconds(40));
-	    
+
+	    //penalty = 2e+6/(1+phase3_scacopf_passes_solver);
+	    //std::this_thread::sleep_for(std::chrono::seconds(40));
+
+	    K_idxs = selectfrom(K_phase2, K_idxs);
+	    objective = phase3_solve_scacopf(K_idxs);
+
 	  } else {
 	    assert(K_idxs[0]==-2);
 	    assert(K_idxs.size()==1);
 	    // this is the finish / last evaluation signal
-	    penalty = -2.;
+	    objective = -2.;
 	    last_pass = true;
 	  }
 
 	  //send penalty/handshake 
 	  req_send_penalty_solver = new ReqPenalty();
-	  req_send_penalty_solver->buffer[0] = penalty;
+	  req_send_penalty_solver->buffer[0] = objective;
 	  int tag = Tag0 + 4*MSG_TAG_SZ + rank_solver_rank0 + phase3_scacopf_passes_solver;
 	  // aaa ierr = MPI_Send(req_send_penalty_solver->buffer, 1, MPI_DOUBLE, rank_master, tag, comm_world);
 	  
@@ -1141,8 +1148,8 @@ bool MyCode1::do_phase3_solver_part()
 			   comm_world, &req_send_penalty_solver->request);
 	  assert(MPI_SUCCESS == ierr);
 #ifdef DEBUG_COMM
-	  printf("[ph3] Solver rank %d send (sent) scacopf penalty=%g to (master) rank %d   tag %d\n\n",
-		 my_rank, penalty, rank_master, tag);
+	  printf("[ph3] Solver rank %d send (sent) scacopf objective=%g to (master) rank %d   tag %d\n\n",
+		 my_rank, objective, rank_master, tag);
 #endif
 	  
 	  phase3_scacopf_passes_solver++;
@@ -1210,10 +1217,6 @@ double MyCode1::solve_contingency(int K_idx, int& status)
   auto p_g0 = scacopf_prob->variable("p_g", data); 
   auto v_n0 = scacopf_prob->variable("v_n", data);
 
-  //usleep(1e6*my_rank);
-  //p_g0->print();
-  //v_n0->print();
-
   goTimer t; t.start();
   
   ContingencyProblem prob(data, K_idx, my_rank);
@@ -1263,6 +1266,54 @@ double MyCode1::solve_contingency(int K_idx, int& status)
 	 my_rank, K_idx, penalty, t.stop(), prob.number_of_iterations());
   
   return penalty;
+}
+
+double MyCode1::phase3_solve_scacopf(std::vector<int>& K_idxs)
+{
+  assert(scacopf_prob!=NULL);
+  assert(iAmSolver);
+
+  goTimer t; t.start();
+
+  sort(K_idxs.begin(), K_idxs.end());
+  sort(K_SCACOPF_phase3.begin(), K_SCACOPF_phase3.end());
+  if(K_idxs == K_SCACOPF_phase3) {
+    printf("Solver Rank %d - phase3_solve_scacopf - no new contingencies detected\n",
+	   my_rank);
+    return -11111;
+  }
+
+  SCACOPFProblem* scacopf_prob_prev = scacopf_prob;
+
+  scacopf_prob = new SCACOPFProblem(data);
+  scacopf_prob->set_AGC_as_nonanticip(true);
+
+  scacopf_prob->assembly(K_idxs);
+
+  scacopf_prob->set_warm_start_from_base_of(*scacopf_prob_prev);
+
+  delete scacopf_prob_prev;
+
+  scacopf_prob->use_nlp_solver("ipopt"); 
+  scacopf_prob->set_solver_option("linear_solver", "ma57"); 
+  scacopf_prob->set_solver_option("mu_init", 1e-4);
+  scacopf_prob->set_solver_option("print_frequency_iter", 1);
+  scacopf_prob->set_solver_option("mu_target", 1e-8);
+
+  scacopf_prob->set_solver_option("acceptable_tol", 1e-4);
+  scacopf_prob->set_solver_option("acceptable_constr_viol_tol", 1e-6);
+  scacopf_prob->set_solver_option("acceptable_iter", 7);
+
+  scacopf_prob->set_solver_option("print_level", 5);
+  
+  //bool bret = scacopf_prob->optimize("ipopt");
+  bool bret = scacopf_prob->reoptimize(OptProblem::primalDualRestart);
+  double cost = scacopf_prob->objective_value();
+  
+  printf("Solver Rank %d - finished scacopf solve in %g seconds %d iters -- cost %g\n",
+	 my_rank, t.stop(), scacopf_prob->number_of_iterations(), cost);
+
+  return cost;
 }
 
 void MyCode1::display_instance_info()
