@@ -151,10 +151,12 @@ template<class T> inline void erase_idx_from(std::vector<T>& v, const int& idx)
 template<class T>
 inline std::vector<T> set_diff(const std::vector<T>& A, const std::vector<T>& B)
 {
+
   std::vector<T> diff=A;
   auto idxs_B_in_A = indexin(B,A);
   for(auto idx : idxs_B_in_A) {
-    if(idx>=0) erase_idx_from(diff,idx);
+    //if(idx>=0) erase_idx_from(diff,idx);
+    if(idx>=0) erase_elem_from(diff, A[idx]);
   }
   return diff;
 }
