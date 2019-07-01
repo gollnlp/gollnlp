@@ -32,7 +32,7 @@ namespace gollnlp {
     printf("ContingencyProblem K_id %d: assembly IDOut=%d outidx=%d Type=%s\n",
 	   K_idx, data_sc.K_IDout[K_idx], data_sc.K_outidx[K_idx],
 	   data_sc.cont_type_string(K_idx).c_str());
-
+    fflush(stdout);
     assert(data_K.size()==1);
     SCACOPFData& dK = *data_K[0];
 
@@ -115,12 +115,13 @@ namespace gollnlp {
 
     // objective value
     f = this->obj_value;
-#ifdef DEBUG
+
     tmrec.stop();
     printf("ContingencyProblem K_id %d: eval_obj took %g sec  %d iterations on rank=%d\n", 
 	   K_idx, tmrec.getElapsedTime(), number_of_iterations(), my_rank);
-    //printf("ContingencyProblem K_id %d: recourse obj_value %g\n", K_idx, this->obj_value);
+    fflush(stdout);
 
+#ifdef DEBUG
     if(false) {
       int dim = pg0->n;
       printf("p_g0 in\n");
@@ -149,19 +150,16 @@ namespace gollnlp {
 
 #ifdef DEBUG
     assert(pg0->xref == pg0->x);
-
-    //usleep(1e6*my_rank);
-    // printf("cont %d rank %d\n", K_idx, my_rank);
-    // for(int i=0; i<sz; i++) {
-    //   assert(pg0_idxs[i]<pg0->n && pg0_idxs[i]>=0);
-    //   assert(pgK_idxs[i]<pgK->n && pgK_idxs[i]>=0);
-    //   idxK = pgK_idxs[i];
-    //   pgK->lb[idxK] = pgK->ub[idxK] = pg0->xref[pg0_idxs[i]];
-
-    //   printf("%g %g\n",  pg0->x[pg0_idxs[i]],  pg0->xref[pg0_idxs[i]]);
-    // }
-    // printf("-----------------\n\n");
 #endif
+
+    for(int i=0; i<sz; i++) {
+      assert(pg0_idxs[i]<pg0->n && pg0_idxs[i]>=0);
+      assert(pgK_idxs[i]<pgK->n && pgK_idxs[i]>=0);
+      idxK = pgK_idxs[i];
+      pgK->lb[idxK] = pgK->ub[idxK] = pg0->xref[pg0_idxs[i]];
+      
+      //printf("%g lb[%g %g]\n",  pg0->x[pg0_idxs[i]], pgK->lb[idxK], pgK->ub[idxK]);
+    }
   }
 
   void ContingencyProblem::add_cons_AGC_using(OptVariablesBlock* pg0)
@@ -204,7 +202,7 @@ namespace gollnlp {
     //append_objterm(new LinearPenaltyObjTerm(string("bigMpen_")+rhop->id, rhop, 1));
 
     printf("ContingencyProblem K_id %d: AGC %lu gens participating (out of %d)\n", 
-	   K_idx, pgK_partic_idxs.size(), pgK->n);
+    	   K_idx, pgK_partic_idxs.size(), pgK->n);
     //printvec(pg0_partic_idxs, "partic idxs");
   }
   void ContingencyProblem::update_cons_AGC_using(OptVariablesBlock* pg0)
