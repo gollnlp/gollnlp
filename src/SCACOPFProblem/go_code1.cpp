@@ -3,7 +3,6 @@
 #include "SCMasterProblem.hpp"
 #include "SCRecourseProblem.hpp"
 
-#include "goTimer.hpp"
 #include "goUtils.hpp"
 
 using namespace std;
@@ -13,7 +12,7 @@ using namespace gollnlp;
 #include <chrono>
 #include <thread>
 
-#define DEBUG_COMM 1
+//#define DEBUG_COMM 1
 
 #define MAX_NUM_Kidxs_SCACOPF 512
 
@@ -29,6 +28,8 @@ MyCode1::MyCode1(const std::string& InFile1_, const std::string& InFile2_,
     rank_master(-1), rank_solver_rank0(-1),
     comm_world(comm_world_), comm_solver(MPI_COMM_NULL)
 {
+  glob_timer.start();
+
   iAmMaster=iAmSolver=iAmEvaluator=false;
   scacopf_prob = NULL;
   my_rank = -1;
@@ -39,13 +40,14 @@ MyCode1::MyCode1(const std::string& InFile1_, const std::string& InFile2_,
   phase3_max_K_evals_to_wait_for = -1;
   phase3_initial_num_K_in_scacopf = -1;
   phase3_max_K_to_start_solver = -1;
+  phase3_last_num_K_nonproximal=0;
 
   phase3_scacopf_passes_master=0;
   phase3_scacopf_passes_solver=0;
 
   
   pen_threshold = 100; //dolars
-  high_pen_threshold_factor = 0.4; //40% relative to basecase cost
+  high_pen_threshold_factor = 0.25; //25% relative to basecase cost
   cost_basecase=0.;
 
   req_send_KidxSCACOPF=NULL;
@@ -53,6 +55,7 @@ MyCode1::MyCode1(const std::string& InFile1_, const std::string& InFile2_,
 
   req_recv_penalty_solver=NULL;
   req_send_penalty_solver=NULL;
+
 }
 
 MyCode1::~MyCode1()
@@ -83,25 +86,25 @@ int MyCode1::initialize(int argc, char *argv[])
     return false;
   }
 
-  phase3_initial_num_K_in_scacopf = (ScoringMethod==1 || ScoringMethod==3) ? 4 : 4;
+  phase3_initial_num_K_in_scacopf = (ScoringMethod==1 || ScoringMethod==3) ? 2 : 2;
   phase3_max_K_evals_to_wait_for = 2*phase3_initial_num_K_in_scacopf;
   phase3_max_K_to_start_solver = 1;//phase3_initial_num_K_in_scacopf;
   phase3_adtl_num_K_at_each_pass = 4;
 
   if(data.L_Line.size()>1999 || data.N_Bus.size()>1999) {
-    phase3_initial_num_K_in_scacopf = (ScoringMethod==1 || ScoringMethod==3) ? 4 : 4;
+    phase3_initial_num_K_in_scacopf = (ScoringMethod==1 || ScoringMethod==3) ? 1 : 2;
     phase3_max_K_evals_to_wait_for = 2*phase3_initial_num_K_in_scacopf;
     phase3_max_K_to_start_solver = 1;//phase3_initial_num_K_in_scacopf;
     phase3_adtl_num_K_at_each_pass = 2;
   }
   if(data.L_Line.size()>4999 || data.N_Bus.size()>4999) {
-    phase3_initial_num_K_in_scacopf = (ScoringMethod==1 || ScoringMethod==3) ? 1 : 2;
+    phase3_initial_num_K_in_scacopf = (ScoringMethod==1 || ScoringMethod==3) ? 1 : 1;
     phase3_max_K_evals_to_wait_for = 2*phase3_initial_num_K_in_scacopf;
     phase3_max_K_to_start_solver = 1;//phase3_initial_num_K_in_scacopf;
     phase3_adtl_num_K_at_each_pass = 1;
   }
   if(data.L_Line.size()>9999 || data.N_Bus.size()>9999) {
-    phase3_initial_num_K_in_scacopf = (ScoringMethod==1 || ScoringMethod==3) ? 1 : 2;
+    phase3_initial_num_K_in_scacopf = (ScoringMethod==1 || ScoringMethod==3) ? 1 : 1;
     phase3_max_K_evals_to_wait_for = 2*phase3_initial_num_K_in_scacopf;
     phase3_max_K_to_start_solver = 1;//phase3_initial_num_K_in_scacopf;
     phase3_adtl_num_K_at_each_pass = 1;
@@ -281,7 +284,9 @@ bool MyCode1::do_phase1()
     K_SCACOPF_phase3 = K_SCACOPF_phase1;
   }
 
-  printf("rank %d works with penalty base case %g\n", my_rank, cost_basecase);
+  if(my_rank<=3)
+    printf("[ph1] rank %d  basecase obj %g global time %g\n", 
+	   my_rank, cost_basecase, glob_timer.measureElapsedTime());
 
   return true;
 }
@@ -591,8 +596,7 @@ int MyCode1::number_of_high_penalties(const std::vector<double>& K_penalties)
 
 void remove_close_idxs(vector<int>& vidxs, int proximity, 
 		       const vector<double>& K_penalties, 
-		       const std::vector<int> K_idxs_global,
-		       const double& thresh_huge) 
+		       const std::vector<int> K_idxs_global)
 {
   //remove close idxs
   vector<int> to_remove;
@@ -600,14 +604,14 @@ void remove_close_idxs(vector<int>& vidxs, int proximity,
   while(it<vidxs.size()) {
     itf = it+1;
     while(itf<vidxs.size() && K_idxs_global[vidxs[itf]]<K_idxs_global[vidxs[it]]+proximity) {
-      if(K_penalties[vidxs[itf]]<thresh_huge) {
-	to_remove.push_back(vidxs[itf]);
-      } else {
-	//remove large K_penalties[vidxs[itf]] if the neighbor is also huge
-	if(K_penalties[vidxs[it]]>=thresh_huge) {
-	  to_remove.push_back(vidxs[itf]);
-	}
-      }
+      //if(K_penalties[vidxs[itf]]<thresh_huge) {
+      to_remove.push_back(vidxs[itf]);
+	//} else {
+	////remove large K_penalties[vidxs[itf]] if the neighbor is also huge
+	//if(K_penalties[vidxs[it]]>=thresh_huge) {
+	//  to_remove.push_back(vidxs[itf]);
+	//}
+	//}
       itf++;
     }
     it = itf;
@@ -618,8 +622,102 @@ void remove_close_idxs(vector<int>& vidxs, int proximity,
   }
 }
 
-std::vector<int> MyCode1::get_high_penalties_from(const std::vector<double>& K_penalties, const std::vector<int> K_idxs_global)
+std::vector<int> sort_high_penalties_w_remove_close(const std::vector<double>& K_penalties,
+				     const std::vector<int> K_idxs_global,
+				     double thresh, int proximity)
 {
+  vector<int> K_idxs_all;
+
+  for(int it=0; it<K_penalties.size(); it++) {
+    if(K_penalties[it]>=thresh)
+      K_idxs_all.push_back(it);  
+  }
+
+  //printvec(K_idxs_all, "K_idxs_all 11111");
+
+  if(proximity>0)  {
+    sort(K_idxs_all.begin(),  K_idxs_all.end());
+    remove_close_idxs(K_idxs_all, proximity, K_penalties, K_idxs_global);
+  }
+  sort(K_idxs_all.begin(), 
+       K_idxs_all.end(), 
+       [&](const int& a, const int& b) { return (K_penalties[a] > K_penalties[b]); });
+
+  //printvec(K_idxs_all, "K_idxs_all 3333");
+  
+  return K_idxs_all;
+}
+
+std::vector<int> MyCode1::get_high_penalties_from(const std::vector<double>& K_penalties, 
+						  const std::vector<int> K_idxs_global,
+						  const int& conting_evals_done)
+{
+  bool is_late = glob_timer.measureElapsedTime() > 0.6*TimeLimitInSec;
+  double thresh = high_pen_threshold_factor * cost_basecase;
+  //double thresh_huge = 4*thresh;
+  int proximity = 5;
+  vector<int> K_idxs_all, K_idxs_new; 
+  vector<double> K_pens;
+
+  int max_num_K = phase3_last_num_K_nonproximal+ phase3_adtl_num_K_at_each_pass;
+  printf("get_high_penalties  max_num_K %d  thresh %g   is_late %d\n",  max_num_K, thresh, is_late);
+  //printvec(K_penalties, "K_penalties");
+
+  K_idxs_all = sort_high_penalties_w_remove_close(K_penalties, K_idxs_global,
+						  thresh, proximity);
+
+  if(K_idxs_all.size()<max_num_K) {
+    thresh *= 0.1;
+    K_idxs_all = sort_high_penalties_w_remove_close(K_penalties, K_idxs_global,
+						    thresh, proximity);
+  }
+
+  K_idxs_new.clear();
+  int num_to_keep = max_num_K;
+  if(num_to_keep>K_idxs_all.size()) num_to_keep = K_idxs_all.size();
+  K_idxs_new = vector<int>(K_idxs_all.begin(), K_idxs_all.begin()+num_to_keep);
+
+  assert(K_idxs_new.size() >= phase3_last_num_K_nonproximal);
+  phase3_last_num_K_nonproximal = K_idxs_new.size();
+
+  if(K_idxs_new.size() < max_num_K  && (is_late || conting_evals_done)) {
+
+    printvec(K_idxs_new, "K_idxs - is late or evals done, non-proximal, from get_high_pen");
+    //if we don't have enough non-proximal, append the highest-penalty proximal ones
+
+    //first increase num K from last pass; disregard num_K_nonproximal
+
+    if(max_num_K<K_idxs_phase3.size()+phase3_adtl_num_K_at_each_pass)
+      max_num_K = K_idxs_phase3.size()+phase3_adtl_num_K_at_each_pass;
+
+    //disable proximity removal
+    proximity = 0;
+    K_idxs_all = sort_high_penalties_w_remove_close(K_penalties, K_idxs_global,
+						    thresh, proximity);
+
+    vector<int> K_idxs_diff = set_diff(K_idxs_all, K_idxs_new);
+    //sort in !increasing! order to be able to use pop_back()
+    sort(K_idxs_diff.begin(), K_idxs_diff.end(),
+       [&](const int& a, const int& b) { return (K_penalties[a] < K_penalties[b]); });
+
+    while( !K_idxs_diff.empty() && K_idxs_new.size() < max_num_K) {
+      K_idxs_new.push_back(K_idxs_diff.back());
+      K_idxs_diff.pop_back();
+    }
+    
+  } else {
+  }
+
+  printvec(K_idxs_new, "K_idxs - final, from get_high_pen");
+
+  return K_idxs_new;
+}
+
+std::vector<int> MyCode1::get_high_penalties_from2(const std::vector<double>& K_penalties, 
+						  const std::vector<int> K_idxs_global)
+{
+  bool is_late = glob_timer.measureElapsedTime() > 0.5*TimeLimitInSec;
+
   vector<int> K_idxs_all; 
   vector<int> K_idxs_new; 
   vector<double> K_pens;
@@ -641,6 +739,8 @@ std::vector<int> MyCode1::get_high_penalties_from(const std::vector<double>& K_p
   double thresh_huge = 4*thresh; 
   double proximity=5;
 
+  if(is_late) proximity=3;
+
   bool done=false;
   while(!done) {
     K_idxs_all.clear();
@@ -654,11 +754,15 @@ std::vector<int> MyCode1::get_high_penalties_from(const std::vector<double>& K_p
 
     //printvec(K_idxs_all, "K_idxs_all");
     //remove close idxs
-    remove_close_idxs(K_idxs_all, proximity, K_penalties, K_idxs_global, thresh_huge);
+    remove_close_idxs(K_idxs_all, proximity, K_penalties, K_idxs_global);
 
     //printvec(K_idxs_all, "K_idxs_all after remove close");
-    
-    K_idxs_new = set_diff(K_idxs_all, K_idxs_phase3);  
+
+    vector<int> diff = set_diff(K_idxs_all, K_idxs_phase3);    
+    K_idxs_new  = K_idxs_phase3;
+    for(auto idx: diff) K_idxs_new.push_back(idx);
+
+    K_idxs_new = K_idxs_all;//set_diff(K_idxs_all, K_idxs_phase3);  
     //sort decreasingly based on penalties
     sort(K_idxs_new.begin(), 
 	 K_idxs_new.end(), 
@@ -672,21 +776,20 @@ std::vector<int> MyCode1::get_high_penalties_from(const std::vector<double>& K_p
       }
     //printvec(K_idxs_new, "K_idxs_new2222");
 
-    if(K_idxs_new.size()+K_idxs_phase3.size() >= max_num_K) {
+    //!if(K_idxs_new.size()+K_idxs_phase3.size() >= max_num_K) {
+    if(K_idxs_all.size() >= max_num_K) {
       assert(max_num_K>=K_idxs_phase3.size());
       
-      int num_new_K_to_keep = max_num_K-K_idxs_phase3.size();
-      if(num_new_K_to_keep > phase3_adtl_num_K_at_each_pass && phase3_scacopf_passes_master>0)
-	num_new_K_to_keep = phase3_adtl_num_K_at_each_pass;
+      //!int num_new_K_to_keep = max_num_K-K_idxs_phase3.size();
+      int num_new_K_to_keep = max_num_K;
+      if(num_new_K_to_keep > K_idxs_phase3.size()+phase3_adtl_num_K_at_each_pass && phase3_scacopf_passes_master>0)
+	num_new_K_to_keep = K_idxs_phase3.size()+phase3_adtl_num_K_at_each_pass;
       
       if(0==phase3_scacopf_passes_master)
 	num_new_K_to_keep = phase3_initial_num_K_in_scacopf;
 
       if(num_new_K_to_keep > K_idxs_new.size()) num_new_K_to_keep = K_idxs_new.size();
 
-      //if(phase3_scacopf_passes_master>0)
-      //num_new_K_to_keep = num_new_K_to_keep > phase3_adtl_num_K_at_each_pass ? phase3_adtl_num_K_at_each_pass : num_new_K_to_keep;
-      //printf("!!!!!!!!!!! num_new_K_to_keep=%d\n", num_new_K_to_keep);
       K_idxs_new = vector<int>(K_idxs_new.begin(), K_idxs_new.begin() + num_new_K_to_keep);
       done = true;
     } else { //K_idxs_new.size() < max_num2
@@ -720,7 +823,7 @@ std::vector<int> MyCode1::get_high_penalties_from(const std::vector<double>& K_p
     K_idxs.push_back(idx);
   sort(K_idxs.begin(), K_idxs.end());
 
-  //printvec(K_idxs, "K_idxs - from get_high_penalties_from");
+  printvec(K_idxs, "K_idxs - from get_high_penalties_from");
   return K_idxs;    
 }
 
@@ -752,7 +855,7 @@ bool MyCode1::do_phase3_master_solverpart(bool master_evalpart_done)
       if( (num_high_penalties < phase3_max_K_evals_to_wait_for) && master_evalpart_done )
 	printf("[ph3] Master - starting solverpart with master_evalpart_done = true\n");
 
-      vector<int> K_idxs = get_high_penalties_from(K_penalty_phase2, K_phase2);
+      vector<int> K_idxs = get_high_penalties_from(K_penalty_phase2, K_phase2, master_evalpart_done);
       sort(K_idxs.begin(), K_idxs.end());
       sort(K_idxs_phase3.begin(), K_idxs_phase3.end());
 
@@ -889,10 +992,13 @@ bool MyCode1::do_phase2_evaluator_part(int& switchToSolver)
 	    switchToSolver = true;
 	    K_on_my_rank.push_back(-2);
 
-	    printf("Evaluator Rank %d recv K_idx %d - switching to solver (it may have finished evals)\n", my_rank, K_idx);
+	    printf("Evaluator Rank %d recv K_idx %d - switching "
+		   "to solver (it may have finished evals) global time %g\n", 
+		   my_rank, K_idx, glob_timer.measureElapsedTime());
 	    return false;
 	  } else {
-	  printf("Evaluator Rank %d recv K_idx %d - finished evaluations\n", my_rank, K_idx);
+	  printf("Evaluator Rank %d recv K_idx %d - finished evaluations  global time %g\n", 
+		 my_rank, K_idx, glob_timer.measureElapsedTime());
 	  return true;
 	  }
 	}
@@ -1112,8 +1218,10 @@ bool MyCode1::do_phase3_solver_part()
 	  if(c!=-1) K_idxs.push_back(c);
 	}
 
-	printf("[ph3] Solver rank %3d recv-ed request for n=%3lu conting for SCACOPF solve pass %d: [ ", 
-	       my_rank, K_idxs.size(), phase3_scacopf_passes_solver);
+	printf("[ph3] Solver rank %3d recv-ed request for n=%3lu conting for SCACOPF solve pass %d "
+	       "at global time: %g Ks=[ ", 
+	       my_rank, K_idxs.size(), phase3_scacopf_passes_solver, glob_timer.measureElapsedTime());
+
 	for(auto c: K_idxs) { printf("%d  ", c); }; printf("]\n"); fflush(stdout);
 
 	bool last_pass = false;
@@ -1182,7 +1290,7 @@ int MyCode1::go()
     printf("Error occured in phase 1\n");
     return -1;
   }
-  printf("Phase 1 completed on rank %d\n", my_rank);
+  printf("Phase 1 completed on rank %d after %g sec\n", my_rank, glob_timer.measureElapsedTime());
 
   //
   // phase 2
@@ -1191,7 +1299,8 @@ int MyCode1::go()
     printf("Error occured in phase 2\n");
     return -1;
   }
-  printf("Phase 2 completed/finished on rank %d\n", my_rank);
+  printf("Phase 2 completed/finished on rank %d after %g sec\n", 
+	 my_rank, glob_timer.measureElapsedTime());
 
   //
   //cleanup
@@ -1199,7 +1308,7 @@ int MyCode1::go()
   delete scacopf_prob;
 
   if(my_rank==rank_master)
-    printf("--finished in %g seconds\n", ttot.stop());
+    printf("--finished in %g sec  global time %g sec\n", ttot.stop(), glob_timer.measureElapsedTime());
 
   MPI_Finalize();
   return 0;
@@ -1262,8 +1371,9 @@ double MyCode1::solve_contingency(int K_idx, int& status)
   //prob.print_p_g_with_coupling_info(*prob.data_K[0], p_g0);
 
   printf("Evaluator Rank %3d K_idx %5d finished with penalty %12.3f "
-	 "in %5.3f sec and %3d iterations\n",
-	 my_rank, K_idx, penalty, t.stop(), prob.number_of_iterations());
+	 "in %5.3f sec and %3d iterations  global time %g \n",
+	 my_rank, K_idx, penalty, t.stop(), 
+	 prob.number_of_iterations(), glob_timer.measureElapsedTime());
   
   return penalty;
 }
@@ -1310,8 +1420,8 @@ double MyCode1::phase3_solve_scacopf(std::vector<int>& K_idxs)
   bool bret = scacopf_prob->reoptimize(OptProblem::primalDualRestart);
   double cost = scacopf_prob->objective_value();
   
-  printf("Solver Rank %d - finished scacopf solve in %g seconds %d iters -- cost %g\n",
-	 my_rank, t.stop(), scacopf_prob->number_of_iterations(), cost);
+  printf("Solver Rank %d - finished scacopf solve in %g seconds %d iters -- cost %g   global time %g\n",
+	 my_rank, t.stop(), scacopf_prob->number_of_iterations(), cost, glob_timer.measureElapsedTime());
 
   return cost;
 }

@@ -7,6 +7,9 @@
 
 #include "SCACOPFProblem.hpp"
 #include "ContingencyProblem.hpp"
+
+#include "goTimer.hpp"
+
 class MyCode1
 {
 public:
@@ -186,6 +189,7 @@ private: //methods
   //on solver rank
   bool do_phase3_solver_part(); 
 
+  //on solver rank
   std::vector<int> K_SCACOPF_phase3;
 
   int phase3_scacopf_passes_master;
@@ -200,8 +204,13 @@ private: //methods
   //how many additional contingencies to add to SCACOPF problem after each scacopf solve pass
   int phase3_adtl_num_K_at_each_pass;
 
+  int phase3_last_num_K_nonproximal;
   std::vector<int> K_idxs_phase3;
-  std::vector<int> get_high_penalties_from(const std::vector<double>& K_penalties, const std::vector<int> K_idxs_global);
+  std::vector<int> get_high_penalties_from(const std::vector<double>& K_penalties, 
+					   const std::vector<int> K_idxs_global,
+					   const int& conting_evals_done);
+  std::vector<int> get_high_penalties_from2(const std::vector<double>& K_penalties, 
+					   const std::vector<int> K_idxs_global);
 
   //
   //utilities
@@ -242,6 +251,8 @@ private: //data members
   
   MPI_Comm comm_world;
   MPI_Comm comm_solver;
+
+  gollnlp::goTimer glob_timer;
 
 };
 #endif
