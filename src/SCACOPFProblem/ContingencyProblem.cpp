@@ -182,7 +182,7 @@ namespace gollnlp {
     append_variables(deltaK);
     deltaK->set_start_to(0.);
     
-    AGCSmoothing = 1e-4;
+    AGCSmoothing = 1e-3;
     auto cons = new AGCComplementarityCons(con_name("AGC", dK), 3*pgK_partic_idxs.size(),
 					   pg0, pgK, deltaK, 
 					   pg0_partic_idxs, pgK_partic_idxs, 
