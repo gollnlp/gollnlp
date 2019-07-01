@@ -39,7 +39,7 @@ namespace gollnlp {
     std::vector<int> N_Bus, N_Area;
     std::vector<double> N_Pd, N_Qd, N_Gsh, N_Bsh, N_Vlb, N_Vub, N_EVlb, N_EVub, N_v0, N_theta0;
 
-    // - lines
+    // - linesg
     std::vector<int> L_Line, L_From, L_To;
     std::vector<std::string> L_CktID;
     std::vector<double> L_G, L_B, L_Bch, L_RateBase, L_RateEmer;
@@ -101,6 +101,13 @@ namespace gollnlp {
     //indexes of the out element (gen, line, transf) in the corresponding
     //G_Generator, L_Line, or T_Transformer vector (base case)
     std::vector<int> K_outidx;
+
+    //"less" public members
+    enum Gheader{GI=0,GID,GPG,GQG,GQT,GQB,GVS,GIREG,GMBASE,GZR,GZX,GRT,GXT,
+		 GGTAP,GSTAT,GRMPCT, GPT,GPB,GO1,GF1,GO2,GF2,GO3,GF3,GO4,
+		 GF4,GWMOD,GWPF}; //generators header in the raw file
+
+    std::vector<std::vector<int> > generators;
   protected:
     struct Contingency{
       virtual ~Contingency() {}; 

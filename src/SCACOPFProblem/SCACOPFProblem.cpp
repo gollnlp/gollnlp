@@ -2074,4 +2074,103 @@ void SCACOPFProblem::print_Transf_powers(SCACOPFData& dB, bool SysCond_BaseCase)
   }
 
 }
+
+void SCACOPFProblem::write_solution_basecase()
+{
+  //data_sc is for the basecase
+  OptVariablesBlock* p_g = variable("p_g", data_sc);
+  if(NULL==p_g) {
+    printf("[warning] no solution was written; p_g0 is missing from the problem\n");
+    return;
+  }
+  OptVariablesBlock* q_g = variable("q_g", data_sc);
+  if(NULL==q_g) {
+    printf("[warning] no solution was written; q_g0 is missing from the problem\n");
+    return;
+  }
+  OptVariablesBlock* v_n = variable("v_n", data_sc);
+  if(NULL==v_n) {
+    printf("[warning] no solution was written; v_n0 is missing from the problem\n");
+    return;
+  }
+  OptVariablesBlock* theta_n = variable("theta_n", data_sc);
+  if(NULL==theta_n) {
+    printf("[warning] no solution was written; theta_n0 is missing from the problem\n");
+    return;
+  }
+  OptVariablesBlock* b_s = variable("b_s", data_sc);
+  if(NULL==b_s) {
+    printf("[warning] no solution was written; b_s0 is missing from the problem\n");
+    return;
+  }
+  auto SSh_Nidx = indexin(data_sc.SSh_Bus, data_sc.N_Bus);
+  double bcsn[data_sc.N_Bus.size()];
+  
+  for(int i=0; i<data_sc.N_Bus.size(); i++) 
+    bcsn[i] = 0.;
+
+  for(int itssh = 0; itssh<data_sc.SSh_SShunt.size(); itssh++) {
+    assert(itssh < SSh_Nidx.size());
+    assert(itssh < b_s->n);
+    assert(SSh_Nidx[itssh] < data_sc.N_Bus.size());
+    assert(SSh_Nidx[itssh]>=0);
+    
+    bcsn[SSh_Nidx[itssh]] += b_s->x[itssh];
+  }
+
+  for(int i=0; i<data_sc.N_Bus.size(); i++) 
+    bcsn[i] *= data_sc.MVAbase;
+
+  string strFileName = "solution1.txt";
+  FILE* file = fopen(strFileName.c_str(), "w");
+  if(NULL==file) {
+    printf("[warning] could not open [%s] file for writing\n", strFileName.c_str());
+    return;
+  }
+  //
+  // write bus section
+  //
+  fprintf(file, "--bus section\ni, v(p.u.), theta(deg), bcs(MVAR at v = 1 p.u.)\n");
+  for(int n=0; n<data_sc.N_Bus.size(); n++) {
+    fprintf(file, "%d, %.20f, %.20f, %.20f\n", 
+	    data_sc.N_Bus[n], v_n->x[n], 180/M_PI*theta_n->x[n], bcsn[n]);
+  }
+
+  int GID = SCACOPFData::GID;
+  int GI  = SCACOPFData::GI; assert(GI==0);
+  assert(data_sc.generators[GID].size() == data_sc.generators[GI].size());
+  assert(data_sc.generators[GID].size()>=data_sc.G_Generator.size());
+
+  auto gmap = vector<int>(data_sc.generators[GID].size(), -1);
+  for(int g=0; g<data_sc.G_Generator.size(); g++) {
+    assert(g>=0);
+    assert(data_sc.G_Generator[g]<data_sc.generators[GID].size());
+    
+    gmap[data_sc.G_Generator[g]] = g;
+  }
+
+  assert(data_sc.G_Bus.size() == data_sc.G_BusUnitNum.size());
+
+  int g;
+  //write generator section
+  fprintf(file, "--generator section\ni, id, p(MW), q(MW)\n");
+  for(int gi=0; gi<data_sc.generators[GI].size(); gi++) {
+    g = gmap[gi];
+    if(-1 == g) {
+      fprintf(file, "%d, \'%d\', 0, 0\n", data_sc.generators[GI][gi], data_sc.generators[GID][gi]);
+    } else {
+      assert(g>=0);
+      assert(g<data_sc.G_Bus.size());
+      assert(g<p_g->n);
+      assert(g<q_g->n);
+
+
+      fprintf(file, "%d, \'%d\', %.12f, %.12f\n", 
+	      data_sc.G_Bus[g], data_sc.G_BusUnitNum[g], 
+	      data_sc.MVAbase*p_g->x[g], data_sc.MVAbase*q_g->x[g]);
+    }
+  }
+  fclose(file);
+  printf("basecase solution written to file %s\n", strFileName.c_str());
+}
 } //end namespace

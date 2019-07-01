@@ -244,15 +244,9 @@ bool MyCode1::do_phase1()
   //
   //communication -> solver rank0 bcasts basecase solutions
   //
-  if(true) {
 
   scacopf_prob->primal_variables()->
     MPI_Bcast_x(rank_solver_rank0, comm_world, my_rank);
-
-  //usleep(1e6*(1+my_rank));
-  //char msg[1024];
-  //sprintf(msg, "primal vars on rank %d", my_rank);
-  //scacopf_prob->primal_variables()->print(msg);
 
   scacopf_prob->duals_bounds_lower()->
     MPI_Bcast_x(rank_solver_rank0, comm_world, my_rank);
@@ -262,13 +256,21 @@ bool MyCode1::do_phase1()
     MPI_Bcast_x(rank_solver_rank0, comm_world, my_rank);
 
   MPI_Bcast(&cost_basecase, 1, MPI_DOUBLE, rank_solver_rank0, comm_world);
-  }
+
+
   //force a have_start set
   if(!iAmSolver) {
     scacopf_prob->set_have_start();
     //delete scacopf_prob; scacopf_problem=NULL;
   } else {
     K_SCACOPF_phase3 = K_SCACOPF_phase1;
+
+    //write solution
+    scacopf_prob->write_solution_basecase();
+    if(!bret) {
+      printf("[warning] Solver rank %d: initial basecase solve failed; solution1 was written though\n",
+	     my_rank);
+    }
   }
 
   if(my_rank<=3)
@@ -1422,6 +1424,14 @@ double MyCode1::phase3_solve_scacopf(std::vector<int>& K_idxs)
   
   printf("Solver Rank %d - finished scacopf solve in %g seconds %d iters -- cost %g   global time %g\n",
 	 my_rank, t.stop(), scacopf_prob->number_of_iterations(), cost, glob_timer.measureElapsedTime());
+
+  //write solution
+  if(!bret) {
+    printf("[warning] Solver rank %d: scacopf solve failed; solution1 NOT written\n",
+	   my_rank);
+  } else {
+    scacopf_prob->write_solution_basecase();
+  }
 
   return cost;
 }

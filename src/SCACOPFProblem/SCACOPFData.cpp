@@ -134,9 +134,7 @@ enum TBheader{TBI=0,TBJ,TBK,TBCKT,TBCW,TBCZ,TBCM,TBMAG1,TBMAG2,
 enum SShheader{SSI,SSMODSW,SSADJM,SSSTAT,SSVSWHI,SSVSWLO,SSSWREM,SSRMPCT,
 	       SSRMIDNT,SSBINIT,SSN1,SSB1,SSN2,SSB2,SSN3,SSB3,SSN4,SSB4,
 	       SSN5,SSB5,SSN6,SSB6,SSN7,SSB7,SSN8,SSB8};
-enum Gheader{GI=0,GID,GPG,GQG,GQT,GQB,GVS,GIREG,GMBASE,GZR,GZX,GRT,GXT,
-	     GGTAP,GSTAT,GRMPCT, GPT,GPB,GO1,GF1,GO2,GF2,GO3,GF3,GO4,
-	     GF4,GWMOD,GWPF}; //generators
+
 enum GDSPheader{GDBUS=0,GDGENID,GDDISP,GDDSPTBL}; //generator dispatch tables
 
 enum GADSPheader{GADSPTBL=0,GADSPPMAX,GADSPPMIN,GADSPFUELCOST,
@@ -147,9 +145,13 @@ enum GORheader{GORI=0,GORID,GORH,GORPMAX,GORPMIN,GORR,GORD}; //governor response
 bool SCACOPFData::
 readinstance(const std::string& raw, const std::string& rop, const std::string& inl, const std::string& con)
 {
-  double MVAbase;
-  VVStr buses, loads,  fixedbusshunts, generators, ntbranches, tbranches, switchedshunts;
-  if(!readRAW(raw, MVAbase, buses, loads, fixedbusshunts, generators, ntbranches, tbranches, switchedshunts)) return false;
+  VVStr buses, loads,  fixedbusshunts, generators_l, ntbranches, tbranches, switchedshunts;
+
+  //create entries for GI and GID
+  vector<int> emptyVec;
+  generators.push_back(emptyVec); generators.push_back(emptyVec);
+
+  if(!readRAW(raw, MVAbase, buses, loads, fixedbusshunts, generators_l, ntbranches, tbranches, switchedshunts)) return false;
 
   //here we (should) deallocate columns that are not currently used
   //for example
@@ -325,20 +327,23 @@ readinstance(const std::string& raw, const std::string& rop, const std::string& 
     }
     SSh_Blb[ssh] = Blb; SSh_Bub[ssh]=Bub;
   }
-  //generators - RAW
-  convert(generators[GSTAT], G_Generator); hardclear(generators[GSTAT]);
+  //generators_l - RAW
+  convert(generators_l[GSTAT], G_Generator); hardclear(generators_l[GSTAT]);
   G_Generator = findall(G_Generator, [](int val) {return val!=0;});
-  convert(generators[GI], G_Bus); hardclear(generators[GI]);
+  convert(generators_l[GI], G_Bus); hardclear(generators_l[GI]);
+  generators[GI] = G_Bus;
   G_Bus = selectfrom(G_Bus, G_Generator);
-  convert(generators[GID], G_BusUnitNum); hardclear(generators[GID]);
+
+  convert(generators_l[GID], G_BusUnitNum); hardclear(generators_l[GID]);
+  generators[GID] = G_BusUnitNum;
   G_BusUnitNum = selectfrom(G_BusUnitNum, G_Generator);
 
-  convert(generators[GPB], G_Plb); hardclear(generators[GPB]);
-  convert(generators[GPT], G_Pub); hardclear(generators[GPT]);
-  convert(generators[GQB], G_Qlb); hardclear(generators[GQB]);
-  convert(generators[GQT], G_Qub); hardclear(generators[GQT]);
-  convert(generators[GPG], G_p0);  hardclear(generators[GPG]);
-  convert(generators[GQG], G_q0);  hardclear(generators[GQG]);
+  convert(generators_l[GPB], G_Plb); hardclear(generators_l[GPB]);
+  convert(generators_l[GPT], G_Pub); hardclear(generators_l[GPT]);
+  convert(generators_l[GQB], G_Qlb); hardclear(generators_l[GQB]);
+  convert(generators_l[GQT], G_Qub); hardclear(generators_l[GQT]);
+  convert(generators_l[GPG], G_p0);  hardclear(generators_l[GPG]);
+  convert(generators_l[GQG], G_q0);  hardclear(generators_l[GQG]);
 
   G_Plb = selectfrom(G_Plb, G_Generator); G_Pub = selectfrom(G_Pub, G_Generator); 
   G_Qlb = selectfrom(G_Qlb, G_Generator); G_Qub = selectfrom(G_Qub, G_Generator); 
@@ -352,7 +357,7 @@ readinstance(const std::string& raw, const std::string& rop, const std::string& 
   DSCAL(&n, &scale, G_p0.data(),  &one);
   DSCAL(&n, &scale, G_q0.data(),  &one);
 
-  // generators - ROP
+  // generators_l - ROP
 
   VVStr generatordsp, activedsptables;
   VInt costcurves_ltbl; VStr costcurves_label; VVDou costcurves_xi; VVDou costcurves_yi;
@@ -631,7 +636,7 @@ void SCACOPFData::buildindexsets(bool ommit_K_related)
 bool SCACOPFData::
 readRAW(const std::string& raw, double& MVAbase,
 	VVStr& buses,  VVStr& loads, VVStr& fixedbusshunts,
-	VVStr& generators, VVStr& ntbranches, VVStr& tbranches,
+	VVStr& generators_l, VVStr& ntbranches, VVStr& tbranches,
 	VVStr& switchedshunts)
 {
   ifstream rawfile(raw.c_str());
@@ -743,34 +748,34 @@ readRAW(const std::string& raw, double& MVAbase,
   //
   // generator data
   //
-  for(int i=0; i<28; i++) generators.push_back(vector<string>());
+  for(int i=0; i<28; i++) generators_l.push_back(vector<string>());
   while(true) {
     ret = (bool)getline(rawfile, line); assert(ret);
     if(isEndOrStartOfSection(line)) break;
     
     for(i=0; i<28; i++) {
       if( (pos = line.find(delimiter)) != string::npos ) {
-	generators[i].push_back(line.substr(0,pos));
+	generators_l[i].push_back(line.substr(0,pos));
 	line.erase(0, pos+delimiter.length());
       } else {
 	assert(i==27);
-	generators[i].push_back(line);
+	generators_l[i].push_back(line);
       }
     }
-    //j. generators[:ID] = strip.(string.(generators[:ID]))
-    string& s = generators[1].back(); trim(s);
+    //j. generators_l[:ID] = strip.(string.(generators_l[:ID]))
+    string& s = generators_l[1].back(); trim(s);
     //also remove quotes
     s.erase(remove(s.begin(), s.end(),'\''), s.end());
     assert(i==28);
   }
 
 #ifdef DEBUG
-  n=generators[0].size();
+  n=generators_l[0].size();
   for(i=1; i<28; i++) {
-    assert(generators[i].size()==n);
+    assert(generators_l[i].size()==n);
   }
 #endif
-  log.printf(hovSummary, "loaded data for %d generators\n", generators[0].size());
+  log.printf(hovSummary, "loaded data for %d generators_l\n", generators_l[0].size());
   //
   //non-transformer branch data
   //

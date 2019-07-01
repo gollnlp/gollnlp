@@ -125,6 +125,8 @@ namespace gollnlp {
     void print_p_g_with_coupling_info(SCACOPFData& dB, OptVariablesBlock* p_g0=NULL);
     void print_PVPQ_info(SCACOPFData& dB);
     void print_Transf_powers(SCACOPFData& dB, bool SysCond_BaseCase = true);
+
+    void write_solution_basecase();
   };
 
 }

@@ -263,12 +263,12 @@ public:
     // Ask Ipopt to solve the problem
     ApplicationReturnStatus status = app->OptimizeTNLP(ipopt_nlp_spec);
 
-    if (status == Ipopt::Solve_Succeeded) {
+    if (status == Ipopt::Solve_Succeeded || status == Ipopt::Solved_To_Acceptable_Level) {
       //printf("\n\n*** The problem solved!\n");
       return true;
     }
     else {
-      printf("\n\n*** The problem FAILED!\n");
+      printf("Ipopt solve FAILED with status %d!!!\n", status);
       return false;
     }
   }
