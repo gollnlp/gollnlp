@@ -231,6 +231,9 @@ void AGCComplementarityCons::compute_rhos(OptVariablesBlock* rp, OptVariablesBlo
   assert(dim==rhom->n);assert(dim==rhop->n);
   for(int it=0; it<dim; it++) {
     assert(gb[it]>1e-8);
+    //if(gb[it]<=1e-8) {
+    //  printf(" it=%d  gb[it]=%15.8e\n", it, gb[it]);
+    //}
     g[it] = ( p0->x[idx0[it]] + deltak->x[0]*G_alpha[idx0[it]] - pk->x[idxk[it]] ) / gb[it];
   }
   for(int it=0; it<dim; it++) {
@@ -594,7 +597,9 @@ bool PVPQComplementarityCons::eval_body(const OptVariables& vars_primal, bool ne
     aux=qk->xref[idxs_g[0]];
     for(gi=1; gi<ngen; gi++) 
       aux += qk->xref[idxs_g[gi]];
-    
+
+    assert(gb[it]>1e-8);    
+
     g[conidx] += (aux-Qub[it]) / gb[it] * nup->xref[it];
     conidx++;
     g[conidx] += (aux-Qlb[it]) / gb[it] * num->xref[it];
