@@ -78,16 +78,29 @@ void SCACOPFData::get_AGC_participation(int Kidx, vector<int>& Gk, vector<int>& 
   //discriminant = .&(Gkareaidx .!= nothing, abs.(G[:alpha][Gk]) .> 1E-8)
   //Gkp = Gk[discriminant]
   //Gknop = Gk[.!discriminant]
+
+  int fixed_P_g = 0;
+
   auto Galpha_of_Gk = selectfrom(G_alpha, Gk);
   assert(Galpha_of_Gk.size() == Gk.size());
   assert(Gkareaidx.size() == Gk.size());
   Gkp.clear(); Gknop.clear();
   for(int it=0; it<Gk.size(); it++) {
     if(Gkareaidx[it]!=-1 && abs(Galpha_of_Gk[it])>1e-8)
-      Gkp.push_back(Gk[it]);
+      if(fabs(G_Pub[Gk[it]]-G_Plb[Gk[it]])>1e-6) {
+	Gkp.push_back(Gk[it]);
+      } else {
+	Gknop.push_back(Gk[it]);
+	fixed_P_g++;
+      }
     else
       Gknop.push_back(Gk[it]);
   }
+
+  if(fixed_P_g>0) {
+    printf("[warning] get_AGC: a number of %d AGC gens have lb=ub - were removed from AGC\n", fixed_P_g);
+  }
+
   //Gkp = {};
   //Gknop = Gk;
   //printvec(Gk, "Gk");
