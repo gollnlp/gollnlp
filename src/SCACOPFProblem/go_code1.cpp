@@ -197,19 +197,6 @@ void MyCode1::phase3_ranks_allocation()
   phase1_ranks_allocation();
 }
 
-
-vector<int> MyCode1::phase1_SCACOPF_contingencies()
-{
-  bool testing = true;
-  if(true) {
- 
-    vector<int> cont_list = {};//{490,  1100,  1101,  2437};//1512, 696};//1512,650//10,58,53,1};
- 
-    return  cont_list;
-  } else {
-    return vector<int>();
-  }
-}
 bool MyCode1::do_phase1()
 {
   K_SCACOPF_phase1 = phase1_SCACOPF_contingencies();
@@ -291,6 +278,18 @@ bool MyCode1::do_phase1()
   return true;
 }
 
+vector<int> MyCode1::phase1_SCACOPF_contingencies()
+{
+  bool testing = true;
+  if(true) {
+ 
+    vector<int> cont_list = {};//{490,  1100,  1101,  2437};//1512, 696};//1512,650//10,58,53,1};
+ 
+    return  cont_list;
+  } else {
+    return vector<int>();
+  }
+}
 std::vector<int> MyCode1::phase2_contingencies()
 {
   //assert(false);
