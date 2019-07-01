@@ -203,7 +203,7 @@ vector<int> MyCode1::phase1_SCACOPF_contingencies()
   bool testing = true;
   if(true) {
  
-    vector<int> cont_list = {};//1512, 696};//1512,650//10,58,53,1};
+    vector<int> cont_list = {};//{490,  1100,  1101,  2437};//1512, 696};//1512,650//10,58,53,1};
  
     return  cont_list;
   } else {
@@ -231,7 +231,7 @@ bool MyCode1::do_phase1()
   scacopf_prob->set_solver_option("linear_solver", "ma57"); 
   scacopf_prob->set_solver_option("mu_init", 1.);
   scacopf_prob->set_solver_option("print_frequency_iter", 1);
-  scacopf_prob->set_solver_option("mu_target", 1e-8);
+  scacopf_prob->set_solver_option("mu_target", 1e-9);
 
   scacopf_prob->set_solver_option("acceptable_tol", 1e-3);
   scacopf_prob->set_solver_option("acceptable_constr_viol_tol", 1e-5);
@@ -298,7 +298,7 @@ std::vector<int> MyCode1::phase2_contingencies()
   
   //or, for testing purposes
   //return {235,  405,  436,  763,  764,  828,  829 , 854 , 855,  961, 20, 17, 18}; //07
-  return {0,1,2};
+  return {2882, 1922};
   //return {1512, 1515, 1525, 5};
   //return {5, 650,1391,1512, 1514, 1515, 1111, 1112, 696, 1525, 1526, 1652, 1653, 378, 1539};
   //return {0,10,20,30,40,50,60,70,80,90};
@@ -660,7 +660,7 @@ std::vector<int> MyCode1::get_high_penalties_from(const std::vector<double>& K_p
   vector<double> K_pens;
 
   int max_num_K = phase3_last_num_K_nonproximal+ phase3_adtl_num_K_at_each_pass;
-  printf("get_high_penalties  max_num_K %d  thresh %g   is_late %d\n",  max_num_K, thresh, is_late);
+  //printf("get_high_penalties  max_num_K %d  thresh %g   is_late %d\n",  max_num_K, thresh, is_late);
   //printvec(K_penalties, "K_penalties");
 
   K_idxs_all = sort_high_penalties_w_remove_close(K_penalties, K_idxs_global,
@@ -708,7 +708,7 @@ std::vector<int> MyCode1::get_high_penalties_from(const std::vector<double>& K_p
   } else {
   }
 
-  printvec(K_idxs_new, "K_idxs - final, from get_high_pen");
+  //printvec(K_idxs_new, "K_idxs - final, from get_high_pen");
 
   return K_idxs_new;
 }
@@ -1350,7 +1350,7 @@ double MyCode1::solve_contingency(int K_idx, int& status)
   prob.set_solver_option("mu_target", 1e-8);
 
   //return if it takes too long in phase2
-  prob.set_solver_option("max_iter", 120);
+  prob.set_solver_option("max_iter", 170);
   prob.set_solver_option("acceptable_tol", 1e-3);
   prob.set_solver_option("acceptable_constr_viol_tol", 1e-5);
   prob.set_solver_option("acceptable_iter", 5);
@@ -1408,7 +1408,8 @@ double MyCode1::phase3_solve_scacopf(std::vector<int>& K_idxs)
   scacopf_prob->set_solver_option("linear_solver", "ma57"); 
   scacopf_prob->set_solver_option("mu_init", 1e-4);
   scacopf_prob->set_solver_option("print_frequency_iter", 1);
-  scacopf_prob->set_solver_option("mu_target", 1e-8);
+  scacopf_prob->set_solver_option("mu_target", 5e-9);
+  scacopf_prob->set_solver_option("max_iter", 600);
 
   scacopf_prob->set_solver_option("acceptable_tol", 1e-4);
   scacopf_prob->set_solver_option("acceptable_constr_viol_tol", 1e-6);
