@@ -148,7 +148,7 @@ readinstance(const std::string& raw, const std::string& rop, const std::string& 
   VVStr buses, loads,  fixedbusshunts, generators_l, ntbranches, tbranches, switchedshunts;
 
   //create entries for GI and GID
-  vector<int> emptyVec;
+  vector<string> emptyVec;
   generators.push_back(emptyVec); generators.push_back(emptyVec);
 
   if(!readRAW(raw, MVAbase, buses, loads, fixedbusshunts, generators_l, ntbranches, tbranches, switchedshunts)) return false;
@@ -330,11 +330,18 @@ readinstance(const std::string& raw, const std::string& rop, const std::string& 
   //generators_l - RAW
   convert(generators_l[GSTAT], G_Generator); hardclear(generators_l[GSTAT]);
   G_Generator = findall(G_Generator, [](int val) {return val!=0;});
-  convert(generators_l[GI], G_Bus); hardclear(generators_l[GI]);
-  generators[GI] = G_Bus;
+  convert(generators_l[GI], G_Bus); 
+  generators[GI] = generators_l[GI];
+  hardclear(generators_l[GI]);
   G_Bus = selectfrom(G_Bus, G_Generator);
 
-  convert(generators_l[GID], G_BusUnitNum); hardclear(generators_l[GID]);
+  //! removed
+  //convert(generators_l[GID], G_BusUnitNum); 
+
+  G_BusUnitNum = generators_l[GID];
+  hardclear(generators_l[GID]);
+
+  //!
   generators[GID] = G_BusUnitNum;
   G_BusUnitNum = selectfrom(G_BusUnitNum, G_Generator);
 
@@ -367,7 +374,8 @@ readinstance(const std::string& raw, const std::string& rop, const std::string& 
 
   vector<string> vBBUN = vector<string>(n); //G[:Bus], ":", G[:BusUnitNum]
   for(int i=0; i<n; i++) {
-    vBBUN[i] = to_string(G_Bus[i]) + ":" + to_string(G_BusUnitNum[i]);
+    //!vBBUN[i] = to_string(G_Bus[i]) + ":" + to_string(G_BusUnitNum[i]);
+    vBBUN[i] = to_string(G_Bus[i]) + ":" + G_BusUnitNum[i];
   }
   {
     assert(n<=generatordsp[GDBUS].size());
@@ -409,11 +417,13 @@ readinstance(const std::string& raw, const std::string& rop, const std::string& 
     for(int g=0; g<n; g++) {
       if(G_p0[g] < G_Plb[g] || G_p0[g] > G_Pub[g]) {
 	G_p0[g] = 0.5*(G_Plb[g] + G_Pub[g]);
-	sgen_inf += to_string(G_BusUnitNum[g]) + "/" + to_string(G_Bus[g]) + " ";
+	//!sgen_inf += to_string(G_BusUnitNum[g]) + "/" + to_string(G_Bus[g]) + " ";
+	sgen_inf += G_BusUnitNum[g] + "/" + to_string(G_Bus[g]) + " ";
       }
       if(G_q0[g] < G_Qlb[g] || G_q0[g] > G_Qub[g]) {
 	G_q0[g] = 0.5*(G_Qlb[g] + G_Qub[g]);
-	sgen_inf += to_string(G_BusUnitNum[g]) + "/" + to_string(G_Bus[g]) + " ";
+	//!sgen_inf += to_string(G_BusUnitNum[g]) + "/" + to_string(G_Bus[g]) + " ";
+	sgen_inf += G_BusUnitNum[g] + "/" + to_string(G_Bus[g]) + " ";
       }
       VDou &xi = G_CostPi[g], &yi = G_CostCi[g];
       size_t nn = xi.size();
@@ -423,12 +433,14 @@ readinstance(const std::string& raw, const std::string& rop, const std::string& 
       if(xi[0] > G_Plb[g]) {
 	yi[0] = yi[0] + (yi[1] - yi[0])/(xi[1] - xi[0])*(G_Plb[g] - xi[0]);
 	xi[0] = G_Plb[g];
-	sgen_mod += to_string(G_BusUnitNum[g]) + "/" + to_string(G_Bus[g]) + " ";
+	//!sgen_mod += to_string(G_BusUnitNum[g]) + "/" + to_string(G_Bus[g]) + " ";
+	sgen_mod += G_BusUnitNum[g] + "/" + to_string(G_Bus[g]) + " ";
       }
       if(xi[nn] < G_Pub[g]) {
 	yi[nn] = yi[nn] + (yi[nn] - yi[nn-1])/(xi[nn] - xi[nn-1])*(G_Pub[g] - xi[nn]);
 	xi[nn] = G_Pub[g];
-	sgen_mod += to_string(G_BusUnitNum[g]) + "/" + to_string(G_Bus[g]) + " ";
+	//!sgen_mod += to_string(G_BusUnitNum[g]) + "/" + to_string(G_Bus[g]) + " ";
+	sgen_mod += G_BusUnitNum[g] + "/" + to_string(G_Bus[g]) + " ";
       }
     }
     if(sgen_inf.size()>0) cout << "SCACOPFData: generators with infeasible starting points: " << sgen_inf << endl;

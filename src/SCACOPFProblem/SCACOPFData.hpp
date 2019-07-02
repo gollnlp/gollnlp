@@ -54,7 +54,8 @@ namespace gollnlp {
     std::vector<double> SSh_Blb, SSh_Bub, SSh_B0;
 
     // - generators
-    std::vector<int> G_Generator, G_Bus, G_BusUnitNum;
+    std::vector<int> G_Generator, G_Bus;
+    std::vector<std::string> G_BusUnitNum;
     std::vector<double> G_Plb, G_Pub, G_Qlb, G_Qub, G_p0, G_q0, G_alpha;
     std::vector<std::vector<double> > G_CostPi, G_CostCi;
 
@@ -107,7 +108,7 @@ namespace gollnlp {
 		 GGTAP,GSTAT,GRMPCT, GPT,GPB,GO1,GF1,GO2,GF2,GO3,GF3,GO4,
 		 GF4,GWMOD,GWPF}; //generators header in the raw file
 
-    std::vector<std::vector<int> > generators;
+    std::vector<std::vector<std::string> > generators;
   protected:
     struct Contingency{
       virtual ~Contingency() {}; 

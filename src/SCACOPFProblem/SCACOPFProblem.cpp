@@ -35,10 +35,10 @@ bool SCACOPFProblem::default_assembly()
   add_cons_transformers_pf(d);
   add_cons_active_powbal(d);
   add_cons_reactive_powbal(d);
-  double L_rate_reduction=0.8;
+  double L_rate_reduction=0.75;
   add_cons_thermal_li_lims(d, true, L_rate_reduction);
 
-  double T_rate_reduction=0.8;
+  double T_rate_reduction=0.75;
   add_cons_thermal_ti_lims(d, true, T_rate_reduction);
 
   add_obj_prod_cost(d);
@@ -2157,7 +2157,7 @@ void SCACOPFProblem::write_solution_basecase()
   for(int gi=0; gi<data_sc.generators[GI].size(); gi++) {
     g = gmap[gi];
     if(-1 == g) {
-      fprintf(file, "%d, \'%d\', 0, 0\n", data_sc.generators[GI][gi], data_sc.generators[GID][gi]);
+      fprintf(file, "%s, \'%s\', 0, 0\n", data_sc.generators[GI][gi].c_str(), data_sc.generators[GID][gi].c_str());
     } else {
       assert(g>=0);
       assert(g<data_sc.G_Bus.size());
@@ -2165,8 +2165,8 @@ void SCACOPFProblem::write_solution_basecase()
       assert(g<q_g->n);
 
 
-      fprintf(file, "%d, \'%d\', %.12f, %.12f\n", 
-	      data_sc.G_Bus[g], data_sc.G_BusUnitNum[g], 
+      fprintf(file, "%d, \'%s\', %.12f, %.12f\n", 
+	      data_sc.G_Bus[g], data_sc.G_BusUnitNum[g].c_str(), 
 	      data_sc.MVAbase*p_g->x[g], data_sc.MVAbase*q_g->x[g]);
     }
   }
