@@ -101,9 +101,7 @@ namespace gollnlp {
 				   OptVariablesBlock* vn0,
 				   double& f)
   {
-#ifdef DEBUG
     goTimer tmrec; tmrec.start();
-#endif
     update_cons_nonanticip_using(pg0);
     update_cons_AGC_using(pg0);
 

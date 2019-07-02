@@ -150,8 +150,8 @@ int main(int argc, char *argv[])
     net = name + "/";
     scen = "scenario_2/";
     root = root+net;
-    //return myexe1_function(root+scen+"case.raw",  root+"case.rop", root+"case.inl", root+scen+"case.con", 
-    //			   600.,  1, name);
+    return myexe1_function(root+scen+"case.raw",  root+"case.rop", root+"case.inl", root+scen+"case.con", 
+    			   600.,  1, name);
 
     root = "../../goinstances/trial1/T1S3_Offline/";
     name = "Network_70O-3";
@@ -160,8 +160,8 @@ int main(int argc, char *argv[])
     net = name + "/";
     scen = "scenario_2/";
     root = root+net;
-    //return myexe1_function(root+scen+"case.raw",  root+"case.rop", root+"case.inl", root+scen+"case.con", 
-    //			   600.,  1, name);
+    return myexe1_function(root+scen+"case.raw",  root+"case.rop", root+"case.inl", root+scen+"case.con", 
+    			   600.,  1, name);
 
     root = "../../goinstances/trial1/T1S3_Offline/";
     name = "Network_81O-3";

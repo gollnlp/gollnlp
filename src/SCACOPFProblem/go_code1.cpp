@@ -224,6 +224,12 @@ bool MyCode1::do_phase1()
   scacopf_prob->set_solver_option("acceptable_constr_viol_tol", 1e-5);
   scacopf_prob->set_solver_option("acceptable_iter", 7);
 
+  scacopf_prob->set_solver_option("bound_relax_factor", 0.);
+  scacopf_prob->set_solver_option("bound_push", 1e-16);
+  scacopf_prob->set_solver_option("slack_bound_push", 1e-16);
+  scacopf_prob->set_solver_option("mu_linear_decrease_factor", 0.4);
+  scacopf_prob->set_solver_option("mu_superlinear_decrease_power", 1.4);
+
   if(iAmSolver) {    assert(my_rank==rank_solver_rank0);
     //if(true) {
     scacopf_prob->set_solver_option("print_level", 5);
@@ -1356,6 +1362,11 @@ double MyCode1::solve_contingency(int K_idx, int& status)
   prob.set_solver_option("acceptable_constr_viol_tol", 1e-5);
   prob.set_solver_option("acceptable_iter", 5);
 
+  prob.set_solver_option("bound_relax_factor", 0.);
+  prob.set_solver_option("bound_push", 1e-16);
+  prob.set_solver_option("slack_bound_push", 1e-16);
+  prob.set_solver_option("mu_linear_decrease_factor", 0.4);
+  prob.set_solver_option("mu_superlinear_decrease_power", 1.2);
 
   //scacopf_prob->duals_bounds_lower()->print_summary("duals bounds lower");
   //scacopf_prob->duals_bounds_upper()->print_summary("duals bounds upper");
@@ -1415,6 +1426,12 @@ double MyCode1::phase3_solve_scacopf(std::vector<int>& K_idxs)
   scacopf_prob->set_solver_option("acceptable_tol", 1e-4);
   scacopf_prob->set_solver_option("acceptable_constr_viol_tol", 1e-6);
   scacopf_prob->set_solver_option("acceptable_iter", 7);
+
+  scacopf_prob->set_solver_option("bound_relax_factor", 0.);
+  scacopf_prob->set_solver_option("bound_push", 1e-16);
+  scacopf_prob->set_solver_option("slack_bound_push", 1e-16);
+  scacopf_prob->set_solver_option("mu_linear_decrease_factor", 0.4);
+  scacopf_prob->set_solver_option("mu_superlinear_decrease_power", 1.2);
 
   scacopf_prob->set_solver_option("print_level", 5);
   
