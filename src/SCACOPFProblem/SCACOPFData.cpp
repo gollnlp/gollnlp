@@ -15,7 +15,7 @@ namespace gollnlp {
 goLogger log(stdout);
 
 SCACOPFData::SCACOPFData() 
-  : DELTA(0.5), PenaltyWeight(0.5), id(0)
+  : DELTA(0.5), PenaltyWeight(0.5), id(0), my_rank(-1)
 {}
 
 int SCACOPFData::bus_with_largest_gen() const
@@ -443,8 +443,10 @@ readinstance(const std::string& raw, const std::string& rop, const std::string& 
 	sgen_mod += G_BusUnitNum[g] + "/" + to_string(G_Bus[g]) + " ";
       }
     }
-    if(sgen_inf.size()>0) cout << "SCACOPFData: generators with infeasible starting points: " << sgen_inf << endl;
-    if(sgen_mod.size()>0) cout << "SCACOPFData: generators with with inconsistent cost functions: " << sgen_mod << endl;
+    if(my_rank==0) {
+      if(sgen_inf.size()>0) cout << "SCACOPFData: generators with infeasible starting points: " << sgen_inf << endl;
+      if(sgen_mod.size()>0) cout << "SCACOPFData: generators with with inconsistent cost functions: " << sgen_mod << endl;
+    }
 
     //printvecvec(G_CostPi, "Pi");
     //printvecvec(G_CostCi, "Ci");

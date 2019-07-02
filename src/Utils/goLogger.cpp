@@ -2,13 +2,16 @@
 
 #include "goOptions.hpp"
 #include <cstring>
+
+#define GOLLNLP_USE_MPI 1
+
 namespace gollnlp
 {
 
 void goLogger::write(const char* msg, goOutVerbosity v, int loggerid/*=0*/) 
 { 
 #ifdef GOLLNLP_USE_MPI
-  //if(_master_rank != _nlp->get_rank()) return;
+  if(_master_rank != get_my_rank()) return;
 #endif
   goOutVerbosity _verb = hovSummary; // = (goOutVerbosity) _nlp->options->GetInteger("verbosity_level");
   if(v>_verb) return;
@@ -19,7 +22,7 @@ void goLogger::write(const char* msg, goOutVerbosity v, int loggerid/*=0*/)
 void goLogger::write(const char* msg, const goOptions& options,     goOutVerbosity v, int loggerid/*=0*/)
 {
 #ifdef GOLLNLP_USE_MPI
-  //if(_master_rank != _nlp->get_rank()) return;
+  if(_master_rank != get_my_rank()) return;//if(_master_rank != _nlp->get_rank()) return;
 #endif
   goOutVerbosity _verb = hovSummary; //(goOutVerbosity) _nlp->options->GetInteger("verbosity_level");
   if(v>_verb) return;
@@ -32,7 +35,7 @@ void goLogger::write(const char* msg, const goOptions& options,     goOutVerbosi
 void goLogger::printf(goOutVerbosity v, const char* format, ...)
 {
 #ifdef GOLLNLP_USE_MPI
-  //if(_master_rank != _nlp->get_rank()) return;
+  if(_master_rank != get_my_rank()) return;//if(_master_rank != _nlp->get_rank()) return;
 #endif
   goOutVerbosity _verb = hovSummary; // = (goOutVerbosity) _nlp->options->GetInteger("verbosity_level");
   if(v>_verb) return;

@@ -4,6 +4,8 @@
 #include <cstdio>
 #include <cstdarg>
 
+#include "mpi.h"
+
 namespace gollnlp
 {
 class goOptions;
@@ -30,7 +32,7 @@ class goLogger
 {
 public:
   goLogger(FILE* f, int masterrank=0) 
-    : _f(f), _master_rank(masterrank) {};
+    : _f(f), _master_rank(masterrank), _my_rank(-1) {};
   virtual ~goLogger() {};
   /* outputs a vector. loggerid indicates which logger should be used, by default stdout*/
   void write(const char* msg, const goOptions& options,     goOutVerbosity v, int loggerid=0);
@@ -48,7 +50,20 @@ protected:
   FILE* _f;
   char _buff[1024];
 private:
+  inline int get_my_rank() {
+
+    if(_my_rank<0) {
+      int ierr = MPI_Comm_rank( MPI_COMM_WORLD, &_my_rank);
+      if(ierr!=MPI_SUCCESS) {
+	_my_rank = -1;
+	return 0;
+      } else {
+	return _my_rank;
+      }
+    }
+  }
   int _master_rank;
+  int _my_rank;
 };
 }
 #endif

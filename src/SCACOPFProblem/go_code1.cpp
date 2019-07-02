@@ -79,7 +79,12 @@ int MyCode1::initialize(int argc, char *argv[])
   rank_master = 0;
   rank_solver_rank0 = 1;
   if(my_rank == rank_master) iAmMaster=true;
-  
+
+  if(my_rank!=rank_solver_rank0 && my_rank!=rank_master)  
+    std::this_thread::sleep_for(std::chrono::milliseconds(500));
+
+  data.my_rank = my_rank;
+
   //load data
   if(!data.readinstance(InFile1, InFile2, InFile3, InFile4)) {
     printf("error occured while reading instance\n");
@@ -369,7 +374,7 @@ void MyCode1::phase2_initial_contingency_distribution()
       }
     }
   }
-  printvecvec(K_on_rank);
+  //printvecvec(K_on_rank);
   assert(nEvaluators+1==R);
 }
 
@@ -689,7 +694,7 @@ std::vector<int> MyCode1::get_high_penalties_from(const std::vector<double>& K_p
 
   if(K_idxs_new.size() < max_num_K  && (is_late || conting_evals_done)) {
 
-    printvec(K_idxs_new, "K_idxs - is late or evals done, non-proximal, from get_high_pen");
+    //printvec(K_idxs_new, "K_idxs - is late or evals done, non-proximal, from get_high_pen");
     //if we don't have enough non-proximal, append the highest-penalty proximal ones
 
     //first increase num K from last pass; disregard num_K_nonproximal

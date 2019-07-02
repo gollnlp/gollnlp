@@ -140,8 +140,8 @@ int main(int argc, char *argv[])
     net = name + "/";
     scen = "scenario_2/";
     root = root+net;
-    //return myexe1_function(root+scen+"case.raw",  root+scen+"case.rop", root+scen+"case.inl", root+scen+"case.con", 
-    //			   600.,  1, name);
+    return myexe1_function(root+scen+"case.raw",  root+scen+"case.rop", root+scen+"case.inl", root+scen+"case.con", 
+    			   600.,  1, name);
 
     root = "../../goinstances/trial1/T1S3_Offline/";
     name = "Network_13O-3";

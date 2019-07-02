@@ -44,9 +44,11 @@ namespace gollnlp {
     void bodyof_cons_nonanticip_using(OptVariablesBlock* pg0);
     inline void add_cons_nonanticip_using(OptVariablesBlock* pg0) {
       bodyof_cons_nonanticip_using(pg0);
+#ifdef DEBUG
       printf("ContingencyProblem K_id %d on rank %d: "
 	     "AGC: %lu gens NOT participating: fixed all of them.\n",
 	     K_idx, my_rank, pg0_nonpartic_idxs.size());
+#endif
     }
     inline void update_cons_nonanticip_using(OptVariablesBlock* pg0) {
       bodyof_cons_nonanticip_using(pg0);

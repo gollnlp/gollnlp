@@ -158,6 +158,9 @@ namespace gollnlp {
 
     void convert(const VStr& src, VInt& dest);
     void convert(const VStr& src, VDou& dest);
+
+  public:
+    int my_rank;
   };//end of class
 
 } //end namespace

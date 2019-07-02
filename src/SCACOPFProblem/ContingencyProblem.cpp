@@ -166,8 +166,10 @@ namespace gollnlp {
 #endif
 	if(abs(dB.G_Qub[g]-dB.G_Qlb[g])<=1e-8) {
 	  numfixed++; num_qgens_fixed++;
+#ifdef DEBUG
 	  printf("PVPQ: gen ID=%d p_q at bus idx %d id %d is fixed; will not enforce voltage nonanticip constraint\n",
 		 dB.G_Generator[g], dB.G_Nidx[g], data_sc.N_Bus[dB.G_Nidx[g]]);
+#endif
 	  continue;
 	}
 	idxs_gen_agg.back().push_back(g);
@@ -249,7 +251,9 @@ namespace gollnlp {
   {
     if(pgK_partic_idxs.size()==0) {
       //assert(pg0_partic_idxs.size()==0);
+#ifdef DEBUG
       printf("ContingencyProblem: add_cons_AGC_using: NO gens participating !?!\n");
+#endif
       return;
     }
 
@@ -283,9 +287,10 @@ namespace gollnlp {
 
     //append_objterm(new LinearPenaltyObjTerm(string("bigMpen_")+rhom->id, rhom, 1));
     //append_objterm(new LinearPenaltyObjTerm(string("bigMpen_")+rhop->id, rhop, 1));
-
+#ifdef DEBUG
     printf("ContingencyProblem K_id %d: AGC %lu gens participating (out of %d)\n", 
     	   K_idx, pgK_partic_idxs.size(), pgK->n);
+#endif
     //printvec(pg0_partic_idxs, "partic idxs");
   }
   void ContingencyProblem::update_cons_AGC_using(OptVariablesBlock* pg0)
