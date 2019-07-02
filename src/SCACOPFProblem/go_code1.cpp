@@ -942,7 +942,7 @@ bool MyCode1::do_phase3_master_solverpart(bool master_evalpart_done)
 	assert(req_send_KidxSCACOPF != NULL);
 	if(req_send_KidxSCACOPF->buffer.size()>0) {
 	  if(req_send_KidxSCACOPF->buffer[0] == -2) {
-	    printf("[ph3] Master - pass %d will be the last one !!!\n");
+	    printf("[ph3] Master - pass: the last one !!!\n");
 	    last_pass = true;
 	  }
 	}

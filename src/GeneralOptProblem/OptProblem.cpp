@@ -268,7 +268,7 @@ bool OptProblem::eval_HessLagr(const double* x, bool new_x,
   } else {
 
     // case of M!=NULL > just fill in the values
-    for(int i=0; i<nnz; i++) M[i]=0.;
+    for(int it=0; it<nnz; it++) M[it]=0.;
     
     for(auto& ot: obj->vterms)
       if(!ot->eval_HessLagr(*vars_primal, new_x, obj_factor, nnz,i,j,M))
