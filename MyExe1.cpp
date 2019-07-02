@@ -40,7 +40,8 @@ int main(int argc, char *argv[])
       std::cout << "invalid scoring method? > " << argv[6] << std::endl;
     }
 
-    MyCode1 code1(argv[1], argv[2], argv[3], argv[4], 
+    //MyCode1 code1(argv[1], argv[2], argv[3], argv[4], 
+    MyCode1 code1(argv[3], argv[4], argv[2], argv[1], 
 		  timeLimit, scoringMethod, argv[7]);
 
     if(!(retcode=code1.initialize(argc, argv))) {
@@ -140,8 +141,8 @@ int main(int argc, char *argv[])
     net = name + "/";
     scen = "scenario_2/";
     root = root+net;
-    return myexe1_function(root+scen+"case.raw",  root+scen+"case.rop", root+scen+"case.inl", root+scen+"case.con", 
-    			   600.,  1, name);
+    //return myexe1_function(root+scen+"case.raw",  root+scen+"case.rop", root+scen+"case.inl", root+scen+"case.con", 
+    //			   600.,  1, name);
 
     root = "../../goinstances/trial1/T1S3_Offline/";
     name = "Network_13O-3";
