@@ -73,7 +73,7 @@ int main(int argc, char *argv[])
     name = "Network_03O-10/";
     root = "../../goinstances/challenge1/Original_Dataset_1-4/Original_Dataset_Offline_Edition_1/";
     net = name + "/";
-    scen = "scenario_1/";
+    scen = "scenario_4/";
     root = root+net;
     //return myexe1_function(root+scen+"case.raw",  root+"case.rop", 
     //			   root+"case.inl", root+scen+"case.con", 
@@ -82,11 +82,12 @@ int main(int argc, char *argv[])
     name = "Network_05O-10/";
     root = "../../goinstances/challenge1/Original_Dataset_1-4/Original_Dataset_Offline_Edition_1/";
     net = name + "/";
-    scen = "scenario_1/";
+    scen = "scenario_9/";
     root = root+net;
     //return myexe1_function(root+scen+"case.raw",  root+"case.rop", 
     //			   root+"case.inl", root+scen+"case.con", 
     //			   600.,  1, name);
+
     root = "../../goinstances/challenge1/Original_Dataset_1-4/Original_Dataset_Real-Time_Edition_1/";
     name = "Network_07R-10";
     net = name + "/";
@@ -116,11 +117,73 @@ int main(int argc, char *argv[])
     root = "../../goinstances/challenge1/Original_Dataset_1-4/Original_Dataset_Offline_Edition_1/";
     name = "Network_10O-10/";
     net = name + "/";
-    scen = "scenario_9/";
+    scen = "scenario_2/";
     root = root+net;
-    return myexe1_function(root+scen+"case.raw",  root+"case.rop", root+scen+"case.inl", root+scen+"case.con", 
+    //return myexe1_function(root+scen+"case.raw",  root+"case.rop", root+scen+"case.inl", root+scen+"case.con", 
+    //			   600.,  1, name);
+    
+
+    root = "../../goinstances/trial1/T1S3_Offline/";
+    name = "Network_06O-3";
+    //root = "../../goinstances/trial1/T1S3_Real-Time/";
+    //name = "Network_06R-3";
+    net = name + "/";
+    scen = "scenario_2/";
+    root = root+net;
+    //return myexe1_function(root+scen+"case.raw",  root+"case.rop", root+"case.inl", root+scen+"case.con", 
+    //			   600.,  1, name);
+
+    root = "../../goinstances/trial1/T1S3_Offline/";
+    name = "Network_12O-3";
+    //root = "../../goinstances/trial1/T1S3_Real-Time/";
+    //name = "Network_12R-3";
+    net = name + "/";
+    scen = "scenario_2/";
+    root = root+net;
+    //return myexe1_function(root+scen+"case.raw",  root+scen+"case.rop", root+scen+"case.inl", root+scen+"case.con", 
+    //			   600.,  1, name);
+
+    root = "../../goinstances/trial1/T1S3_Offline/";
+    name = "Network_13O-3";
+    //root = "../../goinstances/trial1/T1S3_Real-Time/";
+    //name = "Network_12R-3";
+    net = name + "/";
+    scen = "scenario_2/";
+    root = root+net;
+    //return myexe1_function(root+scen+"case.raw",  root+"case.rop", root+"case.inl", root+scen+"case.con", 
+    //			   600.,  1, name);
+
+    root = "../../goinstances/trial1/T1S3_Offline/";
+    name = "Network_70O-3";
+    //root = "../../goinstances/trial1/T1S3_Real-Time/";
+    //name = "Network_12R-3";
+    net = name + "/";
+    scen = "scenario_2/";
+    root = root+net;
+    //return myexe1_function(root+scen+"case.raw",  root+"case.rop", root+"case.inl", root+scen+"case.con", 
+    //			   600.,  1, name);
+
+    root = "../../goinstances/trial1/T1S3_Offline/";
+    name = "Network_81O-3";
+    //root = "../../goinstances/trial1/T1S3_Real-Time/";
+    //name = "Network_12R-3";
+    net = name + "/";
+    scen = "scenario_2/";
+    root = root+net;
+    return myexe1_function(root+scen+"case.raw",  root+scen+"case.rop", root+scen+"case.inl", root+scen+"case.con", 
+    			   600.,  1, name);
+
+    root = "../../goinstances/trial1/T1S3_Offline/";
+    name = "Network_84O-3";
+    //root = "../../goinstances/trial1/T1S3_Real-Time/";
+    //name = "Network_12R-3";
+    net = name + "/";
+    scen = "scenario_2/";
+    root = root+net;
+    return myexe1_function(root+scen+"case.raw",  root+scen+"case.rop", root+scen+"case.inl", root+scen+"case.con", 
     			   600.,  1, name);
   }
+  
   return 0;
 }
 
