@@ -88,7 +88,8 @@ namespace gollnlp {
 #endif
     add_cons_nonanticip_using(pg0);
     add_cons_AGC_using(pg0);
-    
+    add_const_nonanticip_v_n_using(vn0, Gk);
+
     //print_summary();
     //PVPQSmoothing = AGCSmoothing = 1e-2;
     //coupling AGC and PVPQ; also creates delta_k
@@ -105,7 +106,6 @@ namespace gollnlp {
 #endif
     update_cons_nonanticip_using(pg0);
     update_cons_AGC_using(pg0);
-    //!update_cons_PVPQ_using(vn0);
 
     //if(!optimize("ipopt")) {
     //if(!reoptimize(OptProblem::primalDualRestart)) {
@@ -121,16 +121,101 @@ namespace gollnlp {
 	   K_idx, tmrec.getElapsedTime(), number_of_iterations(), my_rank);
     fflush(stdout);
 
-#ifdef DEBUG
-    if(false) {
-      int dim = pg0->n;
-      printf("p_g0 in\n");
-      for(int i=0; i<pg0->n; i++)
-	printf("%12.5e ", pg0->x[i]);
-      printf("\n\n");
-    }
-#endif
     return true;
+  }
+
+  //
+  // PVPQ
+  //
+  void ContingencyProblem::add_const_nonanticip_v_n_using(OptVariablesBlock* v_n0, 
+							  const vector<int>& Gk) 
+  {
+    assert(data_K.size()==1);
+    SCACOPFData& dB = *data_K[0];
+    auto G_Nidx_Gk = selectfrom(data_sc.G_Nidx, Gk);
+    //extra check
+    assert(G_Nidx_Gk == dB.G_Nidx);
+
+    sort(G_Nidx_Gk.begin(), G_Nidx_Gk.end());
+    //printvec(G_Nidx_Gk);
+    auto last = unique(G_Nidx_Gk.begin(), G_Nidx_Gk.end());
+    G_Nidx_Gk.erase(last, G_Nidx_Gk.end());
+    //printvec(G_Nidx_Gk);
+    auto &N_PVPQ = G_Nidx_Gk; //nodes with PVPQ generators;
+
+    //(aggregated) non-fixed q_g generator ids at each node/bus
+    // with PVPQ generators that have at least one non-fixed q_g 
+    vector<vector<int> > idxs_gen_agg;
+    //bus indexes that have at least one non-fixed q_g
+    vector<int> idxs_bus_pvpq;
+    //aggregated lb and ub on reactive power at each PVPQ bus
+    vector<double> Qlb, Qub;
+    int nPVPQGens=0, nPVPQCons=0; 
+    int num_buses_all_qgen_fixed=0, num_qgens_fixed=0;
+
+    for(auto n: N_PVPQ) {
+      assert(dB.Gn[n].size()>0);
+      double Qagglb=0., Qaggub=0.;
+
+      int numfixed = 0;
+      idxs_gen_agg.push_back( vector<int>() );
+      for(auto g: dB.Gn[n]) {
+#ifdef DEBUG
+	assert(dB.K_Contingency.size()==1);
+	assert(dB.K_outidx.size()==1);
+	if(dB.K_ConType[0]==SCACOPFData::kGenerator) 
+	  assert(data_sc.G_Generator[dB.K_outidx[0]]!=dB.G_Generator[g]);
+#endif
+	if(abs(dB.G_Qub[g]-dB.G_Qlb[g])<=1e-8) {
+	  numfixed++; num_qgens_fixed++;
+	  printf("PVPQ: gen ID=%d p_q at bus idx %d id %d is fixed; will not enforce voltage nonanticip constraint\n",
+		 dB.G_Generator[g], dB.G_Nidx[g], data_sc.N_Bus[dB.G_Nidx[g]]);
+	  continue;
+	}
+	idxs_gen_agg.back().push_back(g);
+	Qagglb += dB.G_Qlb[g];
+	Qaggub += dB.G_Qub[g];
+      }
+      
+      assert(idxs_gen_agg.back().size()+numfixed == dB.Gn[n].size());
+      nPVPQGens += idxs_gen_agg.back().size()+numfixed;
+      
+      if(idxs_gen_agg.back().size()==0) {
+	assert(Qagglb==0. && Qaggub==0.);
+	idxs_gen_agg.pop_back();
+	num_buses_all_qgen_fixed++;
+      } else {
+	Qlb.push_back(Qagglb);
+	Qub.push_back(Qaggub);
+	idxs_bus_pvpq.push_back(n);
+      }
+    }
+    assert(idxs_gen_agg.size() == Qlb.size());
+    assert(idxs_gen_agg.size() == Qub.size());
+    assert(N_PVPQ.size()  == num_buses_all_qgen_fixed+idxs_gen_agg.size());
+    assert(idxs_bus_pvpq.size() == idxs_gen_agg.size());
+
+    auto v_nk = variable("v_n", dB);
+    assert(v_n0->n == v_nk->n);
+
+    assert(v_n0->xref == v_n0->x);
+
+    for(int b : idxs_bus_pvpq) {
+      assert(b>=0);
+      assert(b<v_nk->n);
+
+      v_nk->lb[b] = 0.99*v_n0->xref[b];
+      v_nk->ub[b] = 1.01*v_n0->xref[b];
+    }
+
+  }
+  void ContingencyProblem::add_cons_PVPQ_using(OptVariablesBlock* vn0, 
+					       const vector<int>& Gk) {
+    assert(false);
+  }
+  void ContingencyProblem::update_cons_PVPQ_using(OptVariablesBlock* vn0, 
+						  const vector<int>& Gk) {
+    assert(false);
   }
 
   void ContingencyProblem::bodyof_cons_nonanticip_using(OptVariablesBlock* pg0)

@@ -51,7 +51,7 @@ namespace gollnlp {
     inline void update_cons_nonanticip_using(OptVariablesBlock* pg0) {
       bodyof_cons_nonanticip_using(pg0);
     }
-
+  protected:
     //
     // AGC
     //
@@ -62,8 +62,9 @@ namespace gollnlp {
     //
     // PVPQ
     //
-    void add_cons_PVPQ_using(OptVariablesBlock* vn0);
-    void update_cons_PVPQ_using(OptVariablesBlock* vn0);
+    void add_const_nonanticip_v_n_using(OptVariablesBlock* vn0, const std::vector<int>& Gk);
+    void add_cons_PVPQ_using(OptVariablesBlock* vn0, const std::vector<int>& Gk);
+    void update_cons_PVPQ_using(OptVariablesBlock* vn0, const std::vector<int>& Gk);
   public:
     int K_idx;
     int my_rank;
