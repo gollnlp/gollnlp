@@ -61,6 +61,7 @@ private:
 	return _my_rank;
       }
     }
+    return _my_rank;
   }
   int _master_rank;
   int _my_rank;
