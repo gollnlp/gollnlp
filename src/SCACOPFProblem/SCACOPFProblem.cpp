@@ -2173,4 +2173,54 @@ void SCACOPFProblem::write_solution_basecase()
   fclose(file);
   printf("basecase solution written to file %s\n", strFileName.c_str());
 }
+
+void SCACOPFProblem::write_solution_extras_basecase()
+{
+  // line flows
+  OptVariablesBlock* p_li1 = variable("p_li1", data_sc);
+  OptVariablesBlock* q_li1 = variable("q_li1", data_sc);
+  OptVariablesBlock* p_li2 = variable("p_li2", data_sc);
+  OptVariablesBlock* q_li2 = variable("q_li2", data_sc);
+  if(NULL==p_li1 || NULL==q_li1 || NULL==p_li2 || NULL==q_li2) {
+    printf("[warning] no solution was written; line flows are missing from the problem\n");
+    return;
+  }
+  
+  // transformer flows
+  OptVariablesBlock* p_ti1 = variable("p_ti1", data_sc);
+  OptVariablesBlock* p_ti2 = variable("p_ti2", data_sc);
+  OptVariablesBlock* q_ti1 = variable("q_ti1", data_sc);
+  OptVariablesBlock* q_ti2 = variable("q_ti2", data_sc);
+  OptVariablesBlock* q_g = variable("q_g", data_sc);
+  if(NULL==p_ti1 || NULL==q_ti1 || NULL==p_ti2 || NULL==q_ti2) {
+    printf("[warning] no solution was written; line flows are missing from the problem\n");
+    return;
+  }
+
+  string strFileName = "solution1_extras.txt";
+  FILE* file = fopen(strFileName.c_str(), "w");
+  if(NULL==file) {
+    printf("[warning] could not open [%s] file for writing\n", strFileName.c_str());
+    return;
+  }
+  
+  // write line section
+  fprintf(file, "--line section\nI,J,CKT,p1,q1,p2,q2\n");
+  for(int l=0; l<data_sc.L_Line.size(); l++) {
+    fprintf(file, "%d,%d,%s,%.20f,%.20f,%.20f,%.20f\n", 
+	    data_sc.L_From[l], data_sc.L_To[l], data_sc.L_CktID[l].c_str(),
+            p_li1->x[l], q_li1->x[l], p_li2->x[l], q_li2->x[l]);
+  }
+  
+  // write transformer sections
+  fprintf(file, "--transformer section\nI,J,CKT,p1,q1,p2,q2\n");
+  for(int t=0; t<data_sc.T_Transformer.size(); t++) {
+    fprintf(file, "%d,%d,%s,%.20f,%.20f,%.20f,%.20f\n", 
+	    data_sc.T_From[t], data_sc.T_To[t], data_sc.T_CktID[t].c_str(),
+            p_ti1->x[t], q_ti1->x[t], p_ti2->x[t], q_ti2->x[t]);
+  }
+  
+  fclose(file);
+  printf("basecase solution extras written to file %s\n", strFileName.c_str());
+}
 } //end namespace
