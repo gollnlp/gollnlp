@@ -2216,7 +2216,7 @@ void SCACOPFProblem::write_solution_extras_basecase()
   auto pf_trans_lim2 = dynamic_cast<PFTransfLimits*>(constraint("trans_limits2", data_sc));
   OptVariablesBlock* sslack_ti2 = pf_trans_lim2->slacks();
   pf_trans_lim2->compute_slacks(sslack_ti2); sslack_ti2->providesStartingPoint=true;
-
+  
   string strFileName = "solution1_extras.txt";
   FILE* file = fopen(strFileName.c_str(), "w");
   if(NULL==file) {
