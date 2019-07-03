@@ -28,7 +28,7 @@ int main(int argc, char *argv[])
   int retcode=0;
   gollnlp::goTimer ttot; ttot.start();
   if(argc==8) {
-    std::cout << "MyExe1 - v. May 26, 2019" << std::endl;
+    std::cout << "MyExe1 - v. July 03, 2019" << std::endl;
     double timeLimit = atof(argv[5]);
     int scoringMethod = atoi(argv[6]);
 
@@ -49,7 +49,7 @@ int main(int argc, char *argv[])
     } else {
       retcode = code1.go();
     }
-    if(!retcode) {
+    if(0!=retcode) {
       printf("Something went wrong with code1: return code %d; it took %g seconds\n",
            retcode, ttot.stop());
     }
