@@ -666,7 +666,9 @@ std::vector<int> MyCode1::get_high_penalties_from(const std::vector<double>& K_p
 {
   bool is_late = glob_timer.measureElapsedTime() > 0.6*TimeLimitInSec;
   double thresh = high_pen_threshold_factor * cost_basecase;
-  //double thresh_huge = 4*thresh;
+  if(thresh > 20000.) thresh=20000;
+  else if(thresh<1000.) thresh=1000.;
+
   int proximity = 5;
   vector<int> K_idxs_all, K_idxs_new; 
   vector<double> K_pens;
@@ -679,7 +681,7 @@ std::vector<int> MyCode1::get_high_penalties_from(const std::vector<double>& K_p
 						  thresh, proximity);
 
   if(K_idxs_all.size()<max_num_K) {
-    thresh *= 0.1;
+    thresh *= 0.25;
     K_idxs_all = sort_high_penalties_w_remove_close(K_penalties, K_idxs_global,
 						    thresh, proximity);
   }
@@ -1371,7 +1373,7 @@ double MyCode1::solve_contingency(int K_idx, int& status)
   prob.set_solver_option("bound_push", 1e-16);
   prob.set_solver_option("slack_bound_push", 1e-16);
   prob.set_solver_option("mu_linear_decrease_factor", 0.4);
-  prob.set_solver_option("mu_superlinear_decrease_power", 1.2);
+  prob.set_solver_option("mu_superlinear_decrease_power", 1.25);
 
   //scacopf_prob->duals_bounds_lower()->print_summary("duals bounds lower");
   //scacopf_prob->duals_bounds_upper()->print_summary("duals bounds upper");
@@ -1436,7 +1438,7 @@ double MyCode1::phase3_solve_scacopf(std::vector<int>& K_idxs)
   scacopf_prob->set_solver_option("bound_push", 1e-16);
   scacopf_prob->set_solver_option("slack_bound_push", 1e-16);
   scacopf_prob->set_solver_option("mu_linear_decrease_factor", 0.4);
-  scacopf_prob->set_solver_option("mu_superlinear_decrease_power", 1.2);
+  scacopf_prob->set_solver_option("mu_superlinear_decrease_power", 1.4);
 
   scacopf_prob->set_solver_option("print_level", 5);
   
