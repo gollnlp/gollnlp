@@ -2217,6 +2217,7 @@ void SCACOPFProblem::write_solution_extras_basecase()
   OptVariablesBlock* sslack_ti2 = pf_trans_lim2->slacks();
   pf_trans_lim2->compute_slacks(sslack_ti2); sslack_ti2->providesStartingPoint=true;
   
+  // open file for writing
   string strFileName = "solution1_extras.txt";
   FILE* file = fopen(strFileName.c_str(), "w");
   if(NULL==file) {
