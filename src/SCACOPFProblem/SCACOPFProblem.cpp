@@ -2173,4 +2173,86 @@ void SCACOPFProblem::write_solution_basecase()
   fclose(file);
   printf("basecase solution written to file %s\n", strFileName.c_str());
 }
+
+void SCACOPFProblem::write_solution_extras_basecase()
+{
+  // balance slacks
+  auto pf_p_bal = dynamic_cast<PFActiveBalance*>(constraint("p_balance", data_sc));
+  OptVariablesBlock* pslacks_n = pf_p_bal->slacks();
+  pf_p_bal->compute_slacks(pslacks_n); pslacks_n->providesStartingPoint=true;
+  auto pf_q_bal = dynamic_cast<PFReactiveBalance*>(constraint("q_balance", data_sc));
+  OptVariablesBlock* qslacks_n = pf_q_bal->slacks();
+  pf_q_bal->compute_slacks(qslacks_n); qslacks_n->providesStartingPoint=true;
+  
+  // line flows & slacks
+  OptVariablesBlock* p_li1 = variable("p_li1", data_sc);
+  OptVariablesBlock* q_li1 = variable("q_li1", data_sc);
+  OptVariablesBlock* p_li2 = variable("p_li2", data_sc);
+  OptVariablesBlock* q_li2 = variable("q_li2", data_sc);
+  if(NULL==p_li1 || NULL==q_li1 || NULL==p_li2 || NULL==q_li2) {
+    printf("[warning] no solution was written; line flows are missing from the problem\n");
+    return;
+  }
+  auto pf_line_lim1 = dynamic_cast<PFLineLimits*>(constraint("line_limits1", data_sc));
+  OptVariablesBlock* sslack_li1 = pf_line_lim1->slacks();
+  pf_line_lim1->compute_slacks(sslack_li1); sslack_li1->providesStartingPoint=true;      
+  auto pf_line_lim2 = dynamic_cast<PFLineLimits*>(constraint("line_limits2", data_sc));
+  OptVariablesBlock* sslack_li2 = pf_line_lim2->slacks();
+  pf_line_lim2->compute_slacks(sslack_li2); sslack_li2->providesStartingPoint=true;      
+  
+  // transformer flows & slacks
+  OptVariablesBlock* p_ti1 = variable("p_ti1", data_sc);
+  OptVariablesBlock* p_ti2 = variable("p_ti2", data_sc);
+  OptVariablesBlock* q_ti1 = variable("q_ti1", data_sc);
+  OptVariablesBlock* q_ti2 = variable("q_ti2", data_sc);
+  OptVariablesBlock* q_g = variable("q_g", data_sc);
+  if(NULL==p_ti1 || NULL==q_ti1 || NULL==p_ti2 || NULL==q_ti2) {
+    printf("[warning] no solution was written; line flows are missing from the problem\n");
+    return;
+  }
+  auto pf_trans_lim1 = dynamic_cast<PFTransfLimits*>(constraint("trans_limits1", data_sc));
+  OptVariablesBlock* sslack_ti1 = pf_trans_lim1->slacks();
+  pf_trans_lim1->compute_slacks(sslack_ti1); sslack_ti1->providesStartingPoint=true;
+  auto pf_trans_lim2 = dynamic_cast<PFTransfLimits*>(constraint("trans_limits2", data_sc));
+  OptVariablesBlock* sslack_ti2 = pf_trans_lim2->slacks();
+  pf_trans_lim2->compute_slacks(sslack_ti2); sslack_ti2->providesStartingPoint=true;
+  
+  // open file for writing
+  string strFileName = "solution1_extras.txt";
+  FILE* file = fopen(strFileName.c_str(), "w");
+  if(NULL==file) {
+    printf("[warning] could not open [%s] file for writing\n", strFileName.c_str());
+    return;
+  }
+  
+  // write bus section
+  fprintf(file, "--bus section\nI,pslack,qslack\n");
+  int NumBuses = data_sc.N_Bus.size();
+  for(int n=0; n<NumBuses; n++) {
+    fprintf(file, "%d,%.20f,%.20f\n", data_sc.N_Bus[n],
+            pslacks_n->x[n] - pslacks_n->x[NumBuses+n],
+            qslacks_n->x[n] - qslacks_n->x[NumBuses+n]);
+  }
+  
+  // write line section
+  fprintf(file, "--line section\nI,J,CKT,p1,q1,sslack1,p2,q2,sslack2\n");
+  for(int l=0; l<data_sc.L_Line.size(); l++) {
+    fprintf(file, "%d,%d,%s,%.20f,%.20f,%.20f,%.20f,%.20f,%.20f\n", 
+	    data_sc.L_From[l], data_sc.L_To[l], data_sc.L_CktID[l].c_str(),
+            p_li1->x[l], q_li1->x[l], sslack_li1->x[l],
+            p_li2->x[l], q_li2->x[l], sslack_li2->x[l]);
+  }
+  
+  // write transformer sections
+  fprintf(file, "--transformer section\nI,J,CKT,p1,q1,sslack1,p2,q2,sslack2\n");
+  for(int t=0; t<data_sc.T_Transformer.size(); t++) {
+    fprintf(file, "%d,%d,%s,%.20f,%.20f,%.20f,%.20f,%.20f,%.20f\n", 
+	    data_sc.T_From[t], data_sc.T_To[t], data_sc.T_CktID[t].c_str(),
+            p_ti1->x[t], q_ti1->x[t], sslack_ti1->x[t],
+            p_ti2->x[t], q_ti2->x[t], sslack_ti2->x[t]);
+  }
+  
+  fclose(file);
+  printf("basecase solution extras written to file %s\n", strFileName.c_str());
+}
 } //end namespace
