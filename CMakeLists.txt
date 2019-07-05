@@ -7,6 +7,14 @@ set (CMAKE_CXX_STANDARD 11)
 add_compile_options("$<$<CONFIG:DEBUG>:-DDEBUG>")
 add_compile_options("-std=c++11")
 
+if(NOT CMAKE_BUILD_TYPE)
+  set(CMAKE_BUILD_TYPE Release)
+endif()
+
+#set(CMAKE_CXX_FLAGS "-Wall -Wextra")
+#set(CMAKE_CXX_FLAGS_DEBUG "-g")
+#set(CMAKE_CXX_FLAGS_RELEASE "-O3")
+
 #on macos
 #add_link_options("-w")
 # Create header for Fortran name mangling
@@ -59,6 +67,8 @@ add_subdirectory(src/Ex1OptProblem)
 
 
 add_library(gollnlp STATIC $<TARGET_OBJECTS:goSCACOPF> $<TARGET_OBJECTS:goUtils> $<TARGET_OBJECTS:goOptimiz>)
+
+set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${CMAKE_HOME_DIRECTORY})
 
 #
 # competition executables

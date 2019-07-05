@@ -27,8 +27,14 @@ int main(int argc, char *argv[])
 {
   int retcode=0;
   gollnlp::goTimer ttot; ttot.start();
+
+  std::cout << "MyExe1 - v. July 05, 2019" << std::endl;
+#ifdef DEBUG
+  std::cout << "DEBUG build !!!!" << std::endl;
+#endif
+
   if(argc==8) {
-    std::cout << "MyExe1 - v. July 03, 2019" << std::endl;
+
     double timeLimit = atof(argv[5]);
     int scoringMethod = atoi(argv[6]);
 
@@ -60,7 +66,8 @@ int main(int argc, char *argv[])
 
     std::cout << argv[0] << " did not receive the correct number of parameters. Will exit.\n";
 
-    
+    return -1;
+
     name = "Network_01O-10/";
     root = "../../goinstances/challenge1/Original_Dataset_1-4/Original_Dataset_Offline_Edition_1/";
     net = name + "/";
