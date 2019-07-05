@@ -75,7 +75,7 @@ add_library(gollnlp STATIC $<TARGET_OBJECTS:goSCACOPF> $<TARGET_OBJECTS:goUtils>
 #
 # competition executables
 #
-add_executable(MyExe1 MyExe1.cpp)
+add_executable(MyExe1 MyCpp1.cpp)
 target_link_libraries(MyExe1 gollnlp ${LAPACK_LIBRARIES}  ${IPOPT_LIBS})
 
 ##########################################################
