@@ -339,6 +339,8 @@ readinstance(const std::string& raw, const std::string& rop, const std::string& 
   //convert(generators_l[GID], G_BusUnitNum); 
 
   G_BusUnitNum = generators_l[GID];
+  for(auto& s : G_BusUnitNum) trim(s);
+
   hardclear(generators_l[GID]);
 
   //!
@@ -390,6 +392,7 @@ readinstance(const std::string& raw, const std::string& rop, const std::string& 
       vBGEN[i] = generatordsp[GDBUS][i] + ":" + sid;
     }
     auto gdspix = indexin(vBBUN, vBGEN);
+
     vector<string> gdsptbl = selectfrom(generatordsp[GDDSPTBL], gdspix);
 
     for(auto& s:activedsptables[GADSPTBL]) trim(s);
@@ -944,9 +947,17 @@ readROP(const std::string& rop, VVStr& generatordsp, VVStr& activedsptables,
   while(ret) {
     if(isEndOrStartOfSection(line)) {
       std::transform(line.begin(), line.end(), line.begin(), ::tolower);
-      if(line.find("generator dispatch")!=string::npos && !loadedGenDispSec) isGenDispSec=true;
-      if(line.find("active power dispatch")!=string::npos && !loadedActiveDispSec) isActiveDispSec=true;
-      if(line.find("piece-wise linear cost")!=string::npos && !loadedCostCurvesSec) isCostCurvesSec=true;
+
+      //trim(line);
+      line.erase(std::remove_if(line.begin(), line.end(), [](unsigned char c){ return std::isspace(c); }), 
+		 line.end());
+
+      if(line.find("generatordispatch")!=string::npos && !loadedGenDispSec) 
+	isGenDispSec=true;
+      if(line.find("activepowerdispatch")!=string::npos && !loadedActiveDispSec) 
+	isActiveDispSec=true;
+      if(line.find("piece-wiselinearcost")!=string::npos && !loadedCostCurvesSec) 
+	isCostCurvesSec=true;
     }
     ////////////////////////////////////////////////////////////////////////////////////
     if(isGenDispSec) {
@@ -1007,6 +1018,7 @@ readROP(const std::string& rop, VVStr& generatordsp, VVStr& activedsptables,
     
     ////////////////////////////////////////////////////////////////////////////////////
     if(isCostCurvesSec) {
+
       int npairs, p; 
       while(true) {
 	ret = (bool)getline(file, line); assert(ret);
@@ -1031,13 +1043,30 @@ readROP(const std::string& rop, VVStr& generatordsp, VVStr& activedsptables,
 	  ret = (bool)getline(file, line); assert(ret);
 	  assert(!isEndOrStartOfSection(line));
 	  pos = line.find(delimiter); assert(pos!=string::npos);
-	  costcurves_xi.back().push_back(atof(line.substr(0,pos).c_str()));
+	  double xi = atof(line.substr(0,pos).c_str());
+
 	  line.erase(0, pos+delimiter.length());
 	  assert(line.find(delimiter)==string::npos);
-	  costcurves_yi.back().push_back(atof(line.c_str()));
+	  double yi = atof(line.c_str());
+
+	  if(costcurves_yi.back().size() > 0) {
+	    assert(costcurves_xi.back().size() > 0);
+
+	    if(costcurves_yi.back().back() == yi && costcurves_xi.back().back() == xi) {
+	      // do not append consecutive equal xi and yi
+	    } else { 
+	      costcurves_yi.back().push_back(yi);
+	      costcurves_xi.back().push_back(xi);
+	    }
+	  } else {
+	    costcurves_yi.back().push_back(yi);
+	    costcurves_xi.back().push_back(xi);
+	  }
 
 #ifdef DEBUG
-	  if(p>0 && costcurves_xi.back().back() <= costcurves_xi.back()[p-1])
+	  size_t pp = costcurves_xi.back().size();
+
+	  if(pp>0 && costcurves_xi.back().back() < costcurves_xi.back()[pp-1])
 	    log.printf(hovWarning, "!!!! nonmonotone linear cost coeff !?!? check this\n");
 #endif
 	}
