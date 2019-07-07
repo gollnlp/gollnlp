@@ -38,7 +38,7 @@ bool SCACOPFProblem::default_assembly()
   double L_rate_reduction=0.75;
   add_cons_thermal_li_lims(d, true, L_rate_reduction);
 
-  double T_rate_reduction=0.75;
+  double T_rate_reduction=1.;
   add_cons_thermal_ti_lims(d, true, T_rate_reduction);
 
   add_obj_prod_cost(d);
