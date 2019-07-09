@@ -204,6 +204,9 @@ void MyCode1::phase3_ranks_allocation()
 
 bool MyCode1::do_phase1()
 {
+  printf("[ph1] rank %d  starts phase 1 global time %g\n", 
+	   my_rank, glob_timer.measureElapsedTime());
+
   K_SCACOPF_phase1 = phase1_SCACOPF_contingencies();
   assert(NULL == scacopf_prob);
 
@@ -235,6 +238,7 @@ bool MyCode1::do_phase1()
   scacopf_prob->set_solver_option("mu_linear_decrease_factor", 0.4);
   scacopf_prob->set_solver_option("mu_superlinear_decrease_power", 1.4);
 
+
   if(iAmSolver) {    assert(my_rank==rank_solver_rank0);
     //if(true) {
     scacopf_prob->set_solver_option("print_level", 5);
@@ -245,12 +249,20 @@ bool MyCode1::do_phase1()
     scacopf_prob->set_solver_option("print_level", 1);
     scacopf_prob->set_solver_option("max_iter", 1);
   }
+
+  printf("[ph1] rank %d  starts scacopf solve phase 1 global time %g\n", 
+	   my_rank, glob_timer.measureElapsedTime());
+
   
   bool bret = scacopf_prob->optimize("ipopt");
   if(iAmSolver) {
     cost_basecase = scacopf_prob->objective_value();
   }
+  printf("[ph1] rank %d  scacopf solve phase 1 done at global time %g\n", 
+	   my_rank, glob_timer.measureElapsedTime());
   //scacopf_prob->print_p_g_with_coupling_info(*scacopf_prob->data_K[0]);
+
+
 
   //
   //communication -> solver rank0 bcasts basecase solutions
@@ -267,6 +279,8 @@ bool MyCode1::do_phase1()
     MPI_Bcast_x(rank_solver_rank0, comm_world, my_rank);
 
   MPI_Bcast(&cost_basecase, 1, MPI_DOUBLE, rank_solver_rank0, comm_world);
+  printf("[ph1] rank %d  phase 1 basecase bcasts done at global time %g\n", 
+	   my_rank, glob_timer.measureElapsedTime());
 
 
   //force a have_start set
@@ -275,12 +289,14 @@ bool MyCode1::do_phase1()
     //delete scacopf_prob; scacopf_problem=NULL;
   } else {
     K_SCACOPF_phase3 = K_SCACOPF_phase1;
+    printf("[ph1] rank %d  phase 1 writes solution1.txt at global time %g\n", 
+	   my_rank, glob_timer.measureElapsedTime());
 
     //write solution
     scacopf_prob->write_solution_basecase();
     if(!bret) {
-      printf("[warning] Solver rank %d: initial basecase solve failed; solution1 was written though\n",
-	     my_rank);
+      printf("[warning] Solver rank %d: initial basecase solve failed; solution1 was written though at global time=%g\n",
+	     my_rank, glob_timer.measureElapsedTime());
     }
   }
 
