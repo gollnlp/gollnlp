@@ -56,6 +56,7 @@ MyCode1::MyCode1(const std::string& InFile1_, const std::string& InFile2_,
   req_recv_penalty_solver=NULL;
   req_send_penalty_solver=NULL;
 
+  TL_rate_reduction=1.;
 }
 
 MyCode1::~MyCode1()
@@ -212,7 +213,13 @@ bool MyCode1::do_phase1()
   //
   scacopf_prob = new SCACOPFProblem(data);
 
-  scacopf_prob->set_AGC_as_nonanticip(true);
+  //scacopf_prob->set_AGC_as_nonanticip(true);
+  scacopf_prob->set_AGC_simplified(true);
+
+  TL_rate_reduction = 0.88;
+  scacopf_prob->set_L_rate_reduction(TL_rate_reduction);
+  scacopf_prob->set_T_rate_reduction(TL_rate_reduction);
+
 
   scacopf_prob->assembly(K_SCACOPF_phase1);
 
@@ -1427,7 +1434,14 @@ double MyCode1::phase3_solve_scacopf(std::vector<int>& K_idxs)
   SCACOPFProblem* scacopf_prob_prev = scacopf_prob;
 
   scacopf_prob = new SCACOPFProblem(data);
-  scacopf_prob->set_AGC_as_nonanticip(true);
+  //scacopf_prob->set_AGC_as_nonanticip(true);
+  scacopf_prob->set_AGC_simplified(true);
+
+  //TL_rate_reduction += 0.01;
+  //if(TL_rate_reduction>0.95)
+  // TL_rate_reduction = 0.95;
+  scacopf_prob->set_L_rate_reduction(TL_rate_reduction);
+  scacopf_prob->set_T_rate_reduction(TL_rate_reduction);
 
   scacopf_prob->assembly(K_idxs);
 
@@ -1458,8 +1472,10 @@ double MyCode1::phase3_solve_scacopf(std::vector<int>& K_idxs)
   bool bret = scacopf_prob->reoptimize(OptProblem::primalDualRestart);
   double cost = scacopf_prob->objective_value();
   
-  printf("Solver Rank %d - finished scacopf solve in %g seconds %d iters -- cost %g   global time %g\n",
-	 my_rank, t.stop(), scacopf_prob->number_of_iterations(), cost, glob_timer.measureElapsedTime());
+  printf("Solver Rank %d - finished scacopf solve in %g seconds "
+	 "%d iters -- cost %g  TL_rate %g  global time %g\n",
+	 my_rank, t.stop(), scacopf_prob->number_of_iterations(), 
+	 cost, TL_rate_reduction, glob_timer.measureElapsedTime());
 
   //write solution
   if(!bret) {

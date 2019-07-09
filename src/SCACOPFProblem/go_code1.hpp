@@ -230,7 +230,9 @@ private: //data members
   std::string NetworkModel;
 
   gollnlp::SCACOPFData data;
-  
+
+  double TL_rate_reduction;  
+
   //
   // communication
   //
