@@ -157,7 +157,7 @@ bool AGCSimpleCons::
 eval_Jac(const OptVariables& primal_vars, bool new_x, 
 	 const int& nnz, int* ia, int* ja, double* M)
 {
-  int row=0, idxnz, dim=n;
+  int row=0, idxnz, dim = n;
   if(NULL==M) {
     for(int it=0; it<dim; it++) {
       row = this->index+it;
@@ -170,11 +170,11 @@ eval_Jac(const OptVariables& primal_vars, bool new_x,
       assert(idxnz<nnz);
       ia[idxnz]=row; ja[idxnz]=deltaK->index;        idxnz++; // w.r.t. delta
     }
-    assert(row == this->index+this->n);
+    assert(row+1 == this->index+this->n);
   } else {
     for(int it=0; it<dim; it++) {
       idxnz = J_nz_idxs[it];
-      assert(idxnz<nnz && idxnz>=0);
+      assert(idxnz+3<nnz && idxnz>=0);
       
       M[idxnz++] += 1.; // w.r.t. p0
       M[idxnz++] -= 1.; // w.r.t. pk
@@ -201,7 +201,7 @@ bool AGCSimpleCons::get_Jacob_ij(std::vector<OptSparseEntry>& vij)
 
   //p0 + alpha*deltak - pk = 0
   int row=0; 
-  for(int it=0; it<n/3; it++) {
+  for(int it=0; it<n; it++) {
     row = this->index+it;
     vij.push_back(OptSparseEntry(row, pg0->index+idx0[it], J_nz_idxs+it)); //p0
     vij.push_back(OptSparseEntry(row, pgK->index+idxK[it], NULL));         //pk
