@@ -25,6 +25,12 @@ int myexe1_function(const std::string& InFile1, const std::string& InFile2,
 
 int main(int argc, char *argv[])
 {
+  int ret;
+  ret = MPI_Init(&argc, &argv); assert(ret==MPI_SUCCESS);
+  if(MPI_SUCCESS != ret) {
+    std::cerr << "MPI_Init failed\n";
+  }
+
   int retcode=0;
   gollnlp::goTimer ttot; ttot.start();
 
@@ -59,6 +65,7 @@ int main(int argc, char *argv[])
       printf("Something went wrong with code1: return code %d; it took %g seconds\n",
            retcode, ttot.stop());
     }
+    MPI_Finalize();
     return retcode;
     
   } else {

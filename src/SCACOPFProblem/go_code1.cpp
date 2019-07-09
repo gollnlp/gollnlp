@@ -65,13 +65,7 @@ MyCode1::~MyCode1()
 
 int MyCode1::initialize(int argc, char *argv[])
 {
-  int ret;
-  ret = MPI_Init(&argc, &argv); assert(ret==MPI_SUCCESS);
-  if(MPI_SUCCESS != ret) {
-    return false;
-  }
-
-  ret = MPI_Comm_rank(comm_world, &my_rank); assert(ret==MPI_SUCCESS);
+  int ret = MPI_Comm_rank(comm_world, &my_rank); assert(ret==MPI_SUCCESS);
   if(MPI_SUCCESS != ret) {
     return false;
   }
@@ -304,6 +298,7 @@ bool MyCode1::do_phase1()
     printf("[ph1] rank %d  basecase obj %g global time %g\n", 
 	   my_rank, cost_basecase, glob_timer.measureElapsedTime());
 
+  fflush(stdout);
   return true;
 }
 
@@ -1201,6 +1196,7 @@ bool MyCode1::do_phase2()
 
     if(iAmMaster && !iAmEvaluator) {
       //usleep(200); //microseconds
+      fflush(stdout);
       std::this_thread::sleep_for(std::chrono::milliseconds(2));
       //std::this_thread::sleep_for(std::chrono::milliseconds(100));      
     }
@@ -1321,7 +1317,7 @@ int MyCode1::go()
     return -1;
   }
   printf("Phase 1 completed on rank %d after %g sec\n", my_rank, glob_timer.measureElapsedTime());
-
+  fflush(stdout);
   //
   // phase 2
   //
@@ -1331,6 +1327,7 @@ int MyCode1::go()
   }
   printf("Phase 2 completed/finished on rank %d after %g sec\n", 
 	 my_rank, glob_timer.measureElapsedTime());
+  fflush(stdout);
 
   //
   //cleanup
@@ -1340,7 +1337,6 @@ int MyCode1::go()
   if(my_rank==rank_master)
     printf("--finished in %g sec  global time %g sec\n", ttot.stop(), glob_timer.measureElapsedTime());
 
-  MPI_Finalize();
   return 0;
 }
 
