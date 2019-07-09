@@ -103,6 +103,121 @@ bool NonAnticipCons::get_Jacob_ij(std::vector<OptSparseEntry>& vij)
 }
 
 /////////////////////////////////////////////////////////////////////////////////
+// simplified AGC constraints 
+// p0 + alpha*deltak - pk = 0 
+/////////////////////////////////////////////////////////////////////////////////
+
+AGCSimpleCons::AGCSimpleCons(const std::string& id_, int numcons,
+			     OptVariablesBlock* pg0_, OptVariablesBlock* pgK_, 
+			     OptVariablesBlock* deltaK_,
+			     const std::vector<int>& idx0_, const std::vector<int>& idxK_,
+			     const std::vector<double>& G_alpha_)
+  : OptConstraintsBlock(id_, numcons), pg0(pg0_), pgK(pgK_), deltaK(deltaK_),
+    J_nz_idxs(NULL)
+{
+  assert(idx0_.size()==idxK_.size());
+  assert(idx0_.size()==n);
+  assert(n<=pg0->n); assert(n<=pgK->n);
+  assert(1==deltaK->n);
+  assert(G_alpha_.size()==pg0_->n);
+
+  G_alpha = G_alpha_.data();
+
+  int dim = n;
+  idx0 = new int[dim];
+  memcpy(idx0, idx0_.data(), dim*sizeof(int));
+  idxK = new int[dim];
+  memcpy(idxK, idxK_.data(), dim*sizeof(int));
+
+  ub = new double[n];
+  for(int i=0; i<n; i++) ub[i] = 0.;  
+  DCOPY(&n, ub, &ione, lb, &ione);
+}
+
+AGCSimpleCons::~AGCSimpleCons()
+{
+  delete [] idx0;
+  delete [] idxK;
+  delete [] J_nz_idxs;
+}
+
+bool AGCSimpleCons::
+eval_body (const OptVariables& vars_primal, bool new_x, double* body)
+{
+  double* g = body+this->index;
+  // p0 + alpha*deltak - pk  = 0
+  int dim = n;
+  for(int it=0; it<dim; it++) {
+    g[it] += pg0->xref[idx0[it]] + deltaK->xref[0]*G_alpha[idx0[it]] - pgK->xref[idxK[it]];
+  }
+  return true;
+}
+
+bool AGCSimpleCons::
+eval_Jac(const OptVariables& primal_vars, bool new_x, 
+	 const int& nnz, int* ia, int* ja, double* M)
+{
+  int row=0, idxnz, dim=n;
+  if(NULL==M) {
+    for(int it=0; it<dim; it++) {
+      row = this->index+it;
+      idxnz = J_nz_idxs[it];   
+
+      assert(idxnz+3<nnz && idxnz>=0);
+
+      ia[idxnz]=row; ja[idxnz]=pg0->index+idx0[it];   idxnz++; // w.r.t. po
+      ia[idxnz]=row; ja[idxnz]=pgK->index+idxK[it];   idxnz++; // w.r.t. pk
+      assert(idxnz<nnz);
+      ia[idxnz]=row; ja[idxnz]=deltaK->index;        idxnz++; // w.r.t. delta
+    }
+    assert(row == this->index+this->n);
+  } else {
+    for(int it=0; it<dim; it++) {
+      idxnz = J_nz_idxs[it];
+      assert(idxnz<nnz && idxnz>=0);
+      
+      M[idxnz++] += 1.; // w.r.t. p0
+      M[idxnz++] -= 1.; // w.r.t. pk
+      M[idxnz++] += G_alpha[idx0[it]]; // w.r.t. delta
+    }
+  }
+  return true;
+}
+
+int AGCSimpleCons::get_Jacob_nnz()
+{
+  return 3*n; 
+}
+
+bool AGCSimpleCons::get_Jacob_ij(std::vector<OptSparseEntry>& vij)
+{
+#ifdef DEBUG
+  int loc_nnz = get_Jacob_nnz();
+  int vij_sz_in = vij.size();
+#endif
+  
+  if(!J_nz_idxs) 
+    J_nz_idxs = new int[n];
+
+  //p0 + alpha*deltak - pk = 0
+  int row=0; 
+  for(int it=0; it<n/3; it++) {
+    row = this->index+it;
+    vij.push_back(OptSparseEntry(row, pg0->index+idx0[it], J_nz_idxs+it)); //p0
+    vij.push_back(OptSparseEntry(row, pgK->index+idxK[it], NULL));         //pk
+    vij.push_back(OptSparseEntry(row, deltaK->index, NULL)); //delta
+  }
+
+#ifdef DEBUG
+  assert(row+1 == this->index+this->n);
+  assert(vij.size() == loc_nnz+vij_sz_in);
+#endif
+  return true;
+}
+
+
+
+/////////////////////////////////////////////////////////////////////////////////
 // AGC smoothing using complementarity function
 // 
 // p + alpha*deltak - pk - gb * rhop + gb * rhom = 0

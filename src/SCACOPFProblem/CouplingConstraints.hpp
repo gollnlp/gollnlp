@@ -37,6 +37,36 @@ namespace gollnlp {
   };
 
   /////////////////////////////////////////////////////////////////////////////////
+  // simplified AGC constraints
+  // p0 + alpha*deltak - pk = 0 
+  // these constraints are enforced only for AGC generators
+  //  - idx0 are the indexes of AGC generators in p0
+  //  - idxk are the indexes of AGC generators in pk
+  /////////////////////////////////////////////////////////////////////////////////
+  class AGCSimpleCons : public OptConstraintsBlock
+  {
+  public:
+    AGCSimpleCons(const std::string& id_, int numcons,
+		  OptVariablesBlock* pg0_, OptVariablesBlock* pgK_, OptVariablesBlock* deltaK_,
+		  const std::vector<int>& idx0_, const std::vector<int>& idxK_,
+		  const std::vector<double>& G_alpha_);
+
+    virtual ~AGCSimpleCons();
+
+    virtual bool eval_body (const OptVariables& vars_primal, bool new_x, double* body);
+    virtual bool eval_Jac(const OptVariables& primal_vars, bool new_x, 
+			  const int& nnz, int* i, int* j, double* M);
+    int get_Jacob_nnz();
+    virtual bool get_Jacob_ij(std::vector<OptSparseEntry>& vij);
+    
+  protected:
+    OptVariablesBlock *pg0, *pgK, *deltaK;
+    int *idx0, *idxK;
+    const double* G_alpha; //size ngen base case, accessed via idx0
+    int* J_nz_idxs; 
+  };
+
+  /////////////////////////////////////////////////////////////////////////////////
   // AGC smoothing using complementarity function
   // 
   // p0 + alpha*deltak - pk - gb * rhop + gb * rhom = 0
