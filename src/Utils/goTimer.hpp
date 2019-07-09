@@ -2,6 +2,7 @@
 #define GOLLNLP_TIMER
 
 //#ifdef GOLLNLP_USE_MPI
+#define GOLLNLP_USE_MPI
 #include "mpi.h"
 //#else
 //#include <sys/time.h>
