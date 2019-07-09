@@ -17,7 +17,7 @@ namespace gollnlp {
     SCACOPFProblem(SCACOPFData& d_in) 
       : data_sc(d_in), 
 	useQPen(false), slacks_scale(1.),  PVPQSmoothing(0.01), AGCSmoothing(1e-4),
-	AGC_as_nonanticip(false), PVPQ_as_nonanticip(false)
+	AGC_as_nonanticip(false), AGC_simplified(false), PVPQ_as_nonanticip(false)
     {
       L_rate_reduction = T_rate_reduction = 1.;
     }
@@ -38,13 +38,11 @@ namespace gollnlp {
 
     //controllers of how AGC and PVPQ constraints are enforced
     inline void set_AGC_as_nonanticip(bool onOrOff)
-    {
-      AGC_as_nonanticip = onOrOff;
-    }
+    { AGC_as_nonanticip = onOrOff; }
+    inline void set_AGC_simplified(bool onOrOff)
+    { AGC_simplified = onOrOff; }
     inline void set_PVPQ_as_nonanticip(bool onOrOff)
-    {
-      PVPQ_as_nonanticip = onOrOff;
-    }
+    { PVPQ_as_nonanticip = onOrOff; }
     inline void set_L_rate_reduction(const double& rate) { L_rate_reduction = rate; }
     inline void set_T_rate_reduction(const double& rate) { T_rate_reduction = rate; }
 
@@ -74,6 +72,7 @@ namespace gollnlp {
     void add_cons_coupling(SCACOPFData& dB);
     void add_cons_nonanticip(SCACOPFData& dB, const std::vector<int>& Gk_no_AGC);
     void add_cons_AGC(SCACOPFData& dB, const std::vector<int>& Gk_AGC);
+    void add_cons_AGC_simplified(SCACOPFData& dB, const std::vector<int>& Gk_AGC);
     void add_cons_PVPQ(SCACOPFData& dB, const std::vector<int>& Gk);
   public: 
     //contingencies' SCACOPFData
@@ -85,7 +84,7 @@ namespace gollnlp {
     bool useQPen;
     double slacks_scale;
     double AGCSmoothing, PVPQSmoothing;
-    bool AGC_as_nonanticip, PVPQ_as_nonanticip;
+    bool AGC_as_nonanticip, AGC_simplified, PVPQ_as_nonanticip;
     double L_rate_reduction, T_rate_reduction;
   public:
     //variables and constraints accessers

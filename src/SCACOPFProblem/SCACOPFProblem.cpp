@@ -86,15 +86,26 @@ void SCACOPFProblem::add_cons_coupling(SCACOPFData& dB)
   data_sc.get_AGC_participation(K_id, Gk, Gkp, Gknop);
   assert(Gk.size() == dB.G_Generator.size());
 
+  if(AGC_simplified && AGC_as_nonanticip) {
+    
+    assert(false && "cannot have AGC_as_nonanticip "
+	   "and AGC_simplified in the same time");
+    printf("[warning] disabled AGC_simplified since AGC_as_nonanticip is enabled.\n");
+    AGC_simplified = false;
+  }
+
   if(AGC_as_nonanticip) {
     add_cons_nonanticip(dB, Gk); 
     add_cons_AGC(dB, {}); //just to print the "?!? no AGC" message
   } else {
-    add_cons_nonanticip(dB, Gknop);
-    add_cons_AGC(dB, Gkp);
+    if(AGC_simplified) {
+      add_cons_nonanticip(dB, Gknop);
+      add_cons_AGC_simplified(dB, Gkp);
+    } else {
+      add_cons_nonanticip(dB, Gknop);
+      add_cons_AGC(dB, Gkp);
+    }
   }
-
-
 
 
   //voltages
@@ -312,6 +323,52 @@ void SCACOPFProblem::add_cons_AGC(SCACOPFData& dB, const std::vector<int>& G_idx
 
   printf("AGC: %lu gens participating: added %d constraints\n", G_idxs_AGC.size(), cons->n);
 }
+
+void SCACOPFProblem::add_cons_AGC_simplified(SCACOPFData& dB, const std::vector<int>& G_idxs_AGC)
+{
+  if(G_idxs_AGC.size()==0) {
+    printf("[warning] SCACOPFProblem: add_cons_AGC_simplified: NO gens participating !?! in contingency %d\n", dB.id);
+    return;
+  }
+  auto ids_agc = selectfrom(data_sc.G_Generator, G_idxs_AGC);
+  auto conting_matching_idxs = indexin(dB.G_Generator, ids_agc);
+  conting_matching_idxs = findall(conting_matching_idxs, [](int val) {return val!=-1;});
+#ifdef DEBUG
+  assert(G_idxs_AGC.size() == conting_matching_idxs.size());
+  for(int i0=0, iK=0; i0<G_idxs_AGC.size(); i0++, iK++) {
+    //all dB.G_Generator should be in data_sc.G_Generator
+    assert(conting_matching_idxs[iK]>=0); 
+    //all ids should match in order
+    assert(dB.G_Generator[conting_matching_idxs[iK]] == data_sc.G_Generator[G_idxs_AGC[i0]]);
+  }
+  //printvec(conting_matching_idxs, "conting gen idxs");
+  //printvec(G_idxs_AGC, "base case gen idxs");
+#endif
+  OptVariablesBlock* pg0 = variable("p_g", data_sc);
+  if(NULL==pg0) {
+    printf("Contingency %d: p_g var not found in the base case; will NOT add AGC simplifiedconstraints.\n", dB.id);
+    return;
+  }
+  OptVariablesBlock* pgK = variable("p_g", dB);
+  if(NULL==pgK) {
+    printf("Contingency %d: p_g var not found in conting problem; will NOT add AGC simplified constraints.\n", dB.id);
+    return;
+  }
+
+  OptVariablesBlock* deltaK = new OptVariablesBlock(1, var_name("delta", dB));
+  append_variables(deltaK);
+  deltaK->set_start_to(0.);
+
+  auto cons = new AGCSimpleCons(con_name("AGC_simple", dB), G_idxs_AGC.size(),
+				pg0, pgK, deltaK, 
+				G_idxs_AGC, conting_matching_idxs,
+				data_sc.G_alpha);
+
+  append_constraints(cons);
+
+  printf("AGC: %lu gens participating: added %d SIMPLIFIED constraints\n", G_idxs_AGC.size(), cons->n);
+}
+
   
 void SCACOPFProblem::add_variables(SCACOPFData& d)
 {
@@ -944,6 +1001,9 @@ bool SCACOPFProblem::set_warm_start_from_base_of(SCACOPFProblem& srcProb)
       variable("p_g", dK)->set_start_to(*srcProb.variable("p_g", data_sc));
       variable("q_g", dK)->set_start_to(*srcProb.variable("q_g", data_sc));
     }
+
+    auto deltak = variable("delta", dK);
+    if(deltak) deltak->set_start_to(0.);
     
     if(dK.K_ConType[0] == SCACOPFData::kLine) {
       idxs_of_K_in_0 = indexin(dK.L_Line, data_sc.L_Line);
@@ -1869,6 +1929,11 @@ bool SCACOPFProblem::set_warm_start_from_base_of(SCACOPFProblem& srcProb)
 	prefix = "duals_AGC";
 	auto v = variable_duals_cons(prefix, dK);
 	if(v) v->set_start_to(SIGNED_DUALS_VAL);
+
+	//or try for 'AGC_simple' constraints
+	prefix = "duals_AGC_simple";
+	v  = variable_duals_cons(prefix, dK); 
+	if(v)  v->set_start_to(0.);
       }
       {
 	prefix = "duals_non_anticip";
