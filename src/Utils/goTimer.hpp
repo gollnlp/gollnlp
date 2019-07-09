@@ -1,11 +1,11 @@
 #ifndef GOLLNLP_TIMER
 #define GOLLNLP_TIMER
 
-#ifdef GOLLNLP_USE_MPI
+//#ifdef GOLLNLP_USE_MPI
 #include "mpi.h"
-#else
-#include <sys/time.h>
-#endif
+//#else
+//#include <sys/time.h>
+//#endif
 
 #include <cassert>
 
