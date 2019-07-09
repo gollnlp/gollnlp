@@ -35,10 +35,7 @@ bool SCACOPFProblem::default_assembly()
   add_cons_transformers_pf(d);
   add_cons_active_powbal(d);
   add_cons_reactive_powbal(d);
-  double L_rate_reduction=0.75;
   add_cons_thermal_li_lims(d, true, L_rate_reduction);
-
-  double T_rate_reduction=0.75;
   add_cons_thermal_ti_lims(d, true, T_rate_reduction);
 
   add_obj_prod_cost(d);

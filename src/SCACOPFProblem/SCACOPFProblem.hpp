@@ -19,6 +19,7 @@ namespace gollnlp {
 	useQPen(false), slacks_scale(1.),  PVPQSmoothing(0.01), AGCSmoothing(1e-4),
 	AGC_as_nonanticip(false), PVPQ_as_nonanticip(false)
     {
+      L_rate_reduction = T_rate_reduction = 1.;
     }
     virtual ~SCACOPFProblem();
 
@@ -44,6 +45,8 @@ namespace gollnlp {
     {
       PVPQ_as_nonanticip = onOrOff;
     }
+    inline void set_L_rate_reduction(const double& rate) { L_rate_reduction = rate; }
+    inline void set_T_rate_reduction(const double& rate) { T_rate_reduction = rate; }
 
     bool set_warm_start_from_base_of(SCACOPFProblem& srcProb);
   protected:
@@ -83,6 +86,7 @@ namespace gollnlp {
     double slacks_scale;
     double AGCSmoothing, PVPQSmoothing;
     bool AGC_as_nonanticip, PVPQ_as_nonanticip;
+    double L_rate_reduction, T_rate_reduction;
   public:
     //variables and constraints accessers
     inline std::string var_name(const std::string& prefix, const SCACOPFData& d) { 
