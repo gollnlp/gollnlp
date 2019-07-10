@@ -299,15 +299,15 @@ bool MyCode1::do_phase1()
       printf("[warning] Solver rank %d: initial basecase solve failed; solution1 was written though at global time=%g\n",
 	     my_rank, glob_timer.measureElapsedTime());
     }
-    
+
+#ifdef DEBUG
     //write solution extras
-    if(true){
-      scacopf_prob->write_solution_extras_basecase();
-      if(!bret) {
-        printf("[warning] Solver rank %d: initial basecase solve failed; solution1 extras were written though\n",
-          my_rank);
-      }
+    scacopf_prob->write_solution_extras_basecase();
+    if(!bret) {
+      printf("[warning] Solver rank %d: initial basecase solve failed; solution1 extras were written though\n",
+             my_rank);
     }
+#endif
   }
 
   if(my_rank<=3)
@@ -1492,9 +1492,9 @@ double MyCode1::phase3_solve_scacopf(std::vector<int>& K_idxs)
 	   my_rank);
   } else {
     scacopf_prob->write_solution_basecase();
-    if(true){
-      scacopf_prob->write_solution_extras_basecase();
-    }
+#ifdef DEBUG
+    scacopf_prob->write_solution_extras_basecase();
+#endif
   }
 
   return cost;
