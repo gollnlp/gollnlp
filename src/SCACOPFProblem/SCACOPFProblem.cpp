@@ -115,10 +115,11 @@ void SCACOPFProblem::add_cons_coupling(SCACOPFData& dB)
     add_cons_PVPQ(dB, Gk);
   }
 }
-
-// Gk are the indexes of all gens other than the outgen (for generator contingencies) 
-// in data_sc.G_Generator
-void SCACOPFProblem::add_cons_PVPQ(SCACOPFData& dB, const std::vector<int>& Gk)
+void SCACOPFProblem::get_idxs_PVPQ(SCACOPFData& dB, const std::vector<int>& Gk,
+				   vector<vector<int> >& idxs_gen_agg, vector<int>& idxs_bus_pvpq,
+				   std::vector<double>& Qlb, std::vector<double>& Qub,
+				   int& nPVPQGens, int &num_qgens_fixed, 
+				   int& num_N_PVPQ, int& num_buses_all_qgen_fixed)
 {
   auto G_Nidx_Gk = selectfrom(data_sc.G_Nidx, Gk);
   //extra check
@@ -131,15 +132,8 @@ void SCACOPFProblem::add_cons_PVPQ(SCACOPFData& dB, const std::vector<int>& Gk)
   //printvec(G_Nidx_Gk);
   auto &N_PVPQ = G_Nidx_Gk; //nodes with PVPQ generators;
 
-  //(aggregated) non-fixed q_g generator ids at each node/bus
-  // with PVPQ generators that have at least one non-fixed q_g 
-  vector<vector<int> > idxs_gen_agg;
-  //bus indexes that have at least one non-fixed q_g
-  vector<int> idxs_bus_pvpq;
-  //aggregated lb and ub on reactive power at each PVPQ bus
-  vector<double> Qlb, Qub;
-  int nPVPQGens=0, nPVPQCons=0; 
-  int num_buses_all_qgen_fixed=0, num_qgens_fixed=0;
+
+  int nPVPQCons=0; nPVPQGens=0; num_buses_all_qgen_fixed=0; num_qgens_fixed=0;
 
   for(auto n: N_PVPQ) {
     assert(dB.Gn[n].size()>0);
@@ -182,11 +176,24 @@ void SCACOPFProblem::add_cons_PVPQ(SCACOPFData& dB, const std::vector<int>& Gk)
   assert(idxs_gen_agg.size() == Qub.size());
   assert(N_PVPQ.size()  == num_buses_all_qgen_fixed+idxs_gen_agg.size());
   assert(idxs_bus_pvpq.size() == idxs_gen_agg.size());
+  num_N_PVPQ = N_PVPQ.size();
+}
 
-  //for(int i=0; i<Qlb.size(); i++) {
-  //  printf("%d %g %g \n", N_PVPQ[i], Qlb[i], Qub[i]);
-  //  printvec(idxs_gen_agg[i]);
-  //}
+// Gk are the indexes of all gens other than the outgen (for generator contingencies) 
+// in data_sc.G_Generator
+void SCACOPFProblem::add_cons_PVPQ(SCACOPFData& dB, const std::vector<int>& Gk)
+{
+  //(aggregated) non-fixed q_g generator ids at each node/bus
+  // with PVPQ generators that have at least one non-fixed q_g 
+  vector<vector<int> > idxs_gen_agg;
+  //bus indexes that have at least one non-fixed q_g
+  vector<int> idxs_bus_pvpq;
+  //aggregated lb and ub on reactive power at each PVPQ bus
+  vector<double> Qlb, Qub;
+  int nPVPQGens=0,  num_qgens_fixed=0, num_N_PVPQ=0, num_buses_all_qgen_fixed=0;
+
+  get_idxs_PVPQ(dB, Gk, idxs_gen_agg, idxs_bus_pvpq, Qlb, Qub, 
+		nPVPQGens, num_qgens_fixed, num_N_PVPQ, num_buses_all_qgen_fixed);
 
   auto v_n0 = variable("v_n", data_sc);
   auto v_nk = variable("v_n", dB);
@@ -227,7 +234,7 @@ void SCACOPFProblem::add_cons_PVPQ(SCACOPFData& dB, const std::vector<int>& Gk)
   printf("PVPQ: participating %d gens at %lu buses: added %d constraints;"
 	 "total PVPQ: %lu gens | %lu buses; were fixed: %d gens | %d buses with all gens fixed.\n",
 	 nPVPQGens-num_qgens_fixed, idxs_bus_pvpq.size(), cons->n,
-	 Gk.size(), N_PVPQ.size(),
+	 Gk.size(), num_N_PVPQ,
 	 num_qgens_fixed, num_buses_all_qgen_fixed);
 }
 
@@ -936,7 +943,7 @@ bool SCACOPFProblem::set_warm_start_from_base_of(SCACOPFProblem& srcProb)
       if(b && bsrc) b->set_start_to(*bsrc);
       else { assert(false); }
     }
-
+    return true;
   }
 #define SIGNED_DUALS_VAL 1.
 

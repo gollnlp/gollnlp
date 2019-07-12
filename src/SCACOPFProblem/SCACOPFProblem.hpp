@@ -123,6 +123,17 @@ namespace gollnlp {
       return vars_block_duals_cons(prefix+"_"+std::to_string(d.id));
     }
 
+    // returns the idxs of PVPQ gens and corresponding buses
+    // generators at the same PVPQ bus are aggregated
+    //
+    // Gk are the indexes of all gens other than the outgen (for generator contingencies) 
+    // in data_sc.G_Generator
+    void get_idxs_PVPQ(SCACOPFData& dB, const std::vector<int>& Gk,
+		       std::vector<std::vector<int> >& idxs_gen_agg, std::vector<int>& idxs_bus_pvpq,
+		       std::vector<double>& Qlb, std::vector<double>& Qub,
+		       int& nPVPQGens, int &num_qgens_fixed, 
+		       int& num_N_PVPQ, int& num_buses_all_qgen_fixed);
+
     //printing
     void print_p_g(SCACOPFData& dB);
     void print_p_g_with_coupling_info(SCACOPFData& dB, OptVariablesBlock* p_g0=NULL);
