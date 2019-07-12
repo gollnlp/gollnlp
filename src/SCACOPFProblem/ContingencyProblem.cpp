@@ -21,6 +21,7 @@ namespace gollnlp {
     //data_sc = d_in (member of the parent)
     data_K.push_back(new SCACOPFData(data_sc)); 
     data_K[0]->rebuild_for_conting(K_idx, numK);
+    //data_K[0].PenaltyWeight = (1-d.DELTA);
   }
 
   ContingencyProblem::~ContingencyProblem()

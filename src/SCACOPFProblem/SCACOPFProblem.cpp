@@ -57,6 +57,8 @@ bool SCACOPFProblem::assembly(const std::vector<int> K_Cont)
     SCACOPFData& dK = *(data_K).back(); //shortcut
     dK.rebuild_for_conting(K,nK);
 
+    dK.PenaltyWeight = (1-d.DELTA) / nK;
+
     printf("adding blocks for contingency K=%d IDOut=%d outidx=%d Type=%s\n", 
 	   K, d.K_IDout[K], d.K_outidx[K], d.cont_type_string(K).c_str());
 
@@ -663,6 +665,7 @@ void SCACOPFProblem::add_cons_active_powbal(SCACOPFData& d)
   pf_p_bal->compute_slacks(pslacks_n); pslacks_n->providesStartingPoint=true;
 
   if(useQPenActiveBalance) {
+    //printf("!!!!!!!!using d.PenaltyWeight=%g\n", d.PenaltyWeight);
     append_objterm( new PFPenaltyQuadrApproxObjTerm("quadr_pen_" + pslacks_n->id, pslacks_n, 
 						    d.P_Penalties[SCACOPFData::pP], d.P_Quantities[SCACOPFData::pP], 
 						    d.PenaltyWeight, slacks_scale) );
