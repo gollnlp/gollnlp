@@ -576,7 +576,7 @@ bool MyCode1::do_phase2_master_part()
       {
 	//isend K_idx_next
 	ReqKidx* req_K_idx = new ReqKidx( K_idx_next );
-	int tag = Tag0 + (K_on_rank[r].size()==0 ? 1 : K_on_rank[r].size());
+	int tag = Tag1; //Tag0 + (K_on_rank[r].size()==0 ? 1 : K_on_rank[r].size());
 	ierr = MPI_Isend(req_K_idx->buffer, 1, MPI_INT, r,
 			 tag, comm_world, &req_K_idx->request);
 #ifdef DEBUG_COMM
@@ -590,7 +590,7 @@ bool MyCode1::do_phase2_master_part()
 
 	  //post the irecv for penalty
 	  ReqPenalty* req_pen = new ReqPenalty( K_idx_next );
-	  tag = Tag0 + MSG_TAG_SZ + K_on_rank[r].size();
+	  tag = Tag2; //Tag0 + MSG_TAG_SZ + K_on_rank[r].size();
 	  ierr = MPI_Irecv(req_pen->buffer, 1, MPI_DOUBLE, r,
 			   tag, comm_world, &req_pen->request);
 	  assert(MPI_SUCCESS == ierr);
@@ -914,7 +914,7 @@ bool MyCode1::do_phase3_master_solverpart(bool master_evalpart_done)
       //
       //post idxs send msg
       //
-      int tag = Tag0 + 3*MSG_TAG_SZ + r + phase3_scacopf_passes_master;
+      int tag = Tag4; //Tag0 + 3*MSG_TAG_SZ + r + phase3_scacopf_passes_master;
       ierr = MPI_Isend(req_send_KidxSCACOPF->buffer.data(), 
 		       req_send_KidxSCACOPF->buffer.size(), 
 		       MPI_INT, 
@@ -934,7 +934,7 @@ bool MyCode1::do_phase3_master_solverpart(bool master_evalpart_done)
       //
       assert(req_recv_penalty_solver==NULL);
       req_recv_penalty_solver = new ReqPenalty(1e6);
-      tag = Tag0 + 4*MSG_TAG_SZ + rank_solver_rank0 + phase3_scacopf_passes_master;
+      tag = Tag5; //Tag0 + 4*MSG_TAG_SZ + rank_solver_rank0 + phase3_scacopf_passes_master;
       ierr = MPI_Irecv(req_recv_penalty_solver->buffer, 
 		       1, 
 		       MPI_DOUBLE, 
@@ -1060,7 +1060,7 @@ bool MyCode1::do_phase2_evaluator_part(int& switchToSolver)
 	req_send_penalty->buffer[0] = penalty;
 
 	
-	int tag = Tag0 + MSG_TAG_SZ + K_on_my_rank.size();
+	int tag = Tag2; //Tag0 + MSG_TAG_SZ + K_on_my_rank.size();
 	ierr = MPI_Isend(req_send_penalty->buffer, 1, MPI_DOUBLE,
 			 rank_master, tag, comm_world, &req_send_penalty->request);
 	assert(MPI_SUCCESS == ierr);
@@ -1095,7 +1095,7 @@ bool MyCode1::do_phase2_evaluator_part(int& switchToSolver)
   if(req_recv_K_idx==NULL) {
     req_recv_K_idx = new ReqKidx();
     
-    int tag = Tag0 + K_on_my_rank.size()+1;
+    int tag = Tag1; //Tag0 + K_on_my_rank.size()+1;
     ierr = MPI_Irecv(&req_recv_K_idx->buffer, 1, MPI_INT, rank_master, tag,
 		     comm_world, &req_recv_K_idx->request);
 #ifdef DEBUG_COMM
@@ -1109,7 +1109,7 @@ bool MyCode1::do_phase2_evaluator_part(int& switchToSolver)
 
 void MyCode1::phase2_initialization()
 {
-  Tag0 = 10000; MSG_TAG_SZ=data.K_Contingency.size();
+  //Tag0 = 10000; MSG_TAG_SZ=data.K_Contingency.size();
   
   if(iAmMaster) {
     int num_ranks = K_on_rank.size();
@@ -1233,7 +1233,7 @@ bool MyCode1::do_phase3_solver_part()
       vector<int> K_idxs(MAX_NUM_Kidxs_SCACOPF, -1);
       req_recv_KidxSCACOPF = new ReqKidxSCACOPF(K_idxs);
 
-      int tag = Tag0 + 3*MSG_TAG_SZ + rank_solver_rank0 + phase3_scacopf_passes_solver;
+      int tag = Tag4; //Tag0 + 3*MSG_TAG_SZ + rank_solver_rank0 + phase3_scacopf_passes_solver;
       ierr = MPI_Irecv(req_recv_KidxSCACOPF->buffer.data(),
 		       req_recv_KidxSCACOPF->buffer.size(),
 		       MPI_INT, rank_master, tag, comm_world,
@@ -1285,7 +1285,7 @@ bool MyCode1::do_phase3_solver_part()
 	  //send penalty/handshake 
 	  req_send_penalty_solver = new ReqPenalty();
 	  req_send_penalty_solver->buffer[0] = objective;
-	  int tag = Tag0 + 4*MSG_TAG_SZ + rank_solver_rank0 + phase3_scacopf_passes_solver;
+	  int tag = Tag5; //Tag0 + 4*MSG_TAG_SZ + rank_solver_rank0 + phase3_scacopf_passes_solver;
 	  // aaa ierr = MPI_Send(req_send_penalty_solver->buffer, 1, MPI_DOUBLE, rank_master, tag, comm_world);
 	  
 	  ierr = MPI_Isend(req_send_penalty_solver->buffer, 1, MPI_DOUBLE, rank_master, tag, 

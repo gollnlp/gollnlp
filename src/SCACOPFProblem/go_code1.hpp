@@ -97,13 +97,24 @@ private: //methods
   //
   // tags
   //
-  int Tag0;// = 10000;
-  int MSG_TAG_SZ;//=num_K
-  // send/recv Kidxs: Tag0 + Kidx_sendrecv_counter_for_rank
-  // send/recv penalty obj: Tag0+MSG_TAG_SZ+sendrecv_penalty_counter_for_rank
-  // send/recv solution large penalty: Tag0+2*MSG_TAG_SZ+sendrecv_solution_counter_for_rank
-  // send/recv scacopf Kidxs (between master and solver): Tag0+3*MSG_TAG_SZ+rank_solver+phase3_passes
-  // send/recv scacopf penalty/handshake (between master and solver): Tag0+4*MSG_TAG_SZ+rank_solver+phase3_passes
+  //int Tag0;// = 10000;
+  //int MSG_TAG_SZ;//=num_K
+
+  // Tag1 : send/recv Kidxs 
+  //!: Tag0 + Kidx_sendrecv_counter_for_rank
+  
+  // Tag2 : send/recv penalty obj
+  //! Tag0+MSG_TAG_SZ+sendrecv_penalty_counter_for_rank
+ 
+  // Tag3 : send/recv solution large penalty
+  //! Tag0+2*MSG_TAG_SZ+sendrecv_solution_counter_for_rank
+
+  // Tag4 : send/recv scacopf Kidxs (between master and solver)
+  //! Tag0+3*MSG_TAG_SZ+rank_solver+phase3_passes
+  
+  // Tag5 :send/recv scacopf penalty/handshake (between master and solver)
+  //!  Tag0+4*MSG_TAG_SZ+rank_solver+phase3_passes
+  enum Tags{Tag1=1, Tag2, Tag3, Tag4, Tag5};
   
   //K_idx =-1 means no more contingencies to evaluate
   //K_idx =-3 is sent to solver rank to instruct him to stay on hold for scacopf solve
