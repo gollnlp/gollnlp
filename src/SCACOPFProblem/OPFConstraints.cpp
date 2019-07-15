@@ -1159,14 +1159,9 @@ void PFLineLimits::compute_slacks(OptVariablesBlock* sslacks)
   const int* L_Nidx = Nidx.data();
   double aux;
   for(int i=0; i<n; i++) {
-    aux = Rate[i]*v_n->x[L_Nidx[i]];
-    *body++ -= aux*aux;
-  }
-  body -= n;
-
-  for(int i=0; i<n; i++) {
-    //if(body[i]>0) printf(" [%3d] = %g\n", i, body[i]);
-    body[i] = body[i]>=0 ? sqrt(body[i])/r : 0.;
+    aux = body[i]>0. ? sqrt(body[i]) : 0.;
+    aux -= Rate[i]*v_n->x[L_Nidx[i]];
+    body[i] = aux>0. ? aux/r : 0.;
   }
 }
 

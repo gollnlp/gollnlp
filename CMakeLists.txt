@@ -42,8 +42,9 @@ if(NOT DEFINED LAPACK_LIBRARIES)
 endif(NOT DEFINED LAPACK_LIBRARIES)
 message("LAPACK/BLAS libs: ${LAPACK_LIBRARIES}")
 
-
 # "/home/petra1/work/installs/Ipopt-3.12.5/"
+# "/opt/Ipopt/v3.12.12/"
+# "~/bin/COIN-OR/Ipopt/"
 set(IPOPT_DIR $ENV{IPOPT_3_12_13_GCC492_PATH} CACHE PATH "path to ipopt directory")
 message("Using Ipopt dir ${IPOPT_DIR}")
 include_directories("${IPOPT_DIR}/include/coin")
