@@ -42,7 +42,7 @@ bool SCACOPFProblem::default_assembly()
   //d.L_RateBase : d.L_RateEmer;
   for(int it=0; it<sz; it++) {
     r = L_rate_reduction * d.L_RateEmer[it];
-    if(rate[it] < r)
+    if(rate[it] > r)
       rate[it] = r;
   }
   add_cons_thermal_li_lims(d, rate);
@@ -51,7 +51,7 @@ bool SCACOPFProblem::default_assembly()
   //d.L_RateBase : d.L_RateEmer;
   for(int it=0; it<sz; it++) {
     r = T_rate_reduction * d.T_RateEmer[it];
-    if(rate[it] < r)
+    if(rate[it] > r)
       rate[it] = r;
   }
   add_cons_thermal_ti_lims(d, rate);
