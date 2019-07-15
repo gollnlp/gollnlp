@@ -43,8 +43,8 @@ namespace gollnlp {
     { AGC_simplified = onOrOff; }
     inline void set_PVPQ_as_nonanticip(bool onOrOff)
     { PVPQ_as_nonanticip = onOrOff; }
-    inline void set_L_rate_reduction(const double& rate) { L_rate_reduction = rate; }
-    inline void set_T_rate_reduction(const double& rate) { T_rate_reduction = rate; }
+    inline void set_basecase_L_rate_reduction(const double& rate) { L_rate_reduction = rate; }
+    inline void set_basecase_T_rate_reduction(const double& rate) { T_rate_reduction = rate; }
 
     bool set_warm_start_from_base_of(SCACOPFProblem& srcProb);
   protected:
@@ -62,10 +62,11 @@ namespace gollnlp {
 
     // 'SysCond_BaseCase' decides whether to use RateBase or RateEmer
     //  SysCond_BaseCase=true -> base case; =false -> contingency
-    void add_cons_thermal_li_lims(SCACOPFData& dB, bool SysCond_BaseCase=true, 
-				  double L_rate_reduction=1.);
-    void add_cons_thermal_ti_lims(SCACOPFData& dB, bool SysCond_BaseCase=true, 
-				  double T_rate_reduction=1.);
+    void add_cons_thermal_li_lims(SCACOPFData& dB, bool SysCond_BaseCase=true);
+    void add_cons_thermal_ti_lims(SCACOPFData& dB, bool SysCond_BaseCase=true);
+    // same as above, but with explicit argument for T_Rate
+    void add_cons_thermal_li_lims(SCACOPFData& dB, const std::vector<double>& rate);
+    void add_cons_thermal_ti_lims(SCACOPFData& dB, const std::vector<double>& rate);
 
     void add_obj_prod_cost(SCACOPFData& dB);
 

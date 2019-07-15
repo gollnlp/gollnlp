@@ -216,12 +216,13 @@ bool MyCode1::do_phase1()
   //scacopf_prob->set_AGC_as_nonanticip(true);
   scacopf_prob->set_AGC_simplified(true);
 
+  //reduce T and L rates to min(RateBase, TL_rate_reduction*RateEmer)
   TL_rate_reduction = 0.9;
   if((ScoringMethod==1 || ScoringMethod==3))
     TL_rate_reduction = 0.85;
 
-  scacopf_prob->set_L_rate_reduction(TL_rate_reduction);
-  scacopf_prob->set_T_rate_reduction(TL_rate_reduction);
+  scacopf_prob->set_basecase_L_rate_reduction(TL_rate_reduction);
+  scacopf_prob->set_basecase_T_rate_reduction(TL_rate_reduction);
 
 
   scacopf_prob->assembly(K_SCACOPF_phase1);
@@ -1449,11 +1450,10 @@ double MyCode1::phase3_solve_scacopf(std::vector<int>& K_idxs)
   //scacopf_prob->set_AGC_as_nonanticip(true);
   scacopf_prob->set_AGC_simplified(true);
 
-  //TL_rate_reduction += 0.01;
-  //if(TL_rate_reduction>0.95)
-  // TL_rate_reduction = 0.95;
-  scacopf_prob->set_L_rate_reduction(TL_rate_reduction);
-  scacopf_prob->set_T_rate_reduction(TL_rate_reduction);
+  //TL_rate_reduction was computed in phase1
+  //reduce T and L rates to min(RateBase, TL_rate_reduction*RateEmer)
+  scacopf_prob->set_basecase_L_rate_reduction(TL_rate_reduction);
+  scacopf_prob->set_basecase_T_rate_reduction(TL_rate_reduction);
 
   scacopf_prob->assembly(K_idxs);
 

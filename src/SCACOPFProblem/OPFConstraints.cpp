@@ -1089,8 +1089,7 @@ PFLineLimits::PFLineLimits(const std::string& id_, int numcons,
 			   OptVariablesBlock* v_n_,
 			   const std::vector<int>& L_Nidx_,
 			   const std::vector<double>& L_Rate_,
-			   const double& slacks_rescale,
-			   const double& L_Rate_reduction_factor)
+			   const double& slacks_rescale)
   : OptConstraintsBlock(id_, numcons), 
     p_li(p_li_), q_li(q_li_), v_n(v_n_), Nidx(L_Nidx_), L_Rate(L_Rate_), sslack_li(NULL)
 {
@@ -1106,8 +1105,8 @@ PFLineLimits::PFLineLimits(const std::string& id_, int numcons,
   H_nz_idxs = NULL;
 
   //!
-  for(int i=0; i<L_Rate.size(); i++)
-    L_Rate[i] *= L_Rate_reduction_factor;
+  //for(int i=0; i<L_Rate.size(); i++)
+  //  L_Rate[i] *= L_Rate_reduction_factor;
 }
 PFLineLimits::~PFLineLimits() 
 {

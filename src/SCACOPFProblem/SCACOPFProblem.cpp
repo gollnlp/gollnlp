@@ -35,8 +35,26 @@ bool SCACOPFProblem::default_assembly()
   add_cons_transformers_pf(d);
   add_cons_active_powbal(d);
   add_cons_reactive_powbal(d);
-  add_cons_thermal_li_lims(d, true, L_rate_reduction);
-  add_cons_thermal_ti_lims(d, true, T_rate_reduction);
+
+  vector<double> rate; size_t sz; double r;
+
+  rate = d.L_RateBase; sz = d.L_RateBase.size();
+  //d.L_RateBase : d.L_RateEmer;
+  for(int it=0; it<sz; it++) {
+    r = L_rate_reduction * d.L_RateEmer[it];
+    if(rate[it] < r)
+      rate[it] = r;
+  }
+  add_cons_thermal_li_lims(d, rate);
+
+  rate = d.T_RateBase; sz = d.T_RateBase.size();
+  //d.L_RateBase : d.L_RateEmer;
+  for(int it=0; it<sz; it++) {
+    r = T_rate_reduction * d.T_RateEmer[it];
+    if(rate[it] < r)
+      rate[it] = r;
+  }
+  add_cons_thermal_ti_lims(d, rate);
 
   add_obj_prod_cost(d);
 
@@ -730,18 +748,26 @@ void SCACOPFProblem::add_cons_reactive_powbal(SCACOPFData& d)
 //
 //thermal line limits
 //
-void SCACOPFProblem::add_cons_thermal_li_lims(SCACOPFData& d, bool SysCond_BaseCase, double L_rate_reduction)
+void SCACOPFProblem::add_cons_thermal_li_lims(SCACOPFData& d, bool SysCond_BaseCase)
+{
+  vector<double>& L_Rate = SysCond_BaseCase ? d.L_RateBase : d.L_RateEmer;
+  add_cons_thermal_li_lims(d, L_Rate);
+}
+void SCACOPFProblem::add_cons_thermal_li_lims(SCACOPFData& d, 
+					      const std::vector<double>& L_Rate)
 {
   //! temp
   bool useQPenLi1 = useQPen, useQPenLi2 = useQPen; //double slacks_scale=1.;
 
   auto v_n = variable("v_n",d);
   auto p_li1 = variable("p_li1", d), q_li1 = variable("q_li1", d);
-  vector<double>& L_Rate = SysCond_BaseCase ? d.L_RateBase : d.L_RateEmer;
+  // - removed vector<double>& L_Rate = SysCond_BaseCase ? d.L_RateBase : d.L_RateEmer;
+  double L_rate_reduction_one = 1.;
+
   {
     auto pf_line_lim1 = new PFLineLimits(con_name("line_limits1",d), d.L_Line.size(),
 					 p_li1, q_li1, v_n, 
-					 d.L_Nidx[0], L_Rate, slacks_scale, L_rate_reduction);
+					 d.L_Nidx[0], L_Rate, slacks_scale);
     append_constraints(pf_line_lim1);
     
     //sslack_li1
@@ -771,7 +797,7 @@ void SCACOPFProblem::add_cons_thermal_li_lims(SCACOPFData& d, bool SysCond_BaseC
   {
     auto pf_line_lim2 = new PFLineLimits(con_name("line_limits2",d), d.L_Line.size(),
 					 p_li2, q_li2, v_n, 
-					 d.L_Nidx[1], L_Rate, slacks_scale, L_rate_reduction);
+					 d.L_Nidx[1], L_Rate, slacks_scale);
     append_constraints(pf_line_lim2);
     //sslack_li2
     OptVariablesBlock* sslack_li2 = pf_line_lim2->slacks();
@@ -800,12 +826,18 @@ void SCACOPFProblem::add_cons_thermal_li_lims(SCACOPFData& d, bool SysCond_BaseC
 //
 //thermal transformer limits
 //
-void SCACOPFProblem::add_cons_thermal_ti_lims(SCACOPFData& d, bool SysCond_BaseCase, double T_rate_reduction)
+  void SCACOPFProblem::add_cons_thermal_ti_lims(SCACOPFData& d, bool SysCond_BaseCase)
+{
+  vector<double>& T_Rate = SysCond_BaseCase ? d.T_RateBase : d.T_RateEmer;
+  add_cons_thermal_ti_lims(d, T_Rate);
+}
+
+  void SCACOPFProblem::add_cons_thermal_ti_lims(SCACOPFData& d,  const std::vector<double>& T_Rate)
 {
   //! temp
   bool useQPenTi1=useQPen, useQPenTi2=useQPen; //double slacks_scale=1.;
   
-  vector<double>& T_Rate = SysCond_BaseCase ? d.T_RateBase : d.T_RateEmer;
+  // - removed vector<double>& T_Rate = SysCond_BaseCase ? d.T_RateBase : d.T_RateEmer;
   if(true){
     auto p_ti1 = variable("p_ti1", d), q_ti1 = variable("q_ti1", d);
     auto pf_trans_lim1 = new PFTransfLimits(con_name("trans_limits1",d), d.T_Transformer.size(),

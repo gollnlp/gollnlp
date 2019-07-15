@@ -252,8 +252,7 @@ namespace gollnlp {
 		 OptVariablesBlock* v_n_,
 		 const std::vector<int>& L_Nidx_,
 		 const std::vector<double>& L_Rate_,
-		 const double& slacks_rescale=1.,
-		 const double& L_rate_reduction=1.);
+		 const double& slacks_rescale=1);
     virtual ~PFLineLimits();
 
     OptVariablesBlock* slacks() { return sslack_li; }
@@ -318,7 +317,7 @@ namespace gollnlp {
     virtual OptObjectiveTerm* create_objterm();
   protected:
     OptVariablesBlock *p_ti, *q_ti;
-    const std::vector<double> &T_Rate;
+    std::vector<double> T_Rate;
     double r;
     OptVariablesBlock *sslack_ti; // sslackp_ti1 or sslackm_ti2;
 
