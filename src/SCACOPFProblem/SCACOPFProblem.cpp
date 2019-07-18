@@ -36,23 +36,27 @@ bool SCACOPFProblem::default_assembly()
   add_cons_active_powbal(d);
   add_cons_reactive_powbal(d);
 
-  vector<double> rate; size_t sz; double r;
+  vector<double> rate; size_t sz; double r_emer, r_base;
 
   rate = d.L_RateBase; sz = d.L_RateBase.size();
   //d.L_RateBase : d.L_RateEmer;
   for(int it=0; it<sz; it++) {
-    r = L_rate_reduction * d.L_RateEmer[it];
-    if(rate[it] > r)
-      rate[it] = r;
+    r_emer = L_rate_reduction * d.L_RateEmer[it];
+    r_base = 0.9              * d.L_RateBase[it];
+    rate[it] = r_emer < r_base ? r_emer : r_base;
+    //if(rate[it] > r)
+    //  rate[it] = r;
   }
   add_cons_thermal_li_lims(d, rate);
 
   rate = d.T_RateBase; sz = d.T_RateBase.size();
   //d.L_RateBase : d.L_RateEmer;
   for(int it=0; it<sz; it++) {
-    r = T_rate_reduction * d.T_RateEmer[it];
-    if(rate[it] > r)
-      rate[it] = r;
+    r_emer = T_rate_reduction * d.T_RateEmer[it];
+    r_base = 0.9              * d.T_RateBase[it];
+    rate[it] = r_emer < r_base ? r_emer : r_base;
+    //if(rate[it] > r)
+    //rate[it] = r;
   }
   add_cons_thermal_ti_lims(d, rate);
 
