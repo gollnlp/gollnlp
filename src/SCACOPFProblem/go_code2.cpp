@@ -46,6 +46,11 @@ int MyCode2::initialize(int argc, char *argv[])
     return false;
   }
 
+  if(comm_size<=1) {
+    printf("[error] MyExe2 needs at least 2 ranks to run\n"); 
+    exit(-1);
+  }
+
   rank_master = 0;
   if(my_rank == rank_master) iAmMaster=true;
 
@@ -92,18 +97,26 @@ int MyCode2::go()
   initial_K_distribution();
 
   //master posts recv for the initial Ks
-  for(int r=0; r<comm_size; r++) {
-    for(int Kidx: K_on_slave_ranks[r]) {
-      if(Kidx<0) continue;
-      int tag2 = 222;     
-      ReqKSln* req_recv_sln = new ReqKSln(Kidx, vector<double>(200,-12.17));
-      int ierr = MPI_Irecv(req_recv_sln->buffer.data(), req_recv_sln->get_msg_size(), 
-			   MPI_DOUBLE, r, tag2, comm_world, &req_recv_sln->request);
-      assert(ierr == MPI_SUCCESS);
-      req_recv_Ksln[r].push_back(req_recv_sln);
-      printf("[rank 0] contsol recv created for conting %d on rank %d\n", Kidx, r);
+  if(iAmMaster) {
+    for(int r=0; r<comm_size; r++) {
+      for(int Kidx: K_on_slave_ranks[r]) {
+	if(Kidx<0) continue;
+	int tag2 = 222;     
+	ReqKSln* req_recv_sln = new ReqKSln(Kidx, vector<double>(200,-12.17));
+	int ierr = MPI_Irecv(req_recv_sln->buffer.data(), req_recv_sln->get_msg_size(), 
+			     MPI_DOUBLE, r, tag2, comm_world, &req_recv_sln->request);
+	assert(ierr == MPI_SUCCESS);
+	req_recv_Ksln[r].push_back(req_recv_sln);
+	printf("[rank 0] contsol recv created for conting %d on rank %d\n", Kidx, r);
+      }
     }
   }
+
+  //this is only on the master rank
+  vector<vector<double> > vvslns(data.K_Contingency.size());
+  
+
+  sleep(1);
 
   bool ask_for_conting=true;
 
@@ -111,7 +124,6 @@ int MyCode2::go()
   while(true) {
 
     if(!K_local.empty()) {
-      printf("2222\n");
 
       int k = K_local.front(); 
       K_local.pop_front();
@@ -129,7 +141,7 @@ int MyCode2::go()
 			   MPI_DOUBLE, rank_master, tag2, comm_world, &req_send_sol->request);
 
 #ifdef DEBUG_COMM
-      printf("on rank %d: posted send solution for K_idx=%d to master rank %d globtime %g\n", 
+      printf("[rank %d] posted send solution for K_idx=%d to master rank %d globtime %g\n", 
 	     my_rank, k, rank_master, glob_timer.measureElapsedTime());
 #endif
 	assert(MPI_SUCCESS == ierr);
@@ -150,8 +162,13 @@ int MyCode2::go()
 	    //completed
 	    assert(req_recv_Ksln[r][i]->buffer.back() == k);
 #ifdef DEBUG_COMM
-	    printf("[on rank 0] contsol recv from rank=%d conting=%d done\n", r, k); 
+	    printf("[rank 0] contsol recv from rank=%d conting=%d done\n", r, k); 
 #endif	    
+	    vvslns[k] = req_recv_Ksln[r][i]->buffer;
+	    vvslns[k].pop_back(); //remove the last entry, which is the Kidx (used for checking)
+	    
+	    delete req_recv_Ksln[r][i];
+	    req_recv_Ksln[r][i] = NULL;
 	    K_on_slave_ranks[r][i] = -1;
 	  }
 	}
@@ -170,7 +187,7 @@ int MyCode2::go()
 			       MPI_INT, rank_master, tag3, comm_world, &req_send_4idx->request);
 	  
 #ifdef DEBUG_COMM	  
-	  printf("on rank %d: created send request %d for contingencies globtime %g\n", 
+	  printf("[rank %d] created send request %d for contingencies globtime %g\n", 
 		 my_rank, num_req4Kidx, glob_timer.measureElapsedTime());
 #endif
 	  req_send_req4Kidx.push_back(req_send_4idx);
@@ -191,7 +208,7 @@ int MyCode2::go()
 	if(mpi_test_flag != 0) {
 	  //completed
 #ifdef DEBUG_COMM	  
-	  printf("on rank %d: completed send request %d for contingencies globtime %g\n", 
+	  printf("[rank %d] completed send request %d for contingencies globtime %g\n", 
 		 my_rank, num_req4Kidx, glob_timer.measureElapsedTime());
 #endif      
 	  // post the recv for the actual indexes
@@ -202,7 +219,7 @@ int MyCode2::go()
 	  assert(MPI_SUCCESS == ierr);
 	  req_recv_Kidx.push_back(req_recv_idx);
 #ifdef DEBUG_COMM	  
-	  printf("on rank %d: created irecv request %d for indexes globtime %g\n", 
+	  printf("[rank %d] created irecv request %d for indexes globtime %g\n", 
 		 my_rank, num_req4Kidx, glob_timer.measureElapsedTime());
 #endif 
 
@@ -227,11 +244,11 @@ int MyCode2::go()
       if(mpi_test_flag != 0) {
 	//completed
 #ifdef DEBUG_COMM
-	printf("on rank %d: irecv request %d for indexes completed globtime %g\n", 
+	printf("[rank %d] irecv request %d for indexes completed globtime %g\n", 
 	  my_rank, num_req4Kidx, glob_timer.measureElapsedTime());
 #endif
 	for(auto k: req_recv_idx->buffer) {
-	  if(k>0) {
+	  if(k>=0) {
 	    K_local.push_back(k);
 	  } else if(k==-1) {
 	    ask_for_conting=false;
@@ -250,7 +267,7 @@ int MyCode2::go()
     // i. check for requests for additional contingencies; 
     // ii. (I)send these contingencies
     // iii. create contsol recv requests for the contingencies that were just sent 
-    if(my_rank==0) {
+    if(my_rank==rank_master) {
       bool all_comm_contidxs_done=true;
       
       for(int r=comm_size-1; r>=1; r--) {
@@ -285,8 +302,8 @@ int MyCode2::go()
 	    printf("[rank 0] completed recv request %d for contingencies for rank %d\n", num_req4Kidx_for_ranks[r], r);
 #endif
 	    //pick new contingency 
-	    int perRank = data.K_Contingency.size()/comm_size;
-	    int Kstart = perRank*r;
+	    int perRank = data.K_Contingency.size()/(comm_size-1);
+	    int Kstart = perRank*(r-1);
 	    auto Kidxs = findall(K_left, [Kstart](int val) {return val>Kstart;});
 	    if(Kidxs.empty()) 
 	      Kidxs = findall(K_left, [](int val) {return val>=0;});
@@ -314,7 +331,7 @@ int MyCode2::go()
 	    
 	  
 	    // create contsol recvs for the contingency that was just sent 
-	    if(Kidx>0) {
+	    if(Kidx>=0) {
 	      K_on_slave_ranks[r].push_back(Kidx);
 	      
 	      int tag2 = 222;     
@@ -349,9 +366,75 @@ int MyCode2::go()
 	} // end of - if(!req_send_Kidx[r].empty()) {
 
       }
-    } // end of - master part
-    
+
+      // we're still under myRank==0
+      
+      //test for termination on master rank
+      if(all_comm_contidxs_done) {
+	std::this_thread::sleep_for(std::chrono::milliseconds(10));
+        fflush(stdout);
+	break;
+      }
+      fflush(stdout);
+    }  else {// end of - master part
+      //on worker ranks
+      
+      //termination tests
+      if(!ask_for_conting && K_local.empty() && req_recv_Kidx.empty() && req_send_req4Kidx.empty()) {
+	std::this_thread::sleep_for(std::chrono::milliseconds(100));
+	fflush(stdout);
+	break;
+      }
+      fflush(stdout);
+    }
   } // end of while(true)
+
+  printf("[rank %d] All contingencies solved in %6.2f sec\n", my_rank, glob_timer.measureElapsedTime());
+  fflush(stdout);
+
+ 
+  //master waits for all solutions to come in
+  if(iAmMaster) {
+    bool recv_sln_done=false;
+    while(!recv_sln_done) {
+      recv_sln_done = true;
+      for(int r=0; r<comm_size; r++) {
+	for(int i=0; i<K_on_slave_ranks[r].size(); i++) {
+	  int k = K_on_slave_ranks[r][i];
+	  if(k<0) continue;
+	  
+	  int mpi_test_flag, ierr; MPI_Status mpi_status;
+	  ierr = MPI_Test(&(req_recv_Ksln[r][i]->request), &mpi_test_flag, &mpi_status);
+	  if(mpi_test_flag != 0) {
+	    //completed
+
+	    assert(req_recv_Ksln[r][i]->buffer.back()==k);
+	    vvslns[k] = req_recv_Ksln[r][i]->buffer;
+	    vvslns[k].pop_back(); //remove the last element, which is Kidx
+
+	    delete req_recv_Ksln[r][i];
+	    req_recv_Ksln[r][i]=NULL;
+	    K_on_slave_ranks[r][i] = -1;
+	  } else {
+	    recv_sln_done = false;
+	  }
+	}
+      }
+    }
+  }
+
+  //write solution2.txt
+  if(iAmMaster) {
+#ifdef DEBUG
+    for( auto& a: req_recv_Ksln) for(auto p: a) assert(NULL==p);
+#endif
+
+    for(auto& v: vvslns) {
+      printf("--- size %d\n", v.size());
+      assert(200 == v.size());
+      assert(v[2] == 17);
+    }
+  }
 
   // final message
   if(my_rank==rank_master)
@@ -365,10 +448,7 @@ void MyCode2::initial_K_distribution()
 {
 
   int num_ranks = comm_size;
-  //initialize K_on_rank (vector of K idxs on each rank)
-  for(int it=0; it<num_ranks; it++)
-    K_on_slave_ranks.push_back(vector<int>());
-  
+
   //num contingencies; 
   int S = data.K_Contingency.size(), R = num_ranks-1;
   if(R<=0) R=1;
@@ -422,6 +502,8 @@ bool MyCode2::solve_contingency(int K_idx, std::vector<double>& sln)
   printf("solve_contingency on rank %d\n", my_rank);
 
   std::this_thread::sleep_for(std::chrono::milliseconds(1));
+
+  if(my_rank==2) std::this_thread::sleep_for(std::chrono::milliseconds(1800));
 
   return true;
 }
