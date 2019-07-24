@@ -79,6 +79,10 @@ add_library(gollnlp STATIC $<TARGET_OBJECTS:goSCACOPF> $<TARGET_OBJECTS:goUtils>
 add_executable(MyExe1 MyCpp1.cpp)
 target_link_libraries(MyExe1 gollnlp ${LAPACK_LIBRARIES}  ${IPOPT_LIBS})
 
+add_executable(MyExe2 MyCpp2.cpp)
+target_link_libraries(MyExe2 gollnlp ${LAPACK_LIBRARIES}  ${IPOPT_LIBS})
+
+
 ##########################################################
 # CMake Tests
 ##########################################################
