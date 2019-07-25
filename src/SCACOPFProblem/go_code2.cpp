@@ -55,7 +55,7 @@ int MyCode2::initialize(int argc, char *argv[])
   if(my_rank == rank_master) iAmMaster=true;
 
   if(!iAmMaster)  
-    std::this_thread::sleep_for(std::chrono::milliseconds(200));
+    std::this_thread::sleep_for(std::chrono::milliseconds(100));
 
   data.my_rank = my_rank;
 
@@ -81,8 +81,17 @@ int MyCode2::initialize(int argc, char *argv[])
     
     for(int it=0; it<comm_size; it++) 
       req_send_Kidx.push_back(std::vector<ReqKidx*>());
-
   }
+
+
+  std::vector<int> I_n; std::vector<double> v_n;
+  std::vector<double> theta_n; std::vector<double> b_n;
+  std::vector<int> I_g; std::vector<std::string> ID_g;
+  std::vector<double> p_g; std::vector<double> q_g;
+  SCACOPFProblem::read_solution1(I_n, v_n, theta_n, b_n, 
+				 I_g, ID_g, p_g, q_g);
+
+
   return true;
 }
 
@@ -114,12 +123,8 @@ int MyCode2::go()
 
   //this is only on the master rank
   vector<vector<double> > vvslns(data.K_Contingency.size());
-  
-
-  sleep(1);
 
   bool ask_for_conting=true;
-
   //main loop
   while(true) {
 
@@ -502,8 +507,6 @@ bool MyCode2::solve_contingency(int K_idx, std::vector<double>& sln)
   printf("solve_contingency on rank %d\n", my_rank);
 
   std::this_thread::sleep_for(std::chrono::milliseconds(1));
-
-  if(my_rank==2) std::this_thread::sleep_for(std::chrono::milliseconds(1800));
 
   return true;
 }

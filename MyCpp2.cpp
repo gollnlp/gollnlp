@@ -50,6 +50,7 @@ int main(int argc, char *argv[])
     return retcode;
     
   } else {
+    MPI_Finalize();
     std::cout << argv[0] << " did not receive the correct number of parameters. Will exit.\n";
     return -1;
   }

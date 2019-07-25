@@ -143,6 +143,19 @@ namespace gollnlp {
 
     void write_solution_basecase();
     void write_solution_extras_basecase();
+
+
+    static 
+    bool read_solution1(std::vector<int>& I_n,  std::vector<double>& v_n, 
+			std::vector<double>& theta_n, std::vector<double>& b_n,
+			std::vector<int>& I_g, std::vector<std::string>& ID_g,
+			std::vector<double>& p_g, std::vector<double>& q_g,
+			const std::string& filename="solution1.txt");
+
+    void read_solution1(OptVariablesBlock** v_n, OptVariablesBlock** theta_n, OptVariablesBlock** b_s,
+			OptVariablesBlock** p_g, OptVariablesBlock** q_g,
+			const std::string& filename="solution1.txt");
+
   };
 
 }
