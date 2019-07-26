@@ -141,7 +141,8 @@ namespace gollnlp {
     void print_PVPQ_info(SCACOPFData& dB);
     void print_Transf_powers(SCACOPFData& dB, bool SysCond_BaseCase = true);
 
-    void write_solution_basecase();
+    //void write_solution_basecase();
+    void write_solution_basecase(int execsecs = 0);
     void write_solution_extras_basecase();
   };
 

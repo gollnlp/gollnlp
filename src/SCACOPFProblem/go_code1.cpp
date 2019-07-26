@@ -305,6 +305,8 @@ bool MyCode1::do_phase1()
     }
 
 #ifdef DEBUG
+    //write solution to time-stamped file
+    scacopf_prob->write_solution_basecase((int) glob_timer.measureElapsedTime());
     //write solution extras
     scacopf_prob->write_solution_extras_basecase();
     if(!bret) {
@@ -1496,6 +1498,7 @@ double MyCode1::phase3_solve_scacopf(std::vector<int>& K_idxs)
   } else {
     scacopf_prob->write_solution_basecase();
 #ifdef DEBUG
+    scacopf_prob->write_solution_basecase((int) glob_timer.measureElapsedTime());
     scacopf_prob->write_solution_extras_basecase();
 #endif
   }

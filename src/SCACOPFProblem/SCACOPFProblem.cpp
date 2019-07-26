@@ -2183,7 +2183,7 @@ void SCACOPFProblem::print_Transf_powers(SCACOPFData& dB, bool SysCond_BaseCase)
 
 }
 
-void SCACOPFProblem::write_solution_basecase()
+void SCACOPFProblem::write_solution_basecase(int execsecs)
 {
   //data_sc is for the basecase
   OptVariablesBlock* p_g = variable("p_g", data_sc);
@@ -2228,8 +2228,11 @@ void SCACOPFProblem::write_solution_basecase()
 
   for(int i=0; i<data_sc.N_Bus.size(); i++) 
     bcsn[i] *= data_sc.MVAbase;
-
+  
   string strFileName = "solution1.txt";
+  if(execsecs != 0){
+    strFileName = "solution1_" + std::to_string(execsecs) + ".txt";
+  }
   FILE* file = fopen(strFileName.c_str(), "w");
   if(NULL==file) {
     printf("[warning] could not open [%s] file for writing\n", strFileName.c_str());
