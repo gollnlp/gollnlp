@@ -455,6 +455,7 @@ public:
 public:
   //utilities
   void print_summary() const;
+  NlpSolver*  getNlpSolver() {return nlp_solver;}
 protected:
   OptVariables*    vars_primal;
   OptConstraints*  cons;

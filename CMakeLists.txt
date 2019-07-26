@@ -51,6 +51,12 @@ link_directories("${IPOPT_DIR}/lib")
 #set (CMAKE_SHARED_LINKER_FLAGS "${CMAKE_SHARED_LINKER_FLAGS} -Wl,--rpath -Wl,${IPOPT_DIR}/lib")
 set(IPOPT_LIBS "-lgfortran -lipopt -lm  -ldl")
 
+set(HIOP_DIR $ENV{HIOP_PATH} CACHE PATH "path to hiop directory")
+message("Using hiop dir ${HIOP_DIR}")
+include_directories("${HIOP_DIR}/include/")
+link_directories("${HIOP_DIR}/lib")
+set(HIOP_LIBS "-lhiop")
+
 # include build directory for Fortran name mangling header
 include_directories(${CMAKE_BINARY_DIR})
 

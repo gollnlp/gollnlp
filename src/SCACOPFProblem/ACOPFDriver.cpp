@@ -5,6 +5,8 @@
 #include "mpi.h"
 
 #include "SCACOPFProblem.hpp"
+#include "hiopAugLagrSolver.hpp"
+#include "IpoptSolver.hpp"
 
 #include "goUtils.hpp"
 
@@ -59,7 +61,37 @@ int main(int argc, char *argv[])
 
     vector<int> K_idxs = {};
     scacopf_prob->assembly(K_idxs);
+    scacopf_prob->use_nlp_solver("ipopt"); 
 
+    /********************************************************/
+    /**            Call to the hiopAugLagr                  */
+    /********************************************************/
+    //SCACOPFProblem:OptProblem.NlpSolver = new IpoptSolver(this)
+    //                          .eval_obj(), eval_cons(), eval_grad(), ...
+    //
+    //IpoptSolver.IpoptNlp
+    //where IpoptNlp ipmlements the interface
+    //IpoptNlp(OptProblem):IPOPT::TNLP
+    //btw, this only serves as a wrapper to NlpSolver.eval_*
+
+    // nlp_solver is protected within OptProblem
+    // ipopt_nlp_spec is private within IpoptSolver
+    // In order to access scopf_prob.nlp_solver.ipopt_nlp_spec
+    // we need some additional getters
+    /********************************************************/
+
+    IpoptSolver *nlp_solver = (IpoptSolver*)scacopf_prob->getNlpSolver();
+    //nlp_solver->initialize(); //or call scacopf_prob->use_nlp_solver("ipopt") before
+    
+    gollnlp::IpoptNlp *ipopt_nlp_spec=nullptr;
+    nlp_solver->getIpoptNlp(ipopt_nlp_spec);
+
+    hiop::hiopAugLagrSolver solver(ipopt_nlp_spec);
+    solver.run();
+    //solver.getSolution();
+    //solver.getObjective();
+    assert(0);
+    /********************************************************/
 
     scacopf_prob->use_nlp_solver("ipopt"); 
     // scacopf_prob->set_solver_option("linear_solver", "ma57"); 
@@ -81,7 +113,6 @@ int main(int argc, char *argv[])
     // scacopf_prob->set_solver_option("print_level", 5);
   
     bool bret = scacopf_prob->optimize("ipopt");
-
     double cost = scacopf_prob->objective_value();
   
     delete scacopf_prob;

@@ -288,6 +288,8 @@ public:
     return true;
   };
 
+  void getIpoptNlp(gollnlp::IpoptNlp* &ipopt_spec) { ipopt_spec = GetRawPtr(ipopt_nlp_spec);}
+
 private:
   Ipopt::SmartPtr<Ipopt::IpoptApplication> app;
   Ipopt::SmartPtr<gollnlp::IpoptNlp> ipopt_nlp_spec;

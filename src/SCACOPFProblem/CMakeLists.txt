@@ -9,4 +9,4 @@ add_library(goSCACOPF OBJECT SCACOPFData.cpp go_code1.cpp OPFConstraints.cpp OPF
 
 
 add_executable(acopf_driver.exe ACOPFDriver.cpp)
-target_link_libraries(acopf_driver.exe gollnlp ${LAPACK_LIBRARIES} ${IPOPT_LIBS})
+target_link_libraries(acopf_driver.exe gollnlp ${LAPACK_LIBRARIES} ${IPOPT_LIBS} ${HIOP_LIBS})
