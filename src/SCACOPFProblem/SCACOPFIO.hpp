@@ -18,6 +18,17 @@ namespace gollnlp {
 				     SCACOPFData& data,
 				     const std::string& filename="solution2.txt",
 				     const std::string& fileopenflags="a+");
+    static 
+    void write_append_solution_block(OptVariablesBlock* v_n, OptVariablesBlock* theta_n, 
+				     OptVariablesBlock* b_s,
+				     OptVariablesBlock* p_g, OptVariablesBlock* q_g,
+				     SCACOPFData& data,
+				     const std::string& filename="solution2.txt",
+				     const std::string& fileopenflags="a+")
+    {
+      write_append_solution_block(v_n->x, theta_n->x, b_s->x, p_g->x, q_g->x,
+				  data, filename, fileopenflags);
+    }
 
     static
     void read_solution1(OptVariablesBlock** v_n, OptVariablesBlock** theta_n, OptVariablesBlock** b_s,

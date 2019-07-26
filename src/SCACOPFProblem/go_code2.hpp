@@ -69,6 +69,15 @@ private:
 
   void initial_K_distribution();
   bool solve_contingency(int K_idx, std::vector<double>& sln);
+
+  // 1. sweeps 'vvsols' and writes to 'solution2.txt' the solutions 
+  // received on master; this is done in order of the Kidx;
+  // 2. once the solution for contingcency k is written, vvsols[k] is deallocated
+  //
+  // return true when all solutions are written; false otherwise
+  bool attempt_write_solution2(std::vector<std::vector<double> >& vvsols);
+  int last_Kidx_written;
+  int size_sol_block;
 private:
   std::string InFile1, InFile2, InFile3, InFile4;
   double TimeLimitInSec;

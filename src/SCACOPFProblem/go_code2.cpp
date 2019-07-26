@@ -31,10 +31,17 @@ MyCode2::MyCode2(const std::string& InFile1_, const std::string& InFile2_,
   glob_timer.start();
 
   v_n0 = theta_n0 = b_s0 = p_g0 = q_g0 = NULL;
+  last_Kidx_written=-1;
+  size_sol_block=-1;
 }
 
 MyCode2::~MyCode2()
 {
+  delete v_n0;
+  delete theta_n0;
+  delete b_s0;
+  delete p_g0;
+  delete q_g0;
 }
 
 int MyCode2::initialize(int argc, char *argv[])
@@ -72,9 +79,9 @@ int MyCode2::initialize(int argc, char *argv[])
     return false;
   }
   
-  //SCACOPFProblem prob(data);
-
   SCACOPFIO::read_solution1(&v_n0, &theta_n0, &b_s0, &p_g0, &q_g0, data, "solution1.txt");
+  size_sol_block = v_n0->n + theta_n0->n + b_s0->n + p_g0->n + q_g0->n;
+
 
   if(iAmMaster) {
     for(int it=0; it<comm_size; it++)
@@ -119,8 +126,15 @@ int MyCode2::go()
     }
   }
 
+  if(iAmMaster) {
+    //write base case solution
+    SCACOPFIO::write_append_solution_block(v_n0, theta_n0, b_s0, p_g0, q_g0, 
+					   data, "solution2.txt", "w");
+  }
   //this is only on the master rank
-  vector<vector<double> > vvslns(data.K_Contingency.size());
+  // 1==size() means solution has not been received for contingency k;
+  // 0==size() means solution was written for contingency k (and vvslns[k] was "deallocated")
+  vector<vector<double> > vvslns(data.K_Contingency.size(), vector<double>(1));
 
   bool ask_for_conting=true;
   //main loop
@@ -173,6 +187,8 @@ int MyCode2::go()
 	    delete req_recv_Ksln[r][i];
 	    req_recv_Ksln[r][i] = NULL;
 	    K_on_slave_ranks[r][i] = -1;
+
+	    attempt_write_solution2(vvslns);
 	  }
 	}
       }
@@ -418,6 +434,8 @@ int MyCode2::go()
 	    delete req_recv_Ksln[r][i];
 	    req_recv_Ksln[r][i]=NULL;
 	    K_on_slave_ranks[r][i] = -1;
+
+	    attempt_write_solution2(vvslns);
 	  } else {
 	    recv_sln_done = false;
 	  }
@@ -428,19 +446,15 @@ int MyCode2::go()
 
   //write solution2.txt
   if(iAmMaster) {
-#ifdef DEBUG
-    for( auto& a: req_recv_Ksln) for(auto p: a) assert(NULL==p);
-#endif
-
-    for(auto& v: vvslns) {
-      printf("--- size %d\n", v.size());
-      assert(200 == v.size());
-      assert(v[2] == 17);
-    }
+    bool writing_done = attempt_write_solution2(vvslns);
+    if(!writing_done) 
+      printf("[warning] couldn't write all contingency solutions; some are missing from vvslns\n");
+    else 
+      printf("writing of 'solution2.txt' completed\n");
   }
 
   // final message
-  if(my_rank==rank_master)
+  if(iAmMaster)
     printf("--finished in %g sec  global time %g sec\n", ttot.stop(), glob_timer.measureElapsedTime());
 
   return 0;
@@ -514,4 +528,44 @@ void MyCode2::display_instance_info()
   printf("Model %s ScoringMethod %d TimeLimit %g\n", NetworkModel.c_str(), ScoringMethod, TimeLimitInSec);
   printf("Paths to data files:\n");
   printf("[%s]\n[%s]\n[%s]\n[%s]\n\n", InFile1.c_str(), InFile2.c_str(), InFile3.c_str(), InFile4.c_str());
+}
+
+
+// 1. sweeps 'vvsols' and writes to 'solution2.txt' the solutions 
+// received on master; this is done in order of the Kidx;
+// 2. once the solution for contingcency k is written, vvsols[k] is deallocated
+//
+// return true when all solutions are written; false otherwise
+bool MyCode2::attempt_write_solution2(std::vector<std::vector<double> >& vvsols)
+{
+  while(true) {
+    int Kidx = last_Kidx_written+1; assert(Kidx>=0);
+
+    if(Kidx==data.K_Contingency.size()) return true;
+    assert(Kidx<data.K_Contingency.size());
+
+    if(vvsols[Kidx].size()==1) return false; //solution has not arrived
+
+    assert(size_sol_block>=2);
+    assert(vvsols[Kidx].size()==size_sol_block);
+
+#ifdef DEBUG
+    if(Kidx>=1) assert(vvsols[Kidx-1].size() == 0); //should have been written already
+#endif
+    
+    const double 
+      *v_n     = vvsols[Kidx].data(), 
+      *theta_n = vvsols[Kidx].data() + v_n0->n, 
+      *b_s     = vvsols[Kidx].data() + v_n0->n + theta_n0->n, 
+      *p_g     = vvsols[Kidx].data() + v_n0->n + theta_n0->n + b_s0->n, 
+      *q_g     = vvsols[Kidx].data() + v_n0->n + theta_n0->n + b_s0->n + p_g0->n;
+
+    SCACOPFIO::write_append_solution_block(v_n, theta_n, b_s, p_g, q_g, 
+					   data, "solution2.txt", "a+");
+
+    hardclear(vvsols[Kidx]);
+    last_Kidx_written++;
+  }
+
+  return false;
 }
