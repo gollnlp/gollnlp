@@ -89,10 +89,10 @@ namespace gollnlp {
     double L_rate_reduction, T_rate_reduction;
   public:
     //variables and constraints accessers
-    inline std::string var_name(const std::string& prefix, const SCACOPFData& d) { 
+    inline static std::string var_name(const std::string& prefix, const SCACOPFData& d) { 
       return var_name(prefix, d.id); 
     }
-    inline std::string var_name(const std::string& prefix, int Kid) { 
+    inline static std::string var_name(const std::string& prefix, int Kid) { 
       return prefix+"_"+std::to_string(Kid); 
     }
     inline OptVariablesBlock* variable(const std::string& prefix, const SCACOPFData& d) { 
@@ -101,10 +101,10 @@ namespace gollnlp {
     inline OptVariablesBlock* variable(const std::string& prefix, int Kid) { 
       return vars_block(var_name(prefix, Kid));
     }
-    inline std::string con_name(const std::string& prefix, int Kid) { 
+    inline static std::string con_name(const std::string& prefix, int Kid) { 
       return prefix+"_"+std::to_string(Kid); 
     }
-    inline std::string con_name(const std::string& prefix, const SCACOPFData& d) { 
+    inline static std::string con_name(const std::string& prefix, const SCACOPFData& d) { 
       return con_name(prefix, d.id);
     }
     inline OptConstraintsBlock* constraint(const std::string& prefix, const SCACOPFData& d) { 
@@ -143,20 +143,9 @@ namespace gollnlp {
 
     void write_solution_basecase();
     void write_solution_extras_basecase();
+  }; // end of SCACOPFProblem
 
 
-    static 
-    bool read_solution1(std::vector<int>& I_n,  std::vector<double>& v_n, 
-			std::vector<double>& theta_n, std::vector<double>& b_n,
-			std::vector<int>& I_g, std::vector<std::string>& ID_g,
-			std::vector<double>& p_g, std::vector<double>& q_g,
-			const std::string& filename="solution1.txt");
-
-    void read_solution1(OptVariablesBlock** v_n, OptVariablesBlock** theta_n, OptVariablesBlock** b_s,
-			OptVariablesBlock** p_g, OptVariablesBlock** q_g,
-			const std::string& filename="solution1.txt");
-
-  };
 
 }
 

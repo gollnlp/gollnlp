@@ -77,6 +77,11 @@ private:
 
   gollnlp::SCACOPFData data;
 
+  gollnlp::OptVariablesBlock *v_n0, *theta_n0, *b_s0, *p_g0, *q_g0;
+
+  //
+  // communication
+  //
   MPI_Comm comm_world;
   int my_rank, rank_master;
   int comm_size;

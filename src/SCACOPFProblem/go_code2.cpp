@@ -3,6 +3,7 @@
 #include "SCMasterProblem.hpp"
 #include "SCRecourseProblem.hpp"
 
+#include "SCACOPFIO.hpp"
 #include "goUtils.hpp"
 
 using namespace std;
@@ -28,6 +29,8 @@ MyCode2::MyCode2(const std::string& InFile1_, const std::string& InFile2_,
     comm_world(comm_world_)
 {
   glob_timer.start();
+
+  v_n0 = theta_n0 = b_s0 = p_g0 = q_g0 = NULL;
 }
 
 MyCode2::~MyCode2()
@@ -68,6 +71,10 @@ int MyCode2::initialize(int argc, char *argv[])
     printf("error occured while reading instance\n");
     return false;
   }
+  
+  //SCACOPFProblem prob(data);
+
+  SCACOPFIO::read_solution1(&v_n0, &theta_n0, &b_s0, &p_g0, &q_g0, data, "solution1.txt");
 
   if(iAmMaster) {
     for(int it=0; it<comm_size; it++)
@@ -82,15 +89,6 @@ int MyCode2::initialize(int argc, char *argv[])
     for(int it=0; it<comm_size; it++) 
       req_send_Kidx.push_back(std::vector<ReqKidx*>());
   }
-
-
-  std::vector<int> I_n; std::vector<double> v_n;
-  std::vector<double> theta_n; std::vector<double> b_n;
-  std::vector<int> I_g; std::vector<std::string> ID_g;
-  std::vector<double> p_g; std::vector<double> q_g;
-  SCACOPFProblem::read_solution1(I_n, v_n, theta_n, b_n, 
-				 I_g, ID_g, p_g, q_g);
-
 
   return true;
 }
