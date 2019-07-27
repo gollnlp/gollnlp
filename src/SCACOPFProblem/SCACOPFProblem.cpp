@@ -2216,8 +2216,10 @@ void SCACOPFProblem::write_solution_basecase()
     return;
   }
 
-  SCACOPFIO::write_append_solution_block(v_n->x, theta_n->x, b_s->x, p_g->x, q_g->x,
-					 data_sc, "solution1.txt", "w");
+  //SCACOPFIO::write_append_solution_block(v_n->x, theta_n->x, b_s->x, p_g->x, q_g->x,
+  //					 data_sc, "solution1.txt", "w");
+  SCACOPFIO::write_solution1(v_n->x, theta_n->x, b_s->x, p_g->x, q_g->x,
+			     data_sc, "solution1.txt");
   
   // auto SSh_Nidx = indexin(data_sc.SSh_Bus, data_sc.N_Bus);
   // double bcsn[data_sc.N_Bus.size()];

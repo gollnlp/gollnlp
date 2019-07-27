@@ -22,18 +22,31 @@ namespace gollnlp {
     data_K.push_back(new SCACOPFData(data_sc)); 
     data_K[0]->rebuild_for_conting(K_idx, numK);
     //data_K[0].PenaltyWeight = (1-d.DELTA);
+
+    v_n0=NULL; theta_n0=NULL; b_s0=NULL; p_g0=NULL; q_g0=NULL;
   }
 
   ContingencyProblem::~ContingencyProblem()
   {
   }
-  
+
+  bool ContingencyProblem::default_assembly(OptVariablesBlock* vn0, OptVariablesBlock* thetan0, 
+					    OptVariablesBlock* bs0, 
+					    OptVariablesBlock* pg0, OptVariablesBlock* qg0)
+  {
+    theta_n0=thetan0; b_s0=bs0; q_g0=qg0;
+    return default_assembly(pg0, vn0);
+  }
+
   bool ContingencyProblem::default_assembly(OptVariablesBlock* pg0, OptVariablesBlock* vn0) 
   {
     printf("ContingencyProblem K_id %d: assembly IDOut=%d outidx=%d Type=%s\n",
 	   K_idx, data_sc.K_IDout[K_idx], data_sc.K_outidx[K_idx],
 	   data_sc.cont_type_string(K_idx).c_str());
     fflush(stdout);
+
+    p_g0=pg0; v_n0=vn0;
+
     assert(data_K.size()==1);
     SCACOPFData& dK = *data_K[0];
 
@@ -54,7 +67,6 @@ namespace gollnlp {
     // setup for indexes used in non-anticip and AGC coupling 
     //
     //indexes in data_sc.G_Generator; exclude 'outidx' if K_idx is a generator contingency
-    vector<int> Gk;
     data_sc.get_AGC_participation(K_idx, Gk, pg0_partic_idxs, pg0_nonpartic_idxs);
     assert(pg0->n == Gk.size() || pg0->n == 1+Gk.size());
 
@@ -97,15 +109,43 @@ namespace gollnlp {
     //add_cons_coupling(dK);
     return true;
   }
-
-  bool ContingencyProblem::eval_obj(OptVariablesBlock* pg0,
-				   OptVariablesBlock* vn0,
-				   double& f)
+  bool ContingencyProblem::optimize(OptVariablesBlock* pg0, OptVariablesBlock* vn0, double& f)
   {
     goTimer tmrec; tmrec.start();
+
+    assert(p_g0 == pg0); assert(v_n0 == vn0);
+    p_g0 = pg0; v_n0=vn0;
+
     update_cons_nonanticip_using(pg0);
     update_cons_AGC_using(pg0);
 
+    f = -1e+20;
+    if(!OptProblem::optimize("ipopt")) {
+      return false;
+    }
+
+    // objective value
+    f = this->obj_value;
+
+    tmrec.stop();
+    printf("ContingencyProblem K_id %d: optimize took %g sec  %d iterations on rank=%d\n", 
+	   K_idx, tmrec.getElapsedTime(), number_of_iterations(), my_rank);
+    fflush(stdout);
+
+    return true;
+
+  }
+  bool ContingencyProblem::eval_obj(OptVariablesBlock* pg0, OptVariablesBlock* vn0, double& f)
+  {
+    goTimer tmrec; tmrec.start();
+
+    assert(p_g0 == pg0); assert(v_n0 == vn0);
+    p_g0 = pg0; v_n0=vn0;
+
+    update_cons_nonanticip_using(pg0);
+    update_cons_AGC_using(pg0);
+
+    f = -1e+20;
     //if(!optimize("ipopt")) {
     //if(!reoptimize(OptProblem::primalDualRestart)) {
     if(!reoptimize(OptProblem::primalRestart)) {
@@ -121,6 +161,66 @@ namespace gollnlp {
     fflush(stdout);
 
     return true;
+  }
+
+  void ContingencyProblem::get_solution_simplicial_vectorized(std::vector<double>& vsln)
+  {
+    SCACOPFData& dK = *data_K[0];
+
+    int n_sln = v_n0->n + theta_n0->n + b_s0->n + p_g0->n + q_g0->n + 1;
+    vsln = vector<double>(n_sln);
+
+    auto v_nk = variable("v_n", dK);
+    assert(v_nk->n == v_n0->n);
+    memcpy(&vsln[0], v_nk->x, v_nk->n*sizeof(double));
+
+    auto theta_nk = variable("theta_n", dK);
+    assert(theta_nk->n == theta_n0->n);
+    memcpy(&vsln[v_nk->n], theta_nk->x, theta_nk->n*sizeof(double));
+
+    auto b_sk = variable("b_s", dK);
+    assert(b_sk->n == b_s0->n);
+    memcpy(&vsln[v_nk->n + theta_nk->n], b_sk->x, b_sk->n*sizeof(double));
+
+    auto p_gk = variable("p_g", dK);
+    auto q_gk = variable("q_g", dK);
+
+    assert(dK.K_Contingency.size()==1); assert(dK.K_IDout.size()==1); 
+    assert(dK.K_ConType.size()==1);
+    
+    if(dK.K_ConType[0] == SCACOPFData::kGenerator) {
+      int offset = v_nk->n + theta_nk->n + b_sk->n;
+#ifdef DEBUG
+      for(int i=0; i<p_g0->n + q_g0->n; i++) vsln[offset+i]= -10117.;
+#endif
+      int ngk = Gk.size(); assert(ngk==p_g0->n-1);
+      for(int i=0; i<ngk; i++) {
+	assert(Gk[i]>=0 && Gk[i]<p_g0->n);
+	vsln[offset+Gk[i]] = p_gk->x[i];
+      }
+      assert(vsln[offset+dK.K_outidx[0]]==-10117.);
+      vsln[offset+dK.K_outidx[0]] = 0.;
+
+      offset += p_g0->n;
+      for(int i=0; i<ngk; i++) {
+	assert(Gk[i]>=0 && Gk[i]<q_g0->n);
+	vsln[offset+Gk[i]] = q_gk->x[i];
+      }
+#ifdef DEBUG
+      assert(vsln[offset+dK.K_outidx[0]]==-10117.);
+#endif
+      vsln[offset+dK.K_outidx[0]] = 0.;
+
+    } else {
+      assert(p_gk->n == p_g0->n);
+      assert(q_gk->n == q_g0->n);
+      memcpy(&vsln[v_nk->n + theta_nk->n + b_sk->n], p_gk->x, p_gk->n*sizeof(double));
+      memcpy(&vsln[v_nk->n + theta_nk->n + b_sk->n + p_gk->n], q_gk->x, q_gk->n*sizeof(double));
+    }
+
+    auto delta_k = variable("delta", dK);
+    assert(delta_k != NULL);
+    vsln[n_sln-1] = delta_k->x[0];
   }
 
   //
@@ -205,8 +305,11 @@ namespace gollnlp {
       assert(b>=0);
       assert(b<v_nk->n);
 
-      v_nk->lb[b] = 0.99*v_n0->xref[b];
-      v_nk->ub[b] = 1.01*v_n0->xref[b];
+      //v_nk->lb[b] = 0.99*v_n0->xref[b];
+      //v_nk->ub[b] = 1.01*v_n0->xref[b];
+      v_nk->lb[b] = v_n0->xref[b];
+      v_nk->ub[b] = v_n0->xref[b];
+
     }
 
   }

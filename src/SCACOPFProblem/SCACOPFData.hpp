@@ -64,6 +64,7 @@ namespace gollnlp {
     //[index], [index in G_Gen, L_Line, or T_Trans] 
     std::vector<int> K_Contingency, K_IDout;
     std::vector<KType> K_ConType;
+    std::vector<std::string> K_Label;
 
     inline std::string cont_type_string(const int& k) {
       if(K_ConType[k]==kGenerator) return "Generator";

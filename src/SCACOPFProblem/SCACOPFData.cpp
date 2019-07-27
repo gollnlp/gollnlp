@@ -492,6 +492,9 @@ readinstance(const std::string& raw, const std::string& rop, const std::string& 
     K_IDout   = vector<int>  (ncont, -1);
 
     K_Contingency =  vector<int>(ncont);  iota(K_Contingency.begin(), K_Contingency.end(), 0);
+    K_Label = contingencies_label;
+    for(auto& label: K_Label) trim(label);
+    assert(K_Label.size() == ncont);
 
     // -> generators
     auto gencon = findall(contingencies_type, [](int val) {return val==cGenerator;});
@@ -1223,8 +1226,9 @@ void SCACOPFData::rebuild_for_conting(int K_id, int nCont)
 
   assert(idxout>=0);
 
+  K_Label = { K_Label[K_id] };
   //only keep 1 contingency -
-  hardclear(K_Contingency); hardclear(K_IDout); hardclear(K_ConType); hardclear(K_outidx);
+  hardclear(K_Contingency); hardclear(K_IDout); hardclear(K_ConType); hardclear(K_outidx); 
   K_Contingency.push_back(K_id);
   K_IDout.push_back(k_idout);
   K_ConType.push_back(k_type);

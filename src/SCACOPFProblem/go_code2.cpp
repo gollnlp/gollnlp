@@ -13,7 +13,7 @@ using namespace gollnlp;
 #include <chrono>
 #include <thread>
 
-#define DEBUG_COMM 1
+//#define DEBUG_COMM 1
 //#define MAX_NUM_Kidxs_SCACOPF 512
 
 MyCode2::MyCode2(const std::string& InFile1_, const std::string& InFile2_,
@@ -80,7 +80,7 @@ int MyCode2::initialize(int argc, char *argv[])
   }
   
   SCACOPFIO::read_solution1(&v_n0, &theta_n0, &b_s0, &p_g0, &q_g0, data, "solution1.txt");
-  size_sol_block = v_n0->n + theta_n0->n + b_s0->n + p_g0->n + q_g0->n;
+  size_sol_block = v_n0->n + theta_n0->n + b_s0->n + p_g0->n + q_g0->n + 1;
 
 
   if(iAmMaster) {
@@ -116,21 +116,18 @@ int MyCode2::go()
       for(int Kidx: K_on_slave_ranks[r]) {
 	if(Kidx<0) continue;
 	int tag2 = 222;     
-	ReqKSln* req_recv_sln = new ReqKSln(Kidx, vector<double>(200,-12.17));
+	ReqKSln* req_recv_sln = new ReqKSln(Kidx, vector<double>(size_sol_block+1,-12.17));
 	int ierr = MPI_Irecv(req_recv_sln->buffer.data(), req_recv_sln->get_msg_size(), 
 			     MPI_DOUBLE, r, tag2, comm_world, &req_recv_sln->request);
 	assert(ierr == MPI_SUCCESS);
 	req_recv_Ksln[r].push_back(req_recv_sln);
+#ifdef DEBUG_COMM
 	printf("[rank 0] contsol recv created for conting %d on rank %d\n", Kidx, r);
+#endif
       }
     }
   }
 
-  if(iAmMaster) {
-    //write base case solution
-    SCACOPFIO::write_append_solution_block(v_n0, theta_n0, b_s0, p_g0, q_g0, 
-					   data, "solution2.txt", "w");
-  }
   //this is only on the master rank
   // 1==size() means solution has not been received for contingency k;
   // 0==size() means solution was written for contingency k (and vvslns[k] was "deallocated")
@@ -147,9 +144,8 @@ int MyCode2::go()
 
       vector<double> sol;
 
-      printf("Solving contingency on rank %d\n", my_rank);
-
       bool bret = solve_contingency(k, sol);
+      assert(sol.size() == size_sol_block+1);
 
       //send the solution
       int tag2 = 222;      
@@ -339,8 +335,9 @@ int MyCode2::go()
 	    ierr = MPI_Isend(req_send_idx->buffer.data(), req_send_idx->buffer.size(),
 			     MPI_INT, r, tag4, comm_world, &req_send_idx->request);
 	    assert(MPI_SUCCESS==ierr);
+#ifdef DEBUG_COMM
 	    printf("[rank 0] created send indexes request %d to rank %d (444)\n", num_req4Kidx_for_ranks[r], r);
-
+#endif
 	    req_send_Kidx[r].push_back(req_send_idx);
 
 	    assert(req_send_Kidx[r].size() == req_recv_req4Kidx[r].size());
@@ -354,11 +351,12 @@ int MyCode2::go()
 	      K_on_slave_ranks[r].push_back(Kidx);
 	      
 	      int tag2 = 222;     
-	      ReqKSln* req_recv_sln = new ReqKSln(Kidx, vector<double>(200,-12.17));
+	      ReqKSln* req_recv_sln = new ReqKSln(Kidx, vector<double>(size_sol_block+1,-12.17));
 	      ierr = MPI_Irecv(req_recv_sln->buffer.data(), req_recv_sln->get_msg_size(), 
 			       MPI_DOUBLE, r, tag2, comm_world, &req_recv_sln->request);
-
+#ifdef DEBUG_COMM
 	      printf("[rank 0] contsol recv created for conting %d on rank %d\n", Kidx, r);
+#endif
 	      req_recv_Ksln[r].push_back(req_recv_sln);
 	    } else {
 	      // apparently we're out of contingencies
@@ -514,11 +512,62 @@ void MyCode2::initial_K_distribution()
 
 bool MyCode2::solve_contingency(int K_idx, std::vector<double>& sln)
 {
-  sln = vector<double>(200, 17);
+  goTimer t; t.start();
+  int status;
+  ContingencyProblem prob(data, K_idx, my_rank);
+  
+  prob.AGCSmoothing=1e-10;
+  prob.PVPQSmoothing=1e-10;
+  
+  if(!prob.default_assembly(v_n0, theta_n0, b_s0, p_g0, q_g0)) {
+    printf("Evaluator Rank %d failed in default_assembly for contingency K_idx=%d\n",
+	   my_rank, K_idx);
+    status = -1;
+    return false;
+  }
 
-  printf("solve_contingency on rank %d\n", my_rank);
+  //if(!prob.set_warm_start_from_base_of(*scacopf_prob)) {
+  //  status = -2;
+  //  return 1e+20;
+  //}
 
-  std::this_thread::sleep_for(std::chrono::milliseconds(1));
+  prob.use_nlp_solver("ipopt");
+  prob.set_solver_option("print_frequency_iter", 1);
+  prob.set_solver_option("linear_solver", "ma57"); 
+  prob.set_solver_option("print_level", 2);
+  prob.set_solver_option("mu_init", 1e-4);
+  prob.set_solver_option("mu_target", 1e-8);
+
+  //return if it takes too long in phase2
+  prob.set_solver_option("max_iter", 1000);
+  prob.set_solver_option("acceptable_tol", 1e-3);
+  prob.set_solver_option("acceptable_constr_viol_tol", 1e-6);
+  prob.set_solver_option("acceptable_iter", 5);
+
+  prob.set_solver_option("bound_relax_factor", 0.);
+  prob.set_solver_option("bound_push", 1e-16);
+  prob.set_solver_option("slack_bound_push", 1e-16);
+  prob.set_solver_option("mu_linear_decrease_factor", 0.4);
+  prob.set_solver_option("mu_superlinear_decrease_power", 1.25);
+
+
+  double penalty;
+  if(!prob.optimize(p_g0, v_n0, penalty)) {
+    printf("Evaluator Rank %d failed in the evaluation of contingency K_idx=%d\n",
+	   my_rank, K_idx);
+    status = -3;
+    return 1e+20;
+  }
+
+  prob.get_solution_simplicial_vectorized(sln);
+  assert(size_sol_block == sln.size());
+ 
+  //prob.print_p_g_with_coupling_info(*prob.data_K[0], p_g0);
+  sln.push_back((double)K_idx);
+  printf("Evaluator Rank %3d K_idx %5d finished with penalty %12.3f "
+	 "in %5.3f sec and %3d iterations  global time %g \n",
+	 my_rank, K_idx, penalty, t.stop(), 
+	 prob.number_of_iterations(), glob_timer.measureElapsedTime());
 
   return true;
 }
@@ -547,10 +596,11 @@ bool MyCode2::attempt_write_solution2(std::vector<std::vector<double> >& vvsols)
     if(vvsols[Kidx].size()==1) return false; //solution has not arrived
 
     assert(size_sol_block>=2);
-    assert(vvsols[Kidx].size()==size_sol_block);
+    assert(vvsols[Kidx].size()==size_sol_block+1);
 
 #ifdef DEBUG
     if(Kidx>=1) assert(vvsols[Kidx-1].size() == 0); //should have been written already
+    assert(size_sol_block == v_n0->n + theta_n0->n + b_s0->n + p_g0->n + q_g0->n + 1);
 #endif
     
     const double 
@@ -558,10 +608,13 @@ bool MyCode2::attempt_write_solution2(std::vector<std::vector<double> >& vvsols)
       *theta_n = vvsols[Kidx].data() + v_n0->n, 
       *b_s     = vvsols[Kidx].data() + v_n0->n + theta_n0->n, 
       *p_g     = vvsols[Kidx].data() + v_n0->n + theta_n0->n + b_s0->n, 
-      *q_g     = vvsols[Kidx].data() + v_n0->n + theta_n0->n + b_s0->n + p_g0->n;
+      *q_g     = vvsols[Kidx].data() + v_n0->n + theta_n0->n + b_s0->n + p_g0->n,
+      delta    = vvsols[Kidx][v_n0->n + theta_n0->n + b_s0->n + p_g0->n + q_g0->n];
 
-    SCACOPFIO::write_append_solution_block(v_n, theta_n, b_s, p_g, q_g, 
-					   data, "solution2.txt", "a+");
+    SCACOPFIO::write_solution2_block(Kidx, v_n, theta_n, b_s, p_g, q_g, delta,
+				     data, "solution2.txt");
+    printf("[rank 0] wrote solution2 block for contingency %d [%d] label '%s'\n", 
+	   Kidx, data.K_Contingency[Kidx], data.K_Label[Kidx].c_str());
 
     hardclear(vvsols[Kidx]);
     last_Kidx_written++;

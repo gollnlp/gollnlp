@@ -1447,8 +1447,8 @@ double MyCode1::phase3_solve_scacopf(std::vector<int>& K_idxs)
   SCACOPFProblem* scacopf_prob_prev = scacopf_prob;
 
   scacopf_prob = new SCACOPFProblem(data);
-  //scacopf_prob->set_AGC_as_nonanticip(true);
-  scacopf_prob->set_AGC_simplified(true);
+  scacopf_prob->set_AGC_as_nonanticip(true);
+  //scacopf_prob->set_AGC_simplified(true);
 
   //TL_rate_reduction was computed in phase1
   //reduce T and L rates to min(RateBase, TL_rate_reduction*RateEmer)

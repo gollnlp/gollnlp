@@ -16,7 +16,7 @@ namespace gollnlp {
   vector<int> SCACOPFIO::SSh_Nidx={};
   vector<int> SCACOPFIO::gmap={};
   vector<double> SCACOPFIO::bcsn={};
-
+  bool SCACOPFIO::sol2_write_1st_call=true;
   //
   // methods
   //
@@ -27,12 +27,12 @@ namespace gollnlp {
 			      const double* p_g, const double* q_g,
 			      SCACOPFData& scdata,
 			      const std::string& filename,
-			      const std::string& fileopenflags)
+			      const std::string& fileopenflags, FILE* file_in)
   {
     if(SSh_Nidx.size()==0)
       SSh_Nidx = indexin(scdata.SSh_Bus, scdata.N_Bus);
 
-    assert(SSh_Nidx.size() == scdata.N_Bus.size());
+    assert(SSh_Nidx.size() == scdata.SSh_Bus.size());
 
     if(bcsn.size()==0)
       bcsn = vector<double>(scdata.N_Bus.size());
@@ -54,7 +54,11 @@ namespace gollnlp {
     for(int i=0; i<scdata.N_Bus.size(); i++) 
       bcsn[i] *= scdata.MVAbase;
 
-    FILE* file = fopen(filename.c_str(), fileopenflags.c_str());
+    FILE* file = NULL;
+    if(NULL==file_in) file = fopen(filename.c_str(), fileopenflags.c_str());
+    else 
+      file=file_in;
+
     if(NULL==file) {
       printf("[warning] could not open [%s] file for writing (flags '%s')\n", 
 	     filename.c_str(), fileopenflags.c_str());
@@ -99,13 +103,16 @@ namespace gollnlp {
 	//assert(g<q_g->n);
 
 
-	fprintf(file, "%d, \'%s\', %.12f, %.12f\n", 
+	fprintf(file, "%d, \'%s\', %.20f, %.20f\n", 
 		scdata.G_Bus[g], scdata.G_BusUnitNum[g].c_str(), 
 		scdata.MVAbase*p_g[g], scdata.MVAbase*q_g[g]);
       }
     }
-    fclose(file);
-    printf("solution block written to file %s\n", filename.c_str());
+
+    if(file_in==NULL) {
+      fclose(file);
+    }
+    //printf("solution block written to file %s\n", filename.c_str());
   }
 
 
@@ -161,8 +168,10 @@ namespace gollnlp {
       if(!ret) break;
       if(line.size()==0 || line.substr(0,2)=="--") break;
 
-      auto tokens = split(line, ','); assert(tokens.size()==4);
+      vector<string> tokens = split(line, ','); assert(tokens.size()==4);
       I_g.push_back(atoi(tokens[0].c_str()));
+
+      trim(tokens[1]);
       ID_g.push_back(tokens[1]);
 
       string& s = ID_g.back();
@@ -200,6 +209,7 @@ namespace gollnlp {
     *v_n0 = new OptVariablesBlock(data.N_Bus.size(), SCACOPFProblem::var_name("v_n",data), 
 				  data.N_Vlb.data(), data.N_Vub.data()); 
     *theta_n0= new OptVariablesBlock(data.N_Bus.size(), SCACOPFProblem::var_name("theta_n",data));
+    (*v_n0)->set_xref_to_x(); (*theta_n0)->set_xref_to_x();
 
     for(int i=0; i<(*v_n0)->n; i++) {
       assert(Nidx[i]>=0 && Nidx[i]<v_n.size());
@@ -213,6 +223,8 @@ namespace gollnlp {
 
     *b_s0 = new OptVariablesBlock(data.SSh_SShunt.size(), SCACOPFProblem::var_name("b_s",data), 
 				  data.SSh_Blb.data(), data.SSh_Bub.data());
+    (*b_s0)->set_xref_to_x(); 
+
     auto SSh_Nidx = indexin(data.SSh_Bus, data.N_Bus);
 
     for(auto& v: b_n) v /= data.MVAbase;
@@ -244,6 +256,7 @@ namespace gollnlp {
 				  data.G_Plb.data(), data.G_Pub.data());
     *q_g0 = new OptVariablesBlock(data.G_Generator.size(), SCACOPFProblem::var_name("q_g",data), 
 				  data.G_Qlb.data(), data.G_Qub.data());
+    (*p_g0)->set_xref_to_x(); (*q_g0)->set_xref_to_x();
 
     int ng = data.G_Generator.size();
     vector<string> vBBUN = vector<string>(ng); //G[:Bus], ":", G[:BusUnitNum]
@@ -258,6 +271,7 @@ namespace gollnlp {
 
     auto Gidx = indexin(vBBUN, vIgIDg);
     assert(Gidx.size() == ng);
+
     for(int g=0; g<ng; g++) {
       assert(Gidx[g]>=0 && Gidx[g]<p_g.size());
       (*p_g0)->x[g] = p_g[Gidx[g]];
