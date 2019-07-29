@@ -74,6 +74,22 @@ bool OptProblem::eval_obj(const double* x, bool new_x, double& obj_val)
   }
   return true;
 }
+
+void OptProblem::print_objterms_evals()
+{
+  double total = 0., objterm; bool new_x=false; 
+  printf("Objective breakdown:\n");
+  for(auto& ot: obj->vterms) {
+    objterm = 0.;
+    if (!ot->eval_f(*vars_primal, new_x, objterm) )
+      printf("  tobjterm '%s' -> error evaluating\n", ot->id.c_str());
+    else 
+      printf("  objterm '%s' -> %15.8e\n", ot->id.c_str(), objterm);
+    total += objterm;
+  }
+  printf("Objective total -> %15.8e\n", total);
+}
+
 bool OptProblem::eval_cons(const double* x, bool new_x, double* g)
 {
   for(int i=0; i<cons->m(); i++) g[i]=0.;

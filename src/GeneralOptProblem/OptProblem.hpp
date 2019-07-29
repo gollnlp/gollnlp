@@ -455,6 +455,7 @@ public:
 public:
   //utilities
   void print_summary() const;
+  void print_objterms_evals();
 protected:
   OptVariables*    vars_primal;
   OptConstraints*  cons;
