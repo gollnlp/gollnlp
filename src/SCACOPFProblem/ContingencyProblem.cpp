@@ -24,6 +24,7 @@ namespace gollnlp {
     //data_K[0].PenaltyWeight = (1-d.DELTA);
 
     v_n0=NULL; theta_n0=NULL; b_s0=NULL; p_g0=NULL; q_g0=NULL;
+    reg_vn = reg_thetan = reg_bs = reg_pg = reg_qg = false;
   }
 
   ContingencyProblem::~ContingencyProblem()
@@ -104,9 +105,13 @@ namespace gollnlp {
     add_const_nonanticip_v_n_using(vn0, Gk);
 
     //print_summary();
-    //PVPQSmoothing = AGCSmoothing = 1e-2;
+    //PVPQSmoothing  = 1e-2;
     //coupling AGC and PVPQ; also creates delta_k
     //add_cons_coupling(dK);
+
+    //depending on reg_vn, reg_thetan, reg_bs, reg_pg, and reg_qg
+    add_regularizations();
+
     return true;
   }
   bool ContingencyProblem::optimize(OptVariablesBlock* pg0, OptVariablesBlock* vn0, double& f)
@@ -305,10 +310,10 @@ namespace gollnlp {
       assert(b>=0);
       assert(b<v_nk->n);
 
-      //v_nk->lb[b] = 0.99*v_n0->xref[b];
-      //v_nk->ub[b] = 1.01*v_n0->xref[b];
-      v_nk->lb[b] = v_n0->xref[b];
-      v_nk->ub[b] = v_n0->xref[b];
+      v_nk->lb[b] = 0.99*v_n0->xref[b];
+      v_nk->ub[b] = 1.01*v_n0->xref[b];
+      //v_nk->lb[b] = v_n0->xref[b];
+      //v_nk->ub[b] = v_n0->xref[b];
 
     }
 
@@ -373,7 +378,7 @@ namespace gollnlp {
     append_variables(deltaK);
     deltaK->set_start_to(0.);
     
-    AGCSmoothing = 1e-3;
+    //AGCSmoothing = 1e-3;
     auto cons = new AGCComplementarityCons(con_name("AGC", dK), 3*pgK_partic_idxs.size(),
 					   pg0, pgK, deltaK, 
 					   pg0_partic_idxs, pgK_partic_idxs, 
@@ -411,6 +416,51 @@ namespace gollnlp {
       assert(false);
     }
 #endif
+  }
+
+
+
+  void ContingencyProblem::add_regularizations()
+  {
+    assert(data_K.size()==1);
+    SCACOPFData& dK = *data_K[0]; assert(dK.id==K_idx+1);
+
+    if(reg_vn) {
+      assert(variable("v_n", dK)->n == v_n0->n);
+      append_objterm(new QuadrRegularizationObjTerm("regul_vn", variable("v_n", dK),
+						    1e-4, v_n0->x));
+      printf("added regularization term for v_n\n");
+    }
+
+    if(reg_thetan) {
+      append_objterm(new QuadrRegularizationObjTerm("regul_thetan", variable("theta_n", dK),
+						    1e-4, theta_n0->x));
+      printf("added regularization term for theta_n\n");
+
+    }
+    if(reg_bs) {
+      append_objterm(new QuadrRegularizationObjTerm("regul_bs", variable("b_s", dK),
+						    1e-4, b_s0->x));
+      printf("added regularization term for b_s\n");
+
+    }
+    if(reg_pg) {
+      assert(Gk.size() == variable("p_g", dK)->n);
+      assert(Gk.size() == p_g0->n || Gk.size() == p_g0->n-1);
+      auto pg0_vec = selectfrom(p_g0->x, p_g0->n, Gk);
+      append_objterm(new QuadrRegularizationObjTerm("regul_pg", variable("p_g", dK),
+						    1e-4, pg0_vec.data()));
+      printf("added regularization term for p_g\n");
+    }
+    if(reg_qg) {
+      assert(Gk.size() == variable("q_g", dK)->n);
+      assert(Gk.size() == q_g0->n || Gk.size() == q_g0->n-1);
+      auto qg0_vec = selectfrom(q_g0->x, q_g0->n, Gk);
+      append_objterm(new QuadrRegularizationObjTerm("regul_qg", variable("q_g", dK),
+						    1e-4, qg0_vec.data()));
+      printf("added regularization term for q_g\n");
+    }
+
   }
 
 #define SIGNED_DUALS_VAL 1.

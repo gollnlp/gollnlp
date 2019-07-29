@@ -81,9 +81,14 @@ namespace gollnlp {
     void add_const_nonanticip_v_n_using(OptVariablesBlock* vn0, const std::vector<int>& Gk);
     void add_cons_PVPQ_using(OptVariablesBlock* vn0, const std::vector<int>& Gk);
     void update_cons_PVPQ_using(OptVariablesBlock* vn0, const std::vector<int>& Gk);
+
+    void add_regularizations();
   public:
     int K_idx;
     int my_rank;
+
+    //regularizations: gamma* || x - xbasecase]]^2
+    bool reg_vn, reg_thetan, reg_bs, reg_pg, reg_qg;
   protected:
     OptVariablesBlock *v_n0, *theta_n0, *b_s0, *p_g0, *q_g0;
   };
