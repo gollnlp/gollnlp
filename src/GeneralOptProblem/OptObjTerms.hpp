@@ -22,6 +22,48 @@ namespace gollnlp {
     double M;
   };
 
+  //
+  // Quadratic regularization term
+  // \gamma ||x-x_0||^2
+  //
+  class QuadrRegularizationObjTerm : public OptObjectiveTerm
+  {
+  public:
+    QuadrRegularizationObjTerm(const std::string id_, OptVariablesBlock* x_, 
+			       const double& gamma, double* x0_);
+    // x0 = x0scalar
+    QuadrRegularizationObjTerm(const std::string id_, OptVariablesBlock* x_, 
+			       const double& gamma, const double& x0scalar_);
+    virtual ~QuadrRegularizationObjTerm();
+
+    virtual bool eval_f(const OptVariables& vars, bool new_x, double& obj_val);
+    virtual bool eval_grad(const OptVariables& vars, bool new_x, double* grad);
+
+    virtual bool eval_HessLagr(const OptVariables& vars_primal, bool new_x, 
+			       const double& obj_factor,
+			       const int& nnz, int* i, int* j, double* M);
+
+    virtual int get_HessLagr_nnz();
+    // (i,j) entries in the HessLagr to which this term contributes to
+    virtual bool get_HessLagr_ij(std::vector<OptSparseEntry>& vij);
+  protected:
+    OptVariablesBlock* x;
+    double gamma;
+    double* x0;
+    //keep the index for each nonzero elem in the Hessian that this constraints block contributes to
+    int *H_nz_idxs;
+  };
+
+  //
+  // Quadratic away-from-bounds penalization QPen(x) = \gamma * q(x)
+  //
+  // Given l <= x <= u and u>l, q(x) is such that
+  // q(l) = q(u) = 1 and q((u-l)/2)=0
+  // 
+  // The exact form: q(x) = 4/[(u-l)^2] * [ x - (l+u)/2 ]^2
+  // To do...
+  //
+  // To do: quartic q4(x) = 16/[(u-l)^4] * [ x - (l+u)/2 ]^4
 } //end of namespace
 
 #endif
