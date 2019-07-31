@@ -301,6 +301,7 @@ AGCComplementarityCons(const std::string& id_, int numcons,
     assert(bigM==0);
   } 
 }
+
 AGCComplementarityCons::~AGCComplementarityCons()
 {
   delete[] idx0; 
@@ -311,6 +312,13 @@ AGCComplementarityCons::~AGCComplementarityCons()
   delete[] H_nz_idxs;
   delete[] J_nz_idxs;
 } 
+
+void AGCComplementarityCons::update_smoothing(const double& val)
+{
+  r = val;
+  for(int i=n/3; i<n; i++) ub[i] = r;
+  for(int i=n/3; i<n; i++) lb[i] = -r;
+}
 
 bool AGCComplementarityCons::
 eval_body (const OptVariables& vars_primal, bool new_x, double* body)
@@ -602,9 +610,10 @@ PVPQComplementarityCons(const std::string& id_, int numcons,
 			const std::vector<vector<int> >& idxs_gen_, 
 			const std::vector<double>& Qlb_, const std::vector<double>& Qub_, 
 			const double& r_,
-			bool add_penalty_obj, const double& bigM)
+			bool add_penalty_obj, const double& bigM, bool fix_vn0)
   : OptConstraintsBlock(id_, numcons), v0(v0_), vk(vK_), qk(qK_), idxs_gen(idxs_gen_),
-    r(r_), J_nz_idxs(NULL), H_nz_idxs(NULL)
+    r(r_), fixed_vn0(fix_vn0),
+    J_nz_idxs(NULL), H_nz_idxs(NULL)
 {
   assert(v0->n == vk->n);
   assert(n/3 == idxs_gen.size());
@@ -649,7 +658,17 @@ PVPQComplementarityCons(const std::string& id_, int numcons,
   } else {
     assert(bigM==0.);
   } 
+
+  if(fixed_vn0) assert(v0->xref == v0->x);
 }
+
+void PVPQComplementarityCons::update_smoothing(const double& val)
+{
+  r = val;
+  for(int i=n/3; i<n; i++) ub[i] = r;
+  for(int i=n/3; i<n; i++) lb[i] = -r;
+}
+
 PVPQComplementarityCons::~PVPQComplementarityCons()
 {
   delete[] idxs_bus;
@@ -688,6 +707,7 @@ bool PVPQComplementarityCons::eval_body(const OptVariables& vars_primal, bool ne
 
   assert(v0->n == vk->n);
   assert(vk->n >= nbus);
+  if(fixed_vn0) assert(v0->xref == v0->x);
 
   // v[n] - vk[n] - nup[n]+num[n] = 0, for all n=idxs_bus
   for(it=0; it<nbus; it++) {
@@ -724,7 +744,7 @@ bool PVPQComplementarityCons::eval_body(const OptVariables& vars_primal, bool ne
 }
 
 bool PVPQComplementarityCons::eval_Jac(const OptVariables& primal_vars, bool new_x, 
-			  const int& nnz, int* ia, int* ja, double* M)
+				       const int& nnz, int* ia, int* ja, double* M)
 {
 #ifdef DEBUG
   int loc_nnz = get_Jacob_nnz();
@@ -734,20 +754,37 @@ bool PVPQComplementarityCons::eval_Jac(const OptVariables& primal_vars, bool new
   if(NULL==M) {
     assert(num->n == n/3);
     assert(nup->n == n/3);
-    for(int it=0; it<dim; it++) {
-      row = this->index+it;
-
-      assert(pidxnz[0]<nnz && pidxnz[1]<nnz && pidxnz[2]<nnz && pidxnz[3]<nnz);
-      assert(pidxnz[0]>=0   && pidxnz[1]>=0 && pidxnz[2]>=0  && pidxnz[3]>=0);
-      // v[idxs_bus[n]] - vk[idxs_bus[n]] - nup[n]+num[n] = 0
-      idx_v = idxs_bus[it];
-      ia[*pidxnz]=row; ja[*pidxnz]=v0->index+idx_v;      pidxnz++; // w.r.t. v0
-      ia[*pidxnz]=row; ja[*pidxnz]=vk->index+idx_v;      pidxnz++; // w.r.t. vk
-      ia[*pidxnz]=row; ja[*pidxnz]=nup->index+it;        pidxnz++; // w.r.t. nup
-      ia[*pidxnz]=row; ja[*pidxnz]=num->index+it;        pidxnz++; // w.r.t. num
-    }
-    assert(pidxnz == J_nz_idxs+4*(n/3));
-
+    if(fixed_vn0) {
+      for(int it=0; it<dim; it++) {
+	row = this->index+it;
+	
+	assert(pidxnz[0]<nnz && pidxnz[1]<nnz && pidxnz[2]<nnz);
+	assert(pidxnz[0]>=0  && pidxnz[1]>=0  && pidxnz[2]>=0);
+	// v[idxs_bus[n]] - vk[idxs_bus[n]] - nup[n]+num[n] = 0
+	idx_v = idxs_bus[it];
+	//ia[*pidxnz]=row; ja[*pidxnz]=v0->index+idx_v;      pidxnz++; // w.r.t. v0
+	ia[*pidxnz]=row; ja[*pidxnz]=vk->index+idx_v;      pidxnz++; // w.r.t. vk
+	ia[*pidxnz]=row; ja[*pidxnz]=nup->index+it;        pidxnz++; // w.r.t. nup
+	ia[*pidxnz]=row; ja[*pidxnz]=num->index+it;        pidxnz++; // w.r.t. num
+      }
+      
+      assert(pidxnz == J_nz_idxs+n);
+    } else { //!fixed_vn0
+      for(int it=0; it<dim; it++) {
+	row = this->index+it;
+	
+	assert(pidxnz[0]<nnz && pidxnz[1]<nnz && pidxnz[2]<nnz && pidxnz[3]<nnz);
+	assert(pidxnz[0]>=0   && pidxnz[1]>=0 && pidxnz[2]>=0  && pidxnz[3]>=0);
+	// v[idxs_bus[n]] - vk[idxs_bus[n]] - nup[n]+num[n] = 0
+	idx_v = idxs_bus[it];
+	ia[*pidxnz]=row; ja[*pidxnz]=v0->index+idx_v;      pidxnz++; // w.r.t. v0
+	ia[*pidxnz]=row; ja[*pidxnz]=vk->index+idx_v;      pidxnz++; // w.r.t. vk
+	ia[*pidxnz]=row; ja[*pidxnz]=nup->index+it;        pidxnz++; // w.r.t. nup
+	ia[*pidxnz]=row; ja[*pidxnz]=num->index+it;        pidxnz++; // w.r.t. num
+      }
+    
+      assert(pidxnz == J_nz_idxs+4*(n/3));
+    } 
     int idx;
     for(int it=0; it<dim; it++) {
       idx = dim+2*it;
@@ -789,15 +826,20 @@ bool PVPQComplementarityCons::eval_Jac(const OptVariables& primal_vars, bool new
 
     for(int it=0; it<dim; it++) {
 #ifdef DEBUG
-      assert(pidxnz[0]<nnz && pidxnz[1]<nnz && pidxnz[2]<nnz && pidxnz[3]<nnz);
-      assert(pidxnz[0]>=0   && pidxnz[1]>=0 && pidxnz[2]>=0  && pidxnz[3]>=0);
+      if(fixed_vn0) {
+	assert(pidxnz[0]<nnz && pidxnz[1]<nnz && pidxnz[2]<nnz);
+	assert(pidxnz[0]>=0   && pidxnz[1]>=0 && pidxnz[2]>=0 );
+      } else {
+	assert(pidxnz[0]<nnz && pidxnz[1]<nnz && pidxnz[2]<nnz && pidxnz[3]<nnz);
+	assert(pidxnz[0]>=0   && pidxnz[1]>=0 && pidxnz[2]>=0  && pidxnz[3]>=0);
+      }
 #endif
-      M[*pidxnz++] += 1.; // w.r.t. v0
+      if(!fixed_vn0) M[*pidxnz++] += 1.; // w.r.t. v0
       M[*pidxnz++] -= 1.; // w.r.t. vk
       M[*pidxnz++] -= 1.; // w.r.t. nup
       M[*pidxnz++] += 1.; // w.r.t. num
     }
-    assert(pidxnz == J_nz_idxs+4*(n/3));
+    assert(pidxnz == J_nz_idxs+4*(n/3) || pidxnz == J_nz_idxs+n);
     int idx; double qsum, aux1;
     for(int it=0; it<dim; it++) {
       idx = dim+2*it;
@@ -836,6 +878,8 @@ int PVPQComplementarityCons::get_Jacob_nnz()
 {
   //for the first n/3 constraints we have 4*n/3 nonzeros
   int nnz = 4*(n/3);
+  if(fixed_vn0) nnz = n;
+
   for(int ni=0; ni<n/3; ni++)
     nnz += 2*(1+idxs_gen[ni].size()); //1 for nup/num[ni] and idxs_gen[ni].size() for sum(qk[g])
   return nnz;
@@ -856,12 +900,13 @@ bool PVPQComplementarityCons::get_Jacob_ij(std::vector<OptSparseEntry>& vij)
   int row=0; 
   for(int it=0; it<n/3; it++) {
     row = this->index+it;
-    vij.push_back(OptSparseEntry(row, v0->index+idxs_bus[it], itnz++)); //v0
+    if(!fixed_vn0)
+      vij.push_back(OptSparseEntry(row, v0->index+idxs_bus[it], itnz++)); //v0
     vij.push_back(OptSparseEntry(row, vk->index+idxs_bus[it], itnz++)); //vk
     vij.push_back(OptSparseEntry(row, nup->index+it, itnz++));          //nup
     vij.push_back(OptSparseEntry(row, num->index+it, itnz++));          //num
   }
-  assert(J_nz_idxs+4*(n/3)==itnz);
+  assert(J_nz_idxs+4*(n/3)==itnz || J_nz_idxs+n==itnz);
   int idx=n/3; ;
   for(int it=0; it<n/3; it++) {
     idx = n/3+2*it;

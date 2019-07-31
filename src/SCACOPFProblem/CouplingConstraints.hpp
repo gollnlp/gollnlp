@@ -98,6 +98,7 @@ namespace gollnlp {
     OptVariablesBlock* get_rhom() { return rhom; }
     void compute_rhos(OptVariablesBlock* rp, OptVariablesBlock* rm);
 
+    void update_smoothing(const double& val);
 
     virtual bool eval_body (const OptVariables& vars_primal, bool new_x, double* body);
     virtual bool eval_Jac(const OptVariables& primal_vars, bool new_x, 
@@ -151,13 +152,15 @@ namespace gollnlp {
 			    const std::vector<std::vector<int> >& idxs_gen_, 
 			    const std::vector<double>& Qlb, const std::vector<double>& Qub, 
 			    const double& r_,
-			    bool add_penalty_obj=false, const double& bigM=0);
+			    bool add_penalty_obj=false, const double& bigM=0,
+			    bool fix_vn0=false);
     virtual ~PVPQComplementarityCons();
 
     OptVariablesBlock* get_nup() { return nup; }
     OptVariablesBlock* get_num() { return num; }
     void compute_nus(OptVariablesBlock* np, OptVariablesBlock* nm);
 
+    void update_smoothing(const double& val);
 
     virtual bool eval_body (const OptVariables& vars_primal, bool new_x, double* body);
     virtual bool eval_Jac(const OptVariables& primal_vars, bool new_x, 
@@ -181,7 +184,8 @@ namespace gollnlp {
     // size n/3, each elem has at least one elem
     std::vector<std::vector<int> > idxs_gen; 
     double r;
-    
+    bool fixed_vn0;
+
     double *Qlb, *Qub; //size n/3 
     int* J_nz_idxs; 
     int* H_nz_idxs;
