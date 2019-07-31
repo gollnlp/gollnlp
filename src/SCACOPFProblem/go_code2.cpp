@@ -516,14 +516,17 @@ bool MyCode2::solve_contingency(int K_idx, std::vector<double>& sln)
   int status;
   ContingencyProblem prob(data, K_idx, my_rank);
   
-  prob.AGCSmoothing=1e-8;
-  prob.PVPQSmoothing=1e-8;
+  prob.update_AGC_smoothing_param(1e-4);
+  prob.update_PVPQ_smoothing_param(1e-4);
 
   prob.reg_vn = true;
   prob.reg_thetan = true;
   prob.reg_bs = true;
-  prob.reg_pg = false;
-  prob.reg_qg = false;
+  prob.reg_pg = true;
+  prob.reg_qg = true;
+
+
+
   if(!prob.default_assembly(v_n0, theta_n0, b_s0, p_g0, q_g0)) {
     printf("Evaluator Rank %d failed in default_assembly for contingency K_idx=%d\n",
 	   my_rank, K_idx);

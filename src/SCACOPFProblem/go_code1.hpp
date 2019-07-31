@@ -231,6 +231,7 @@ private: //methods
   //status is on return OK=0 or failure<0 or OK-ish>0
   //return penalty/objective for the contingency problem
   double solve_contingency(int K_idx, int& status);
+  double solve_contingency_with_basecase(int K_idx, int& status);
 
   //phase 3 solve scacopf with newly received K_idxs (on solver rank only)
   double phase3_solve_scacopf(std::vector<int>& K_idxs);

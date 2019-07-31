@@ -215,6 +215,9 @@ bool MyCode1::do_phase1()
 
   //scacopf_prob->set_AGC_as_nonanticip(true);
   scacopf_prob->set_AGC_simplified(true);
+  
+  scacopf_prob->update_PVPQ_smoothing_param( 1e-2 );
+  //scacopf_prob->set_PVPQ_as_nonanticip(true);
 
   //reduce T and L rates to min(RateBase, TL_rate_reduction*RateEmer)
   TL_rate_reduction = 0.85;
@@ -231,7 +234,8 @@ bool MyCode1::do_phase1()
   scacopf_prob->set_solver_option("linear_solver", "ma57"); 
   scacopf_prob->set_solver_option("mu_init", 1.);
   scacopf_prob->set_solver_option("print_frequency_iter", 1);
-  scacopf_prob->set_solver_option("mu_target", 1e-9);
+  //scacopf_prob->set_solver_option("mu_target", 1e-9);
+  //scacopf_prob->set_solver_option("tol", 1e-10);
 
   scacopf_prob->set_solver_option("acceptable_tol", 1e-3);
   scacopf_prob->set_solver_option("acceptable_constr_viol_tol", 1e-5);
@@ -242,7 +246,7 @@ bool MyCode1::do_phase1()
   scacopf_prob->set_solver_option("slack_bound_push", 1e-16);
   scacopf_prob->set_solver_option("mu_linear_decrease_factor", 0.4);
   scacopf_prob->set_solver_option("mu_superlinear_decrease_power", 1.4);
-
+  scacopf_prob->set_solver_option("tol", 1e-8);
 
   if(iAmSolver) {    assert(my_rank==rank_solver_rank0);
     //if(true) {
@@ -260,12 +264,63 @@ bool MyCode1::do_phase1()
 
   
   bool bret = scacopf_prob->optimize("ipopt");
+
+  
+  if(true) {
+  scacopf_prob->set_solver_option("mu_init", 1e-7);
+  scacopf_prob->update_PVPQ_smoothing_param( 1e-3 );  
+  scacopf_prob->reoptimize(OptProblem::primalDualRestart);
+
+  scacopf_prob->update_PVPQ_smoothing_param( 1e-4 );  
+  scacopf_prob->reoptimize(OptProblem::primalDualRestart);
+
+  scacopf_prob->update_PVPQ_smoothing_param( 1e-5 );  
+  scacopf_prob->reoptimize(OptProblem::primalDualRestart);
+
+  //scacopf_prob->update_PVPQ_smoothing_param( 1e-6 );  
+  //scacopf_prob->reoptimize(OptProblem::primalDualRestart);
+
+
+  //scacopf_prob->update_PVPQ_smoothing_param( 1e-7 );  
+  //scacopf_prob->reoptimize(OptProblem::primalDualRestart);
+
+  //scacopf_prob->update_PVPQ_smoothing_param( 1e-8 );  
+  //scacopf_prob->reoptimize(OptProblem::primalDualRestart);
+
+  //scacopf_prob->update_PVPQ_smoothing_param( 1e-9 );  
+  //scacopf_prob->reoptimize(OptProblem::primalDualRestart);
+
+  //scacopf_prob->update_PVPQ_smoothing_param( 1e-8 );  
+  //scacopf_prob->reoptimize(OptProblem::primalDualRestart);
+  }
+  printf("final ------------------------\n");
+  //scacopf_prob->set_solver_option("mu_init", 1e-8);
+  //scacopf_prob->reoptimize(OptProblem::primalDualRestart);
+
   if(iAmSolver) {
     cost_basecase = scacopf_prob->objective_value();
+    scacopf_prob->print_objterms_evals();
+
+    //scacopf_prob->print_p_g_with_coupling_info(*scacopf_prob->data_K[0]);
+    scacopf_prob->print_PVPQ_info(*scacopf_prob->data_K[0]);
+
+    //auto v_n0 = scacopf_prob->variable("v_n", data);
+    //v_n0->print();
+    //auto v_nk = scacopf_prob->variable("v_n", *scacopf_prob->data_K[0]);
+    //v_nk->print();
+
+    //scacopf_prob->print_active_power_balance_info(*scacopf_prob->data_K[0]);
+    scacopf_prob->print_reactive_power_balance_info(*scacopf_prob->data_K[0]);
+    //scacopf_prob->print_reactive_power_balance_info(data);
+
+    //auto q_g0 = scacopf_prob->variable("q_g", data);
+    //q_g0->print();
+    //auto q_gk = scacopf_prob->variable("q_g", *scacopf_prob->data_K[0]);
+    //q_gk->print();
+
   }
   printf("[ph1] rank %d  scacopf solve phase 1 done at global time %g\n", 
 	   my_rank, glob_timer.measureElapsedTime());
-  //scacopf_prob->print_p_g_with_coupling_info(*scacopf_prob->data_K[0]);
 
 
 
@@ -318,7 +373,13 @@ bool MyCode1::do_phase1()
     printf("[ph1] rank %d  basecase obj %g global time %g\n", 
 	   my_rank, cost_basecase, glob_timer.measureElapsedTime());
 
+  
+
   fflush(stdout);
+
+  // MPI_Barrier(comm_world);
+  //exit(-1);
+
   return true;
 }
 
@@ -327,7 +388,8 @@ vector<int> MyCode1::phase1_SCACOPF_contingencies()
   bool testing = true;
   if(true) {
  
-    vector<int> cont_list = {};//{490,  1100,  1101,  2437};//1512, 696};//1512,650//10,58,53,1};
+    //vector<int> cont_list = {0, 141, 102}; //net 01
+    vector<int> cont_list = {52};
  
     return  cont_list;
   } else {
@@ -338,15 +400,13 @@ std::vector<int> MyCode1::phase2_contingencies()
 {
   //assert(false);
   return data.K_Contingency;
-  
+
+  //return { 178,  378};
+
+  return {0,  88,  178,  265,  290,  331,  374,  398};
+
   //or, for testing purposes
-  //return {235,  405,  436,  763,  764,  828,  829 , 854 , 855,  961, 20, 17, 18}; //07
-  return {2882, 1922};
-  //return {1512, 1515, 1525, 5};
-  //return {5, 650,1391,1512, 1514, 1515, 1111, 1112, 696, 1525, 1526, 1652, 1653, 378, 1539};
-  //return {0,10,20,30,40,50,60,70,80,90};
-  //return {204,1,2,3,4,5,6,7,8,9};
-  //return {0,1,2,3};
+
   //return {17, 426, 960, 961}; //network 7
 }
 
@@ -1375,7 +1435,10 @@ double MyCode1::solve_contingency(int K_idx, int& status)
   goTimer t; t.start();
   
   ContingencyProblem prob(data, K_idx, my_rank);
-  
+
+  prob.update_AGC_smoothing_param(1e-2);
+  prob.update_PVPQ_smoothing_param(1e-2);
+
   if(!prob.default_assembly(p_g0, v_n0)) {
     printf("Evaluator Rank %d failed in default_assembly for contingency K_idx=%d\n",
 	   my_rank, K_idx);
@@ -1388,15 +1451,17 @@ double MyCode1::solve_contingency(int K_idx, int& status)
     return 1e+20;
   }
 
+  //bbb
+
   prob.use_nlp_solver("ipopt");
-  prob.set_solver_option("print_frequency_iter", 1);
+  prob.set_solver_option("print_frequency_iter", 5);
   prob.set_solver_option("linear_solver", "ma57"); 
   prob.set_solver_option("print_level", 2);
   prob.set_solver_option("mu_init", 1e-4);
   prob.set_solver_option("mu_target", 1e-8);
 
   //return if it takes too long in phase2
-  prob.set_solver_option("max_iter", 170);
+  prob.set_solver_option("max_iter", 1700);
   prob.set_solver_option("acceptable_tol", 1e-3);
   prob.set_solver_option("acceptable_constr_viol_tol", 1e-5);
   prob.set_solver_option("acceptable_iter", 5);
@@ -1411,15 +1476,90 @@ double MyCode1::solve_contingency(int K_idx, int& status)
   //scacopf_prob->duals_bounds_upper()->print_summary("duals bounds upper");
   //scacopf_prob->duals_constraints()->print_summary("duals constraints");
 
-  double penalty;
+  double penalty; 
   if(!prob.eval_obj(p_g0, v_n0, penalty)) {
-    printf("Evaluator Rank %d failed in the evaluation of contingency K_idx=%d\n",
+    printf("Evaluator Rank %d failed in the eval_obj of contingency K_idx=%d\n",
 	   my_rank, K_idx);
     status = -3;
     return 1e+20;
   }
+  int num_iter = prob.number_of_iterations();
 
+  vector<double> smoothing_params = {1e-3, 1e-4, 1e-5, 1e-6};  
+
+  for(auto smo: smoothing_params) {
+    prob.update_AGC_smoothing_param(smo);
+    prob.update_PVPQ_smoothing_param(smo);
+    prob.set_solver_option("mu_init", 1e-8);
+    prob.reoptimize(OptProblem::primalDualRestart);
+    num_iter += prob.number_of_iterations();
+    printf("Evaluator Rank %3d contingency reoptimize done K_idx=%4d - smoothing=%8.2e\n", 
+	   my_rank, K_idx, smo);
+  }
   //prob.print_p_g_with_coupling_info(*prob.data_K[0], p_g0);
+  
+
+  printf("Evaluator Rank %3d K_idx %5d finished with penalty %12.3f "
+	 "in %5.3f sec and %3d iterations  global time %g \n",
+	 my_rank, K_idx, penalty, t.stop(), 
+	 num_iter, glob_timer.measureElapsedTime());
+  
+  return penalty;
+}
+
+double MyCode1::solve_contingency_with_basecase(int K_idx, int& status)
+{
+  assert(iAmEvaluator);
+  assert(scacopf_prob != NULL);
+  
+  status = 0; //be positive
+  auto p_g0 = scacopf_prob->variable("p_g", data); 
+  auto v_n0 = scacopf_prob->variable("v_n", data);
+
+  goTimer t; t.start();
+  
+  SCACOPFProblem prob(data);
+  prob.set_AGC_simplified(true);
+  prob.set_PVPQ_as_nonanticip(true);
+  //prob.update_PVPQ_smoothing_param( 1e-2 );
+
+  TL_rate_reduction = 0.85;
+  //if((ScoringMethod==1 || ScoringMethod==3))
+  //  TL_rate_reduction = 0.85;
+  
+  prob.set_basecase_L_rate_reduction(TL_rate_reduction);
+  prob.set_basecase_T_rate_reduction(TL_rate_reduction);
+  
+  prob.assembly({K_idx});
+  //bbb
+
+  prob.use_nlp_solver("ipopt");
+  prob.set_solver_option("print_frequency_iter", 5);
+  prob.set_solver_option("linear_solver", "ma57"); 
+  prob.set_solver_option("print_level", 5);
+  prob.set_solver_option("mu_init", 1e-4);
+  prob.set_solver_option("mu_target", 1e-9);
+  prob.set_solver_option("tol", 1e-10);
+
+  //return if it takes too long in phase2
+  prob.set_solver_option("max_iter", 1700);
+  prob.set_solver_option("acceptable_tol", 1e-3);
+  prob.set_solver_option("acceptable_constr_viol_tol", 1e-5);
+  prob.set_solver_option("acceptable_iter", 5);
+
+  prob.set_solver_option("bound_relax_factor", 0.);
+  prob.set_solver_option("bound_push", 1e-16);
+  prob.set_solver_option("slack_bound_push", 1e-16);
+  prob.set_solver_option("mu_linear_decrease_factor", 0.4);
+  prob.set_solver_option("mu_superlinear_decrease_power", 1.25);
+
+  //scacopf_prob->duals_bounds_lower()->print_summary("duals bounds lower");
+  //scacopf_prob->duals_bounds_upper()->print_summary("duals bounds upper");
+  //scacopf_prob->duals_constraints()->print_summary("duals constraints");
+
+  bool bret = prob.optimize("ipopt");
+
+  double penalty = prob.objective_value();
 
   printf("Evaluator Rank %3d K_idx %5d finished with penalty %12.3f "
 	 "in %5.3f sec and %3d iterations  global time %g \n",
@@ -1447,8 +1587,10 @@ double MyCode1::phase3_solve_scacopf(std::vector<int>& K_idxs)
   SCACOPFProblem* scacopf_prob_prev = scacopf_prob;
 
   scacopf_prob = new SCACOPFProblem(data);
-  scacopf_prob->set_AGC_as_nonanticip(true);
-  //scacopf_prob->set_AGC_simplified(true);
+  
+  //scacopf_prob->set_AGC_as_nonanticip(true);
+  scacopf_prob->set_AGC_simplified(true);
+  scacopf_prob->set_PVPQ_as_nonanticip(true);
 
   //TL_rate_reduction was computed in phase1
   //reduce T and L rates to min(RateBase, TL_rate_reduction*RateEmer)
