@@ -16,7 +16,7 @@ namespace gollnlp {
   private:
     void buildindexsets(bool ommit_K_related=false);
   public:
-    // to keep things vectorized, "cut"/"sliced" copies of data are kept. This methods performes these cuts and
+    // to keep things vectorized, "cut"/"sliced" copies of data are kept. This methods performs these cuts and
     // (hard-)clear vectors not used in the contigencies
     //'nCont' refers to the total # of contingencies considered
     void rebuild_for_conting(int K_id, int nCont);
