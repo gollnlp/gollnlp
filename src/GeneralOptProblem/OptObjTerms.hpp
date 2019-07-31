@@ -24,14 +24,18 @@ namespace gollnlp {
 
   //
   // Quadratic regularization term
-  // \gamma ||x-x_0||^2
+  // \gamma ||a.*x-x_0||^2 = ( sum(a[i]*x[i]-x_0[i])^2 )
   //
   class QuadrRegularizationObjTerm : public OptObjectiveTerm
   {
   public:
     QuadrRegularizationObjTerm(const std::string id_, OptVariablesBlock* x_, 
+			       const double& gamma, double* a_, double* x0_);
+
+    // a = all ones
+    QuadrRegularizationObjTerm(const std::string id_, OptVariablesBlock* x_, 
 			       const double& gamma, double* x0_);
-    // x0 = x0scalar
+    // x0 = x0scalar and a = all ones
     QuadrRegularizationObjTerm(const std::string id_, OptVariablesBlock* x_, 
 			       const double& gamma, const double& x0scalar_);
     virtual ~QuadrRegularizationObjTerm();
@@ -49,7 +53,7 @@ namespace gollnlp {
   protected:
     OptVariablesBlock* x;
     double gamma;
-    double* x0;
+    double *x0, *a;
     //keep the index for each nonzero elem in the Hessian that this constraints block contributes to
     int *H_nz_idxs;
   };
@@ -61,9 +65,21 @@ namespace gollnlp {
   // q(l) = q(u) = 1 and q((u-l)/2)=0
   // 
   // The exact form: q(x) = 4/[(u-l)^2] * [ x - (l+u)/2 ]^2
-  // To do...
+  // or, equivalently, in the QuadrRegularizationObjTerm form
+  //        ||   2          l+u  ||^2
+  // q(x) = || ----- * x - ----- ||
+  //        ||  u-l         u-l  ||
   //
   // To do: quartic q4(x) = 16/[(u-l)^4] * [ x - (l+u)/2 ]^4
+  class QuadrAwayFromBoundsObjTerm : public QuadrRegularizationObjTerm
+  {
+  public:
+    QuadrAwayFromBoundsObjTerm(const std::string& id_, OptVariablesBlock* x_, 
+			       const double& gamma, 
+			       const double* lb, const double* ub);
+    virtual ~QuadrAwayFromBoundsObjTerm() {};
+  };
+
 } //end of namespace
 
 #endif

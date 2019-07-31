@@ -227,6 +227,7 @@ bool MyCode1::do_phase1()
   scacopf_prob->set_basecase_L_rate_reduction(TL_rate_reduction);
   scacopf_prob->set_basecase_T_rate_reduction(TL_rate_reduction);
 
+  scacopf_prob->set_quadr_penalty_qg0(true);
 
   scacopf_prob->assembly(K_SCACOPF_phase1);
 
@@ -1530,7 +1531,8 @@ double MyCode1::solve_contingency_with_basecase(int K_idx, int& status)
   
   prob.set_basecase_L_rate_reduction(TL_rate_reduction);
   prob.set_basecase_T_rate_reduction(TL_rate_reduction);
-  
+
+
   prob.assembly({K_idx});
   //bbb
 
@@ -1597,6 +1599,8 @@ double MyCode1::phase3_solve_scacopf(std::vector<int>& K_idxs)
   //reduce T and L rates to min(RateBase, TL_rate_reduction*RateEmer)
   scacopf_prob->set_basecase_L_rate_reduction(TL_rate_reduction);
   scacopf_prob->set_basecase_T_rate_reduction(TL_rate_reduction);
+
+  scacopf_prob->set_quadr_penalty_qg0(true);
 
   scacopf_prob->assembly(K_idxs);
 

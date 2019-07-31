@@ -17,7 +17,8 @@ namespace gollnlp {
     SCACOPFProblem(SCACOPFData& d_in) 
       : data_sc(d_in), 
 	useQPen(false), slacks_scale(1.),  PVPQSmoothing(0.01), AGCSmoothing(1e-2),
-	AGC_as_nonanticip(false), AGC_simplified(false), PVPQ_as_nonanticip(false)
+	AGC_as_nonanticip(false), AGC_simplified(false), PVPQ_as_nonanticip(false),
+	quadr_penalty_qg0(false)
     {
       L_rate_reduction = T_rate_reduction = 1.;
     }
@@ -49,6 +50,8 @@ namespace gollnlp {
 
     inline void set_basecase_L_rate_reduction(const double& rate) { L_rate_reduction = rate; }
     inline void set_basecase_T_rate_reduction(const double& rate) { T_rate_reduction = rate; }
+
+    inline void set_quadr_penalty_qg0(bool onOrOff) { quadr_penalty_qg0 = onOrOff; }
 
     bool set_warm_start_from_base_of(SCACOPFProblem& srcProb);
   protected:
@@ -92,6 +95,7 @@ namespace gollnlp {
     double slacks_scale;
   protected:
     double AGCSmoothing, PVPQSmoothing;
+    bool quadr_penalty_qg0;
   public:
     bool AGC_as_nonanticip, AGC_simplified, PVPQ_as_nonanticip;
     double L_rate_reduction, T_rate_reduction;

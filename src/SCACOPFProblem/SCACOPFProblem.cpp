@@ -66,6 +66,12 @@ bool SCACOPFProblem::default_assembly()
 
   add_obj_prod_cost(d);
 
+  if(quadr_penalty_qg0) {
+    OptVariablesBlock* q_g0 = variable("q_g", d); assert(q_g0);
+    append_objterm(new QuadrAwayFromBoundsObjTerm(string("qg0_quadr_pen")+q_g0->id,
+						  q_g0, 1., d.G_Qlb.data(), d.G_Qub.data()));
+  }			  
+
   return true;
 }
 
