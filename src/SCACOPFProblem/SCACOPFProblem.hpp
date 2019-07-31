@@ -16,7 +16,7 @@ namespace gollnlp {
   public:
     SCACOPFProblem(SCACOPFData& d_in) 
       : data_sc(d_in), 
-	useQPen(false), slacks_scale(1.),  PVPQSmoothing(0.01), AGCSmoothing(1e-4),
+	useQPen(false), slacks_scale(1.),  PVPQSmoothing(0.01), AGCSmoothing(1e-2),
 	AGC_as_nonanticip(false), AGC_simplified(false), PVPQ_as_nonanticip(false)
     {
       L_rate_reduction = T_rate_reduction = 1.;
@@ -41,8 +41,12 @@ namespace gollnlp {
     { AGC_as_nonanticip = onOrOff; }
     inline void set_AGC_simplified(bool onOrOff)
     { AGC_simplified = onOrOff; }
+    void update_AGC_smoothing_param(const double& val);
+
     inline void set_PVPQ_as_nonanticip(bool onOrOff)
     { PVPQ_as_nonanticip = onOrOff; }
+    void update_PVPQ_smoothing_param(const double& val);
+
     inline void set_basecase_L_rate_reduction(const double& rate) { L_rate_reduction = rate; }
     inline void set_basecase_T_rate_reduction(const double& rate) { T_rate_reduction = rate; }
 
@@ -54,7 +58,7 @@ namespace gollnlp {
     // for all add_ methods, dB is the block data (base case or contingency)
     // all these methods use 'd' SCACOPFData as well since dB contains only a 
     // subset, contingency-specific data from SCACOPFData
-    void add_variables(SCACOPFData& dB);
+    void add_variables(SCACOPFData& dB, bool SysCond_BaseCase = true);
     void add_cons_lines_pf(SCACOPFData& dB);
     void add_cons_transformers_pf(SCACOPFData& dB);
     void add_cons_active_powbal(SCACOPFData& dB);
@@ -71,10 +75,12 @@ namespace gollnlp {
     void add_obj_prod_cost(SCACOPFData& dB);
 
     void add_cons_coupling(SCACOPFData& dB);
-    void add_cons_nonanticip(SCACOPFData& dB, const std::vector<int>& Gk_no_AGC);
+
+    void add_cons_pg_nonanticip(SCACOPFData& dB, const std::vector<int>& Gk_no_AGC);
     void add_cons_AGC(SCACOPFData& dB, const std::vector<int>& Gk_AGC);
     void add_cons_AGC_simplified(SCACOPFData& dB, const std::vector<int>& Gk_AGC);
     void add_cons_PVPQ(SCACOPFData& dB, const std::vector<int>& Gk);
+    void add_cons_PVPQ_as_vn_nonanticip(SCACOPFData& dB, const std::vector<int>& Gk);
   public: 
     //contingencies' SCACOPFData
     std::vector<SCACOPFData*> data_K;
@@ -84,7 +90,9 @@ namespace gollnlp {
     //options
     bool useQPen;
     double slacks_scale;
+  protected:
     double AGCSmoothing, PVPQSmoothing;
+  public:
     bool AGC_as_nonanticip, AGC_simplified, PVPQ_as_nonanticip;
     double L_rate_reduction, T_rate_reduction;
   public:
@@ -140,6 +148,9 @@ namespace gollnlp {
     void print_p_g_with_coupling_info(SCACOPFData& dB, OptVariablesBlock* p_g0=NULL);
     void print_PVPQ_info(SCACOPFData& dB);
     void print_Transf_powers(SCACOPFData& dB, bool SysCond_BaseCase = true);
+
+    void print_active_power_balance_info(SCACOPFData& dB);
+    void print_reactive_power_balance_info(SCACOPFData& dB);
 
     void write_solution_basecase();
     void write_solution_extras_basecase();
