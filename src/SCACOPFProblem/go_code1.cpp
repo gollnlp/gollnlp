@@ -268,34 +268,46 @@ bool MyCode1::do_phase1()
 
   
   if(false) {
-  scacopf_prob->set_solver_option("mu_init", 1e-7);
-  scacopf_prob->update_PVPQ_smoothing_param( 1e-3 );  
-  scacopf_prob->reoptimize(OptProblem::primalDualRestart);
+    scacopf_prob->set_solver_option("tol", 1e-9);
+    scacopf_prob->set_solver_option("bound_push", 1e-12);
+    scacopf_prob->set_solver_option("slack_bound_push", 1e-12);
+    
+    scacopf_prob->set_solver_option("warm_start_init_point", "yes");
+    
+    scacopf_prob->set_solver_option("warm_start_bound_push", 1e-12);
+    scacopf_prob->set_solver_option("warm_start_slack_bound_push", 1e-12);
+    scacopf_prob->set_solver_option("warm_start_mult_bound_push", 1e-12);
+    
+    scacopf_prob->set_solver_option("warm_start_bound_frac", 1e-12);
+    scacopf_prob->set_solver_option("warm_start_slack_bound_frac", 1e-12);
+    
+    scacopf_prob->set_solver_option("mu_target", 5e-9);
+    scacopf_prob->set_solver_option("mu_init", 5e-9);
+    
+    scacopf_prob->update_PVPQ_smoothing_param( 1e-3 );  
+    scacopf_prob->reoptimize(OptProblem::primalDualRestart);
+    
+    scacopf_prob->update_PVPQ_smoothing_param( 1e-4 );  
+    scacopf_prob->reoptimize(OptProblem::primalDualRestart);
+    
+    scacopf_prob->update_PVPQ_smoothing_param( 1e-5 );  
+    scacopf_prob->reoptimize(OptProblem::primalDualRestart);
 
-  scacopf_prob->update_PVPQ_smoothing_param( 1e-4 );  
-  scacopf_prob->reoptimize(OptProblem::primalDualRestart);
-
-  scacopf_prob->update_PVPQ_smoothing_param( 1e-5 );  
-  scacopf_prob->reoptimize(OptProblem::primalDualRestart);
-
-  //scacopf_prob->update_PVPQ_smoothing_param( 1e-6 );  
-  //scacopf_prob->reoptimize(OptProblem::primalDualRestart);
-
-
-  //scacopf_prob->update_PVPQ_smoothing_param( 1e-7 );  
-  //scacopf_prob->reoptimize(OptProblem::primalDualRestart);
-
+    
+    scacopf_prob->update_PVPQ_smoothing_param( 1e-7 );  
+    scacopf_prob->reoptimize(OptProblem::primalDualRestart);
+    
+    scacopf_prob->update_PVPQ_smoothing_param( 1e-8 );  
+    scacopf_prob->reoptimize(OptProblem::primalDualRestart);
+    
+    //scacopf_prob->update_PVPQ_smoothing_param( 1e-9 );  
+    //scacopf_prob->reoptimize(OptProblem::primalDualRestart);
+    
   //scacopf_prob->update_PVPQ_smoothing_param( 1e-8 );  
   //scacopf_prob->reoptimize(OptProblem::primalDualRestart);
-
-  //scacopf_prob->update_PVPQ_smoothing_param( 1e-9 );  
-  //scacopf_prob->reoptimize(OptProblem::primalDualRestart);
-
-  //scacopf_prob->update_PVPQ_smoothing_param( 1e-8 );  
-  //scacopf_prob->reoptimize(OptProblem::primalDualRestart);
-  printf("final ------------------------\n");
+    printf("final ------------------------\n");
   }
-
+  
   if(iAmSolver) {
     cost_basecase = scacopf_prob->objective_value();
     scacopf_prob->print_objterms_evals();
