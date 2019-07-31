@@ -102,7 +102,9 @@ namespace gollnlp {
 #endif
     add_cons_nonanticip_using(pg0);
     add_cons_AGC_using(pg0);
-    add_const_nonanticip_v_n_using(vn0, Gk);
+    
+    //add_const_nonanticip_v_n_using(vn0, Gk);
+    add_cons_PVPQ_using(pg0, Gk);
 
     //print_summary();
     //PVPQSmoothing  = 1e-2;
@@ -310,17 +312,68 @@ namespace gollnlp {
       assert(b>=0);
       assert(b<v_nk->n);
 
-      v_nk->lb[b] = 0.99*v_n0->xref[b];
-      v_nk->ub[b] = 1.01*v_n0->xref[b];
-      //v_nk->lb[b] = v_n0->xref[b];
-      //v_nk->ub[b] = v_n0->xref[b];
+      //v_nk->lb[b] = 0.99*v_n0->xref[b];
+      //v_nk->ub[b] = 1.01*v_n0->xref[b];
+      v_nk->lb[b] = v_n0->xref[b];
+      v_nk->ub[b] = v_n0->xref[b];
 
     }
 
   }
   void ContingencyProblem::add_cons_PVPQ_using(OptVariablesBlock* vn0, 
-					       const vector<int>& Gk) {
-    assert(false);
+					       const vector<int>& Gk) 
+  {
+    assert(data_K.size()==1);
+    SCACOPFData& dB = *data_K[0];
+
+    //(aggregated) non-fixed q_g generator ids at each node/bus
+    // with PVPQ generators that have at least one non-fixed q_g 
+    vector<vector<int> > idxs_gen_agg;
+    //bus indexes that have at least one non-fixed q_g
+    vector<int> idxs_bus_pvpq;
+    //aggregated lb and ub on reactive power at each PVPQ bus
+    vector<double> Qlb, Qub;
+    int nPVPQGens=0,  num_qgens_fixed=0, num_N_PVPQ=0, num_buses_all_qgen_fixed=0;
+    
+    get_idxs_PVPQ(dB, Gk, idxs_gen_agg, idxs_bus_pvpq, Qlb, Qub, 
+		  nPVPQGens, num_qgens_fixed, num_N_PVPQ, num_buses_all_qgen_fixed);
+
+    auto v_nk = variable("v_n", dB);
+    auto q_gk = variable("q_g", dB);
+
+    if(NULL==v_nk) {
+      printf("Contingency %d: v_n var not found in conting problem; will NOT add PVPQ constraints.\n", dB.id);
+      return;
+    }
+    if(NULL==q_gk) {
+      printf("Contingency %d: q_g var not found in the base case; will NOT add PVPQ constraints.\n", dB.id);
+      return;
+    }
+    
+    auto cons = new PVPQComplementarityCons(con_name("PVPQ", dB), 3*idxs_gen_agg.size(),
+					    v_n0, v_nk, q_gk,
+					    idxs_bus_pvpq, idxs_gen_agg,
+					    Qlb, Qub, 
+					    PVPQSmoothing,
+					    false, 0.,
+					    true); //fixed v_n0
+    
+    append_constraints(cons);
+    
+    //starting point for nup and num that were added by PVPQComplementarityCons
+    auto nup=cons->get_nup(), num=cons->get_num();
+    cons->compute_nus(nup, num);
+    nup->providesStartingPoint=true; num->providesStartingPoint=true;
+    
+    append_objterm(new LinearPenaltyObjTerm(string("bigMpen_")+num->id, num, 1.));
+    append_objterm(new LinearPenaltyObjTerm(string("bigMpen_")+nup->id, nup, 1.));
+    
+  
+    printf("PVPQ: participating %d gens at %lu buses: added %d constraints; PVPQSmoothing=%g "
+	   "total PVPQ: %lu gens | %lu buses; were fixed: %d gens | %d buses with all gens fixed.\n",
+	   nPVPQGens-num_qgens_fixed, idxs_bus_pvpq.size(), cons->n, PVPQSmoothing,
+	   Gk.size(), num_N_PVPQ,
+	   num_qgens_fixed, num_buses_all_qgen_fixed);
   }
   void ContingencyProblem::update_cons_PVPQ_using(OptVariablesBlock* vn0, 
 						  const vector<int>& Gk) {
@@ -397,8 +450,8 @@ namespace gollnlp {
     //append_objterm(new LinearPenaltyObjTerm(string("bigMpen_")+rhom->id, rhom, 1));
     //append_objterm(new LinearPenaltyObjTerm(string("bigMpen_")+rhop->id, rhop, 1));
 #ifdef DEBUG
-    printf("ContingencyProblem K_id %d: AGC %lu gens participating (out of %d)\n", 
-    	   K_idx, pgK_partic_idxs.size(), pgK->n);
+    printf("ContingencyProblem K_id %d: AGC %lu gens participating (out of %d) AGCSmoothing=%g\n", 
+    	   K_idx, pgK_partic_idxs.size(), pgK->n, AGCSmoothing);
 #endif
     //printvec(pg0_partic_idxs, "partic idxs");
   }
@@ -934,6 +987,14 @@ namespace gollnlp {
 	prefix = "duals_bndL_rhom_AGC";
 	variable_duals_lower(prefix, dK)->set_start_to(SIGNED_DUALS_VAL);
       }
+
+      {
+	prefix = "duals_bndL_nup_PVPQ";
+	auto v = variable_duals_lower(prefix, dK); if(v) v->set_start_to(SIGNED_DUALS_VAL);
+	prefix = "duals_bndL_num_PVPQ";
+	v = variable_duals_lower(prefix, dK); if(v) v->set_start_to(SIGNED_DUALS_VAL);
+      }
+      //vars_duals_bounds_L->print_summary();
       assert(vars_duals_bounds_L->provides_start());
     }
     //
@@ -1187,6 +1248,13 @@ namespace gollnlp {
 	prefix = "duals_bndU_rhom_AGC";
 	variable_duals_upper(prefix, dK)->set_start_to(SIGNED_DUALS_VAL);
       }
+      {
+	prefix = "duals_bndU_nup_PVPQ";
+	auto v = variable_duals_upper(prefix, dK); if(v) v->set_start_to(SIGNED_DUALS_VAL);
+	prefix = "duals_bndU_num_PVPQ";
+	v = variable_duals_upper(prefix, dK); if(v) v->set_start_to(SIGNED_DUALS_VAL);
+      }
+      
       assert(vars_duals_bounds_U->provides_start());
     }
     
@@ -1399,6 +1467,11 @@ namespace gollnlp {
 	prefix = "duals_AGC";
 	variable_duals_cons(prefix, dK)->set_start_to(SIGNED_DUALS_VAL);
       }
+      {
+	prefix = "duals_PVPQ";
+	auto v = variable_duals_cons(prefix, dK); if(v) v->set_start_to(SIGNED_DUALS_VAL);
+      }
+      //vars_duals_cons->print_summary();
       assert(vars_duals_cons->provides_start());
     }
     
