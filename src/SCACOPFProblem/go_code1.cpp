@@ -266,7 +266,7 @@ bool MyCode1::do_phase1()
   bool bret = scacopf_prob->optimize("ipopt");
 
   
-  if(true) {
+  if(false) {
   scacopf_prob->set_solver_option("mu_init", 1e-7);
   scacopf_prob->update_PVPQ_smoothing_param( 1e-3 );  
   scacopf_prob->reoptimize(OptProblem::primalDualRestart);
@@ -292,17 +292,16 @@ bool MyCode1::do_phase1()
 
   //scacopf_prob->update_PVPQ_smoothing_param( 1e-8 );  
   //scacopf_prob->reoptimize(OptProblem::primalDualRestart);
-  }
   printf("final ------------------------\n");
-  //scacopf_prob->set_solver_option("mu_init", 1e-8);
-  //scacopf_prob->reoptimize(OptProblem::primalDualRestart);
+  }
 
   if(iAmSolver) {
     cost_basecase = scacopf_prob->objective_value();
     scacopf_prob->print_objterms_evals();
 
     //scacopf_prob->print_p_g_with_coupling_info(*scacopf_prob->data_K[0]);
-    scacopf_prob->print_PVPQ_info(*scacopf_prob->data_K[0]);
+    if(scacopf_prob->data_K.size()>0)
+      scacopf_prob->print_PVPQ_info(*scacopf_prob->data_K[0]);
 
     //auto v_n0 = scacopf_prob->variable("v_n", data);
     //v_n0->print();
@@ -310,7 +309,8 @@ bool MyCode1::do_phase1()
     //v_nk->print();
 
     //scacopf_prob->print_active_power_balance_info(*scacopf_prob->data_K[0]);
-    scacopf_prob->print_reactive_power_balance_info(*scacopf_prob->data_K[0]);
+    if(scacopf_prob->data_K.size()>0)
+      scacopf_prob->print_reactive_power_balance_info(*scacopf_prob->data_K[0]);
     //scacopf_prob->print_reactive_power_balance_info(data);
 
     //auto q_g0 = scacopf_prob->variable("q_g", data);
@@ -389,8 +389,8 @@ vector<int> MyCode1::phase1_SCACOPF_contingencies()
   if(true) {
  
     //vector<int> cont_list = {0, 141, 102}; //net 01
-    vector<int> cont_list = {52};
- 
+    //vector<int> cont_list = {52}; //net 03
+    vector<int> cont_list = {};
     return  cont_list;
   } else {
     return vector<int>();
@@ -1485,19 +1485,20 @@ double MyCode1::solve_contingency(int K_idx, int& status)
   }
   int num_iter = prob.number_of_iterations();
 
-  vector<double> smoothing_params = {1e-3, 1e-4, 1e-5, 1e-6};  
+  if(false) {
+    vector<double> smoothing_params = {1e-3, 1e-4, 1e-5, 1e-6};  
 
-  for(auto smo: smoothing_params) {
-    prob.update_AGC_smoothing_param(smo);
-    prob.update_PVPQ_smoothing_param(smo);
-    prob.set_solver_option("mu_init", 1e-8);
-    prob.reoptimize(OptProblem::primalDualRestart);
-    num_iter += prob.number_of_iterations();
-    printf("Evaluator Rank %3d contingency reoptimize done K_idx=%4d - smoothing=%8.2e\n", 
-	   my_rank, K_idx, smo);
+    for(auto smo: smoothing_params) {
+      prob.update_AGC_smoothing_param(smo);
+      prob.update_PVPQ_smoothing_param(smo);
+      prob.set_solver_option("mu_init", 1e-8);
+      prob.reoptimize(OptProblem::primalDualRestart);
+      num_iter += prob.number_of_iterations();
+      printf("Evaluator Rank %3d contingency reoptimize done K_idx=%4d - smoothing=%8.2e\n", 
+	     my_rank, K_idx, smo);
+    }
+    //prob.print_p_g_with_coupling_info(*prob.data_K[0], p_g0);
   }
-  //prob.print_p_g_with_coupling_info(*prob.data_K[0], p_g0);
-  
 
   printf("Evaluator Rank %3d K_idx %5d finished with penalty %12.3f "
 	 "in %5.3f sec and %3d iterations  global time %g \n",
