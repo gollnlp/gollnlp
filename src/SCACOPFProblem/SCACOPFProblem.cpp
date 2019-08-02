@@ -30,6 +30,8 @@ bool SCACOPFProblem::default_assembly()
 
   SCACOPFData& d = data_sc; //shortcut
 
+  d.compute_largest_pg_loss_contingency();
+
   //
   // base case
   //
@@ -47,6 +49,17 @@ bool SCACOPFProblem::default_assembly()
   for(int it=0; it<sz; it++) {
     r_emer = L_rate_reduction * d.L_RateEmer[it];
     r_base = 0.9              * d.L_RateBase[it];
+    
+    
+
+    if(it==1335 || it==1591 || it==1524) {
+      printf("aggresively reducing rate for line idx %d (frombusid, tobusid)=(%d,%d)\n",
+	     it, d.L_From[it], d.L_To[it]);
+      
+      r_emer = 0.01 * d.L_RateEmer[it];
+      r_base = 0.9 * d.L_RateBase[it];
+    }
+
     rate[it] = r_emer < r_base ? r_emer : r_base;
     //if(rate[it] > r)
     //  rate[it] = r;
@@ -478,8 +491,11 @@ void SCACOPFProblem::add_variables(SCACOPFData& d, bool SysCond_BaseCase)
 
   //for(auto& v: data_sc.N_Vub) v*=1.5;
   //for(auto& v: data_sc.N_EVub) v*=1.5;
+  //printvec(data_sc.N_Vub);
   //printvec(data_sc.N_EVub);
 
+
+  //printvec(data_sc.N_Vub);
   auto v_n = new OptVariablesBlock(data_sc.N_Bus.size(), var_name("v_n",d), vlb, vub);
   //data_sc.N_EVlb.data(), data_sc.N_EVub.data()); 
   append_variables(v_n);
@@ -545,19 +561,37 @@ void SCACOPFProblem::add_variables(SCACOPFData& d, bool SysCond_BaseCase)
   append_variables(b_s);
   //append_objterm(new DummySingleVarQuadrObjTerm("b_s_sq", b_s));
 
+
+
+  auto Plb = d.G_Plb, Pub = d.G_Pub;
+   if(SysCond_BaseCase==true) {
+     //for(int i=0; i<d.G_Generator.size(); i++) {
+     //double aux = Pub[i]-Plb[i];
+      //Plb[i] += 0.1* aux;
+     //Pub[i] =+ 0.05* aux;
+
+     //d.G_Pub[2] = d.G_Plb[2] = 0.;
+     //d.G_Pub[62] = d.G_Plb[62] = 0.;
+     Plb = d.G_Plb; Pub = d.G_Pub;
+
+     //Plb[62] *= 1.5;
+     //}
+  }
   auto p_g = new OptVariablesBlock(d.G_Generator.size(), var_name("p_g",d), 
-				   d.G_Plb.data(), d.G_Pub.data());
+				   Plb.data(), Pub.data());
   append_variables(p_g); 
   p_g->set_start_to(d.G_p0.data());
 
 
+
+
   auto Qlb = d.G_Qlb, Qub = d.G_Qub;
   
-  //if(SysCond_BaseCase==false)  
-  //  for(auto& v: Qlb) v+= 0.1*fabs(v);
+  //if(SysCond_BaseCase==true)  
+  //  for(auto& v: Qlb) v+= 0.49*fabs(v);
   
-  //if(SysCond_BaseCase==false)  
-  //  for(auto& v: Qub) v-= 0.1*fabs(v);
+  //if(SysCond_BaseCase==true)  
+  //  for(auto& v: Qub) v-= 0.49*fabs(v);
 
   auto q_g = new OptVariablesBlock(d.G_Generator.size(), var_name("q_g",d), 
   				   Qlb.data(), Qub.data());
@@ -2105,7 +2139,7 @@ void SCACOPFProblem::print_p_g(SCACOPFData& dB)
   printf("p_g for SC block %d\n", dB.id);
   printf("[ idx] [  id ]    p_g            lb           ub     \n");
   for(int i=0; i<dB.G_Generator.size(); i++) {
-    printf("[%4d] [%4d] %12.5e  %12.5e %12.5e\n", i, dB.G_Generator[i]+1, p_g->x[i], dB.G_Plb[i], dB.G_Pub[i]);
+    printf("[%4d] [%4d] %12.5e  %12.5e %12.5e\n", i, dB.G_Generator[i], p_g->x[i], dB.G_Plb[i], dB.G_Pub[i]);
   }
 }
 void SCACOPFProblem::print_p_g_with_coupling_info(SCACOPFData& dB, OptVariablesBlock* p_g0)
@@ -2131,7 +2165,7 @@ void SCACOPFProblem::print_p_g_with_coupling_info(SCACOPFData& dB, OptVariablesB
   data_sc.get_AGC_participation(K_id, Gk, Gkp, Gknop);
   auto ids_agc = selectfrom(data_sc.G_Generator, Gkp);
 
-  printf("p_g for SC block %d: delta_k=%12.5e\n", dB.id, delta->x[0]);
+  printf("p_g for SC block %d: delta_k=%12.5e  (indexes are withing conting)\n", dB.id, delta->x[0]);
   printf("[ idx] [  id ]         p_g     p_gk             lb            ub         rhom        rhop      |   bodies AGC\n");
   for(int i=0; i<dB.G_Generator.size(); i++) {
     int agc_idx = indexin(ids_agc, dB.G_Generator[i]); 
@@ -2143,13 +2177,15 @@ void SCACOPFProblem::print_p_g_with_coupling_info(SCACOPFData& dB, OptVariablesB
       if(rhom!=NULL) drhom = rhom->x[agc_idx];
 
       double gb = dB.G_Pub[i]-dB.G_Plb[i];
-      printf("[%4d] [%4d] %12.5e %12.5e agc %12.5e %12.5e %12.5e %12.5e | %12.5e %12.5e %12.5e \n", i, dB.G_Generator[i]+1, 
+      printf("[%4d] [%4d] %12.5e %12.5e agc %12.5e %12.5e %12.5e %12.5e | %12.5e %12.5e %12.5e \n", 
+	     i, dB.G_Generator[i], 
 	     p_g->x[base_idx], p_gk->x[i], dB.G_Plb[i], dB.G_Pub[i], drhom, drhop,
 	     p_g->x[base_idx] + dB.G_alpha[i]*delta->x[0] - p_gk->x[i] - gb*drhop + gb*drhom,
 	     (p_gk->x[i]-dB.G_Plb[i])/gb*drhom, (p_gk->x[i]-dB.G_Pub[i])/gb*drhop);
 
     } else {
-      printf("[%4d] [%4d] %12.5e %12.5e     %12.5e %12.5e\n", i, dB.G_Generator[i]+1, 
+      printf("[%4d] [%4d] %12.5e %12.5e     %12.5e %12.5e\n", 
+	     i, dB.G_Generator[i], 
 	     p_g->x[base_idx], p_gk->x[i], dB.G_Plb[i], dB.G_Pub[i]);
     }
   }
@@ -2263,11 +2299,71 @@ void SCACOPFProblem::print_active_power_balance_info(SCACOPFData& d)
   int n = data_sc.N_Bus.size();
   assert(pslacks_n->n == 2*n);
 
-  printf("active power balance - large penalties\n");
-  printf("busidx busid   pslackp  pslackm \n");
+  
+  string msg; char stmp[1024];
+  msg += "active power balance - large penalties\n";
+
+  if(d.id>0) {
+    
+    if(d.K_ConType[0] == SCACOPFData::kTransformer) {
+      int FromBusIdx = data_sc.T_Nidx[0][d.K_outidx[0]], ToBusIdx = data_sc.T_Nidx[1][d.K_outidx[0]];
+
+      sprintf(stmp, "ContProb K=%d IDOut=%d outidx=%d Type=%s  FromBusIdx  ToBusIdx  = %d %d \n", 
+	     d.K_Contingency[0], d.K_IDout[0], d.K_outidx[0], d.cont_type_string(0).c_str(), 
+	     FromBusIdx, ToBusIdx);
+      msg += stmp;
+    }
+    if(d.K_ConType[0] == SCACOPFData::kLine) {
+      int FromBusIdx = data_sc.L_Nidx[0][d.K_outidx[0]], ToBusIdx = data_sc.L_Nidx[1][d.K_outidx[0]];
+
+      sprintf(stmp, "ContProb K=%d IDOut=%d outidx=%d Type=%s  FromBusIdx  ToBusIdx  = %d %d   "
+	      "FromBusId  ToBusId  = %d %d\n", 
+	     d.K_Contingency[0], d.K_IDout[0], d.K_outidx[0], d.cont_type_string(0).c_str(), 
+	      FromBusIdx, ToBusIdx, 
+	      data_sc.L_From[d.K_IDout[0]], data_sc.L_To[d.K_IDout[0]]);
+      msg += stmp;
+    }
+    if(d.K_ConType[0] == SCACOPFData::kGenerator) {
+      sprintf(stmp, "ContProb K=%d IDOut=%d outidx=%d Type=%s BusIdx=%d\n",
+	     d.K_Contingency[0], d.K_IDout[0], d.K_outidx[0], d.cont_type_string(0).c_str(),
+	      data_sc.G_Bus[d.K_outidx[0]]);
+      msg += stmp;
+    }
+
+  }
+  bool do_print = false;
+  msg += "busidx busid   pslackp     pslackm \n";
   for(int i=0; i<n; i++) {
-    if(fabs(pslacks_n->x[i])>1e-8 || fabs(pslacks_n->x[i+n])>1e-8)
-      printf("%5d %5d %12.5e %12.5e\n", i, data_sc.N_Bus[i], pslacks_n->x[i], pslacks_n->x[i+n]);
+    string neigh = " conn busidx:";
+
+    if(fabs(pslacks_n->x[i])>1e-6 || fabs(pslacks_n->x[i+n])>1e-6) {
+
+      for(int it=0; it<d.G_Bus.size(); it++)
+	if(d.G_Bus[it]==i) neigh += to_string(d.L_Nidx[0][it]) + "(gen) ";
+
+      for(int it=0; it<d.L_Nidx[0].size(); it++)
+	if(d.L_Nidx[0][it]==i) neigh += to_string(d.L_Nidx[1][it]) + "(l1) ";
+      for(int it=0; it<d.L_Nidx[1].size(); it++)
+	if(d.L_Nidx[1][it]==i) neigh += to_string(d.L_Nidx[0][it]) + "(l2) ";
+
+      //for(int it=0; it<data_sc.L_Nidx[0].size(); it++)
+      //if(data_sc.L_Nidx[0][it]==i) neigh += to_string(data_sc.L_Nidx[1][it]) + "(l10) ";
+      //for(int it=0; it<d.L_Nidx[1].size(); it++)
+      //if(data_sc.L_Nidx[1][it]==i) neigh += to_string(data_sc.L_Nidx[0][it]) + "(l20) ";
+      
+      for(int it=0; it<d.T_Nidx[0].size(); it++)
+	if(d.T_Nidx[0][it]==i) neigh += to_string(d.T_Nidx[1][it]) + "(t1) ";
+      for(int it=0; it<d.T_Nidx[1].size(); it++)
+	if(d.T_Nidx[1][it]==i) neigh += to_string(d.T_Nidx[0][it]) + "(t2) ";
+      
+      sprintf(stmp, "%5d %5d %12.5e %12.5e | %s\n", 
+	      i, data_sc.N_Bus[i], pslacks_n->x[i], pslacks_n->x[i+n], neigh.c_str());
+      msg += stmp;
+      do_print = true;
+    }
+  }
+  if(do_print) {
+    printf("%s\n", msg.c_str());
   }
 
 }
@@ -2279,28 +2375,38 @@ void SCACOPFProblem::print_reactive_power_balance_info(SCACOPFData& d)
   int n = data_sc.N_Bus.size();
   assert(qslacks_n->n == 2*n);
 
-
-  printf("reactive power balance - large penalties\n");
+  
+  string msg; char stmp[1024];
+  msg += "reactive power balance - large penalties\n";
 
   if(d.id>0) {
     
     if(d.K_ConType[0] == SCACOPFData::kTransformer) {
       int FromBusIdx = data_sc.T_Nidx[0][d.K_outidx[0]], ToBusIdx = data_sc.T_Nidx[1][d.K_outidx[0]];
 
-      printf("Contingency K=%d IDOut=%d outidx=%d Type=%s  FromBusIdx  ToBusIdx  = %d %d \n", 
+      sprintf(stmp, "ContProb K=%d IDOut=%d outidx=%d Type=%s  FromBusIdx  ToBusIdx  = %d %d \n", 
 	     d.K_Contingency[0], d.K_IDout[0], d.K_outidx[0], d.cont_type_string(0).c_str(), 
 	     FromBusIdx, ToBusIdx);
+      msg += stmp;
     }
     if(d.K_ConType[0] == SCACOPFData::kLine) {
       int FromBusIdx = data_sc.L_Nidx[0][d.K_outidx[0]], ToBusIdx = data_sc.L_Nidx[1][d.K_outidx[0]];
 
-      printf("Contingency K=%d IDOut=%d outidx=%d Type=%s  FromBusIdx  ToBusIdx  = %d %d \n", 
+      sprintf(stmp, "ContProb K=%d IDOut=%d outidx=%d Type=%s  FromBusIdx  ToBusIdx  = %d %d \n", 
 	     d.K_Contingency[0], d.K_IDout[0], d.K_outidx[0], d.cont_type_string(0).c_str(), 
 	     FromBusIdx, ToBusIdx);
+      msg += stmp;
+    }
+    if(d.K_ConType[0] == SCACOPFData::kGenerator) {
+      sprintf(stmp, "ContProb K=%d IDOut=%d outidx=%d Type=%s BusIdx=%d\n",
+	     d.K_Contingency[0], d.K_IDout[0], d.K_outidx[0], d.cont_type_string(0).c_str(),
+	      data_sc.G_Bus[d.K_outidx[0]]);
+      msg += stmp;
     }
 
   }
-  printf("busidx busid   pslackp     pslackm \n");
+  bool do_print = false;
+  msg += "busidx busid   qslackp     qslackm \n";
   for(int i=0; i<n; i++) {
     string neigh = " conn busidx:";
 
@@ -2314,13 +2420,82 @@ void SCACOPFProblem::print_reactive_power_balance_info(SCACOPFData& d)
     for(int it=0; it<d.T_Nidx[1].size(); it++)
       if(d.T_Nidx[1][it]==i) neigh += to_string(d.T_Nidx[0][it]) + "(t) ";
 
-    if(fabs(qslacks_n->x[i])>1e-8 || fabs(qslacks_n->x[i+n])>1e-8)
-      printf("%5d %5d %12.5e %12.5e | %s\n", 
+    if(fabs(qslacks_n->x[i])>1e-6 || fabs(qslacks_n->x[i+n])>1e-6) {
+      sprintf(stmp, "%5d %5d %12.5e %12.5e | %s\n", 
 	     i, data_sc.N_Bus[i], qslacks_n->x[i], qslacks_n->x[i+n], neigh.c_str());
+      msg += stmp;
+      do_print = true;
+    }
+  }
+  if(do_print) {
+    printf("%s\n", msg.c_str());
   }
 
 }
 
+void SCACOPFProblem::print_line_limits_info(SCACOPFData& dB)
+{
+  string msg; char stmp[1024];
+  msg += "line limits - large slacks\n";
+
+  auto pf_line_lim1 = dynamic_cast<PFLineLimits*>(constraint("line_limits1", dB));
+  OptVariablesBlock* sslack_li1 = pf_line_lim1->slacks();
+  
+  auto pf_line_lim2 = dynamic_cast<PFLineLimits*>(constraint("line_limits2", dB));
+  OptVariablesBlock* sslack_li2 = pf_line_lim2->slacks();
+
+  assert(sslack_li1->n == dB.L_Line.size());
+  assert(sslack_li2->n == dB.L_Line.size());
+
+  bool do_print=false;
+
+  msg += "Lineidx FromBusIdx ToBusIdx   slack_li1     slack_li2  | FromBusId  ToBusId\n";
+  for(int i=0; i<dB.L_Line.size(); i++) {
+    if(sslack_li1->x[i]>1e-6 || sslack_li2->x[i]>1e-6) {
+
+      
+      sprintf(stmp, " %5d   %5d     %5d    %12.5e  %12.5e    | %5d     %5d\n", 
+	      i, dB.L_Nidx[0][i], dB.L_Nidx[1][i],
+	      sslack_li1->x[i], sslack_li2->x[i],
+	      dB.L_From[i], dB.L_To[i]);
+      msg += stmp;
+
+      do_print = true;
+    }
+  }
+  if(do_print) {
+    printf("%s\n", msg.c_str()); 
+  }
+}
+void SCACOPFProblem::print_transf_limits_info(SCACOPFData& dB)
+{
+  string msg; char stmp[1024];
+  msg += "transformer limits - large slacks\n";
+
+  auto pf_transf_lim1 = dynamic_cast<PFLineLimits*>(constraint("transf_limits1", dB));
+  OptVariablesBlock* sslack_ti1 = pf_transf_lim1->slacks();
+  
+  auto pf_transf_lim2 = dynamic_cast<PFLineLimits*>(constraint("transf_limits2", dB));
+  OptVariablesBlock* sslack_ti2 = pf_transf_lim2->slacks();
+
+  assert(sslack_ti1->n == dB.T_Transformer.size());
+  assert(sslack_ti2->n == dB.T_Transformer.size());
+
+  bool do_print=false;
+
+  msg += "Lineidx FromBusIdx ToBusIdx slack_li1 slack_li2\n";
+  for(int i=0; i<dB.T_Transformer.size(); i++) {
+    if(sslack_ti1->x[i]>1e-6 || sslack_ti2->x[i]>1e-6) {
+      sprintf(stmp, " %5d %5d %5d %12.5e  %12.5e \n", i, dB.T_Nidx[0][i], dB.T_Nidx[1][i],
+	      sslack_ti1->x[i], sslack_ti2->x[i]);
+      msg += stmp;
+      do_print = true;
+    }
+  }
+  if(do_print) {
+    printf("%s\n", msg.c_str()); 
+  }
+}
 void SCACOPFProblem::print_Transf_powers(SCACOPFData& dB, bool SysCond_BaseCase)
 {
   auto p_ti1 = variable("p_ti1", dB),  p_ti2 = variable("p_ti2", dB);

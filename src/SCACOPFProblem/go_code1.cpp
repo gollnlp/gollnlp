@@ -207,14 +207,15 @@ bool MyCode1::do_phase1()
 
   phase1_ranks_allocation();
 
-
+  data.G_Pub[62] = data.G_Plb[62] = 0.;
+data.G_Pub[2] = data.G_Plb[2] = 0.;
   //
-  // solver scacopf problem on solver rank(s)
+  // solver scacopf problem on solver rank(s) xxxbase1
   //
   scacopf_prob = new SCACOPFProblem(data);
 
   //scacopf_prob->set_AGC_as_nonanticip(true);
-  scacopf_prob->set_AGC_simplified(true);
+  //scacopf_prob->set_AGC_simplified(true);
   
   scacopf_prob->update_PVPQ_smoothing_param( 1e-2 );
   //scacopf_prob->set_PVPQ_as_nonanticip(true);
@@ -247,7 +248,8 @@ bool MyCode1::do_phase1()
   scacopf_prob->set_solver_option("slack_bound_push", 1e-16);
   scacopf_prob->set_solver_option("mu_linear_decrease_factor", 0.4);
   scacopf_prob->set_solver_option("mu_superlinear_decrease_power", 1.4);
-  scacopf_prob->set_solver_option("tol", 1e-8);
+  scacopf_prob->set_solver_option("tol", 1e-10);
+  scacopf_prob->set_solver_option("mu_target", 1e-9);
 
   if(iAmSolver) {    assert(my_rank==rank_solver_rank0);
     //if(true) {
@@ -282,23 +284,23 @@ bool MyCode1::do_phase1()
     scacopf_prob->set_solver_option("warm_start_slack_bound_frac", 1e-12);
     
     scacopf_prob->set_solver_option("mu_target", 5e-9);
-    scacopf_prob->set_solver_option("mu_init", 5e-9);
+    scacopf_prob->set_solver_option("mu_init", 1e-8);
     
-    scacopf_prob->update_PVPQ_smoothing_param( 1e-3 );  
+    //scacopf_prob->update_PVPQ_smoothing_param( 1e-2 );  
     scacopf_prob->reoptimize(OptProblem::primalDualRestart);
     
-    scacopf_prob->update_PVPQ_smoothing_param( 1e-4 );  
+    //scacopf_prob->update_PVPQ_smoothing_param( 1e-2 );  
     scacopf_prob->reoptimize(OptProblem::primalDualRestart);
     
-    scacopf_prob->update_PVPQ_smoothing_param( 1e-5 );  
-    scacopf_prob->reoptimize(OptProblem::primalDualRestart);
+    //scacopf_prob->update_PVPQ_smoothing_param( 1e-5 );  
+    //scacopf_prob->reoptimize(OptProblem::primalDualRestart);
 
     
-    scacopf_prob->update_PVPQ_smoothing_param( 1e-7 );  
-    scacopf_prob->reoptimize(OptProblem::primalDualRestart);
+    //scacopf_prob->update_PVPQ_smoothing_param( 1e-7 );  
+    //scacopf_prob->reoptimize(OptProblem::primalDualRestart);
     
-    scacopf_prob->update_PVPQ_smoothing_param( 1e-8 );  
-    scacopf_prob->reoptimize(OptProblem::primalDualRestart);
+    //scacopf_prob->update_PVPQ_smoothing_param( 1e-8 );  
+    //scacopf_prob->reoptimize(OptProblem::primalDualRestart);
     
     //scacopf_prob->update_PVPQ_smoothing_param( 1e-9 );  
     //scacopf_prob->reoptimize(OptProblem::primalDualRestart);
@@ -312,9 +314,9 @@ bool MyCode1::do_phase1()
     cost_basecase = scacopf_prob->objective_value();
     scacopf_prob->print_objterms_evals();
 
-    //scacopf_prob->print_p_g_with_coupling_info(*scacopf_prob->data_K[0]);
-    if(scacopf_prob->data_K.size()>0)
-      scacopf_prob->print_PVPQ_info(*scacopf_prob->data_K[0]);
+    scacopf_prob->print_p_g_with_coupling_info(*scacopf_prob->data_K[0]);
+    //if(scacopf_prob->data_K.size()>0)
+    //  scacopf_prob->print_PVPQ_info(*scacopf_prob->data_K[0]);
 
     //auto v_n0 = scacopf_prob->variable("v_n", data);
     //v_n0->print();
@@ -403,7 +405,9 @@ vector<int> MyCode1::phase1_SCACOPF_contingencies()
  
     //vector<int> cont_list = {0, 141, 102}; //net 01
     //vector<int> cont_list = {52}; //net 03
-    vector<int> cont_list = {};
+    //return  {101,  102,  106,  110,  249,  344,  394,  816,  817};
+    vector<int> cont_list = {102,  817};
+
     return  cont_list;
   } else {
     return vector<int>();
@@ -412,9 +416,15 @@ vector<int> MyCode1::phase1_SCACOPF_contingencies()
 std::vector<int> MyCode1::phase2_contingencies()
 {
   //assert(false);
-  return data.K_Contingency;
+  //return data.K_Contingency;
 
   //return { 178,  378};
+  //return {101,    110,  817};
+
+  //put back 106 in place of 102-2
+  return {106, 110};
+  return {101,  102,  106,  110,  249,  344,  394,  816,  817, 55}; //net 7
+  //return {101,  101,  101,  101,  249,  344,  394,  816,  817}; //net 7
 
   return {0,  88,  178,  265,  290,  331,  374,  398};
 
@@ -948,7 +958,7 @@ std::vector<int> MyCode1::get_high_penalties_from2(const std::vector<double>& K_
 bool MyCode1::do_phase3_master_solverpart(bool master_evalpart_done)
 {
   int r = rank_solver_rank0; //shortcut
-
+  return true;
 #ifdef DEBUG_COMM   
       char msg[100];
       sprintf(msg, "solverpart K_on_rank[%d] (on master)", r);
@@ -1452,6 +1462,8 @@ double MyCode1::solve_contingency(int K_idx, int& status)
   prob.update_AGC_smoothing_param(1e-2);
   prob.update_PVPQ_smoothing_param(1e-2);
 
+  //xxxcont
+
   if(!prob.default_assembly(p_g0, v_n0)) {
     printf("Evaluator Rank %d failed in default_assembly for contingency K_idx=%d\n",
 	   my_rank, K_idx);
@@ -1471,7 +1483,7 @@ double MyCode1::solve_contingency(int K_idx, int& status)
   prob.set_solver_option("linear_solver", "ma57"); 
   prob.set_solver_option("print_level", 2);
   prob.set_solver_option("mu_init", 1e-4);
-  prob.set_solver_option("mu_target", 1e-8);
+  prob.set_solver_option("mu_target", 5e-9);
 
   //return if it takes too long in phase2
   prob.set_solver_option("max_iter", 1700);
@@ -1512,7 +1524,25 @@ double MyCode1::solve_contingency(int K_idx, int& status)
     }
     //prob.print_p_g_with_coupling_info(*prob.data_K[0], p_g0);
   }
+  if(true)   {
+    prob.print_objterms_evals();
+    
+    //scacopf_prob->print_p_g_with_coupling_info(*scacopf_prob->data_K[0]);
+    //if(scacopf_prob->data_K.size()>0)
+    //prob.print_PVPQ_info(*prob.data_K[0]);
 
+    //auto v_n0 = scacopf_prob->variable("v_n", data);
+    //v_n0->print();
+    //auto v_nk = scacopf_prob->variable("v_n", *scacopf_prob->data_K[0]);
+    //v_nk->print();
+
+    //scacopf_prob->print_active_power_balance_info(*scacopf_prob->data_K[0]);
+    //if(scacopf_prob->data_K.size()>0)
+    prob.print_p_g_with_coupling_info(*prob.data_K[0], p_g0);
+    //prob.print_active_power_balance_info(*prob.data_K[0]);
+    //prob.print_reactive_power_balance_info(*prob.data_K[0]);
+    //prob.print_line_limits_info(*prob.data_K[0]);
+  }
   printf("Evaluator Rank %3d K_idx %5d finished with penalty %12.3f "
 	 "in %5.3f sec and %3d iterations  global time %g \n",
 	 my_rank, K_idx, penalty, t.stop(), 

@@ -156,6 +156,8 @@ namespace gollnlp {
     void print_active_power_balance_info(SCACOPFData& dB);
     void print_reactive_power_balance_info(SCACOPFData& dB);
 
+    void print_line_limits_info(SCACOPFData& dB);
+    void print_transf_limits_info(SCACOPFData& dB);
     void write_solution_basecase();
     void write_solution_extras_basecase();
   }; // end of SCACOPFProblem
