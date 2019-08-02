@@ -24,11 +24,15 @@ namespace gollnlp {
     //utilities
     int bus_with_largest_gen() const;
 
+    void compute_largest_pg_loss_contingency();
+
     //Gk    - indexes of all generators 
     //Gkp   - indexes of AGC participating generators
     //Gknop - indexes of ACG non-participating generators
     // all the above sets except 'outidx' if 'ConType' of Kidx is generator
     void get_AGC_participation(int Kidx, std::vector<int>& Gk, std::vector<int>& Gkp, std::vector<int>& Gknop);
+
+    
   public:
     // 0 when used for ACOPF, conting index (1-based) for contingency subproblems
     int id;

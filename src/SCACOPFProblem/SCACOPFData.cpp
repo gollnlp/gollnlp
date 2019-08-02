@@ -24,17 +24,47 @@ int SCACOPFData::bus_with_largest_gen() const
   size_t idx_max = distance(G_Pub.begin(), it_max);
   return G_Nidx[idx_max];
 }
+
+void SCACOPFData::compute_largest_pg_loss_contingency()
+{
+  //maximum generator that is subject to contingency
+  vector<int> idxGenOut = findall(K_ConType, [](int val) {return val==kGenerator;});
+  printvec(idxGenOut, "K_idxs gen");
+  idxGenOut = selectfrom(K_IDout, idxGenOut);
+ printvec(idxGenOut, "id out gen");
+ printvec(G_Generator, "generators id");
+ idxGenOut = indexin(idxGenOut, G_Generator);
+printvec(idxGenOut, "idx gen");
+
+  sort(idxGenOut.begin(), idxGenOut.end(), 
+       [&](const int& a, const int& b) { return (G_Pub[a] > G_Pub[b]); } );
+
+  for(int i=0; i<idxGenOut.size(); i++) {
+
+    int K_idx=-1;
+    for(int k=0; k<K_Contingency.size(); k++)
+      if(K_ConType[k]==kGenerator && K_IDout[k]==G_Generator[idxGenOut[i]])
+	K_idx=K_Contingency[k];
+
+
+    printf("--- genidx %5d   genid %5d   busid %5d    lb=%12.6f ub=%12.6f  K_id %d\n",
+	   idxGenOut[i], G_Generator[idxGenOut[i]], G_Bus[idxGenOut[i]], 
+	   G_Plb[idxGenOut[i]], G_Pub[idxGenOut[i]], K_idx);
+  }
+  printf("total %d gens subj to conting\n", idxGenOut.size());
+  
+}
 void SCACOPFData::get_AGC_participation(int Kidx, vector<int>& Gk, vector<int>& Gkp, vector<int>& Gknop)
 {
   bool b;
   auto Garea = selectfrom(N_Area, G_Nidx);
-  
+
   //! check this
 
   //all generators
   Gk = vector<int>(G_Generator.size()); iota(Gk.begin(), Gk.end(), 0);
   vector<int> Ak;
-  
+
   if(kGenerator==K_ConType[Kidx]) {
     int outidx = indexin(G_Generator,  K_IDout[Kidx]);
     assert(outidx>=0);
@@ -70,10 +100,13 @@ void SCACOPFData::get_AGC_participation(int Kidx, vector<int>& Gk, vector<int>& 
 
   } else assert(false);
 
+
+  //printvec(G_alpha, "G_alpha");
   auto Garea_of_Gk = selectfrom(Garea, Gk);
   auto Gkareaidx = indexin(Garea_of_Gk, Ak);
   //printvec(Gkareaidx, "Gkareaidx");
   //printvec(Ak, "Ak");
+
   //
   //discriminant = .&(Gkareaidx .!= nothing, abs.(G[:alpha][Gk]) .> 1E-8)
   //Gkp = Gk[discriminant]
@@ -103,7 +136,7 @@ void SCACOPFData::get_AGC_participation(int Kidx, vector<int>& Gk, vector<int>& 
 
   //Gkp = {};
   //Gknop = Gk;
-  //printvec(Gk, "Gk");
+  //printvec(Gkp, "Gk participating");
   //printvec(Gknop, "Gknop");
 }
 
