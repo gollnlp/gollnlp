@@ -30,7 +30,8 @@ bool SCACOPFProblem::default_assembly()
 
   SCACOPFData& d = data_sc; //shortcut
 
-  d.compute_largest_pg_loss_contingency();
+  auto plb = d.G_Plb, pub = d.G_Pub;
+  bool was_updated = d.compute_pg_bounds_for_Kgens(d.G_Pub.data(), plb.data(), pub.data());
 
   //
   // base case

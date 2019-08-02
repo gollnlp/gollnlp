@@ -24,7 +24,13 @@ namespace gollnlp {
     //utilities
     int bus_with_largest_gen() const;
 
-    void compute_largest_pg_loss_contingency();
+    //void compute_largest_pg_loss_contingency();
+
+    //return true if the at least one bound was tightened; otherwise false
+    //on entry, plb and pub contain the current bounds
+    //on entry, all arrays are G_Generator.size() (data_sc)
+    bool compute_pg_bounds_for_Kgens(const double* p_g0_in, double* plb, double* pub);
+
 
     //Gk    - indexes of all generators 
     //Gkp   - indexes of AGC participating generators
