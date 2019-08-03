@@ -564,7 +564,7 @@ bool MyCode2::solve_contingency(int K_idx, std::vector<double>& sln)
     printf("Evaluator Rank %d failed in the evaluation of contingency K_idx=%d\n",
 	   my_rank, K_idx);
     status = -3;
-    return 1e+20;
+    return false;
   }
 
   prob.print_objterms_evals();
