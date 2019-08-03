@@ -261,7 +261,7 @@ void SCACOPFProblem::add_cons_PVPQ_as_vn_nonanticip(SCACOPFData& dB, const std::
   
 
   printf("PVPQ: participating %d gens at %lu buses: added %d NONANTICIP constraints on voltages;"
-	 "total PVPQ: %lu gens | %lu buses; were fixed: %d gens | %d buses with all gens fixed.\n",
+	 "total PVPQ: %lu gens | %d buses; were fixed: %d gens | %d buses with all gens fixed.\n",
 	 nPVPQGens-num_qgens_fixed, idxs_bus_pvpq.size(), cons->n,
 	 Gk.size(), num_N_PVPQ,
 	 num_qgens_fixed, num_buses_all_qgen_fixed);
@@ -321,7 +321,7 @@ void SCACOPFProblem::add_cons_PVPQ(SCACOPFData& dB, const std::vector<int>& Gk)
   //printf("\n");
 
   printf("PVPQ: participating %d gens at %lu buses: added %d constraints; PVPQSmoothing=%g "
-	 "total PVPQ: %lu gens | %lu buses; were fixed: %d gens | %d buses with all gens fixed.\n",
+	 "total PVPQ: %lu gens | %d buses; were fixed: %d gens | %d buses with all gens fixed.\n",
 	 nPVPQGens-num_qgens_fixed, idxs_bus_pvpq.size(), cons->n, PVPQSmoothing,
 	 Gk.size(), num_N_PVPQ,
 	 num_qgens_fixed, num_buses_all_qgen_fixed);
