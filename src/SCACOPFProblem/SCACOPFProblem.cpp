@@ -30,8 +30,11 @@ bool SCACOPFProblem::default_assembly()
 
   SCACOPFData& d = data_sc; //shortcut
 
+  add_agc_reserves_for_max_Lloss_Ugain();
+
   auto plb = d.G_Plb, pub = d.G_Pub;
   bool was_updated = d.compute_pg_bounds_for_Kgens(d.G_Pub.data(), plb.data(), pub.data());
+
 
   //
   // base case
@@ -484,7 +487,49 @@ void SCACOPFProblem::add_cons_AGC_simplified(SCACOPFData& dB, const std::vector<
   printf("AGC: %lu gens participating: added %d SIMPLIFIED constraints\n", G_idxs_AGC.size(), cons->n);
 }
 
-  
+void SCACOPFProblem::add_agc_reserves() 
+{
+
+}  
+void SCACOPFProblem::add_agc_reserves_for_max_Lloss_Ugain()
+{
+  SCACOPFData& d = data_sc;  
+  //indexes in K_Contingency of generator contingencies
+  vector<int> idxsKGen = findall(d.K_ConType, [](int val) {return val==SCACOPFData::kGenerator;});
+  vector<int> K_gens_ids = selectfrom(d.K_IDout, idxsKGen);
+  //indexes in G_Generators of the generators subject to contingencies
+  vector<int> K_gens_idxs= indexin(K_gens_ids, d.G_Generator);
+#ifdef DEBUG
+  //all must be present
+  assert(K_gens_ids == selectfrom(d.G_Generator, K_gens_idxs));
+#endif
+
+  //all generators
+  auto Gk = vector<int>(d.G_Generator.size()); iota(Gk.begin(), Gk.end(), 0);
+  assert(d.G_Nidx.size() == d.G_Generator.size());
+  //area of each generator
+  auto Garea = selectfrom(d.N_Area, d.G_Nidx);
+  Garea = selectfrom(Garea, Gk);
+  assert(Garea.size() == Gk.size());
+
+  auto areas = Garea;
+  remove_duplicates(areas);
+  printvec(Garea);
+  printvec(areas);
+
+  for(auto area: areas) {
+    auto AGC_gens_idxs_area = findall(Garea, [&](int val) {return val==area;});
+    printf("area %d -> AGC gens\n", area);
+    printvec(AGC_gens_idxs_area);
+
+    auto K_gens_idxs_area = findall(K_gens_idxs, [&](int val) { return Garea[val]==area;});
+    K_gens_idxs_area = selectfrom(K_gens_idxs, K_gens_idxs_area);
+    printf("area %d -> generator IDs subject to contingency\n", area);
+    printvec(selectfrom(d.G_Generator,K_gens_idxs_area));
+    printf("\n");
+  }
+}
+
 void SCACOPFProblem::add_variables(SCACOPFData& d, bool SysCond_BaseCase)
 {
   double* vlb = SysCond_BaseCase==true ?  data_sc.N_Vlb.data() : data_sc.N_EVlb.data();
@@ -574,6 +619,26 @@ void SCACOPFProblem::add_variables(SCACOPFData& d, bool SysCond_BaseCase)
      //d.G_Pub[2] = d.G_Plb[2] = 0.;
      //d.G_Pub[62] = d.G_Plb[62] = 0.;
      Plb = d.G_Plb; Pub = d.G_Pub;
+
+     //data.G_Pub[62] = data.G_Plb[62] = 0.;
+     //data.G_Pub[2] = data.G_Plb[2];
+     //data.G_Pub[0] = data.G_Plb[0];
+     //data.G_Pub[1] = data.G_Plb[1];
+     
+     //Pub[62] = Plb[62] = 0.;
+     ///Pub[62] = 3.25;
+     ///Pub[63] = Plb[63];
+     ///Pub[64] = Plb[64];
+     //61] [ 175]  0.00000e+00  0.00000e+00      0.00000e+00  4.68346e+00
+     //[  62] [ 179]  8.98293e-01  8.98293e-01      0.00000e+00  8.98450e-01
+     //[  63] [ 182]  5.57131e-05  5.57131e-05      0.00000e+00  3.10588e+00
+
+     //Pub[2] = Plb[2]; //outidx
+     //Pub[0] = Plb[0];
+     //Pub[1] = Plb[1];
+
+     printf("!!!!!!!!!!!!!!!!!  AGC fixed !!!!!!!!!!\n");
+
 
      //Plb[62] *= 1.5;
      //}

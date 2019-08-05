@@ -37,6 +37,22 @@ namespace gollnlp {
     //base case + the variables and blocks needed by contingencies specified by 'K_idxs'
     virtual bool assembly(const std::vector<int> K_idxs);
 
+    virtual void add_agc_reserves();
+
+    //add reserve constraints on AGC so that AGC generators can ramp up and down to the largest 
+    //power loss and gain (among all generator contingencies in each area). 
+    //
+    // The power loss 'max_loss' is taken to be the max over area's Kgens of max(Plb,0)
+    //  - this will add at most one set of constraints in the form
+    //       sum(Pub[i]-pg[i]: i in AGC) - max_loss + splus >=0 
+    //       splus >=0  and a quadratic penalty obj term of splus
+    //
+    // The power gain 'max_gain' is taken to be the max over area's Kgens of max(0,-Pub)
+    //  - this will add at most one set of constraints in the form
+    //       sum(pg[i]-Plb[i]: i in AGC) - max_gain + sminus >=0 
+    //       sminus >=0  and a quadratic penalty obj term on sminus
+    virtual void add_agc_reserves_for_max_Lloss_Ugain();
+
     //controllers of how AGC and PVPQ constraints are enforced
     inline void set_AGC_as_nonanticip(bool onOrOff)
     { AGC_as_nonanticip = onOrOff; }

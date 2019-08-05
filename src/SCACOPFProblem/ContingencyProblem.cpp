@@ -54,7 +54,8 @@ namespace gollnlp {
     useQPen = true;
     //slacks_scale = 1.;
 
-    add_variables(dK);
+    AGCSmoothing=1e-4;
+    add_variables(dK,false);
 
     add_cons_lines_pf(dK);
     add_cons_transformers_pf(dK);

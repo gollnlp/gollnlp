@@ -207,8 +207,6 @@ bool MyCode1::do_phase1()
 
   phase1_ranks_allocation();
 
-  data.G_Pub[62] = data.G_Plb[62] = 0.;
-data.G_Pub[2] = data.G_Plb[2] = 0.;
   //
   // solver scacopf problem on solver rank(s) xxxbase1
   //
@@ -216,7 +214,8 @@ data.G_Pub[2] = data.G_Plb[2] = 0.;
 
   //scacopf_prob->set_AGC_as_nonanticip(true);
   //scacopf_prob->set_AGC_simplified(true);
-  
+  //scacopf_prob->AGCSmoothing=1e-4;  
+
   scacopf_prob->update_PVPQ_smoothing_param( 1e-2 );
   //scacopf_prob->set_PVPQ_as_nonanticip(true);
 

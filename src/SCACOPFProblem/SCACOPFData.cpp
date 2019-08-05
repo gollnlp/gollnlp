@@ -56,9 +56,9 @@ bool SCACOPFData::compute_pg_bounds_for_Kgens(const double* p_g0, double* plb, d
     auto idxs_AGCgens = findall(Gareaidx, [](int val) {return val!=-1;});
     printf("--- K_idx %5d genidx %5d   genid %5d   busid %5d    lb=%12.6f ub=%12.6f  area %d\n",
 	   K_idx, idxout, idout, G_Bus[idxout], plb[idxout], pub[idxout], Ak[0]);
-    printf(" ------- agc gens:\n----genidx  genid        lb         ub           alpha\n");
-    for(auto idxagc: idxs_AGCgens) 
-      printf("----%5d %5d %12.5f %12.5f %12.5f \n", idxagc, G_Generator[idxagc], G_Plb[idxagc], G_Pub[idxagc], G_alpha[idxagc]);
+    //printf(" ------- agc gens:\n----genidx  genid        lb         ub           alpha\n");
+    //for(auto idxagc: idxs_AGCgens) 
+    //  printf("----%5d %5d %12.5f %12.5f %12.5f \n", idxagc, G_Generator[idxagc], G_Plb[idxagc], G_Pub[idxagc], G_alpha[idxagc]);
 
   }
 
