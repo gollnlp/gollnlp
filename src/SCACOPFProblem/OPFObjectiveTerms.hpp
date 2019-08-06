@@ -180,6 +180,163 @@ namespace gollnlp {
     int *H_nz_idxs;
   };
 
+  //
+  // Penalty for contingency generators approximating a known positive (large) penalty 'f'>0 occured 
+  // in the respective contingency with the generator in the basecase at 'p0'
+  // 
+  // Supports quadratic and linear penalty functions
+  //  - quadratic penalty q(p): q(p0)=f and q(a)=0
+  //    i. if p0 is negative:  a=min(a,gen_upper_bound)
+  //   ii. if p0 is positive:  a=max(0,gen_lower_bound)
+  // That is: q(p) = f / [(p0-a)^2] * (x-a)^2= c * (x-a)^2, where
+  //   c = f/[(p0-a)^2]
+  //
+  //  - linear penalty    l(p):  l(p0)=f and l(a)=0
+  //    i. if p0 is negative: a=min(a,gen_upper_bound)
+  //   ii. if p0 is positive: a=max(0,gen_lower_bound)
+  // That is: l(p) = f * (x-a) / (p0-a) = c*x + d, where
+  //   c = f / (p0-a) and d = - f*a / (p0-a)
+
+  class GenerKPenaltyObjTerm : public OptObjectiveTerm {
+  public:
+    GenerKPenaltyObjTerm(const std::string& id, OptVariablesBlock* x_) 
+      : OptObjectiveTerm(id), x(x_), H_nz_idxs(NULL)
+    {}
+    virtual ~GenerKPenaltyObjTerm()
+    {
+      delete[] H_nz_idxs;
+    }
+
+    void add_linear_penalty(const int& idx_gen, const double& p0, const double& f_pen, 
+			    const double& lb, const double& ub)
+    {
+      assert(f_pen>1e-2); assert(p0<=ub && p0>=lb); assert(fabs(p0)>1e-6); assert(idx_gen>=0 && idx_gen<x->n);
+      
+      if(f_pen<=1e-6) return;
+
+      double a = std::max(0., lb);
+      if(p0<0) a = std::min(0., ub);
+     
+      double aux = p0-a;   assert(fabs(aux)>1e-6);
+      aux = f_pen/aux;
+      ci_lin.push_back(CoeffIdxLin(aux, -a*aux, idx_gen));
+    }
+    void add_quadr_penalty(const int& idx_gen, const double& p0, const double& f_pen, 
+			   const double& lb, const double& ub)
+    {
+      assert(f_pen>1e-2); assert(p0<=ub && p0>=lb); assert(fabs(p0)>1e-6); assert(idx_gen>=0 && idx_gen<x->n);
+      
+      if(f_pen<=1e-6) return;
+
+      double a = std::max(0., lb);
+      if(p0<0) a = std::min(0., ub);
+
+      double aux = p0-a;   assert(fabs(aux)>1e-6);
+      double c = f_pen/(aux*aux); 
+
+      printf("---- f=%g a=%g p0=%g -> c=%g\n", f_pen, a, p0, c);
+
+      ci_qua.push_back(CoeffIdxQua(c, a, idx_gen));
+    }
+    void remove_penalty(const int& idx_gen)
+    {
+      while(true) {
+	auto it = ci_lin.begin();
+	for(; it!=ci_lin.end(); ++it) if(it->idx==idx_gen) break;
+	if(it!=ci_lin.end()) 
+	  ci_lin.erase(it);
+	else 
+	  break;
+      }
+      while(true) {
+	auto it = ci_qua.begin();
+	for(; it!=ci_qua.end(); ++it) if(it->idx==idx_gen) break;
+	if(it!=ci_qua.end()) 
+	  ci_qua.erase(it);
+	else 
+	  break;
+      }
+    }
+
+
+    virtual bool eval_f(const OptVariables& vars_primal, bool new_x, double& obj_val)
+    {  
+      // c*x + d
+      for(CoeffIdxLin& e: ci_lin) obj_val += (x->xref[e.idx] * e.c + e.d);
+
+      //c * (x-a)^2
+      double aux;
+      for(CoeffIdxQua& e: ci_qua) {
+	aux = x->xref[e.idx]-e.a; 
+	obj_val += e.c * aux * aux;
+      }
+      return true;
+    }
+    virtual bool eval_grad(const OptVariables& vars_primal, bool new_x, double* grad)
+    {
+      double* g = grad + x->index;
+      for(CoeffIdxLin& e: ci_lin) g[e.idx] += e.c;
+      for(CoeffIdxQua& e: ci_qua) g[e.idx] += 2. * e.c * (x->xref[e.idx]-e.a);
+      return true;
+    }
+
+    virtual bool eval_HessLagr(const OptVariables& vars_primal, bool new_x, 
+			       const double& obj_factor,
+			       const int& nnz, int* i, int* j, double* M)
+    {
+      if(NULL==M) {
+	int idx, row;
+	for(int it=0; it<ci_qua.size(); it++) {
+	  idx = H_nz_idxs[it]; 
+	  if(idx<0) return false;
+	  i[idx] = j[idx] = x->index + ci_qua[it].idx;
+	}
+      } else {
+	for(int it=0; it<ci_qua.size(); it++) {
+	  assert(H_nz_idxs[it]>=0);
+	  assert(H_nz_idxs[it]<nnz);
+	  M[H_nz_idxs[it]] += obj_factor * 2.* ci_qua[it].c;
+	}
+      }
+      return true;
+    }
+
+    virtual int get_HessLagr_nnz() { return ci_qua.size(); }
+    // (i,j) entries in the HessLagr to which this term contributes to
+    virtual bool get_HessLagr_ij(std::vector<OptSparseEntry>& vij) 
+    { 
+      int nnz = ci_qua.size(), i;
+      if(NULL==H_nz_idxs)
+	H_nz_idxs = new int[nnz];
+
+      int it=0;
+      for(CoeffIdxQua& e: ci_qua) {
+	i = x->index + e.idx;
+	vij.push_back(OptSparseEntry(i,i, H_nz_idxs+it));
+	assert(it<nnz);
+	it++;
+      }
+      return true; 
+    }
+
+  protected:
+    OptVariablesBlock* x;
+    struct CoeffIdxLin 
+    { 
+      CoeffIdxLin(const double& c_, const double& d_, const int& i) : c(c_), d(d_), idx(i) {};
+      double c, d; int idx;  
+    };
+    struct CoeffIdxQua
+    { 
+      CoeffIdxQua(const double& c_, const double& a_, const int& i) : c(c_), a(a_), idx(i) {};
+      double c, a; int idx;  
+    };
+
+    std::vector<CoeffIdxLin> ci_lin;
+    std::vector<CoeffIdxQua> ci_qua;
+    int *H_nz_idxs;
+  };
+
 } //end namespace
 
 #endif
