@@ -67,7 +67,7 @@ bool PFConRectangular::eval_body (const OptVariables& vars_primal, bool new_x, d
   }
   assert(body+this->index+n == itbody);
 #ifdef DEBUG
-  double r=DNRM2(&n, body+this->index, &ione);
+  //double r=DNRM2(&n, body+this->index, &ione);
   //printf("Evaluated constraint '%s' -> resid norm %g\n", id.c_str(), r);
 #endif
 
@@ -2026,5 +2026,233 @@ bool PFPenaltyAffineConsTwoSlacks::get_Jacob_ij(std::vector<OptSparseEntry>& vij
 #endif
   return true;
 }
+
+//////////////////////////////////////////////////////////////////////////////
+// AGC reserve constraints 
+// i. loss reserve
+//   a. max loss:  sum(Pub[i]-pg[i]: i in AGC) - f*max_loss + s >=0
+//   b. Kgen loss: sum(Pub[i]-pg[i]: i in AGC) - f*pg[Kgen] + s >=0
+//
+// ii. gain reserve
+//   a. max gain:  sum(pg[i]-Plb[i]: i in AGC) - f*max_gain + s >=0 
+//   b. Kgen gain: sum(pg[i]-Plb[i]: i in AGC) + f*pg[Kgen] + s >=0 
+//
+// 'f' is the percentage of the loss/gain that should be covered by the AGC gens
+// usually 1. or closely to the left of 1. (0.95 or 0.99)
+
+AGCReservesCons::AGCReservesCons(const std::string& id_, OptVariablesBlock* p_g_)
+  : OptConstraintsBlock(id_,0), p_g(p_g_), J_nz_idxs(NULL)
+{
+  lb=lb_.data(); ub=ub_.data();
+  slacks = NULL;
+  obj_penalty = NULL;
+#ifdef DEBUG
+  isAssembled = false;
+#endif
+}
+
+void AGCReservesCons::add_max_loss_reserve(const std::vector<int>& idxs_agc, 
+					   const double& max_loss, const double& f,
+					   const std::vector<double>& Pub)
+{
+  idxs_.push_back(idxs_agc);
+  coeff_.push_back(vector<double>());
+  vector<double>& coeff = coeff_.back();
+  
+  ub_.push_back(1e+20);
+  lb_.push_back(f*max_loss); 
+  double& dlb=lb_.back();
+  
+  assert(lb_.size() == idxs_.size());
+  assert(lb_.size() == coeff_.size());
+  
+  for(int idx: idxs_agc) {
+    coeff.push_back(-1.);
+    dlb -= Pub[idx];
+  }
+  ub = ub_.data();
+  lb = lb_.data();
+  n = ub_.size();
+}
+void AGCReservesCons::add_Kgen_loss_reserve(const std::vector<int>& idxs_agc, 
+					    const int& idx_Kgen, const double& f,
+					    const std::vector<double>& Pub)
+{
+  this->add_max_loss_reserve(idxs_agc, 0., 1., Pub);
+  idxs_.back().push_back(idx_Kgen);
+  coeff_.back().push_back(-f);
+}
+
+// ii. gain reserve
+//   a. max gain:  sum(pg[i]-Plb[i]: i in AGC) - f*max_gain + s >=0 
+//   b. Kgen gain: sum(pg[i]-Plb[i]: i in AGC) + f*pg[Kgen] + s >=0 
+void AGCReservesCons::add_max_gain_reserve(const std::vector<int>& idxs_agc, 
+					   const double& max_gain, const double& f,
+					   const std::vector<double>& Plb)
+{
+  idxs_.push_back(idxs_agc);
+  coeff_.push_back(std::vector<double>());
+  vector<double>& coeff = coeff_.back();
+  
+  ub_.push_back(1e+20);
+  lb_.push_back(f*max_gain); 
+  double& dlb=lb_.back();
+  
+  assert(lb_.size() == idxs_.size());
+  assert(lb_.size() == coeff_.size());
+  
+  for(int idx: idxs_agc) {
+    coeff.push_back(1.);
+    dlb += Plb[idx];
+  }
+  ub = ub_.data();
+  lb = lb_.data();
+  n = ub_.size();
+}
+
+void AGCReservesCons::add_Kgen_gain_reserve(const std::vector<int>& idxs_agc, 
+					    const int& idx_Kgen, const double& f,
+					    const std::vector<double>& Plb)
+{
+  this->add_max_gain_reserve(idxs_agc, 0., 1., Plb);
+  idxs_.back().push_back(idx_Kgen);
+  coeff_.back().push_back(f);
+}
+
+void AGCReservesCons::finalize_setup()
+{
+  n = lb_.size();
+  assert(n==ub_.size());
+  lb = new double[n];
+  ub = new double[n];
+  memcpy(lb, lb_.data(), n*sizeof(double));
+  memcpy(ub, ub_.data(), n*sizeof(double));
+
+  //printvec(lb_, "lower bound");
+  //printvec(ub_, "upper bound");
+
+  //printvecvec(idxs_, "idxs");
+  //printvecvec(coeff_, "coeff");
+
+
+  hardclear(lb_); hardclear(ub_);
+
+  assert(NULL!=slacks);
+  assert(NULL!=obj_penalty);
+
+#ifdef DEBUG
+  isAssembled=true;
+#endif
+}
+
+void AGCReservesCons::add_penalty_objterm(const std::vector<double>& P_pen,
+					  const std::vector<double>& P_qua,
+					  const double& obj_weight,
+					  const double& slacks_scale)
+{
+  assert(slacks==NULL);
+  slacks = new OptVariablesBlock(n, string("sslack_")+id, 0., 1e+20);
+
+  slacks->set_start_to(0.0001);
+  slacks->providesStartingPoint=true;
+
+  obj_penalty = new PFPenaltyQuadrApproxObjTerm("quadr_pen_" + slacks->id, 
+						slacks, 
+						P_pen, P_qua, obj_weight, 
+						slacks_scale);
+
+}
+
+bool AGCReservesCons::eval_body (const OptVariables& vars_primal, bool new_x, double* body_)
+{
+  assert(isAssembled);
+  assert(slacks);
+  assert(n==coeff_.size());
+  assert(n==idxs_.size());
+  double* body = body_ + this->index;
+  double* s = const_cast<double*>(slacks->xref);
+
+  for(int i=0; i<n; i++) {
+    for(int it=0; it<idxs_[i].size(); it++) {
+      assert(coeff_[i].size()>=1);
+      assert(coeff_[i].size() == idxs_[i].size());
+      body[i] += p_g->xref[idxs_[i][it]]*coeff_[i][it];
+    }
+    body[i] += s[i];
+  }
+
+#ifdef DEBUG
+
+#endif
+
+  return true;
+}
+
+int AGCReservesCons::get_Jacob_nnz()
+{
+  int nnz=0;
+  for(int i=0; i<n; i++) nnz += idxs_[i].size();
+  //nz for slacks
+  nnz+= n; 
+  return nnz;
+}
+
+bool AGCReservesCons::get_Jacob_ij(std::vector<OptSparseEntry>& vij)
+{
+  //if(n<=0) return true;
+  assert(isAssembled);
+  int nnz = get_Jacob_nnz();
+
+  if(!J_nz_idxs) 
+    J_nz_idxs = new int[nnz];
+
+  int row, *itnz=J_nz_idxs;
+  for(int it=0; it<n; it++) {
+    row=this->index+it;
+    for(int idx_gen: idxs_[it])
+      vij.push_back(OptSparseEntry(row, p_g->index+idx_gen, itnz++));
+    
+    vij.push_back(OptSparseEntry(row, slacks->index+it, itnz++));
+    
+  }
+  assert(J_nz_idxs + nnz == itnz);
+  return true;
+}
+
+bool AGCReservesCons::eval_Jac(const OptVariables& primal_vars, bool new_x, 
+			       const int& nnz, int* i, int* j, double* M)
+{
+  assert(isAssembled);
+  int row, *itnz=J_nz_idxs;
+  if(NULL==M) {
+    for(int it=0; it<n; it++) {
+      row = this->index+it;
+      for(int idx_gen: idxs_[it]) {
+	i[*itnz]=row; j[*itnz]=p_g->index+idx_gen; itnz++;
+      }
+      i[*itnz]=row; j[*itnz]=slacks->index+it; itnz++;
+
+    }
+    assert(J_nz_idxs + get_Jacob_nnz() == itnz);
+  } else {
+    //values
+
+    for(int it=0; it<n; it++) {
+      for(double coeff : coeff_[it]) {
+	M[*itnz] += coeff; itnz++; //w.r.t. agc p_g
+      }
+      M[*itnz] += 1.; itnz++; //w.r.t. slacks
+    }
+    assert(J_nz_idxs + get_Jacob_nnz() == itnz);
+  }
+
+  return true;
+}
+
+AGCReservesCons::~AGCReservesCons() 
+{
+  delete[] J_nz_idxs;
+}
+
 
 }//end namespace 

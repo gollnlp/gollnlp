@@ -428,6 +428,79 @@ namespace gollnlp {
     int get_Jacob_nnz();
     virtual bool get_Jacob_ij(std::vector<OptSparseEntry>& vij);
   };
+
+  //////////////////////////////////////////////////////////////////////////////
+  // AGC reserve constraints 
+  // i. loss reserve
+  //   a. max loss:  sum(Pub[i]-pg[i]: i in AGC) - f*max_loss + splus >=0
+  //   b. Kgen loss: sum(Pub[i]-pg[i]: i in AGC) - f*pg[Kgen] + splus >=0
+  //
+  // ii. gain reserve
+  //   a. max gain:  sum(pg[i]-Plb[i]: i in AGC) - f*max_gain + sminus >=0 
+  //   b. Kgen gain: sum(pg[i]-Plb[i]: i in AGC) + f*pg[Kgen] + sminus >=0 
+  //
+  // 'f' is the percentage of the loss/gain that should be covered by the AGC gens
+  // usually 1. or closely to the left of 1. (0.95 or 0.99)
+  class AGCReservesCons  : public OptConstraintsBlock
+  {
+  public:
+    AGCReservesCons(const std::string& id_, OptVariablesBlock* p_g_);
+    virtual ~AGCReservesCons();
+
+    //indexes are in G_Generator; Plb and Pub have the size(G_Generator)
+
+    void add_max_loss_reserve(const std::vector<int>& idxs_agc, 
+			      const double& max_loss, const double& f,
+			      const std::vector<double>& Pub);
+    void add_Kgen_loss_reserve(const std::vector<int>& idxs_agc, 
+			       const int& idx_Kgen, const double& f,
+			       const std::vector<double>& Pub);
+
+    void add_max_gain_reserve(const std::vector<int>& idxs_agc, 
+			      const double& max_gain, const double& f,
+			      const std::vector<double>& Plb);
+    void add_Kgen_gain_reserve(const std::vector<int>& idxs_agc, 
+			       const int& idx_Kgen, const double& f,
+			       const std::vector<double>& Plb);
+
+    void add_penalty_objterm(const std::vector<double>& P_pen,
+			     const std::vector<double>& P_qua,
+			     const double& obj_weight,
+			     const double& slacks_scale=1.0);
+
+    void finalize_setup();
+    OptVariablesBlock* get_slacks() { return slacks; }
+
+    virtual bool eval_body (const OptVariables& vars_primal, bool new_x, double* body);
+    virtual bool eval_Jac(const OptVariables& primal_vars, bool new_x, 
+			  const int& nnz, int* i, int* j, double* M);
+    int get_Jacob_nnz();
+    virtual bool get_Jacob_ij(std::vector<OptSparseEntry>& vij);
+
+    virtual OptVariablesBlock* create_varsblock() { return slacks; }
+    virtual OptObjectiveTerm* create_objterm() { return obj_penalty; }
+  protected:
+    OptVariablesBlock *p_g;
+    OptVariablesBlock *slacks; 
+    PFPenaltyQuadrApproxObjTerm *obj_penalty;
+    int* J_nz_idxs; //only in size of generators
+
+    std::vector<std::vector<int> >    idxs_;
+    std::vector<std::vector<double> > coeff_;
+    std::vector<double>              lb_, ub_;
+#ifdef DEBUG
+    bool isAssembled;
+#endif
+  };
+
+
+
+  //  or 
+  //  sum(pg[i]-Plb[i]: i in AGC) - c*pgK + d*max_gain + sminus >=0 
+  //
+  // the general form is
+  // sum(
+  //////////////////////////////////////////////////////////////////////////////
 }
 
 #endif
