@@ -234,8 +234,6 @@ namespace gollnlp {
       double aux = p0-a;   assert(fabs(aux)>1e-6);
       double c = f_pen/(aux*aux); 
 
-      printf("---- f=%g a=%g p0=%g -> c=%g\n", f_pen, a, p0, c);
-
       ci_qua.push_back(CoeffIdxQua(c, a, idx_gen));
     }
     void remove_penalty(const int& idx_gen)
@@ -257,7 +255,6 @@ namespace gollnlp {
 	  break;
       }
     }
-
 
     virtual bool eval_f(const OptVariables& vars_primal, bool new_x, double& obj_val)
     {  
@@ -337,6 +334,79 @@ namespace gollnlp {
     int *H_nz_idxs;
   };
 
+  class TransmKPenaltyObjTerm : public OptObjectiveTerm {
+   public:
+     TransmKPenaltyObjTerm(const std::string& id, 
+			   OptVariablesBlock* p1_, OptVariablesBlock* q1_, 
+			   OptVariablesBlock* p2_, OptVariablesBlock* q2_) 
+      : OptObjectiveTerm(id)
+    {
+      pen = new GenerKPenaltyObjTerm*[4];
+      pen[p1] = new GenerKPenaltyObjTerm(id+"_pli1", p1_);
+      pen[q1] = new GenerKPenaltyObjTerm(id+"_qli1", q1_);
+      pen[p2] = new GenerKPenaltyObjTerm(id+"_pli2", p2_);
+      pen[q2] = new GenerKPenaltyObjTerm(id+"_qli2", q2_);
+    }
+    virtual ~TransmKPenaltyObjTerm()
+    {
+      for(int i=0; i<4; i++) delete pen[i];
+      delete [] pen;
+    }
+    
+    void add_penalty(const int& idx_line, 
+		     const double& pli10, const double& qli10, 
+		     const double& pli20, const double& qli20, 
+		     const double& f_pen) 
+    {
+      double pq1_0 = pli10*pli10 + qli10*qli10;
+      pen[p1]->add_quadr_penalty(idx_line, pq1_0, f_pen, 0., 1e+10);
+      pen[q1]->add_quadr_penalty(idx_line, pq1_0, f_pen, 0., 1e+10);
+
+      double pq2_0 = pli20*pli20 + qli20*qli20;
+      pen[p2]->add_quadr_penalty(idx_line, pq2_0, f_pen, 0., 1e+10);
+      pen[q2]->add_quadr_penalty(idx_line, pq2_0, f_pen, 0., 1e+10);
+    }
+    void remove_penalty(const int& idx_line)
+    {
+      for(int i=0; i<4; i++) pen[i]->remove_penalty(idx_line);
+    }
+
+    virtual bool eval_f(const OptVariables& vars_primal, bool new_x, double& obj_val)
+    { 
+      for(int i=0; i<4; i++) pen[i]->eval_f(vars_primal, new_x, obj_val);
+      return true;
+    }
+    virtual bool eval_grad(const OptVariables& vars_primal, bool new_x, double* grad)
+    {
+      for(int i=0; i<4; i++) pen[i]->eval_grad(vars_primal, new_x, grad);
+      return true;
+    }
+
+    virtual bool eval_HessLagr(const OptVariables& vars_primal, bool new_x, 
+			       const double& obj_factor,
+			       const int& nnz, int* ii, int* jj, double* M)
+    {
+      
+      for(int i=0; i<4; i++) 
+	pen[i]->eval_HessLagr(vars_primal, new_x, obj_factor, nnz, ii, jj, M);
+      return true;
+    }
+
+    virtual int get_HessLagr_nnz() { 
+      int nnz=pen[0]->get_HessLagr_nnz();
+      for(int i=1; i<4; i++)  nnz += pen[i]->get_HessLagr_nnz();
+      return nnz; 
+    }
+    // (i,j) entries in the HessLagr to which this term contributes to
+    virtual bool get_HessLagr_ij(std::vector<OptSparseEntry>& vij) 
+    { 
+      for(int i=0; i<4; i++) pen[i]->get_HessLagr_ij(vij);
+      return true; 
+    }
+  protected:
+    enum {p1=0, q1, p2, q2};
+    GenerKPenaltyObjTerm** pen;
+  };
 } //end namespace
 
 #endif
