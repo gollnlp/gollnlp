@@ -35,7 +35,7 @@ namespace gollnlp {
     //only base case case, no contingencies and no coupling
     virtual bool default_assembly();
     //base case + the variables and blocks needed by contingencies specified by 'K_idxs'
-    virtual bool assembly(const std::vector<int> K_idxs);
+    virtual bool assembly(const std::vector<int>& K_idxs);
 
     virtual void add_agc_reserves();
 
@@ -68,6 +68,22 @@ namespace gollnlp {
     inline void set_basecase_T_rate_reduction(const double& rate) { T_rate_reduction = rate; }
 
     inline void set_quadr_penalty_qg0(bool onOrOff) { quadr_penalty_qg0 = onOrOff; }
+
+    void add_quadr_conting_penalty_pg0(const int& idx_gen, const double& p0, const double& f_pen);
+    void remove_quadr_conting_penalty_pg0(const int& idx_gen);
+
+    void add_conting_penalty_line0(const int& idx_line, 
+				   const double& pli10, const double& qli10, 
+				   const double& pli20, const double& qli20, 
+				   const double& f_pen);
+    void remove_conting_penalty_line0(const int& idx_line);
+
+    void add_conting_penalty_transf0(const int& idx_transf, 
+				   const double& pti10, const double& qti10, 
+				   const double& pti20, const double& qti20, 
+				   const double& f_pen);
+    void remove_conting_penalty_transf0(const int& idx_line);
+
 
     bool set_warm_start_from_base_of(SCACOPFProblem& srcProb);
   protected:
