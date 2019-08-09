@@ -91,6 +91,11 @@ public:
 
   bool set_start_to(const OptVariables& src);
 
+  void copy_to(double* a);
+  void copy_to(std::vector<double>& v);
+  void copy_from(const std::vector<double>& v);
+
+
   void print_summary(const std::string var_name="") const;
   void print(const std::string var_name="") const;
 
@@ -244,8 +249,14 @@ class OptObjective {
   OptObjective() {};
   ~OptObjective();
 
-  OptObjectiveTerm* get_objterm(const std::string& id);
-
+  //OptObjectiveTerm* get_objterm(const std::string& id);
+  inline OptObjectiveTerm* objterm(const std::string& id) 
+  {
+    auto it = mterms.find(id);
+    if(it != mterms.end())
+      return it->second;
+    return NULL;
+  }
   friend class OptProblem;
 private:
   // appends a new obj term and sets his 'index'
@@ -348,6 +359,10 @@ public:
   inline OptVariablesBlock* vars_block_duals_cons(const std::string& id)
   {
     return vars_duals_cons->vars_block(id, "vars_cons");
+  }
+  inline OptObjectiveTerm* objterm(const std::string& id)
+  {
+    return obj->objterm(id);
   }
 
   //

@@ -719,6 +719,27 @@ bool OptVariables::set_start_to(const OptVariables& src)
   return true;
 }
 
+void OptVariables::copy_to(double* a)
+{
+  for(auto b: this->vblocks) {
+    memcpy(a+b->index, b->x, b->n * sizeof(double));
+  }
+}
+void OptVariables::copy_to(std::vector<double>& v)
+{
+  if(v.size()<this->n())
+    v = vector<double>(this->n());
+  this->copy_to(v.data());
+}
+void OptVariables::copy_from(const std::vector<double>& v)
+{
+  for(auto b: this->vblocks) {
+    assert(b->index+b->n < v.size());
+    b->set_start_to(v.data() + b->index);
+  }
+}
+
+
 OptVariablesBlock::OptVariablesBlock(const int& n_, const std::string& id_)
   : n(n_), id(id_), index(-1), xref(NULL), providesStartingPoint(false)
 {
