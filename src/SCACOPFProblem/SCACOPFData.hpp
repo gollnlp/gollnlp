@@ -15,6 +15,8 @@ namespace gollnlp {
     bool readinstance(const std::string& raw, const std::string& rop, const std::string& inl, const std::string& con);
   private:
     void buildindexsets(bool ommit_K_related=false);
+    void buildtopology();
+    void dijsktra(std::vector<int>& dist, int N_idx_src, int N_idx_dst);
   public:
     // to keep things vectorized, "cut"/"sliced" copies of data are kept. This methods performs these cuts and
     // (hard-)clear vectors not used in the contigencies
@@ -23,12 +25,17 @@ namespace gollnlp {
 
     //utilities
     int bus_with_largest_gen() const;
-
+    
     //Gk    - indexes of all generators 
     //Gkp   - indexes of AGC participating generators
     //Gknop - indexes of ACG non-participating generators
     // all the above sets except 'outidx' if 'ConType' of Kidx is generator
     void get_AGC_participation(int Kidx, std::vector<int>& Gk, std::vector<int>& Gkp, std::vector<int>& Gknop);
+    
+    //distance functions -- counting number of edges only
+    void distances_from_N(std::vector<int>& dist, int N_idx_src);
+    int N2N_distance(int N_idx_src, int N_idx_dst);
+    
   public:
     // 0 when used for ACOPF, conting index (1-based) for contingency subproblems
     int id;
@@ -39,7 +46,7 @@ namespace gollnlp {
     std::vector<int> N_Bus, N_Area;
     std::vector<double> N_Pd, N_Qd, N_Gsh, N_Bsh, N_Vlb, N_Vub, N_EVlb, N_EVub, N_v0, N_theta0;
 
-    // - linesg
+    // - lines
     std::vector<int> L_Line, L_From, L_To;
     std::vector<std::string> L_CktID;
     std::vector<double> L_G, L_B, L_Bch, L_RateBase, L_RateEmer;
@@ -90,6 +97,12 @@ namespace gollnlp {
     std::vector<int> SSh_Nidx;
     //indexin(G[:Bus], N[:Bus])
     std::vector<int> G_Nidx;
+
+    //
+    // -- power grid topology
+    //
+    //indexes of neighbors of each bus
+    std::vector<std::vector<int> > N_neighidx;
 
     //size nbus -> each vector element 'b' contains a (vector of) lines/transformers
     //attached to bus 'b' 

@@ -9,6 +9,7 @@ using namespace std;
 
 #include <cmath>
 #include "blasdefs.hpp"
+
 namespace gollnlp {
 
 //temporary log object
@@ -107,6 +108,57 @@ void SCACOPFData::get_AGC_participation(int Kidx, vector<int>& Gk, vector<int>& 
   //printvec(Gknop, "Gknop");
 }
 
+//computes distances from bus N to all other buses using Dijkstra's algorithm
+//assumes network is a connected component
+void SCACOPFData::dijsktra(std::vector<int>& dist, int N_idx_src, int N_idx_dst)
+{
+  const int INFINT = std::numeric_limits<int>::max();
+  int nv = N_neighidx.size();
+  std::vector<bool> visited(nv);
+  for(size_t v=0; v<nv; v++) {
+     visited[v] = false;
+     dist[v] = INFINT-1;
+  }
+  dist[N_idx_src] = 0;
+  int nv_not_visited = nv;
+  
+  while(nv_not_visited > 0) {
+    int umin = -1;
+    int dist2umin = INFINT;
+    for(int u=0; u<nv; u++) {
+      if(!visited[u] && dist[u] < dist2umin) {
+        umin = u;
+        dist2umin = dist[u];
+      }
+    }
+    
+    if(umin == N_idx_dst) return;
+    
+    visited[umin] = true;
+    nv_not_visited--;
+    
+    for(int i=0; i<N_neighidx[umin].size(); i++) {
+      int v = N_neighidx[umin][i];
+      if(visited[v]) continue;
+      if(dist[umin] + 1 < dist[v]) {
+        dist[v] = dist[umin] + 1;
+      }
+    }
+  }
+  
+}
+
+void SCACOPFData::distances_from_N(std::vector<int>& dist, int N_idx_src)
+{
+  dijsktra(dist, N_idx_src, -1);
+}
+
+int SCACOPFData::N2N_distance(int N_idx_src, int N_idx_dst)
+{
+  std::vector<int> dist(N_neighidx.size());
+  dijsktra(dist, N_idx_src, N_idx_dst);
+  return dist[N_idx_dst];
+}
 
 static inline bool isEndOrStartOfSection(const string& l)
 {
@@ -573,7 +625,9 @@ readinstance(const std::string& raw, const std::string& rop, const std::string& 
 
 
   buildindexsets();
-
+  buildtopology();
+  //printf("Distance 1-10: %d\n", N2N_distance(0, 9));
+  
   return true;
 }
 
@@ -651,6 +705,29 @@ void SCACOPFData::buildindexsets(bool ommit_K_related)
     }
     assert(K_outidx.size()==K_Contingency.size());
   }
+}
+
+void SCACOPFData::buildtopology()
+{
+  size_t nbus = N_Bus.size(), nline=L_From.size(), ntran=T_From.size();
+  N_neighidx = VVInt(nbus, VInt());
+  
+  //collect all neighbors
+  for(size_t l=0; l<nline; l++) {
+    N_neighidx[L_Nidx[0][l]].push_back(L_Nidx[1][l]);
+    N_neighidx[L_Nidx[1][l]].push_back(L_Nidx[0][l]);
+  }
+  for(size_t t=0; t<ntran; t++) {
+    N_neighidx[T_Nidx[0][t]].push_back(T_Nidx[1][t]);
+    N_neighidx[T_Nidx[1][t]].push_back(T_Nidx[0][t]);
+  }
+  
+  //sort neighbors and remove duplicates
+  for(size_t n=0; n<nbus; n++) {
+    std::sort(N_neighidx[n].begin(), N_neighidx[n].end());
+    N_neighidx[n].erase( unique(N_neighidx[n].begin(), N_neighidx[n].end()), N_neighidx[n].end() );
+  }
+  
 }
 
 bool SCACOPFData::
