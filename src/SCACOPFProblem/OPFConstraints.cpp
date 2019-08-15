@@ -1588,7 +1588,7 @@ PFProdCostAffineCons(const std::string& id_, int numcons,
   //we create here the extra variables and the objective term
   for(auto idx: G_idx_) 
     sz_t_h += G_CostPi[idx].size();
-  t_h = new OptVariablesBlock(sz_t_h, "t_h", 0., 1e+20);
+  t_h = new OptVariablesBlock(sz_t_h, "t_h_0", 0., 1e+20);
 
   obj_term = new PFProdCostPcLinObjTerm(id+"_cons", t_h, G_idx_, G_CostCi_);
 }
