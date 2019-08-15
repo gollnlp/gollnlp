@@ -525,10 +525,27 @@ void OptProblem::use_nlp_solver(const std::string& name)
   }
 }
 
-void OptProblem::problem_changed()
+void OptProblem::primal_problem_changed()
 {
   nnz_Jac = nnz_Hess = -1;
+  ij_Jac.clear();
+  ij_Hess.clear();
 }
+
+void OptProblem::dual_problem_changed()
+{
+  nnz_Jac = nnz_Hess = -1;
+  ij_Jac.clear();
+  ij_Hess.clear();
+
+  if(vars_duals_bounds_L) delete vars_duals_bounds_L;
+  if(vars_duals_bounds_U) delete vars_duals_bounds_U;
+  if(vars_duals_cons) delete vars_duals_cons;
+  vars_duals_bounds_L = new_duals_lower_bounds();
+  vars_duals_bounds_U = new_duals_upper_bounds();
+  vars_duals_cons = new_duals_cons();
+}
+
 
 bool OptProblem::optimize(const std::string& solver_name)
 {

@@ -247,7 +247,7 @@ public:
 //////////////////////////////////////////////////////
 class OptObjective {
   OptObjective() {};
-  ~OptObjective();
+  virtual ~OptObjective();
 
   //OptObjectiveTerm* get_objterm(const std::string& id);
   inline OptObjectiveTerm* objterm(const std::string& id) 
@@ -384,9 +384,15 @@ public:
   //
   enum RestartType{primalRestart, primalDualRestart, advancedPrimalDualRestart};
   
-  // method should be called before 'optimize' whenever the size or the sparsity 
-  // pattern of the derivatives changes
-  virtual void problem_changed();
+  // method should be called before 'optimize' or 'reoptimize' whenever 
+  // i. the number of the optimization variables 
+  // or 
+  // ii. the sparsity pattern of the derivatives changes
+  virtual void primal_problem_changed();
+
+  //method to be called before 'reoptimize' whenever the number of constraints changes
+  //no need to call this before 'optimize'
+  virtual void dual_problem_changed();
 
   virtual bool optimize(const std::string& nlpsolver);
   virtual bool reoptimize(RestartType t=primalRestart);
