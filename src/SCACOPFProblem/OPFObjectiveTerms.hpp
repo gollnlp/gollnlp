@@ -200,7 +200,7 @@ namespace gollnlp {
   class GenerKPenaltyObjTerm : public OptObjectiveTerm {
   public:
     GenerKPenaltyObjTerm(const std::string& id, OptVariablesBlock* x_) 
-      : OptObjectiveTerm(id), x(x_), H_nz_idxs(NULL)
+      : OptObjectiveTerm(id), x(x_), H_nnz(0), H_nz_idxs(NULL)
     {}
     virtual ~GenerKPenaltyObjTerm()
     {
@@ -231,7 +231,15 @@ namespace gollnlp {
       double a = std::max(0., lb);
       if(p0<0) a = std::min(0., ub);
 
-      double aux = p0-a;   assert(fabs(aux)>1e-6);
+      double aux = p0-a;   
+
+      if(fabs(aux)<=1e-6) {
+	printf("[warning] idx_gen=%d cannot be penalized effectively: lb=%g ub=%g p0=%g f_pen=%g\n", 
+	       idx_gen, lb, ub, p0, f_pen);
+	return;
+      }
+
+      assert(fabs(aux)>1e-6);
       double c = f_pen/(aux*aux); 
 
       ci_qua.push_back(CoeffIdxQua(c, a, idx_gen));
@@ -281,11 +289,12 @@ namespace gollnlp {
 			       const double& obj_factor,
 			       const int& nnz, int* i, int* j, double* M)
     {
+      assert(ci_qua.size() == H_nnz);
       if(NULL==M) {
 	int idx, row;
 	for(int it=0; it<ci_qua.size(); it++) {
 	  idx = H_nz_idxs[it]; 
-	  if(idx<0) return false;
+	  if(idx<0) {assert(false); return false; }
 	  i[idx] = j[idx] = x->index + ci_qua[it].idx;
 	}
       } else {
@@ -303,16 +312,21 @@ namespace gollnlp {
     virtual bool get_HessLagr_ij(std::vector<OptSparseEntry>& vij) 
     { 
       int nnz = ci_qua.size(), i;
-      if(NULL==H_nz_idxs)
-	H_nz_idxs = new int[nnz];
+      
+      if(nnz!=H_nnz) {
+	delete [] H_nz_idxs;
+	H_nnz = nnz;
+	H_nz_idxs = new int[H_nnz];
+      }
 
       int it=0;
       for(CoeffIdxQua& e: ci_qua) {
 	i = x->index + e.idx;
 	vij.push_back(OptSparseEntry(i,i, H_nz_idxs+it));
-	assert(it<nnz);
+	assert(it<H_nnz);
 	it++;
       }
+      assert(it==H_nnz);
       return true; 
     }
 
@@ -331,6 +345,7 @@ namespace gollnlp {
 
     std::vector<CoeffIdxLin> ci_lin;
     std::vector<CoeffIdxQua> ci_qua;
+    int H_nnz;
     int *H_nz_idxs;
   };
 
