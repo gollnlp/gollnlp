@@ -37,6 +37,10 @@ namespace gollnlp {
     //base case + the variables and blocks needed by contingencies specified by 'K_idxs'
     virtual bool assembly(const std::vector<int>& K_idxs);
 
+    //add block for contingency K_idx
+    virtual bool add_contingency_block(const int K_idx);
+    virtual bool has_contigency(const int K_idx);
+
     virtual void add_agc_reserves();
 
     //add reserve constraints on AGC so that AGC generators can ramp up and down to the largest 
@@ -89,6 +93,8 @@ namespace gollnlp {
   protected:
     bool set_warm_start_for_base_from_base_of(SCACOPFProblem& srcProb);
     bool set_warm_start_for_cont_from_base_of(SCACOPFData& dB, SCACOPFProblem& srcProb);
+  public:
+    bool set_warm_start_for_cont_from_base_of(const int& K_idx, SCACOPFProblem& srcProb);
   protected:
     // for all add_ methods, dB is the block data (base case or contingency)
     // all these methods use 'd' SCACOPFData as well since dB contains only a 
@@ -167,6 +173,9 @@ namespace gollnlp {
     inline OptVariablesBlock* variable_duals_cons(const std::string& prefix, const SCACOPFData& d) {
       return vars_block_duals_cons(prefix+"_"+std::to_string(d.id));
     }
+
+    //grows dest as needed
+    void copy_basecase_primal_variables_to(std::vector<double>& dest);
 
     // returns the idxs of PVPQ gens and corresponding buses
     // generators at the same PVPQ bus are aggregated

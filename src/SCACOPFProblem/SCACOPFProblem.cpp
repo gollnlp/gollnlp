@@ -139,32 +139,77 @@ bool SCACOPFProblem::assembly(const std::vector<int>& K_Cont)
   int nK = K_Cont.size();
 
   for(auto K : K_Cont) {
+    add_contingency_block(K);
 
-    data_K.push_back(new SCACOPFData(data_sc));
-    SCACOPFData& dK = *(data_K).back(); //shortcut
-    dK.rebuild_for_conting(K,nK);
+    // data_K.push_back(new SCACOPFData(data_sc));
+    // SCACOPFData& dK = *(data_K).back(); //shortcut
+    // dK.rebuild_for_conting(K,nK);
 
-    dK.PenaltyWeight = (1-d.DELTA) / nK;
+    // dK.PenaltyWeight = (1-d.DELTA) / nK;
 
-    printf("adding blocks for contingency K=%d IDOut=%d outidx=%d Type=%s\n", 
-	   K, d.K_IDout[K], d.K_outidx[K], d.cont_type_string(K).c_str());
+    // printf("adding blocks for contingency K=%d IDOut=%d outidx=%d Type=%s\n", 
+    // 	   K, d.K_IDout[K], d.K_outidx[K], d.cont_type_string(K).c_str());
 
-    bool SysCond_BaseCase = false;
+    // bool SysCond_BaseCase = false;
 
-    add_variables(dK, SysCond_BaseCase);
-    add_cons_lines_pf(dK);
-    add_cons_transformers_pf(dK);
-    add_cons_active_powbal(dK);
-    add_cons_reactive_powbal(dK);
+    // add_variables(dK, SysCond_BaseCase);
+    // add_cons_lines_pf(dK);
+    // add_cons_transformers_pf(dK);
+    // add_cons_active_powbal(dK);
+    // add_cons_reactive_powbal(dK);
 
-    add_cons_thermal_li_lims(dK,SysCond_BaseCase);
-    add_cons_thermal_ti_lims(dK,SysCond_BaseCase);
+    // add_cons_thermal_li_lims(dK,SysCond_BaseCase);
+    // add_cons_thermal_ti_lims(dK,SysCond_BaseCase);
 
-    //coupling AGC and PVPQ; also creates delta_k
-    add_cons_coupling(dK);
+    // //coupling AGC and PVPQ; also creates delta_k
+    // add_cons_coupling(dK);
+
   }
   //print_summary();
   return true;
+}
+
+bool SCACOPFProblem::add_contingency_block(const int K)
+{
+  SCACOPFData& d = data_sc; //shortcut
+  data_K.push_back(new SCACOPFData(data_sc));
+
+  SCACOPFData& dK = *(data_K).back(); //shortcut
+  dK.rebuild_for_conting(K,1);
+
+  printf("adding blocks for contingency K=%d IDOut=%d outidx=%d Type=%s\n", 
+	 K, d.K_IDout[K], d.K_outidx[K], d.cont_type_string(K).c_str());
+  
+  bool SysCond_BaseCase = false;
+
+  add_variables(dK, SysCond_BaseCase);
+  add_cons_lines_pf(dK);
+  add_cons_transformers_pf(dK);
+  add_cons_active_powbal(dK);
+  add_cons_reactive_powbal(dK);
+  
+  add_cons_thermal_li_lims(dK,SysCond_BaseCase);
+  add_cons_thermal_ti_lims(dK,SysCond_BaseCase);
+  
+  //coupling AGC and PVPQ; also creates delta_k
+  add_cons_coupling(dK);
+  
+  //
+  //finally -> update penalties for the problem
+  double new_penalty_weight = (1-d.DELTA) / data_K.size();
+  for(SCACOPFData* d : data_K) d->PenaltyWeight=new_penalty_weight;
+
+  return true;
+}
+
+bool SCACOPFProblem::has_contigency(const int K_idx)
+{
+  for(SCACOPFData* d : data_K) 
+    if(K_idx == d->id-1) {
+      assert(d->K_outidx[0] == data_sc.K_outidx[K_idx]);
+      return true;
+    }
+  return false;
 }
 
 void SCACOPFProblem::add_cons_coupling(SCACOPFData& dB)
@@ -1428,6 +1473,19 @@ void SCACOPFProblem::add_obj_prod_cost(SCACOPFData& d)
   prod_cost_cons->compute_t_h(t_h); t_h->providesStartingPoint = true;
 }
 
+
+void SCACOPFProblem::copy_basecase_primal_variables_to(std::vector<double>& dest)
+{
+  dest.clear();
+  for(auto b: vars_primal->vblocks) {
+    int sz = b->id.size();
+    if(sz>=2 && '0'==b->id[sz-1] && '_'==b->id[sz-2]) {
+      for(int i=0; i<b->n; i++) 
+	dest.push_back(b->x[i]);
+    }
+  }
+}
+
 bool SCACOPFProblem::set_warm_start_from_base_of(SCACOPFProblem& srcProb)
 {
 
@@ -1462,7 +1520,7 @@ bool SCACOPFProblem::set_warm_start_from_base_of(SCACOPFProblem& srcProb)
 
   bool SCACOPFProblem::set_warm_start_for_base_from_base_of(SCACOPFProblem& srcProb)
   {
-    vector<string> ids = {"v_n_0" , "theta_n_0" , "p_li1_0" , "p_li2_0" , "q_li1_0" , "q_li2_0" , "p_ti1_0" , "p_ti2_0" , "q_ti1_0" , "q_ti2_0" , "b_s_0" , "p_g_0" , "q_g_0" , "pslack_n_p_balance_0" , "qslack_n_q_balance_0" , "sslack_li_line_limits1_0" , "sslack_li_line_limits2_0" , "sslack_ti_trans_limits1_0" , "sslack_ti_trans_limits2_0" , "t_h", "sslack_agc_reserves_loss_Kgen_0", "sslack_agc_reserves_gain_Kgen_0", "sslack_agc_reserves_loss_bnd_0", "sslack_agc_reserves_gain_bnd_0" };
+    vector<string> ids = {"v_n_0" , "theta_n_0" , "p_li1_0" , "p_li2_0" , "q_li1_0" , "q_li2_0" , "p_ti1_0" , "p_ti2_0" , "q_ti1_0" , "q_ti2_0" , "b_s_0" , "p_g_0" , "q_g_0" , "pslack_n_p_balance_0" , "qslack_n_q_balance_0" , "sslack_li_line_limits1_0" , "sslack_li_line_limits2_0" , "sslack_ti_trans_limits1_0" , "sslack_ti_trans_limits2_0" , "t_h_0", "sslack_agc_reserves_loss_Kgen_0", "sslack_agc_reserves_gain_Kgen_0", "sslack_agc_reserves_loss_bnd_0", "sslack_agc_reserves_gain_bnd_0" };
     for(auto id: ids) {
       auto b = vars_primal->vars_block(id);
       auto bsrc = srcProb.vars_primal->vars_block(id);
@@ -1470,7 +1528,7 @@ bool SCACOPFProblem::set_warm_start_from_base_of(SCACOPFProblem& srcProb)
       else { assert(false); }
     }
 
-    ids = {"duals_bndL_v_n_0" , "duals_bndL_theta_n_0" , "duals_bndL_p_li1_0" , "duals_bndL_p_li2_0" , "duals_bndL_q_li1_0" , "duals_bndL_q_li2_0" , "duals_bndL_p_ti1_0" , "duals_bndL_p_ti2_0" , "duals_bndL_q_ti1_0" , "duals_bndL_q_ti2_0" , "duals_bndL_b_s_0" , "duals_bndL_p_g_0" , "duals_bndL_q_g_0" , "duals_bndL_pslack_n_p_balance_0" , "duals_bndL_qslack_n_q_balance_0" , "duals_bndL_sslack_li_line_limits1_0" , "duals_bndL_sslack_li_line_limits2_0" , "duals_bndL_sslack_ti_trans_limits1_0" , "duals_bndL_sslack_ti_trans_limits2_0" , "duals_bndL_t_h", "duals_bndL_sslack_agc_reserves_loss_Kgen_0", "duals_bndL_sslack_agc_reserves_gain_Kgen_0", "duals_bndL_sslack_agc_reserves_loss_bnd_0", "duals_bndL_sslack_agc_reserves_gain_bnd_0"};
+    ids = {"duals_bndL_v_n_0" , "duals_bndL_theta_n_0" , "duals_bndL_p_li1_0" , "duals_bndL_p_li2_0" , "duals_bndL_q_li1_0" , "duals_bndL_q_li2_0" , "duals_bndL_p_ti1_0" , "duals_bndL_p_ti2_0" , "duals_bndL_q_ti1_0" , "duals_bndL_q_ti2_0" , "duals_bndL_b_s_0" , "duals_bndL_p_g_0" , "duals_bndL_q_g_0" , "duals_bndL_pslack_n_p_balance_0" , "duals_bndL_qslack_n_q_balance_0" , "duals_bndL_sslack_li_line_limits1_0" , "duals_bndL_sslack_li_line_limits2_0" , "duals_bndL_sslack_ti_trans_limits1_0" , "duals_bndL_sslack_ti_trans_limits2_0" , "duals_bndL_t_h_0", "duals_bndL_sslack_agc_reserves_loss_Kgen_0", "duals_bndL_sslack_agc_reserves_gain_Kgen_0", "duals_bndL_sslack_agc_reserves_loss_bnd_0", "duals_bndL_sslack_agc_reserves_gain_bnd_0"};
     for(auto id: ids) {
       auto b = vars_duals_bounds_L->vars_block(id);
       auto bsrc = srcProb.vars_duals_bounds_L->vars_block(id);
@@ -1478,7 +1536,7 @@ bool SCACOPFProblem::set_warm_start_from_base_of(SCACOPFProblem& srcProb)
       else { assert(false); }
     }
 
-    ids = {"duals_bndU_v_n_0" , "duals_bndU_theta_n_0" , "duals_bndU_p_li1_0" , "duals_bndU_p_li2_0" , "duals_bndU_q_li1_0" , "duals_bndU_q_li2_0" , "duals_bndU_p_ti1_0" , "duals_bndU_p_ti2_0" , "duals_bndU_q_ti1_0" , "duals_bndU_q_ti2_0" , "duals_bndU_b_s_0" , "duals_bndU_p_g_0" , "duals_bndU_q_g_0" , "duals_bndU_pslack_n_p_balance_0" , "duals_bndU_qslack_n_q_balance_0" , "duals_bndU_sslack_li_line_limits1_0" , "duals_bndU_sslack_li_line_limits2_0" , "duals_bndU_sslack_ti_trans_limits1_0" , "duals_bndU_sslack_ti_trans_limits2_0" , "duals_bndU_t_h", "duals_bndU_sslack_agc_reserves_loss_Kgen_0", "duals_bndU_sslack_agc_reserves_gain_Kgen_0", "duals_bndU_sslack_agc_reserves_loss_bnd_0", "duals_bndU_sslack_agc_reserves_gain_bnd_0"};
+    ids = {"duals_bndU_v_n_0" , "duals_bndU_theta_n_0" , "duals_bndU_p_li1_0" , "duals_bndU_p_li2_0" , "duals_bndU_q_li1_0" , "duals_bndU_q_li2_0" , "duals_bndU_p_ti1_0" , "duals_bndU_p_ti2_0" , "duals_bndU_q_ti1_0" , "duals_bndU_q_ti2_0" , "duals_bndU_b_s_0" , "duals_bndU_p_g_0" , "duals_bndU_q_g_0" , "duals_bndU_pslack_n_p_balance_0" , "duals_bndU_qslack_n_q_balance_0" , "duals_bndU_sslack_li_line_limits1_0" , "duals_bndU_sslack_li_line_limits2_0" , "duals_bndU_sslack_ti_trans_limits1_0" , "duals_bndU_sslack_ti_trans_limits2_0" , "duals_bndU_t_h_0", "duals_bndU_sslack_agc_reserves_loss_Kgen_0", "duals_bndU_sslack_agc_reserves_gain_Kgen_0", "duals_bndU_sslack_agc_reserves_loss_bnd_0", "duals_bndU_sslack_agc_reserves_gain_bnd_0"};
     for(auto id: ids) {
       auto b = vars_duals_bounds_U->vars_block(id);
       auto bsrc = srcProb.vars_duals_bounds_U->vars_block(id);
@@ -1497,7 +1555,16 @@ bool SCACOPFProblem::set_warm_start_from_base_of(SCACOPFProblem& srcProb)
   }
 
 
-
+  bool SCACOPFProblem::set_warm_start_for_cont_from_base_of(const int& K_idx, SCACOPFProblem& srcProb)
+  {
+    assert(K_idx>=0); assert(K_idx<data_sc.K_Contingency.size());
+    for(SCACOPFData* dB: this->data_K) {
+      if(dB->id-1==K_idx) {
+	return set_warm_start_for_cont_from_base_of(*dB, srcProb);
+      }
+    }
+    return false;
+  }
   bool SCACOPFProblem::set_warm_start_for_cont_from_base_of(SCACOPFData& dB, SCACOPFProblem& srcProb)
   {
     SCACOPFData& dK = dB;// assert(dK.id==K_idx+1);
