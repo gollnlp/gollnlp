@@ -517,14 +517,13 @@ bool MyCode2::solve_contingency(int K_idx, std::vector<double>& sln)
   ContingencyProblem prob(data, K_idx, my_rank);
   
   prob.update_AGC_smoothing_param(1e-4);
-  prob.update_PVPQ_smoothing_param(1e-4);
+  prob.update_PVPQ_smoothing_param(1e-2);
 
-  prob.reg_vn = true;
-  prob.reg_thetan = true;
-  prob.reg_bs = true;
-  prob.reg_pg = true;
-  prob.reg_qg = true;
-
+  //prob.reg_vn = true;
+  //prob.reg_thetan = true;
+  //prob.reg_bs = true;
+  //prob.reg_pg = true;
+  //prob.reg_qg = true;
 
 
   if(!prob.default_assembly(v_n0, theta_n0, b_s0, p_g0, q_g0)) {
@@ -544,13 +543,15 @@ bool MyCode2::solve_contingency(int K_idx, std::vector<double>& sln)
   prob.set_solver_option("linear_solver", "ma57"); 
   prob.set_solver_option("print_level", 2);
   prob.set_solver_option("mu_init", 1e-4);
-  prob.set_solver_option("mu_target", 1e-8);
+  prob.set_solver_option("mu_target", 5e-9);
 
   //return if it takes too long in phase2
   prob.set_solver_option("max_iter", 1000);
   prob.set_solver_option("acceptable_tol", 1e-3);
   prob.set_solver_option("acceptable_constr_viol_tol", 1e-6);
   prob.set_solver_option("acceptable_iter", 5);
+
+  prob.set_solver_option("tol", 1e-9);
 
   prob.set_solver_option("bound_relax_factor", 0.);
   prob.set_solver_option("bound_push", 1e-16);
@@ -566,15 +567,15 @@ bool MyCode2::solve_contingency(int K_idx, std::vector<double>& sln)
     status = -3;
     return false;
   }
-
-  prob.print_objterms_evals();
+  if(penalty>100)
+    prob.print_objterms_evals();
 
   prob.get_solution_simplicial_vectorized(sln);
   assert(size_sol_block == sln.size());
  
   //prob.print_p_g_with_coupling_info(*prob.data_K[0], p_g0);
   sln.push_back((double)K_idx);
-  printf("Evaluator Rank %3d K_idx %5d finished with penalty %12.3f "
+  printf("Evaluator Rank %3d K_idx=%d finished with penalty %12.3f "
 	 "in %5.3f sec and %3d iterations  global time %g \n",
 	 my_rank, K_idx, penalty, t.stop(), 
 	 prob.number_of_iterations(), glob_timer.measureElapsedTime());

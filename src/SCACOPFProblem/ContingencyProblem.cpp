@@ -10,6 +10,8 @@
 #include "unistd.h"
 using namespace std;
 
+//#define BE_VERBOSE
+
 namespace gollnlp {
   
   ContingencyProblem::ContingencyProblem(SCACOPFData& d_in, int K_idx_, int my_rank_) 
@@ -41,7 +43,7 @@ namespace gollnlp {
 
   bool ContingencyProblem::default_assembly(OptVariablesBlock* pg0, OptVariablesBlock* vn0) 
   {
-    printf("ContProb K_id %d: IDOut=%d outidx=%d Type=%s\n",
+    printf("ContProb K_idx=%d: IDOut=%d outidx=%d Type=%s\n",
 	   K_idx, data_sc.K_IDout[K_idx], data_sc.K_outidx[K_idx],
 	   data_sc.cont_type_string(K_idx).c_str());
     fflush(stdout);
@@ -54,7 +56,6 @@ namespace gollnlp {
     useQPen = true;
     //slacks_scale = 1.;
 
-    AGCSmoothing=1e-4;
     add_variables(dK,false);
 
     add_cons_lines_pf(dK);
@@ -105,7 +106,8 @@ namespace gollnlp {
     add_cons_AGC_using(pg0);
     
     //add_const_nonanticip_v_n_using(vn0, Gk);
-    add_cons_PVPQ_using(pg0, Gk);
+    add_cons_PVPQ_using(vn0, Gk);
+    
 
     //print_summary();
     //PVPQSmoothing  = 1e-2;
@@ -136,9 +138,11 @@ namespace gollnlp {
     f = this->obj_value;
 
     tmrec.stop();
-    printf("ContProb K_id %d: optimize took %g sec  %d iterations on rank=%d\n", 
+#ifdef BE_VERBOSE
+    printf("ContProb K_idx=%d: optimize took %g sec  %d iterations on rank=%d\n", 
 	   K_idx, tmrec.getElapsedTime(), number_of_iterations(), my_rank);
     fflush(stdout);
+#endif
 
     return true;
 
@@ -164,10 +168,11 @@ namespace gollnlp {
     f = this->obj_value;
 
     tmrec.stop();
+#ifdef BE_VERBOSE
     printf("ContProb K_id %d: eval_obj took %g sec  %d iterations on rank=%d\n", 
 	   K_idx, tmrec.getElapsedTime(), number_of_iterations(), my_rank);
     fflush(stdout);
-
+#endif
     return true;
   }
 
@@ -275,7 +280,7 @@ namespace gollnlp {
 #endif
 	if(abs(dB.G_Qub[g]-dB.G_Qlb[g])<=1e-8) {
 	  numfixed++; num_qgens_fixed++;
-#ifdef DEBUG
+#ifdef BE_VERBOSE
 	  printf("PVPQ: gen ID=%d p_q at bus idx %d id %d is fixed; will not enforce voltage nonanticip constraint\n",
 		 dB.G_Generator[g], dB.G_Nidx[g], data_sc.N_Bus[dB.G_Nidx[g]]);
 #endif
@@ -324,7 +329,7 @@ namespace gollnlp {
   void ContingencyProblem::add_cons_PVPQ_using(OptVariablesBlock* vn0, 
 					       const vector<int>& Gk) 
   {
-    assert(data_K.size()==1);
+    assert(data_K.size()==1); assert(v_n0 == vn0);
     SCACOPFData& dB = *data_K[0];
 
     //(aggregated) non-fixed q_g generator ids at each node/bus
@@ -368,25 +373,35 @@ namespace gollnlp {
     
     append_objterm(new LinearPenaltyObjTerm(string("bigMpen_")+num->id, num, 1.));
     append_objterm(new LinearPenaltyObjTerm(string("bigMpen_")+nup->id, nup, 1.));
-    
-    printf("ContProb K_id %d: PVPQ: participating %d gens at %lu buses: added %d constraints; PVPQSmoothing=%g; "
+#ifdef BE_VERBOSE
+    printf("ContProb K_idx=%d: PVPQ: participating %d gens at %lu buses: "
+	   "added %d constraints; PVPQSmoothing=%g; "
 	   "total PVPQ: %lu gens | %d buses; fixed: %d gens | %d buses with all gens fixed.\n",
 	   K_idx,
 	   nPVPQGens-num_qgens_fixed, idxs_bus_pvpq.size(), cons->n, PVPQSmoothing,
 	   Gk.size(), num_N_PVPQ,
 	   num_qgens_fixed, num_buses_all_qgen_fixed);
+#endif
   }
   void ContingencyProblem::update_cons_PVPQ_using(OptVariablesBlock* vn0, 
 						  const vector<int>& Gk) {
     assert(false);
   }
 
+  void ContingencyProblem::add_cons_nonanticip_using(OptVariablesBlock* pg0) {
+    bodyof_cons_nonanticip_using(pg0);
+#ifdef BE_VERBOSE
+    printf("ContProb K_idx=%d on rank %d: "
+	   "AGC: %lu gens NOT participating: fixed all of them.\n",
+	   K_idx, my_rank, pg0_nonpartic_idxs.size());
+#endif
+  }
   void ContingencyProblem::bodyof_cons_nonanticip_using(OptVariablesBlock* pg0)
   {
     SCACOPFData& dK = *data_K[0]; assert(dK.id-1 == K_idx);
     OptVariablesBlock* pgK = variable("p_g", dK);
     if(NULL==pgK) {
-      printf("[warning] ContingencyProblem K_id %d: p_g var not found in contingency  "
+      printf("[warning] ContingencyProblem K_idx=%d: p_g var not found in contingency  "
 	     "problem; will not enforce non-ACG coupling constraints.\n", dK.id);
       return;
     }
@@ -414,7 +429,7 @@ namespace gollnlp {
   {
     if(pgK_partic_idxs.size()==0) {
       //assert(pg0_partic_idxs.size()==0);
-#ifdef DEBUG
+#ifdef BE_VERBOSE
       printf("ContingencyProblem: add_cons_AGC_using: NO gens participating !?!\n");
 #endif
       return;
@@ -423,7 +438,7 @@ namespace gollnlp {
     SCACOPFData& dK = *data_K[0];
     OptVariablesBlock* pgK = variable("p_g", dK);
     if(NULL==pgK) {
-      printf("[warning] ContingencyProblem K_id %d: p_g var not found in contingency  "
+      printf("[warning] ContingencyProblem K_idx=%d: p_g var not found in contingency  "
 	     "recourse problem; will not enforce non-ACG coupling constraints.\n", dK.id);
       assert(false);
       return;
@@ -450,8 +465,8 @@ namespace gollnlp {
 
     append_objterm(new LinearPenaltyObjTerm(string("bigMpen_")+rhom->id, rhom, 1));
     append_objterm(new LinearPenaltyObjTerm(string("bigMpen_")+rhop->id, rhop, 1));
-#ifdef DEBUG
-    printf("ContProb K_id %d: AGC %lu gens participating (out of %d) AGCSmoothing=%g\n", 
+#ifdef BE_VERBOSE
+    printf("ContProb K_idx=%d: AGC %lu gens participating (out of %d) AGCSmoothing=%g\n", 
     	   K_idx, pgK_partic_idxs.size(), pgK->n, AGCSmoothing);
 #endif
     //printvec(pg0_partic_idxs, "partic idxs");
@@ -483,19 +498,19 @@ namespace gollnlp {
       assert(variable("v_n", dK)->n == v_n0->n);
       append_objterm(new QuadrRegularizationObjTerm("regul_vn", variable("v_n", dK),
 						    1e-4, v_n0->x));
-      printf("added regularization term for v_n\n");
+      //printf("added regularization term for v_n\n");
     }
 
     if(reg_thetan) {
       append_objterm(new QuadrRegularizationObjTerm("regul_thetan", variable("theta_n", dK),
 						    1e-4, theta_n0->x));
-      printf("added regularization term for theta_n\n");
+      //printf("added regularization term for theta_n\n");
 
     }
     if(reg_bs) {
       append_objterm(new QuadrRegularizationObjTerm("regul_bs", variable("b_s", dK),
 						    1e-4, b_s0->x));
-      printf("added regularization term for b_s\n");
+      //printf("added regularization term for b_s\n");
 
     }
     if(reg_pg) {
@@ -504,7 +519,7 @@ namespace gollnlp {
       auto pg0_vec = selectfrom(p_g0->x, p_g0->n, Gk);
       append_objterm(new QuadrRegularizationObjTerm("regul_pg", variable("p_g", dK),
 						    1e-4, pg0_vec.data()));
-      printf("added regularization term for p_g\n");
+      //printf("added regularization term for p_g\n");
     }
     if(reg_qg) {
       assert(Gk.size() == variable("q_g", dK)->n);
@@ -512,7 +527,7 @@ namespace gollnlp {
       auto qg0_vec = selectfrom(q_g0->x, q_g0->n, Gk);
       append_objterm(new QuadrRegularizationObjTerm("regul_qg", variable("q_g", dK),
 						    1e-4, qg0_vec.data()));
-      printf("added regularization term for q_g\n");
+      //printf("added regularization term for q_g\n");
     }
 
   }
