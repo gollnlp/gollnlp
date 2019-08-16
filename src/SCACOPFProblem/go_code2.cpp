@@ -516,7 +516,7 @@ bool MyCode2::solve_contingency(int K_idx, std::vector<double>& sln)
   int status;
   ContingencyProblem prob(data, K_idx, my_rank);
   
-  prob.update_AGC_smoothing_param(1e-4);
+  prob.update_AGC_smoothing_param(1e-2);
   prob.update_PVPQ_smoothing_param(1e-2);
 
   //prob.reg_vn = true;
@@ -539,10 +539,10 @@ bool MyCode2::solve_contingency(int K_idx, std::vector<double>& sln)
   //}
 
   prob.use_nlp_solver("ipopt");
-  prob.set_solver_option("print_frequency_iter", 1);
+  prob.set_solver_option("print_frequency_iter", 25);
   prob.set_solver_option("linear_solver", "ma57"); 
-  prob.set_solver_option("print_level", 2);
-  prob.set_solver_option("mu_init", 1e-4);
+  prob.set_solver_option("print_level", 5);
+  prob.set_solver_option("mu_init", 1e-1);
   prob.set_solver_option("mu_target", 5e-9);
 
   //return if it takes too long in phase2
@@ -567,6 +567,22 @@ bool MyCode2::solve_contingency(int K_idx, std::vector<double>& sln)
     status = -3;
     return false;
   }
+  if(penalty>100)
+    prob.print_objterms_evals();
+
+  prob.set_solver_option("print_frequency_iter", 11);
+  prob.set_solver_option("mu_init", 1e-1);
+
+  prob.update_AGC_smoothing_param(1e-8);
+  prob.update_PVPQ_smoothing_param(1e-6);
+
+  if(!prob.reoptimize(OptProblem::primalDualRestart)) {
+    printf("Evaluator Rank %d failed in the evaluation 2 of contingency K_idx=%d\n",
+	   my_rank, K_idx);
+    status = -3;
+    return false;
+  }
+  penalty = prob.objective_value();
   if(penalty>100)
     prob.print_objterms_evals();
 
