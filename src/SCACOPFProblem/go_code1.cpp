@@ -25,6 +25,7 @@ ostream& operator<<(ostream& os, const MyCode1::ContingInfo& o)
      << " evaled_with_sol_at_pass " << o.evaled_with_sol_at_pass
      << " -> penalty=" << o.penalty 
      << " n_scacopf_solves=" << o.n_scacopf_solves << " n_evals=" << o.n_evals 
+     << " max_K_evals=" << o.max_K_evals
      << " rank=" << o.rank_eval 
      << " P| " << o.p1 << ' ' << o.q1 << ' ' << o.p2 << ' ' << o.q2 << " | "
      << " scacopf actions: [";
@@ -264,8 +265,6 @@ bool MyCode1::do_phase1()
   scacopf_prob->set_solver_option("print_frequency_iter", 1);
   scacopf_prob->set_solver_option("tol", 1e-10);
   scacopf_prob->set_solver_option("mu_target", 1e-10);
-
-  scacopf_prob->set_solver_option("hessian_approximation", "limited-memory");
 
   //scacopf_prob->set_solver_option("max_iter", 100);
 
@@ -612,13 +611,13 @@ int MyCode1::get_next_conting_foreval(int Kidx_last, int rank, vector<ContingInf
   for(ContingInfo& kinfo : K_info_all) {
     if(kinfo.rank_eval==rank) {
       if(kinfo.n_evals==kinfo.n_scacopf_solves && 
-	 kinfo.n_evals<MAX_K_EVALS && 
+	 kinfo.n_evals < kinfo.max_K_evals && 
 	 kinfo.scacopfed_at_pass <= phase3_scacopf_passes_master) {
 	  return kinfo.idx;
       } 
       //if there are NO firsttimer contingencies, we may want to put the rank on hold
       if(!have_new_firsttimer) {
-	if(kinfo.penalty>=pen_threshold && kinfo.n_evals<MAX_K_EVALS) 
+	if(kinfo.penalty>=pen_threshold && kinfo.n_evals<kinfo.max_K_evals) 
 	  hold=true; //need to eval or eval is in progress
 	if(kinfo.penalty>=pen_threshold && kinfo.scacopf_actions.size()>kinfo.n_scacopf_solves)
 	  hold=true; //high penalty that is in progress of being scacopfed
@@ -958,7 +957,7 @@ void MyCode1::determine_solver_actions(const vector<ContingInfo>& K_info_all,
     assert(kinfo.idx   == it);
 
     if(kinfo.penalty>pen_threshold) {
-      if(kinfo.n_evals>=MAX_K_EVALS  && kinfo.n_evals-1==kinfo.n_scacopf_solves) {
+      if(kinfo.n_evals>=kinfo.max_K_evals  && kinfo.n_evals-1==kinfo.n_scacopf_solves) {
 	//"include" only if "penalized" was done MAX_K_EVALS and did not reduce penalty
 
 	//but do not include if it was already included
@@ -1185,12 +1184,6 @@ bool MyCode1::do_phase3_master_solverpart(bool master_evalpart_done)
 	    last_pass = true;
 	  }
 	}
-
-	//#ifdef DEBUG_COMM
-	//char m[1024];
-	//sprintf(m, "[comm] K_info_phase2 on master after recv pen scacopf_pass=%d", phase3_scacopf_passes_master);
-	//printvec(K_info_phase2, m);
-	//#endif
 
 	bool scacopf_includes = false;
 	//update scacopf solves counter for elems of K_info_phase2
@@ -1718,17 +1711,15 @@ double MyCode1::solve_contingency(int K_idx, int& status)
     return 1e+20;
   }
 
-  //bbb
-
   prob.use_nlp_solver("ipopt");
-  prob.set_solver_option("print_frequency_iter", 11);
+  prob.set_solver_option("print_frequency_iter", 1);
   prob.set_solver_option("linear_solver", "ma57"); 
-  prob.set_solver_option("print_level", 5);
+  prob.set_solver_option("print_level", 2);
   prob.set_solver_option("mu_init", 1e-1);
   prob.set_solver_option("mu_target", 1e-8);//!
 
   //return if it takes too long in phase2
-  prob.set_solver_option("max_iter", 5000);//!
+  prob.set_solver_option("max_iter", 1700);
   prob.set_solver_option("acceptable_tol", 1e-3);
   prob.set_solver_option("acceptable_constr_viol_tol", 1e-5);
   prob.set_solver_option("acceptable_iter", 5);
@@ -1738,8 +1729,6 @@ double MyCode1::solve_contingency(int K_idx, int& status)
   prob.set_solver_option("slack_bound_push", 1e-16);
   prob.set_solver_option("mu_linear_decrease_factor", 0.4);
   prob.set_solver_option("mu_superlinear_decrease_power", 1.25);
-
-  prob.set_solver_option("hessian_approximation", "limited-memory");
 
   //scacopf_prob->duals_bounds_lower()->print_summary("duals bounds lower");
   //scacopf_prob->duals_bounds_upper()->print_summary("duals bounds upper");
@@ -1974,12 +1963,6 @@ double MyCode1::phase3_solve_scacopf(std::vector<int>& K_idxs,
   scacopf_prob->set_basecase_T_rate_reduction(TL_rate_reduction);
 
   //!  scacopf_prob->set_quadr_penalty_qg0(true);
-  //!  scacopf_prob->assembly(K_idxs);
-  //!  scacopf_prob->set_warm_start_from_base_of(*scacopf_prob_prev);
-  //!  delete scacopf_prob_prev;
-
-  
-
 
   scacopf_prob->use_nlp_solver("ipopt"); 
   scacopf_prob->set_solver_option("linear_solver", "ma57"); 
@@ -2004,10 +1987,8 @@ double MyCode1::phase3_solve_scacopf(std::vector<int>& K_idxs,
   bool bret = scacopf_prob->reoptimize(OptProblem::primalDualRestart);
   //bret = scacopf_prob->reoptimize(OptProblem::primalDualRestart);
 
-  //std::this_thread::sleep_for(std::chrono::milliseconds(1000));
 
   phase3_scacopf_passes_solver++;
-
   req_send_base_sols.post_new_sol(scacopf_prob, Tag7, my_rank, comm_world, phase3_scacopf_passes_solver);
 
 #ifdef DEBUG_COMM
