@@ -41,7 +41,7 @@ namespace gollnlp {
 
   bool ContingencyProblem::default_assembly(OptVariablesBlock* pg0, OptVariablesBlock* vn0) 
   {
-    printf("ContingencyProblem K_id %d: assembly IDOut=%d outidx=%d Type=%s\n",
+    printf("ContProb K_id %d: IDOut=%d outidx=%d Type=%s\n",
 	   K_idx, data_sc.K_IDout[K_idx], data_sc.K_outidx[K_idx],
 	   data_sc.cont_type_string(K_idx).c_str());
     fflush(stdout);
@@ -54,7 +54,8 @@ namespace gollnlp {
     useQPen = true;
     //slacks_scale = 1.;
 
-    add_variables(dK);
+    AGCSmoothing=1e-4;
+    add_variables(dK,false);
 
     add_cons_lines_pf(dK);
     add_cons_transformers_pf(dK);
@@ -135,7 +136,7 @@ namespace gollnlp {
     f = this->obj_value;
 
     tmrec.stop();
-    printf("ContingencyProblem K_id %d: optimize took %g sec  %d iterations on rank=%d\n", 
+    printf("ContProb K_id %d: optimize took %g sec  %d iterations on rank=%d\n", 
 	   K_idx, tmrec.getElapsedTime(), number_of_iterations(), my_rank);
     fflush(stdout);
 
@@ -163,7 +164,7 @@ namespace gollnlp {
     f = this->obj_value;
 
     tmrec.stop();
-    printf("ContingencyProblem K_id %d: eval_obj took %g sec  %d iterations on rank=%d\n", 
+    printf("ContProb K_id %d: eval_obj took %g sec  %d iterations on rank=%d\n", 
 	   K_idx, tmrec.getElapsedTime(), number_of_iterations(), my_rank);
     fflush(stdout);
 
@@ -368,9 +369,9 @@ namespace gollnlp {
     append_objterm(new LinearPenaltyObjTerm(string("bigMpen_")+num->id, num, 1.));
     append_objterm(new LinearPenaltyObjTerm(string("bigMpen_")+nup->id, nup, 1.));
     
-  
-    printf("PVPQ: participating %d gens at %lu buses: added %d constraints; PVPQSmoothing=%g "
-	   "total PVPQ: %lu gens | %lu buses; were fixed: %d gens | %d buses with all gens fixed.\n",
+    printf("ContProb K_id %d: PVPQ: participating %d gens at %lu buses: added %d constraints; PVPQSmoothing=%g; "
+	   "total PVPQ: %lu gens | %d buses; fixed: %d gens | %d buses with all gens fixed.\n",
+	   K_idx,
 	   nPVPQGens-num_qgens_fixed, idxs_bus_pvpq.size(), cons->n, PVPQSmoothing,
 	   Gk.size(), num_N_PVPQ,
 	   num_qgens_fixed, num_buses_all_qgen_fixed);
@@ -447,10 +448,10 @@ namespace gollnlp {
     cons->compute_rhos(rhop, rhom);
     rhop->providesStartingPoint=true; rhom->providesStartingPoint=true;
 
-    //append_objterm(new LinearPenaltyObjTerm(string("bigMpen_")+rhom->id, rhom, 1));
-    //append_objterm(new LinearPenaltyObjTerm(string("bigMpen_")+rhop->id, rhop, 1));
+    append_objterm(new LinearPenaltyObjTerm(string("bigMpen_")+rhom->id, rhom, 1));
+    append_objterm(new LinearPenaltyObjTerm(string("bigMpen_")+rhop->id, rhop, 1));
 #ifdef DEBUG
-    printf("ContingencyProblem K_id %d: AGC %lu gens participating (out of %d) AGCSmoothing=%g\n", 
+    printf("ContProb K_id %d: AGC %lu gens participating (out of %d) AGCSmoothing=%g\n", 
     	   K_idx, pgK_partic_idxs.size(), pgK->n, AGCSmoothing);
 #endif
     //printvec(pg0_partic_idxs, "partic idxs");

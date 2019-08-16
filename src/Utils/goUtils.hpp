@@ -158,6 +158,15 @@ template<class T> inline void erase_idx_from(std::vector<T>& v, const int& idx)
   v.erase(v.begin()+idx);
 }
 
+//remove duplicates from a vector
+//first the vector is sorted; then std::unique is used and the vector is truncated
+template<class T> inline void remove_duplicates(std::vector<T>& v)
+{
+  std::sort(v.begin(), v.end());
+  auto it = std::unique(v.begin(), v.end());
+  v.resize(std::distance(v.begin(),it));
+} 
+
 //return difference A\B
 //this function is not optimized for large B
 template<class T>

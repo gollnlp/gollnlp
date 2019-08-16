@@ -48,7 +48,7 @@ int main(int argc, char *argv[])
     SCACOPFData data;
     if(!data.readinstance(argv[3], argv[4], argv[2], argv[1])) {
       printf("error occured while reading instance\n");
-      return false;
+      return -1;
     }
     
     

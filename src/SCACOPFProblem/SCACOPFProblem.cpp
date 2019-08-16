@@ -30,6 +30,10 @@ bool SCACOPFProblem::default_assembly()
 
   SCACOPFData& d = data_sc; //shortcut
 
+  //auto plb = d.G_Plb, pub = d.G_Pub;
+  //bool was_updated = d.compute_pg_bounds_for_Kgens(d.G_Pub.data(), plb.data(), pub.data());
+
+
   //
   // base case
   //
@@ -46,10 +50,25 @@ bool SCACOPFProblem::default_assembly()
   //d.L_RateBase : d.L_RateEmer;
   for(int it=0; it<sz; it++) {
     r_emer = L_rate_reduction * d.L_RateEmer[it];
-    r_base = 0.9              * d.L_RateBase[it];
+    r_base = 0.95              * d.L_RateBase[it];
+    
+    //  1335  | -8.50053e-01 -6.41836e-02  5.09936e-09      8.57096e-01  7.84821e-02  5.09936e-09  |  1190      1351
+    //  1524  | -2.89706e+00  6.02566e-01  5.09936e-09      2.89906e+00 -6.03902e-01  5.09936e-09  |  1541      1542
+    //  1591  | -2.40693e+00  2.29775e-01  5.09937e-09      2.40923e+00 -2.40703e-01  5.10062e-09  |  1655      1660
+
+
+    //if(it==1335 || it==1591 || it==1524) {
+    if(false) {
+ 
+        printf("aggresively reducing rate for line idx %d (frombusid, tobusid)=(%d,%d)\n",
+      	     it, d.L_From[it], d.L_To[it]);
+      
+        r_emer = 0.1*d.L_RateEmer[it];
+        r_base = d.L_RateBase[it];
+      }
+    
+
     rate[it] = r_emer < r_base ? r_emer : r_base;
-    //if(rate[it] > r)
-    //  rate[it] = r;
   }
   add_cons_thermal_li_lims(d, rate);
 
@@ -57,10 +76,8 @@ bool SCACOPFProblem::default_assembly()
   //d.L_RateBase : d.L_RateEmer;
   for(int it=0; it<sz; it++) {
     r_emer = T_rate_reduction * d.T_RateEmer[it];
-    r_base = 0.9              * d.T_RateBase[it];
+    r_base = 0.95              * d.T_RateBase[it];
     rate[it] = r_emer < r_base ? r_emer : r_base;
-    //if(rate[it] > r)
-    //rate[it] = r;
   }
   add_cons_thermal_ti_lims(d, rate);
 
@@ -69,13 +86,51 @@ bool SCACOPFProblem::default_assembly()
   if(quadr_penalty_qg0) {
     OptVariablesBlock* q_g0 = variable("q_g", d); assert(q_g0);
     append_objterm(new QuadrAwayFromBoundsObjTerm(string("qg0_quadr_pen")+q_g0->id,
-						  q_g0, 1., d.G_Qlb.data(), d.G_Qub.data()));
+  						  q_g0, 1., d.G_Qlb.data(), d.G_Qub.data()));
   }			  
 
+
+  append_objterm(new GenerKPenaltyObjTerm("penalty_gener_from_conting", variable("p_g", d)));
+  append_objterm(new TransmKPenaltyObjTerm("penalty_line_from_conting",
+					   variable("p_li1", d), variable("q_li1", d), 
+					   variable("p_li2", d), variable("q_li2", d)));
+  append_objterm(new TransmKPenaltyObjTerm("penalty_transf_from_conting",
+					   variable("p_ti1", d), variable("q_ti1", d), 
+					   variable("p_ti2", d), variable("q_ti2", d)));
+
+
+  // //gplto->add_linear_penalty(48, d.G_Pub[48], 275485./d.K_Contingency.size(), d.G_Plb[48], d.G_Pub[48]);
+  // //gplto->add_linear_penalty(49, d.G_Pub[49], 414394./d.K_Contingency.size(), d.G_Plb[49], d.G_Pub[49]);
+  // gplto->add_quadr_penalty(48, d.G_Pub[48], 275485./d.K_Contingency.size(), d.G_Plb[48], d.G_Pub[48]);
+  // gplto->add_quadr_penalty(49, d.G_Pub[49], 414394./d.K_Contingency.size(), d.G_Plb[49], d.G_Pub[49]);
+  // gplto->add_quadr_penalty(62, 3.00416e+00, 192224./d.K_Contingency.size(), d.G_Plb[62], d.G_Pub[62]);
+  // //gplto->add_quadr_penalty( 2, 3.00416e+00, 192224./d.K_Contingency.size(), d.G_Plb[ 2], d.G_Pub[ 2]);
+
+  // //if(false) 
+  // {
+  // //  1335  | -8.50053e-01 -6.41836e-02  5.09936e-09      8.57096e-01  7.84821e-02  5.09936e-09  |  1190      1351
+  // //  1524  | -2.89706e+00  6.02566e-01  5.09936e-09      2.89906e+00 -6.03902e-01  5.09936e-09  |  1541      1542
+  // //  1591  | -2.40693e+00  2.29775e-01  5.09937e-09      2.40923e+00 -2.40703e-01  5.10062e-09  |  1655      1660
+  // //   822  |  2.30881e+00 -2.75296e-01  5.09936e-09     -2.30843e+00  2.79268e-01  5.09936e-09  |   805       806
+  // //   823  |  2.30843e+00 -2.79268e-01  5.09936e-09     -2.27914e+00  3.71432e-01  5.09936e-09  |   806       826
+
+  // TransmKPenaltyObjTerm* tplto=new TransmKPenaltyObjTerm("penalty_line_from_conting",
+  // 							 variable("p_li1", d), variable("q_li1", d), 
+  // 							 variable("p_li2", d), variable("q_li2", d));
+  // append_objterm(tplto);
+  // tplto->add_penalty(1335, -8.50053e-01, -6.41836e-02,  8.57096e-01,  7.84821e-02, 1.644216e+05/d.K_Contingency.size());
+  // tplto->add_penalty(1524, -2.89706e+00,  6.02566e-01,  2.89906e+00, -6.03902e-01, 2*1.226449e+05/d.K_Contingency.size());
+  // tplto->add_penalty(1591, -2.40693e+00,  2.29775e-01,  2.40923e+00, -2.40703e-01, 1.977436e+05/d.K_Contingency.size());
+  // tplto->add_penalty( 822,  2.30881e+00, -2.75296e-01, -2.30843e+00,  2.79268e-01, 1.749165e+05/d.K_Contingency.size());
+
+  // }
+
+  add_agc_reserves_for_max_Lloss_Ugain();
+  add_agc_reserves();
   return true;
 }
 
-bool SCACOPFProblem::assembly(const std::vector<int> K_Cont)
+bool SCACOPFProblem::assembly(const std::vector<int>& K_Cont)
 {
   //assemble base case first
   default_assembly();
@@ -84,32 +139,77 @@ bool SCACOPFProblem::assembly(const std::vector<int> K_Cont)
   int nK = K_Cont.size();
 
   for(auto K : K_Cont) {
+    add_contingency_block(K);
 
-    data_K.push_back(new SCACOPFData(data_sc));
-    SCACOPFData& dK = *(data_K).back(); //shortcut
-    dK.rebuild_for_conting(K,nK);
+    // data_K.push_back(new SCACOPFData(data_sc));
+    // SCACOPFData& dK = *(data_K).back(); //shortcut
+    // dK.rebuild_for_conting(K,nK);
 
-    dK.PenaltyWeight = (1-d.DELTA) / nK;
+    // dK.PenaltyWeight = (1-d.DELTA) / nK;
 
-    printf("adding blocks for contingency K=%d IDOut=%d outidx=%d Type=%s\n", 
-	   K, d.K_IDout[K], d.K_outidx[K], d.cont_type_string(K).c_str());
+    // printf("adding blocks for contingency K=%d IDOut=%d outidx=%d Type=%s\n", 
+    // 	   K, d.K_IDout[K], d.K_outidx[K], d.cont_type_string(K).c_str());
 
-    bool SysCond_BaseCase = false;
+    // bool SysCond_BaseCase = false;
 
-    add_variables(dK, SysCond_BaseCase);
-    add_cons_lines_pf(dK);
-    add_cons_transformers_pf(dK);
-    add_cons_active_powbal(dK);
-    add_cons_reactive_powbal(dK);
+    // add_variables(dK, SysCond_BaseCase);
+    // add_cons_lines_pf(dK);
+    // add_cons_transformers_pf(dK);
+    // add_cons_active_powbal(dK);
+    // add_cons_reactive_powbal(dK);
 
-    add_cons_thermal_li_lims(dK,SysCond_BaseCase);
-    add_cons_thermal_ti_lims(dK,SysCond_BaseCase);
+    // add_cons_thermal_li_lims(dK,SysCond_BaseCase);
+    // add_cons_thermal_ti_lims(dK,SysCond_BaseCase);
 
-    //coupling AGC and PVPQ; also creates delta_k
-    add_cons_coupling(dK);
+    // //coupling AGC and PVPQ; also creates delta_k
+    // add_cons_coupling(dK);
+
   }
   //print_summary();
   return true;
+}
+
+bool SCACOPFProblem::add_contingency_block(const int K)
+{
+  SCACOPFData& d = data_sc; //shortcut
+  data_K.push_back(new SCACOPFData(data_sc));
+
+  SCACOPFData& dK = *(data_K).back(); //shortcut
+  dK.rebuild_for_conting(K,1);
+
+  printf("adding blocks for contingency K=%d IDOut=%d outidx=%d Type=%s\n", 
+	 K, d.K_IDout[K], d.K_outidx[K], d.cont_type_string(K).c_str());
+  
+  bool SysCond_BaseCase = false;
+
+  add_variables(dK, SysCond_BaseCase);
+  add_cons_lines_pf(dK);
+  add_cons_transformers_pf(dK);
+  add_cons_active_powbal(dK);
+  add_cons_reactive_powbal(dK);
+  
+  add_cons_thermal_li_lims(dK,SysCond_BaseCase);
+  add_cons_thermal_ti_lims(dK,SysCond_BaseCase);
+  
+  //coupling AGC and PVPQ; also creates delta_k
+  add_cons_coupling(dK);
+  
+  //
+  //finally -> update penalties for the problem
+  double new_penalty_weight = (1-d.DELTA) / data_K.size();
+  for(SCACOPFData* d : data_K) d->PenaltyWeight=new_penalty_weight;
+
+  return true;
+}
+
+bool SCACOPFProblem::has_contigency(const int K_idx)
+{
+  for(SCACOPFData* d : data_K) 
+    if(K_idx == d->id-1) {
+      assert(d->K_outidx[0] == data_sc.K_outidx[K_idx]);
+      return true;
+    }
+  return false;
 }
 
 void SCACOPFProblem::add_cons_coupling(SCACOPFData& dB)
@@ -247,7 +347,7 @@ void SCACOPFProblem::add_cons_PVPQ_as_vn_nonanticip(SCACOPFData& dB, const std::
   
 
   printf("PVPQ: participating %d gens at %lu buses: added %d NONANTICIP constraints on voltages;"
-	 "total PVPQ: %lu gens | %lu buses; were fixed: %d gens | %d buses with all gens fixed.\n",
+	 "total PVPQ: %lu gens | %d buses; were fixed: %d gens | %d buses with all gens fixed.\n",
 	 nPVPQGens-num_qgens_fixed, idxs_bus_pvpq.size(), cons->n,
 	 Gk.size(), num_N_PVPQ,
 	 num_qgens_fixed, num_buses_all_qgen_fixed);
@@ -302,12 +402,8 @@ void SCACOPFProblem::add_cons_PVPQ(SCACOPFData& dB, const std::vector<int>& Gk)
   append_objterm(new LinearPenaltyObjTerm(string("bigMpen_")+num->id, num, 1.));
   append_objterm(new LinearPenaltyObjTerm(string("bigMpen_")+nup->id, nup, 1.));
   
-  //for(int i=0; i<rhop->n; i++) 
-  //  printf("%g %g   %g\n", rhop->x[i], rhom->x[i], cons->gb[i]);
-  //printf("\n");
-
   printf("PVPQ: participating %d gens at %lu buses: added %d constraints; PVPQSmoothing=%g "
-	 "total PVPQ: %lu gens | %lu buses; were fixed: %d gens | %d buses with all gens fixed.\n",
+	 "total PVPQ: %lu gens | %d buses; were fixed: %d gens | %d buses with all gens fixed.\n",
 	 nPVPQGens-num_qgens_fixed, idxs_bus_pvpq.size(), cons->n, PVPQSmoothing,
 	 Gk.size(), num_N_PVPQ,
 	 num_qgens_fixed, num_buses_all_qgen_fixed);
@@ -470,7 +566,334 @@ void SCACOPFProblem::add_cons_AGC_simplified(SCACOPFData& dB, const std::vector<
   printf("AGC: %lu gens participating: added %d SIMPLIFIED constraints\n", G_idxs_AGC.size(), cons->n);
 }
 
-  
+void SCACOPFProblem::add_agc_reserves() 
+{
+  SCACOPFData& d = data_sc;  
+  //indexes in K_Contingency of generator contingencies
+  vector<int> idxsKGen = findall(d.K_ConType, [](int val) {return val==SCACOPFData::kGenerator;});
+  vector<int> K_gens_ids = selectfrom(d.K_IDout, idxsKGen);
+  //indexes in G_Generators of the generators subject to contingencies
+  vector<int> K_gens_idxs= indexin(K_gens_ids, d.G_Generator);
+#ifdef DEBUG
+  //all must be present
+  assert(K_gens_ids == selectfrom(d.G_Generator, K_gens_idxs));
+#endif
+
+  //all generators
+  auto Gk = vector<int>(d.G_Generator.size()); iota(Gk.begin(), Gk.end(), 0);
+  assert(d.G_Nidx.size() == d.G_Generator.size());
+  //area of each generator
+  auto Garea = selectfrom(d.N_Area, d.G_Nidx);
+  Garea = selectfrom(Garea, Gk);
+  assert(Garea.size() == Gk.size());
+
+  auto areas = Garea;
+  remove_duplicates(areas);
+  //printvec(Garea);
+  //printvec(areas);
+
+  auto pg0 = variable("p_g", d);
+
+  AGCReservesCons* loss_rsrv = new AGCReservesCons(con_name("agc_reserves_loss_Kgen", d), pg0);
+  AGCReservesCons* gain_rsrv = new AGCReservesCons(con_name("agc_reserves_gain_Kgen", d), pg0);
+
+#ifdef DEBUG
+  vector<int> Kidxs_agc_loss_cons, Kidxs_agc_gain_cons;
+#endif	
+					       
+
+  for(auto area: areas) {
+    auto AGC_gens_idxs_area = findall(Garea, [&](int val) {return val==area;});
+    auto K_gens_idxs_area = findall(K_gens_idxs, [&](int val) { return Garea[val]==area;});
+    K_gens_idxs_area = selectfrom(K_gens_idxs, K_gens_idxs_area);
+
+    //if(area!=8 && area!=1) continue;
+    //if(area!=8) continue; //aaa //!
+
+    //printf("area %d -> AGC gens\n", area);
+    //printvec(AGC_gens_idxs_area);
+    //printf("area %d -> generator IDs subject to contingency\n", area);
+    //printvec(selectfrom(d.G_Generator,K_gens_idxs_area));
+
+#ifdef DEBUG
+    //printf("agc reserves Kgen: area %d has %d AGC gens and %d gens subj. to. contingencies\n",
+    //   area, AGC_gens_idxs_area.size(), K_gens_idxs_area.size());
+#endif
+    if(AGC_gens_idxs_area.size()>100) continue;
+    int max_num_Kgen = K_gens_idxs_area.size()>50 ? 50 : K_gens_idxs_area.size();
+
+    //
+    // power loss due to contingency
+    //
+    //sort based on the max capacity of the contingency generators
+    auto K_gens_idxs_area_sorted = K_gens_idxs_area;
+    sort(K_gens_idxs_area_sorted.begin(), K_gens_idxs_area_sorted.end(), 
+	 [&](const int& a, const int& b) { return (d.G_Pub[a] > d.G_Pub[b]); });
+
+
+    for(int kgi=0; kgi<max_num_Kgen; kgi++) {
+      int Kgen_idx = K_gens_idxs_area_sorted[kgi];
+
+      //if(Kgen_idx != 49) continue; //aaa
+
+      if(d.G_Pub[Kgen_idx]<=0) continue;
+
+      //remove Kgen from AGC in case it is in there
+      auto responding_AGC_gens_idxs_area = AGC_gens_idxs_area;
+      erase_elem_from(responding_AGC_gens_idxs_area, Kgen_idx);
+
+      double percentage_of_loss = 1.;
+      loss_rsrv->add_Kgen_loss_reserve(responding_AGC_gens_idxs_area, Kgen_idx, percentage_of_loss, d.G_Pub);
+#ifdef DEBUG
+      int K_idx = -1;
+      for(int i=0; i<d.K_Contingency.size(); i++) 
+	if(d.K_ConType[i]==SCACOPFData::kGenerator && d.K_IDout[i]==d.G_Generator[Kgen_idx]) K_idx = i;
+      assert( K_idx >= 0);
+      Kidxs_agc_loss_cons.push_back(K_idx);
+#endif
+    }
+
+    //
+    // power injection due to contingency
+    //
+    K_gens_idxs_area_sorted = K_gens_idxs_area;
+    sort(K_gens_idxs_area_sorted.begin(), K_gens_idxs_area_sorted.end(), 
+	 [&](const int& a, const int& b) { return (d.G_Plb[a] < d.G_Plb[b]); });
+
+    for(int kgi=0; kgi<max_num_Kgen; kgi++) {
+      int Kgen_idx = K_gens_idxs_area_sorted[kgi];
+
+      if(d.G_Plb[Kgen_idx]>=0) continue;
+
+      //remove Kgen from AGC in case it is in there
+      auto responding_AGC_gens_idxs_area = AGC_gens_idxs_area;
+      erase_elem_from(responding_AGC_gens_idxs_area, Kgen_idx);
+
+      double percentage_of_loss = 1.;
+      gain_rsrv->add_Kgen_gain_reserve(responding_AGC_gens_idxs_area, Kgen_idx, percentage_of_loss, d.G_Plb);
+#ifdef DEBUG
+      int K_idx = -1;
+      for(int i=0; i<d.K_Contingency.size(); i++) 
+	if(d.K_ConType[i]==SCACOPFData::kGenerator && d.K_IDout[i]==d.G_Generator[Kgen_idx]) K_idx = i;
+      assert( K_idx >= 0);
+      Kidxs_agc_gain_cons.push_back(K_idx);
+#endif
+    }
+  } // end loop over areas
+
+  if(loss_rsrv->n>0) {
+
+    double obj_weight = (1-d.DELTA) / d.K_Contingency.size();
+    //double obj_weight = 1;//(1-d.DELTA);// / 10;//d.K_Contingency.size();
+
+    loss_rsrv->add_penalty_objterm(d.P_Penalties[SCACOPFData::pP], 
+				   d.P_Quantities[SCACOPFData::pP],
+				   obj_weight, 
+				   slacks_scale);
+    loss_rsrv->finalize_setup();
+
+    this->append_constraints(loss_rsrv);
+#ifdef DEBUG
+    printf(" -- added %d AGC loss reserve constraints for contingencies ", loss_rsrv->n);
+    //printvec(Kidxs_agc_loss_cons, "K_idxs");
+#endif
+
+
+  } else {
+    delete loss_rsrv;
+  }
+
+  if(gain_rsrv->n>0) {
+    double obj_weight = (1-d.DELTA) / d.K_Contingency.size();
+    //double obj_weight = (1-d.DELTA) / 10;//d.K_Contingency.size();
+
+    gain_rsrv->add_penalty_objterm(d.P_Penalties[SCACOPFData::pP], 
+				   d.P_Quantities[SCACOPFData::pP],
+				   (1-d.DELTA) / d.K_Contingency.size(), //weight
+				   slacks_scale);
+    gain_rsrv->finalize_setup();
+
+    this->append_constraints(gain_rsrv);
+#ifdef DEBUG
+    printf(" -- added %d AGC gain reserve constraints for contingencies ", gain_rsrv->n);
+    //printvec(Kidxs_agc_gain_cons, "K_idxs");
+#endif
+
+  } else {
+    delete gain_rsrv;
+  }
+}  
+void SCACOPFProblem::add_agc_reserves_for_max_Lloss_Ugain()
+{
+  SCACOPFData& d = data_sc;  
+  //indexes in K_Contingency of generator contingencies
+  vector<int> idxsKGen = findall(d.K_ConType, [](int val) {return val==SCACOPFData::kGenerator;});
+  vector<int> K_gens_ids = selectfrom(d.K_IDout, idxsKGen);
+  //indexes in G_Generators of the generators subject to contingencies
+  vector<int> K_gens_idxs= indexin(K_gens_ids, d.G_Generator);
+#ifdef DEBUG
+  //all must be present
+  assert(K_gens_ids == selectfrom(d.G_Generator, K_gens_idxs));
+#endif
+
+  //all generators
+  auto Gk = vector<int>(d.G_Generator.size()); iota(Gk.begin(), Gk.end(), 0);
+  assert(d.G_Nidx.size() == d.G_Generator.size());
+  //area of each generator
+  auto Garea = selectfrom(d.N_Area, d.G_Nidx);
+  Garea = selectfrom(Garea, Gk);
+  assert(Garea.size() == Gk.size());
+
+  auto areas = Garea;
+  remove_duplicates(areas);
+  //printvec(Garea);
+  //printvec(areas);
+
+  AGCReservesCons* loss_rsrv = new AGCReservesCons(con_name("agc_reserves_loss_bnd", d),
+						   variable("p_g", d));
+  AGCReservesCons* gain_rsrv = new AGCReservesCons(con_name("agc_reserves_gain_bnd", d),
+						   variable("p_g", d));
+						       
+
+  for(auto area: areas) {
+    auto AGC_gens_idxs_area = findall(Garea, [&](int val) {return val==area;});
+    auto K_gens_idxs_area = findall(K_gens_idxs, [&](int val) { return Garea[val]==area;});
+    K_gens_idxs_area = selectfrom(K_gens_idxs, K_gens_idxs_area);
+
+
+    //printf("area %d -> AGC gens\n", area);
+    //printvec(AGC_gens_idxs_area);
+    //printf("area %d -> generator IDs subject to contingency\n", area);
+    //printvec(selectfrom(d.G_Generator,K_gens_idxs_area));
+
+#ifdef DEBUG
+    //printf("agc reserves lb-ub: area %d has %d AGC gens and %d gens subj. to. contingencies\n",
+    //	   area, AGC_gens_idxs_area.size(), K_gens_idxs_area.size());
+#endif
+    if(AGC_gens_idxs_area.size()>100) continue;
+
+    double max_loss = 0., max_gain=0.; int max_loss_idx=-1, max_gain_idx=-1;
+    for(int Kgenidx: K_gens_idxs_area) {
+      double aux =  std::max( d.G_Plb[Kgenidx], 0.);
+      if(aux>max_loss) { max_loss=aux; max_loss_idx=Kgenidx; }
+      
+      aux = std::max(-d.G_Pub[Kgenidx], 0.);
+      if(aux>max_gain) { max_gain=aux; max_gain_idx=Kgenidx; }
+    }
+
+
+#ifdef DEBUG
+    if(max_loss>1e-6) {
+      int K_idx = -1;
+      for(int i=0; i<d.K_Contingency.size(); i++) 
+	if(d.K_ConType[i]==SCACOPFData::kGenerator && d.K_IDout[i]==d.G_Generator[max_loss_idx]) K_idx = i;
+      assert( K_idx >= 0);
+      
+      //printf(" -- max loss for area %d in the amount of %g for Kgenidx %d id %d  K_idx %d\n",
+      //     area, max_loss, max_loss_idx, d.G_Generator[max_loss_idx], K_idx);
+    }
+    if(max_gain>1e-6) {
+      int K_idx = -1;
+      for(int i=0; i<d.K_Contingency.size(); i++) 
+	if(d.K_ConType[i]==SCACOPFData::kGenerator && d.K_IDout[i]==d.G_Generator[max_gain_idx]) K_idx = i;
+      assert( K_idx >= 0);
+      
+      printf(" -- max gain for area %d in the amount of %g for Kgenidx %d id %d  K_idx %d\n",
+           area, max_gain, max_gain_idx, d.G_Generator[max_gain_idx], K_idx);
+    }
+    //printf("\n");
+#endif
+    
+    if(max_loss>1e-6) {
+      assert(max_loss_idx>=0);
+      auto responding_AGC_gens_idxs_area = AGC_gens_idxs_area;
+      erase_elem_from(responding_AGC_gens_idxs_area, max_loss_idx);
+
+      double percentage_of_loss = 1.;
+      loss_rsrv->add_max_loss_reserve(responding_AGC_gens_idxs_area, max_loss, percentage_of_loss, d.G_Pub);
+    }
+    if(max_gain>1e-6) {
+      assert(max_gain_idx>=0);
+      auto responding_AGC_gens_idxs_area = AGC_gens_idxs_area;
+      erase_elem_from(responding_AGC_gens_idxs_area, max_gain_idx);
+
+      double percentage_of_gain = 1.;
+      gain_rsrv->add_max_gain_reserve(responding_AGC_gens_idxs_area, max_gain, percentage_of_gain, d.G_Plb);
+    }
+  } // end of loop over areas
+
+  if(loss_rsrv->n>0) {
+    loss_rsrv->add_penalty_objterm(d.P_Penalties[SCACOPFData::pP], 
+				   d.P_Quantities[SCACOPFData::pP],
+				   (1-d.DELTA) / d.K_Contingency.size(), //weight
+				   slacks_scale);
+    loss_rsrv->finalize_setup();
+
+    this->append_constraints(loss_rsrv);
+
+  } else {
+    delete loss_rsrv;
+  }
+
+  if(gain_rsrv->n>0) {
+    gain_rsrv->add_penalty_objterm(d.P_Penalties[SCACOPFData::pP], 
+				   d.P_Quantities[SCACOPFData::pP],
+				   (1-d.DELTA) / d.K_Contingency.size(), //weight
+				   slacks_scale);
+    gain_rsrv->finalize_setup();
+
+    this->append_constraints(gain_rsrv);
+
+  } else {
+    delete gain_rsrv;
+  }
+}
+
+void SCACOPFProblem::add_quadr_conting_penalty_pg0(const int& idx_gen, const double& p0, const double& f_pen)
+{
+  GenerKPenaltyObjTerm* ot = dynamic_cast<GenerKPenaltyObjTerm*>(objterm("penalty_gener_from_conting"));
+  assert(ot);
+  if(ot) ot->add_quadr_penalty(idx_gen, p0, f_pen, data_sc.G_Plb[idx_gen], data_sc.G_Pub[idx_gen]);
+}
+void SCACOPFProblem::remove_quadr_conting_penalty_pg0(const int& idx_gen)
+{
+  GenerKPenaltyObjTerm* ot = dynamic_cast<GenerKPenaltyObjTerm*>(objterm("penalty_gener_from_conting"));
+  assert(ot);
+  if(ot) ot->remove_penalty(idx_gen);
+}
+
+void SCACOPFProblem::add_conting_penalty_line0(const int& idx_line, 
+					       const double& pli10, const double& qli10, 
+					       const double& pli20, const double& qli20, 
+					       const double& f_pen)
+{
+  TransmKPenaltyObjTerm* ot =  dynamic_cast<TransmKPenaltyObjTerm*>(objterm("penalty_line_from_conting"));
+  assert(ot);
+  if(ot) ot->add_penalty(idx_line, pli10, qli10, pli20, qli20, f_pen);
+}
+void SCACOPFProblem::remove_conting_penalty_line0(const int& idx_line)
+{
+  TransmKPenaltyObjTerm* ot =  dynamic_cast<TransmKPenaltyObjTerm*>(objterm("penalty_line_from_conting"));
+  assert(ot);
+  if(ot) ot->remove_penalty(idx_line);
+}
+
+void SCACOPFProblem::add_conting_penalty_transf0(const int& idx_transf, 
+						 const double& pti10, const double& qti10, 
+						 const double& pti20, const double& qti20, 
+						 const double& f_pen)
+{
+  TransmKPenaltyObjTerm* ot =  dynamic_cast<TransmKPenaltyObjTerm*>(objterm("penalty_transf_from_conting"));
+  assert(ot);
+  if(ot) ot->add_penalty(idx_transf, pti10, qti10, pti20, qti20, f_pen);
+}
+void SCACOPFProblem::remove_conting_penalty_transf0(const int& idx_transf)
+{
+  TransmKPenaltyObjTerm* ot =  dynamic_cast<TransmKPenaltyObjTerm*>(objterm("penalty_transf_from_conting"));
+  assert(ot);
+  if(ot) ot->remove_penalty(idx_transf);
+}
+
 void SCACOPFProblem::add_variables(SCACOPFData& d, bool SysCond_BaseCase)
 {
   double* vlb = SysCond_BaseCase==true ?  data_sc.N_Vlb.data() : data_sc.N_EVlb.data();
@@ -478,8 +901,11 @@ void SCACOPFProblem::add_variables(SCACOPFData& d, bool SysCond_BaseCase)
 
   //for(auto& v: data_sc.N_Vub) v*=1.5;
   //for(auto& v: data_sc.N_EVub) v*=1.5;
+  //printvec(data_sc.N_Vub);
   //printvec(data_sc.N_EVub);
 
+
+  //printvec(data_sc.N_Vub);
   auto v_n = new OptVariablesBlock(data_sc.N_Bus.size(), var_name("v_n",d), vlb, vub);
   //data_sc.N_EVlb.data(), data_sc.N_EVub.data()); 
   append_variables(v_n);
@@ -545,19 +971,62 @@ void SCACOPFProblem::add_variables(SCACOPFData& d, bool SysCond_BaseCase)
   append_variables(b_s);
   //append_objterm(new DummySingleVarQuadrObjTerm("b_s_sq", b_s));
 
+
+
+  //!
+  // auto Plb = d.G_Plb, Pub = d.G_Pub;
+  //  if(SysCond_BaseCase==true) {
+  //    //for(int i=0; i<d.G_Generator.size(); i++) {
+  //    //double aux = Pub[i]-Plb[i];
+  //     //Plb[i] += 0.1* aux;
+  //    //Pub[i] =+ 0.05* aux;
+
+  //    //d.G_Pub[2] = d.G_Plb[2] = 0.;
+  //    //d.G_Pub[62] = d.G_Plb[62] = 0.;
+  //    Plb = d.G_Plb; Pub = d.G_Pub;
+  //    //Pub[49] /= 4;
+  //    //Pub[48] /= 4;
+
+  //    //data.G_Pub[62] = data.G_Plb[62] = 0.;
+  //    //data.G_Pub[2] = data.G_Plb[2];
+  //    //data.G_Pub[0] = data.G_Plb[0];
+  //    //data.G_Pub[1] = data.G_Plb[1];
+     
+  //    //Pub[62] = Plb[62] = 0.;
+  //    ///Pub[62] = 3.25;
+  //    ///Pub[63] = Plb[63];
+  //    ///Pub[64] = Plb[64];
+  //    //61] [ 175]  0.00000e+00  0.00000e+00      0.00000e+00  4.68346e+00
+  //    //[  62] [ 179]  8.98293e-01  8.98293e-01      0.00000e+00  8.98450e-01
+  //    //[  63] [ 182]  5.57131e-05  5.57131e-05      0.00000e+00  3.10588e+00
+
+  //    //Pub[2] = Plb[2]; //outidx
+  //    //Pub[0] = Plb[0];
+  //    //Pub[1] = Plb[1];
+
+  //    //printf("!!!!!!!!!!!!!!!!!  AGC fixed !!!!!!!!!!\n");
+  //    //for(int i=42; i<48; i++)
+  //    //  Pub[i] = Plb[i];
+
+  //    //Plb[62] *= 1.5;
+  //    //}
+  // }
+  //auto p_g = new OptVariablesBlock(d.G_Generator.size(), var_name("p_g",d), 
+  //				   Plb.data(), Pub.data());
+
   auto p_g = new OptVariablesBlock(d.G_Generator.size(), var_name("p_g",d), 
 				   d.G_Plb.data(), d.G_Pub.data());
+
   append_variables(p_g); 
   p_g->set_start_to(d.G_p0.data());
 
-
   auto Qlb = d.G_Qlb, Qub = d.G_Qub;
   
-  //if(SysCond_BaseCase==false)  
-  //  for(auto& v: Qlb) v+= 0.1*fabs(v);
+  //if(SysCond_BaseCase==true)  
+  //  for(auto& v: Qlb) v+= 0.49*fabs(v);
   
-  //if(SysCond_BaseCase==false)  
-  //  for(auto& v: Qub) v-= 0.1*fabs(v);
+  //if(SysCond_BaseCase==true)  
+  //  for(auto& v: Qub) v-= 0.49*fabs(v);
 
   auto q_g = new OptVariablesBlock(d.G_Generator.size(), var_name("q_g",d), 
   				   Qlb.data(), Qub.data());
@@ -1004,6 +1473,19 @@ void SCACOPFProblem::add_obj_prod_cost(SCACOPFData& d)
   prod_cost_cons->compute_t_h(t_h); t_h->providesStartingPoint = true;
 }
 
+
+void SCACOPFProblem::copy_basecase_primal_variables_to(std::vector<double>& dest)
+{
+  dest.clear();
+  for(auto b: vars_primal->vblocks) {
+    int sz = b->id.size();
+    if(sz>=2 && '0'==b->id[sz-1] && '_'==b->id[sz-2]) {
+      for(int i=0; i<b->n; i++) 
+	dest.push_back(b->x[i]);
+    }
+  }
+}
+
 bool SCACOPFProblem::set_warm_start_from_base_of(SCACOPFProblem& srcProb)
 {
 
@@ -1034,44 +1516,55 @@ bool SCACOPFProblem::set_warm_start_from_base_of(SCACOPFProblem& srcProb)
   return true;
 }
 
+#define SIGNED_DUALS_VAL 1.
+
   bool SCACOPFProblem::set_warm_start_for_base_from_base_of(SCACOPFProblem& srcProb)
   {
-    vector<string> ids = {"v_n_0" , "theta_n_0" , "p_li1_0" , "p_li2_0" , "q_li1_0" , "q_li2_0" , "p_ti1_0" , "p_ti2_0" , "q_ti1_0" , "q_ti2_0" , "b_s_0" , "p_g_0" , "q_g_0" , "pslack_n_p_balance_0" , "qslack_n_q_balance_0" , "sslack_li_line_limits1_0" , "sslack_li_line_limits2_0" , "sslack_ti_trans_limits1_0" , "sslack_ti_trans_limits2_0" , "t_h" };
+    vector<string> ids = {"v_n_0" , "theta_n_0" , "p_li1_0" , "p_li2_0" , "q_li1_0" , "q_li2_0" , "p_ti1_0" , "p_ti2_0" , "q_ti1_0" , "q_ti2_0" , "b_s_0" , "p_g_0" , "q_g_0" , "pslack_n_p_balance_0" , "qslack_n_q_balance_0" , "sslack_li_line_limits1_0" , "sslack_li_line_limits2_0" , "sslack_ti_trans_limits1_0" , "sslack_ti_trans_limits2_0" , "t_h_0", "sslack_agc_reserves_loss_Kgen_0", "sslack_agc_reserves_gain_Kgen_0", "sslack_agc_reserves_loss_bnd_0", "sslack_agc_reserves_gain_bnd_0" };
     for(auto id: ids) {
       auto b = vars_primal->vars_block(id);
       auto bsrc = srcProb.vars_primal->vars_block(id);
-      if(b && bsrc) b->set_start_to(*bsrc);
+      if(bsrc) if(b) b->set_start_to(*bsrc);
       else { assert(false); }
     }
 
-    ids = {"duals_bndL_v_n_0" , "duals_bndL_theta_n_0" , "duals_bndL_p_li1_0" , "duals_bndL_p_li2_0" , "duals_bndL_q_li1_0" , "duals_bndL_q_li2_0" , "duals_bndL_p_ti1_0" , "duals_bndL_p_ti2_0" , "duals_bndL_q_ti1_0" , "duals_bndL_q_ti2_0" , "duals_bndL_b_s_0" , "duals_bndL_p_g_0" , "duals_bndL_q_g_0" , "duals_bndL_pslack_n_p_balance_0" , "duals_bndL_qslack_n_q_balance_0" , "duals_bndL_sslack_li_line_limits1_0" , "duals_bndL_sslack_li_line_limits2_0" , "duals_bndL_sslack_ti_trans_limits1_0" , "duals_bndL_sslack_ti_trans_limits2_0" , "duals_bndL_t_h"};
+    ids = {"duals_bndL_v_n_0" , "duals_bndL_theta_n_0" , "duals_bndL_p_li1_0" , "duals_bndL_p_li2_0" , "duals_bndL_q_li1_0" , "duals_bndL_q_li2_0" , "duals_bndL_p_ti1_0" , "duals_bndL_p_ti2_0" , "duals_bndL_q_ti1_0" , "duals_bndL_q_ti2_0" , "duals_bndL_b_s_0" , "duals_bndL_p_g_0" , "duals_bndL_q_g_0" , "duals_bndL_pslack_n_p_balance_0" , "duals_bndL_qslack_n_q_balance_0" , "duals_bndL_sslack_li_line_limits1_0" , "duals_bndL_sslack_li_line_limits2_0" , "duals_bndL_sslack_ti_trans_limits1_0" , "duals_bndL_sslack_ti_trans_limits2_0" , "duals_bndL_t_h_0", "duals_bndL_sslack_agc_reserves_loss_Kgen_0", "duals_bndL_sslack_agc_reserves_gain_Kgen_0", "duals_bndL_sslack_agc_reserves_loss_bnd_0", "duals_bndL_sslack_agc_reserves_gain_bnd_0"};
     for(auto id: ids) {
       auto b = vars_duals_bounds_L->vars_block(id);
       auto bsrc = srcProb.vars_duals_bounds_L->vars_block(id);
-      if(b && bsrc) b->set_start_to(*bsrc);
+      if(bsrc) if(b) b->set_start_to(*bsrc);
       else { assert(false); }
     }
 
-    ids = {"duals_bndU_v_n_0" , "duals_bndU_theta_n_0" , "duals_bndU_p_li1_0" , "duals_bndU_p_li2_0" , "duals_bndU_q_li1_0" , "duals_bndU_q_li2_0" , "duals_bndU_p_ti1_0" , "duals_bndU_p_ti2_0" , "duals_bndU_q_ti1_0" , "duals_bndU_q_ti2_0" , "duals_bndU_b_s_0" , "duals_bndU_p_g_0" , "duals_bndU_q_g_0" , "duals_bndU_pslack_n_p_balance_0" , "duals_bndU_qslack_n_q_balance_0" , "duals_bndU_sslack_li_line_limits1_0" , "duals_bndU_sslack_li_line_limits2_0" , "duals_bndU_sslack_ti_trans_limits1_0" , "duals_bndU_sslack_ti_trans_limits2_0" , "duals_bndU_t_h"};
+    ids = {"duals_bndU_v_n_0" , "duals_bndU_theta_n_0" , "duals_bndU_p_li1_0" , "duals_bndU_p_li2_0" , "duals_bndU_q_li1_0" , "duals_bndU_q_li2_0" , "duals_bndU_p_ti1_0" , "duals_bndU_p_ti2_0" , "duals_bndU_q_ti1_0" , "duals_bndU_q_ti2_0" , "duals_bndU_b_s_0" , "duals_bndU_p_g_0" , "duals_bndU_q_g_0" , "duals_bndU_pslack_n_p_balance_0" , "duals_bndU_qslack_n_q_balance_0" , "duals_bndU_sslack_li_line_limits1_0" , "duals_bndU_sslack_li_line_limits2_0" , "duals_bndU_sslack_ti_trans_limits1_0" , "duals_bndU_sslack_ti_trans_limits2_0" , "duals_bndU_t_h_0", "duals_bndU_sslack_agc_reserves_loss_Kgen_0", "duals_bndU_sslack_agc_reserves_gain_Kgen_0", "duals_bndU_sslack_agc_reserves_loss_bnd_0", "duals_bndU_sslack_agc_reserves_gain_bnd_0"};
     for(auto id: ids) {
       auto b = vars_duals_bounds_U->vars_block(id);
       auto bsrc = srcProb.vars_duals_bounds_U->vars_block(id);
-      if(b && bsrc) b->set_start_to(*bsrc);
+      if(bsrc) if(b) b->set_start_to(*bsrc);
       else { assert(false); }
     }
 
-    ids = {"duals_p_li1_powerflow_0" , "duals_p_li2_powerflow_0" , "duals_q_li1_powerflow_0" , "duals_q_li2_powerflow_0" , "duals_p_ti1_powerflow_0" , "duals_p_ti2_powerflow_0" , "duals_q_ti1_powerflow_0" , "duals_q_ti2_powerflow_0" , "duals_p_balance_0" , "duals_q_balance_0" , "duals_line_limits1_0" , "duals_line_limits2_0" , "duals_trans_limits1_0" , "duals_trans_limits2_0" , "duals_prodcost_cons_0"};
+    ids = {"duals_p_li1_powerflow_0" , "duals_p_li2_powerflow_0" , "duals_q_li1_powerflow_0" , "duals_q_li2_powerflow_0" , "duals_p_ti1_powerflow_0" , "duals_p_ti2_powerflow_0" , "duals_q_ti1_powerflow_0" , "duals_q_ti2_powerflow_0" , "duals_p_balance_0" , "duals_q_balance_0" , "duals_line_limits1_0" , "duals_line_limits2_0" , "duals_trans_limits1_0" , "duals_trans_limits2_0" , "duals_prodcost_cons_0", "duals_agc_reserves_loss_Kgen_0", "duals_agc_reserves_gain_Kgen_0", "duals_agc_reserves_loss_bnd_0", "duals_agc_reserves_bnd_Kgen_0"};
     for(auto id: ids) {
       auto b = vars_duals_cons->vars_block(id);
       auto bsrc = srcProb.vars_duals_cons->vars_block(id);
-      if(b && bsrc) b->set_start_to(*bsrc);
+      if(bsrc) if(b) b->set_start_to(*bsrc);
       else { assert(false); }
     }
     return true;
   }
-#define SIGNED_DUALS_VAL 1.
 
 
+  bool SCACOPFProblem::set_warm_start_for_cont_from_base_of(const int& K_idx, SCACOPFProblem& srcProb)
+  {
+    assert(K_idx>=0); assert(K_idx<data_sc.K_Contingency.size());
+    for(SCACOPFData* dB: this->data_K) {
+      if(dB->id-1==K_idx) {
+	return set_warm_start_for_cont_from_base_of(*dB, srcProb);
+      }
+    }
+    return false;
+  }
   bool SCACOPFProblem::set_warm_start_for_cont_from_base_of(SCACOPFData& dB, SCACOPFProblem& srcProb)
   {
     SCACOPFData& dK = dB;// assert(dK.id==K_idx+1);
@@ -2105,7 +2598,7 @@ void SCACOPFProblem::print_p_g(SCACOPFData& dB)
   printf("p_g for SC block %d\n", dB.id);
   printf("[ idx] [  id ]    p_g            lb           ub     \n");
   for(int i=0; i<dB.G_Generator.size(); i++) {
-    printf("[%4d] [%4d] %12.5e  %12.5e %12.5e\n", i, dB.G_Generator[i]+1, p_g->x[i], dB.G_Plb[i], dB.G_Pub[i]);
+    printf("[%4d] [%4d] %12.5e  %12.5e %12.5e\n", i, dB.G_Generator[i], p_g->x[i], dB.G_Plb[i], dB.G_Pub[i]);
   }
 }
 void SCACOPFProblem::print_p_g_with_coupling_info(SCACOPFData& dB, OptVariablesBlock* p_g0)
@@ -2131,7 +2624,7 @@ void SCACOPFProblem::print_p_g_with_coupling_info(SCACOPFData& dB, OptVariablesB
   data_sc.get_AGC_participation(K_id, Gk, Gkp, Gknop);
   auto ids_agc = selectfrom(data_sc.G_Generator, Gkp);
 
-  printf("p_g for SC block %d: delta_k=%12.5e\n", dB.id, delta->x[0]);
+  printf("p_g for SC block %d: delta_k=%12.5e  (indexes are withing conting)\n", dB.id, delta->x[0]);
   printf("[ idx] [  id ]         p_g     p_gk             lb            ub         rhom        rhop      |   bodies AGC\n");
   for(int i=0; i<dB.G_Generator.size(); i++) {
     int agc_idx = indexin(ids_agc, dB.G_Generator[i]); 
@@ -2143,13 +2636,15 @@ void SCACOPFProblem::print_p_g_with_coupling_info(SCACOPFData& dB, OptVariablesB
       if(rhom!=NULL) drhom = rhom->x[agc_idx];
 
       double gb = dB.G_Pub[i]-dB.G_Plb[i];
-      printf("[%4d] [%4d] %12.5e %12.5e agc %12.5e %12.5e %12.5e %12.5e | %12.5e %12.5e %12.5e \n", i, dB.G_Generator[i]+1, 
+      printf("[%4d] [%4d] %12.5e %12.5e agc %12.5e %12.5e %12.5e %12.5e | %12.5e %12.5e %12.5e \n", 
+	     i, dB.G_Generator[i], 
 	     p_g->x[base_idx], p_gk->x[i], dB.G_Plb[i], dB.G_Pub[i], drhom, drhop,
 	     p_g->x[base_idx] + dB.G_alpha[i]*delta->x[0] - p_gk->x[i] - gb*drhop + gb*drhom,
 	     (p_gk->x[i]-dB.G_Plb[i])/gb*drhom, (p_gk->x[i]-dB.G_Pub[i])/gb*drhop);
 
     } else {
-      printf("[%4d] [%4d] %12.5e %12.5e     %12.5e %12.5e\n", i, dB.G_Generator[i]+1, 
+      printf("[%4d] [%4d] %12.5e %12.5e     %12.5e %12.5e\n", 
+	     i, dB.G_Generator[i], 
 	     p_g->x[base_idx], p_gk->x[i], dB.G_Plb[i], dB.G_Pub[i]);
     }
   }
@@ -2263,11 +2758,78 @@ void SCACOPFProblem::print_active_power_balance_info(SCACOPFData& d)
   int n = data_sc.N_Bus.size();
   assert(pslacks_n->n == 2*n);
 
-  printf("active power balance - large penalties\n");
-  printf("busidx busid   pslackp  pslackm \n");
+  
+  string msg; char stmp[1024];
+  msg += "active power balance - large penalties\n";
+
+  if(d.id>0) {
+    
+    if(d.K_ConType[0] == SCACOPFData::kTransformer) {
+      int FromBusIdx = data_sc.T_Nidx[0][d.K_outidx[0]], ToBusIdx = data_sc.T_Nidx[1][d.K_outidx[0]];
+
+      sprintf(stmp, "ContProb K=%d IDOut=%d outidx=%d Type=%s  FromBusIdx  ToBusIdx  = %d %d \n", 
+	     d.K_Contingency[0], d.K_IDout[0], d.K_outidx[0], d.cont_type_string(0).c_str(), 
+	     FromBusIdx, ToBusIdx);
+      msg += stmp;
+    }
+    if(d.K_ConType[0] == SCACOPFData::kLine) {
+      int FromBusIdx = data_sc.L_Nidx[0][d.K_outidx[0]], ToBusIdx = data_sc.L_Nidx[1][d.K_outidx[0]];
+
+      sprintf(stmp, "ContProb K=%d IDOut=%d outidx=%d Type=%s  FromBusIdx  ToBusIdx  = %d %d   "
+	      "FromBusId  ToBusId  = %d %d\n", 
+	     d.K_Contingency[0], d.K_IDout[0], d.K_outidx[0], d.cont_type_string(0).c_str(), 
+	      FromBusIdx, ToBusIdx, 
+	      data_sc.L_From[d.K_IDout[0]], data_sc.L_To[d.K_IDout[0]]);
+      msg += stmp;
+    }
+    if(d.K_ConType[0] == SCACOPFData::kGenerator) {
+      sprintf(stmp, "ContProb K=%d IDOut=%d outidx=%d Type=%s BusIdx=%d\n",
+	     d.K_Contingency[0], d.K_IDout[0], d.K_outidx[0], d.cont_type_string(0).c_str(),
+	      data_sc.G_Bus[d.K_outidx[0]]);
+      msg += stmp;
+    }
+
+  }
+  bool do_print = false;
+  msg += "busidx busid   pslackp     pslackm \n";
   for(int i=0; i<n; i++) {
-    if(fabs(pslacks_n->x[i])>1e-8 || fabs(pslacks_n->x[i+n])>1e-8)
-      printf("%5d %5d %12.5e %12.5e\n", i, data_sc.N_Bus[i], pslacks_n->x[i], pslacks_n->x[i+n]);
+    string neigh = "";// conn busidx:";
+
+    if(fabs(pslacks_n->x[i])>1e-6 || fabs(pslacks_n->x[i+n])>1e-6) {
+
+      assert(d.G_Nidx.size()==d.G_Bus.size());
+      assert(d.G_Generator.size()==d.G_Bus.size());
+
+      for(int it=0; it<d.G_Bus.size(); it++) {
+	if(d.G_Nidx[it]==i) {
+	  assert(d.G_Bus[it]==data_sc.N_Bus[i]);
+	  neigh += "(gen id " + to_string(d.G_Generator[it]) + ") ";
+	}
+      }
+      neigh += " conn busidx:";
+      for(int it=0; it<d.L_Nidx[0].size(); it++)
+	if(d.L_Nidx[0][it]==i) neigh += to_string(d.L_Nidx[1][it]) + "(l1) ";
+      for(int it=0; it<d.L_Nidx[1].size(); it++)
+	if(d.L_Nidx[1][it]==i) neigh += to_string(d.L_Nidx[0][it]) + "(l2) ";
+
+      //for(int it=0; it<data_sc.L_Nidx[0].size(); it++)
+      //if(data_sc.L_Nidx[0][it]==i) neigh += to_string(data_sc.L_Nidx[1][it]) + "(l10) ";
+      //for(int it=0; it<d.L_Nidx[1].size(); it++)
+      //if(data_sc.L_Nidx[1][it]==i) neigh += to_string(data_sc.L_Nidx[0][it]) + "(l20) ";
+      
+      for(int it=0; it<d.T_Nidx[0].size(); it++)
+	if(d.T_Nidx[0][it]==i) neigh += to_string(d.T_Nidx[1][it]) + "(t1) ";
+      for(int it=0; it<d.T_Nidx[1].size(); it++)
+	if(d.T_Nidx[1][it]==i) neigh += to_string(d.T_Nidx[0][it]) + "(t2) ";
+      
+      sprintf(stmp, "%5d %5d %12.5e %12.5e | %s\n", 
+	      i, data_sc.N_Bus[i], pslacks_n->x[i], pslacks_n->x[i+n], neigh.c_str());
+      msg += stmp;
+      do_print = true;
+    }
+  }
+  if(do_print) {
+    printf("%s\n", msg.c_str());
   }
 
 }
@@ -2279,28 +2841,38 @@ void SCACOPFProblem::print_reactive_power_balance_info(SCACOPFData& d)
   int n = data_sc.N_Bus.size();
   assert(qslacks_n->n == 2*n);
 
-
-  printf("reactive power balance - large penalties\n");
+  
+  string msg; char stmp[1024];
+  msg += "reactive power balance - large penalties\n";
 
   if(d.id>0) {
     
     if(d.K_ConType[0] == SCACOPFData::kTransformer) {
       int FromBusIdx = data_sc.T_Nidx[0][d.K_outidx[0]], ToBusIdx = data_sc.T_Nidx[1][d.K_outidx[0]];
 
-      printf("Contingency K=%d IDOut=%d outidx=%d Type=%s  FromBusIdx  ToBusIdx  = %d %d \n", 
+      sprintf(stmp, "ContProb K=%d IDOut=%d outidx=%d Type=%s  FromBusIdx  ToBusIdx  = %d %d \n", 
 	     d.K_Contingency[0], d.K_IDout[0], d.K_outidx[0], d.cont_type_string(0).c_str(), 
 	     FromBusIdx, ToBusIdx);
+      msg += stmp;
     }
     if(d.K_ConType[0] == SCACOPFData::kLine) {
       int FromBusIdx = data_sc.L_Nidx[0][d.K_outidx[0]], ToBusIdx = data_sc.L_Nidx[1][d.K_outidx[0]];
 
-      printf("Contingency K=%d IDOut=%d outidx=%d Type=%s  FromBusIdx  ToBusIdx  = %d %d \n", 
+      sprintf(stmp, "ContProb K=%d IDOut=%d outidx=%d Type=%s  FromBusIdx  ToBusIdx  = %d %d \n", 
 	     d.K_Contingency[0], d.K_IDout[0], d.K_outidx[0], d.cont_type_string(0).c_str(), 
 	     FromBusIdx, ToBusIdx);
+      msg += stmp;
+    }
+    if(d.K_ConType[0] == SCACOPFData::kGenerator) {
+      sprintf(stmp, "ContProb K=%d IDOut=%d outidx=%d Type=%s BusIdx=%d\n",
+	     d.K_Contingency[0], d.K_IDout[0], d.K_outidx[0], d.cont_type_string(0).c_str(),
+	      data_sc.G_Bus[d.K_outidx[0]]);
+      msg += stmp;
     }
 
   }
-  printf("busidx busid   pslackp     pslackm \n");
+  bool do_print = false;
+  msg += "busidx busid   qslackp     qslackm \n";
   for(int i=0; i<n; i++) {
     string neigh = " conn busidx:";
 
@@ -2314,13 +2886,86 @@ void SCACOPFProblem::print_reactive_power_balance_info(SCACOPFData& d)
     for(int it=0; it<d.T_Nidx[1].size(); it++)
       if(d.T_Nidx[1][it]==i) neigh += to_string(d.T_Nidx[0][it]) + "(t) ";
 
-    if(fabs(qslacks_n->x[i])>1e-8 || fabs(qslacks_n->x[i+n])>1e-8)
-      printf("%5d %5d %12.5e %12.5e | %s\n", 
+    if(fabs(qslacks_n->x[i])>1e-6 || fabs(qslacks_n->x[i+n])>1e-6) {
+      sprintf(stmp, "%5d %5d %12.5e %12.5e | %s\n", 
 	     i, data_sc.N_Bus[i], qslacks_n->x[i], qslacks_n->x[i+n], neigh.c_str());
+      msg += stmp;
+      do_print = true;
+    }
+  }
+  if(do_print) {
+    printf("%s\n", msg.c_str());
   }
 
 }
 
+void SCACOPFProblem::print_line_limits_info(SCACOPFData& dB)
+{
+  string msg; char stmp[1024];
+  msg += "line limits - large slacks\n";
+
+  auto pf_line_lim1 = dynamic_cast<PFLineLimits*>(constraint("line_limits1", dB));
+  OptVariablesBlock* sslack_li1 = pf_line_lim1->slacks();
+  
+  auto pf_line_lim2 = dynamic_cast<PFLineLimits*>(constraint("line_limits2", dB));
+  OptVariablesBlock* sslack_li2 = pf_line_lim2->slacks();
+
+  auto p_li1 = variable("p_li1", dB), q_li1 = variable("q_li1", dB);
+  auto p_li2 = variable("p_li2", dB), q_li2 = variable("q_li2", dB);
+
+  assert(sslack_li1->n == dB.L_Line.size());
+  assert(sslack_li2->n == dB.L_Line.size());
+
+  bool do_print=false;
+
+
+  msg += "Lineidx |     pli1         qli1       slack_li1           pli2         qli2       slack_li2  | FromBusId  ToBusId\n";
+  for(int i=0; i<dB.L_Line.size(); i++) {
+
+    if(sslack_li1->x[i]>1e-6 || sslack_li2->x[i]>1e-6) {
+
+      sprintf(stmp, " %5d  | %12.5e %12.5e %12.5e     %12.5e %12.5e %12.5e  | %5d     %5d\n", 
+	      i, p_li1->x[i], q_li1->x[i], sslack_li1->x[i], 
+	      p_li2->x[i], q_li2->x[i], sslack_li2->x[i],
+	      dB.L_From[i], dB.L_To[i]);
+      msg += stmp;
+
+      do_print = true;
+    }
+  }
+  if(do_print) {
+    printf("%s\n", msg.c_str()); 
+  }
+}
+void SCACOPFProblem::print_transf_limits_info(SCACOPFData& dB)
+{
+  string msg; char stmp[1024];
+  msg += "transformer limits - large slacks\n";
+
+  auto pf_transf_lim1 = dynamic_cast<PFLineLimits*>(constraint("transf_limits1", dB));
+  OptVariablesBlock* sslack_ti1 = pf_transf_lim1->slacks();
+  
+  auto pf_transf_lim2 = dynamic_cast<PFLineLimits*>(constraint("transf_limits2", dB));
+  OptVariablesBlock* sslack_ti2 = pf_transf_lim2->slacks();
+
+  assert(sslack_ti1->n == dB.T_Transformer.size());
+  assert(sslack_ti2->n == dB.T_Transformer.size());
+
+  bool do_print=false;
+
+  msg += "Lineidx FromBusIdx ToBusIdx slack_li1 slack_li2\n";
+  for(int i=0; i<dB.T_Transformer.size(); i++) {
+    if(sslack_ti1->x[i]>1e-6 || sslack_ti2->x[i]>1e-6) {
+      sprintf(stmp, " %5d %5d %5d %12.5e  %12.5e \n", i, dB.T_Nidx[0][i], dB.T_Nidx[1][i],
+	      sslack_ti1->x[i], sslack_ti2->x[i]);
+      msg += stmp;
+      do_print = true;
+    }
+  }
+  if(do_print) {
+    printf("%s\n", msg.c_str()); 
+  }
+}
 void SCACOPFProblem::print_Transf_powers(SCACOPFData& dB, bool SysCond_BaseCase)
 {
   auto p_ti1 = variable("p_ti1", dB),  p_ti2 = variable("p_ti2", dB);

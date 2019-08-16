@@ -35,7 +35,27 @@ namespace gollnlp {
     //only base case case, no contingencies and no coupling
     virtual bool default_assembly();
     //base case + the variables and blocks needed by contingencies specified by 'K_idxs'
-    virtual bool assembly(const std::vector<int> K_idxs);
+    virtual bool assembly(const std::vector<int>& K_idxs);
+
+    //add block for contingency K_idx
+    virtual bool add_contingency_block(const int K_idx);
+    virtual bool has_contigency(const int K_idx);
+
+    virtual void add_agc_reserves();
+
+    //add reserve constraints on AGC so that AGC generators can ramp up and down to the largest 
+    //power loss and gain (among all generator contingencies in each area). 
+    //
+    // The power loss 'max_loss' is taken to be the max over area's Kgens of max(Plb,0)
+    //  - this will add at most one set of constraints in the form
+    //       sum(Pub[i]-pg[i]: i in AGC) - max_loss + splus >=0 
+    //       splus >=0  and a quadratic penalty obj term of splus
+    //
+    // The power gain 'max_gain' is taken to be the max over area's Kgens of max(0,-Pub)
+    //  - this will add at most one set of constraints in the form
+    //       sum(pg[i]-Plb[i]: i in AGC) - max_gain + sminus >=0 
+    //       sminus >=0  and a quadratic penalty obj term on sminus
+    virtual void add_agc_reserves_for_max_Lloss_Ugain();
 
     //controllers of how AGC and PVPQ constraints are enforced
     inline void set_AGC_as_nonanticip(bool onOrOff)
@@ -53,10 +73,28 @@ namespace gollnlp {
 
     inline void set_quadr_penalty_qg0(bool onOrOff) { quadr_penalty_qg0 = onOrOff; }
 
+    void add_quadr_conting_penalty_pg0(const int& idx_gen, const double& p0, const double& f_pen);
+    void remove_quadr_conting_penalty_pg0(const int& idx_gen);
+
+    void add_conting_penalty_line0(const int& idx_line, 
+				   const double& pli10, const double& qli10, 
+				   const double& pli20, const double& qli20, 
+				   const double& f_pen);
+    void remove_conting_penalty_line0(const int& idx_line);
+
+    void add_conting_penalty_transf0(const int& idx_transf, 
+				   const double& pti10, const double& qti10, 
+				   const double& pti20, const double& qti20, 
+				   const double& f_pen);
+    void remove_conting_penalty_transf0(const int& idx_line);
+
+
     bool set_warm_start_from_base_of(SCACOPFProblem& srcProb);
   protected:
     bool set_warm_start_for_base_from_base_of(SCACOPFProblem& srcProb);
     bool set_warm_start_for_cont_from_base_of(SCACOPFData& dB, SCACOPFProblem& srcProb);
+  public:
+    bool set_warm_start_for_cont_from_base_of(const int& K_idx, SCACOPFProblem& srcProb);
   protected:
     // for all add_ methods, dB is the block data (base case or contingency)
     // all these methods use 'd' SCACOPFData as well since dB contains only a 
@@ -136,6 +174,9 @@ namespace gollnlp {
       return vars_block_duals_cons(prefix+"_"+std::to_string(d.id));
     }
 
+    //grows dest as needed
+    void copy_basecase_primal_variables_to(std::vector<double>& dest);
+
     // returns the idxs of PVPQ gens and corresponding buses
     // generators at the same PVPQ bus are aggregated
     //
@@ -156,6 +197,8 @@ namespace gollnlp {
     void print_active_power_balance_info(SCACOPFData& dB);
     void print_reactive_power_balance_info(SCACOPFData& dB);
 
+    void print_line_limits_info(SCACOPFData& dB);
+    void print_transf_limits_info(SCACOPFData& dB);
     void write_solution_basecase();
     void write_solution_extras_basecase();
   }; // end of SCACOPFProblem

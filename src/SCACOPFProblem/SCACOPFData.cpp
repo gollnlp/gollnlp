@@ -24,17 +24,87 @@ int SCACOPFData::bus_with_largest_gen() const
   size_t idx_max = distance(G_Pub.begin(), it_max);
   return G_Nidx[idx_max];
 }
+
+bool SCACOPFData::compute_pg_bounds_for_Kgens(const double* p_g0, double* plb, double* pub)
+{
+  assert(K_Contingency.size()>1);
+  //indexes in K_Contingency of generator contingencies
+  vector<int> idxsKGen = findall(K_ConType, [](int val) {return val==kGenerator;});
+
+  //all generators
+  auto Gk = vector<int>(G_Generator.size()); iota(Gk.begin(), Gk.end(), 0);
+  assert(G_Nidx.size() == G_Generator.size());
+  //area of each generator
+  auto Garea = selectfrom(N_Area, G_Nidx);
+  Garea = selectfrom(Garea, Gk);
+  assert(Garea.size() == Gk.size());
+
+  bool bnds_updated=false;
+  for(auto K_idx: idxsKGen) {
+    assert(K_idx>=0 && K_idx<K_Contingency.size());
+    int idout = K_IDout[K_idx];
+    int idxout= indexin(G_Generator, idout);
+    assert(idxout < G_Generator.size() && idxout >=0);
+
+    vector<int> Ak;
+    //get area for this generator
+    Ak.push_back(N_Area[G_Nidx[idxout]]);
+    //generators in the area of the current contingency
+    auto Gareaidx = indexin(Garea, Ak);
+    assert(Gareaidx.size() == Gk.size());
+
+    auto idxs_AGCgens = findall(Gareaidx, [](int val) {return val!=-1;});
+    printf("--- K_idx %5d genidx %5d   genid %5d   busid %5d    lb=%12.6f ub=%12.6f  area %d\n",
+	   K_idx, idxout, idout, G_Bus[idxout], plb[idxout], pub[idxout], Ak[0]);
+    //printf(" ------- agc gens:\n----genidx  genid        lb         ub           alpha\n");
+    //for(auto idxagc: idxs_AGCgens) 
+    //  printf("----%5d %5d %12.5f %12.5f %12.5f \n", idxagc, G_Generator[idxagc], G_Plb[idxagc], G_Pub[idxagc], G_alpha[idxagc]);
+
+  }
+
+  return bnds_updated;
+}
+
+// void SCACOPFData::compute_largest_pg_loss_contingency()
+// {
+//   //maximum generator that is subject to contingency
+//   vector<int> idxGenOut = findall(K_ConType, [](int val) {return val==kGenerator;});
+//   printvec(idxGenOut, "K_idxs gen");
+//   idxGenOut = selectfrom(K_IDout, idxGenOut);
+//  printvec(idxGenOut, "id out gen");
+//  printvec(G_Generator, "generators id");
+//  idxGenOut = indexin(idxGenOut, G_Generator);
+// printvec(idxGenOut, "idx gen");
+
+//   sort(idxGenOut.begin(), idxGenOut.end(), 
+//        [&](const int& a, const int& b) { return (G_Pub[a] > G_Pub[b]); } );
+
+//   for(int i=0; i<idxGenOut.size(); i++) {
+
+//     int K_idx=-1;
+//     for(int k=0; k<K_Contingency.size(); k++)
+//       if(K_ConType[k]==kGenerator && K_IDout[k]==G_Generator[idxGenOut[i]])
+// 	K_idx=K_Contingency[k];
+
+
+//     printf("--- genidx %5d   genid %5d   busid %5d    lb=%12.6f ub=%12.6f  K_id %d\n",
+// 	   idxGenOut[i], G_Generator[idxGenOut[i]], G_Bus[idxGenOut[i]], 
+// 	   G_Plb[idxGenOut[i]], G_Pub[idxGenOut[i]], K_idx);
+//   }
+//   printf("total %d gens subj to conting\n", idxGenOut.size());
+  
+// }
 void SCACOPFData::get_AGC_participation(int Kidx, vector<int>& Gk, vector<int>& Gkp, vector<int>& Gknop)
 {
   bool b;
   auto Garea = selectfrom(N_Area, G_Nidx);
-  
+
   //! check this
 
   //all generators
   Gk = vector<int>(G_Generator.size()); iota(Gk.begin(), Gk.end(), 0);
   vector<int> Ak;
-  
+
   if(kGenerator==K_ConType[Kidx]) {
     int outidx = indexin(G_Generator,  K_IDout[Kidx]);
     assert(outidx>=0);
@@ -70,10 +140,13 @@ void SCACOPFData::get_AGC_participation(int Kidx, vector<int>& Gk, vector<int>& 
 
   } else assert(false);
 
+
+  //printvec(G_alpha, "G_alpha");
   auto Garea_of_Gk = selectfrom(Garea, Gk);
   auto Gkareaidx = indexin(Garea_of_Gk, Ak);
   //printvec(Gkareaidx, "Gkareaidx");
   //printvec(Ak, "Ak");
+
   //
   //discriminant = .&(Gkareaidx .!= nothing, abs.(G[:alpha][Gk]) .> 1E-8)
   //Gkp = Gk[discriminant]
@@ -103,7 +176,7 @@ void SCACOPFData::get_AGC_participation(int Kidx, vector<int>& Gk, vector<int>& 
 
   //Gkp = {};
   //Gknop = Gk;
-  //printvec(Gk, "Gk");
+  //printvec(Gkp, "Gk participating");
   //printvec(Gknop, "Gknop");
 }
 
