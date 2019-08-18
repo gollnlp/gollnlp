@@ -78,6 +78,7 @@ private: //methods
       scacopfed_at_pass=0; evaled_with_sol_at_pass=0;
       rank_eval=-1;
       max_K_evals = MyCode1::MAX_K_EVALS;
+      force_reeval=0;
     }
 
     int idx; //in K_phase2, which is formed of indexes in data.K_contingencies
@@ -93,7 +94,7 @@ private: //methods
     int rank_eval; //on which rank the evaluation was done last time
     vector<int> scacopf_actions; //-102, -101, or positive x (contingency was combined with conting idx x)
     int max_K_evals;
-
+    int force_reeval;
     inline bool operator==(const ContingInfo& other) const
     {
       if(idx != other.idx) return false;

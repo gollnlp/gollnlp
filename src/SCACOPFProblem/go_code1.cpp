@@ -25,7 +25,7 @@ ostream& operator<<(ostream& os, const MyCode1::ContingInfo& o)
      << " evaled_with_sol_at_pass " << o.evaled_with_sol_at_pass
      << " -> penalty=" << o.penalty 
      << " n_scacopf_solves=" << o.n_scacopf_solves << " n_evals=" << o.n_evals 
-     << " max_K_evals=" << o.max_K_evals
+     << " max_K_evals=" << o.max_K_evals <<  " force_reev=" << o.force_reeval
      << " rank=" << o.rank_eval 
      << " P| " << o.p1 << ' ' << o.q1 << ' ' << o.p2 << ' ' << o.q2 << " | "
      << " scacopf actions: [";
@@ -468,9 +468,9 @@ std::vector<int> MyCode1::phase2_contingencies()
   return data.K_Contingency;
 
 
-  //return {301,302,303,304,305, 101,  102,  106,  110,  249,  344,  394,  816,  817, 55, 306, 307, 308, 309, 310, 311, 312, 313, 314, 315, 316, 317};// 101,  102,  106,  110,  249,  344,  394,  816,  817, 55}; //net 7
+  //return {101,  102,  103,  110,  249,  344,  394,  816,  817, 55, 2, 2, 3, 4, 5, 6, 7, 8, 9, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 1};// 101,  102,  106,  110,  249,  344,  394,  816,  817, 55}; //net 7
   //return {55, 101,  102,  106,  110,  249,  344,  394,  816,  817, 117, 211, 212, 217};// 101,  102,  106,  110,  249,  344,  394,  816,  817, 55}; //net 7
-  return {101,  102,  106,  106, 106, 110,  249,  344,  394,  816,  817, 55};// 101,  102,  106,  110,  249,  344,  394,  816,  817, 55}; //net 7
+  return {101,  102,  106,  110,  249,  344,  394,  816,  817, 55, 0, 1, 2, 3, 4, 5, 6,7,8,9,10, 15,16,17,18,19,0};// 101,  102,  106,  110,  249,  344,  394,  816,  817, 55}; //net 7
 
 }
 
@@ -544,6 +544,7 @@ int MyCode1::get_next_conting_foreval(int Kidx_last, int rank, vector<ContingInf
 
   bool only_first_timers = true;
   int nmax_K_prev_firsttimers_evals=2; //contingencies that were evaluated only once
+
   int nK_on_rank = K_on_rank[rank].size();
   if(nK_on_rank>=nmax_K_prev_firsttimers_evals) {
     //were the last few new evals; if yes, try to schedule a reevaluation of a high penalty contingency
@@ -615,6 +616,10 @@ int MyCode1::get_next_conting_foreval(int Kidx_last, int rank, vector<ContingInf
 	 kinfo.scacopfed_at_pass <= phase3_scacopf_passes_master) {
 	  return kinfo.idx;
       } 
+
+      if(kinfo.force_reeval)
+	return kinfo.idx;
+
       //if there are NO firsttimer contingencies, we may want to put the rank on hold
       if(!have_new_firsttimer) {
 	if(kinfo.penalty>=pen_threshold && kinfo.n_evals<kinfo.max_K_evals) 
@@ -643,6 +648,14 @@ int MyCode1::get_next_conting_foreval(int Kidx_last, int rank, vector<ContingInf
       return Kidx_next;
       
     } else { //!have_new_first_timer
+
+      //if any of the rank is on hold, this should also be on hold
+      //for(auto& Kr : K_on_rank) for(auto Kidx : Kr) if(Kidx==-3) return -3;
+
+      for(ContingInfo& kinfo: K_info_phase2) {
+	if(kinfo.penalty>=pen_threshold || kinfo.penalty<=-1e20) return -3;
+	if(kinfo.force_reeval!=0) return -3;
+      }
 
 #ifdef DEBUG_SCHED  
     printf("[comm] Master: did NOT find a next contingency to follow Kidx=%d on rank %d, will return K_idx=-1\n",
@@ -729,6 +742,7 @@ bool MyCode1::do_phase2_master_part()
 	K_info_phase2[idx].p2 = req_pen->buffer[3]; K_info_phase2[idx].q2 = req_pen->buffer[4];
 	K_info_phase2[idx].rank_eval = r;
 	K_info_phase2[idx].evaled_with_sol_at_pass = solution_pass_of_eval;
+	K_info_phase2[idx].force_reeval=0;
 
 	assert(K_info_phase2[idx].scacopf_actions.size() < K_info_phase2[idx].n_evals);
 	assert(K_info_phase2[idx].n_scacopf_solves       < K_info_phase2[idx].n_evals);
@@ -1194,11 +1208,23 @@ bool MyCode1::do_phase3_master_solverpart(bool master_evalpart_done)
 	    assert(kinfo.n_scacopf_solves == kinfo.n_evals);
 	    assert(kinfo.n_scacopf_solves == kinfo.scacopf_actions.size());
 
-	    if(kinfo.scacopf_actions.back() == -102) 
+	    if(kinfo.scacopf_actions.back() == -102) {
 	      scacopf_includes = true;
+	      kinfo.max_K_evals++;
+	    }
 	  }
 	}
-	if(scacopf_includes) MAX_K_EVALS = MAX_K_EVALS + 1;
+	if(scacopf_includes) {
+	  MAX_K_EVALS = MAX_K_EVALS + 1;
+	  for(int itk=0; itk<K_info_phase2.size(); itk++) {
+	    ContingInfo& kinfo=K_info_phase2[itk];
+	    if(kinfo.n_evals==kinfo.max_K_evals) {
+	      kinfo.max_K_evals++;
+	    }
+	    else { assert(kinfo.n_evals<kinfo.max_K_evals); }
+	    kinfo.force_reeval = 1;
+	  }
+	}
 #ifdef DEBUG_SCHED
 	if(scacopf_includes) printf("[sched] MAX_K_EVALS=%d (was increased)\n", MAX_K_EVALS);
 	printvec(K_info_phase2, "[sched]] K_info_phase2 on master after recv pen");
