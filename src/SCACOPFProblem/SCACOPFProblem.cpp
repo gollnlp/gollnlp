@@ -146,8 +146,9 @@ bool SCACOPFProblem::has_contigency(const int K_idx)
 
 std::vector<int> SCACOPFProblem::get_contingencies() const
 {
-  vector<int> v = data_K;
-  for(int& e : v) e--;
+  vector<int> v (data_K.size());
+  for(int i=0; i<data_K.size(); i++)
+    v[i] = data_K[i]->id-1;
   return v;
 }
 
