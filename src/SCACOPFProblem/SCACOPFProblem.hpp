@@ -193,7 +193,7 @@ namespace gollnlp {
     //printing
     void print_p_g(SCACOPFData& dB);
     void print_p_g_with_coupling_info(SCACOPFData& dB, OptVariablesBlock* p_g0=NULL);
-    void print_PVPQ_info(SCACOPFData& dB);
+    void print_PVPQ_info(SCACOPFData& dB, OptVariablesBlock* v_n0=NULL);
     void print_Transf_powers(SCACOPFData& dB, bool SysCond_BaseCase = true);
 
     void print_active_power_balance_info(SCACOPFData& dB);

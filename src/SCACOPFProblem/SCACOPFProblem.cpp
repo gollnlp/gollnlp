@@ -50,7 +50,7 @@ bool SCACOPFProblem::default_assembly()
   //d.L_RateBase : d.L_RateEmer;
   for(int it=0; it<sz; it++) {
     r_emer = L_rate_reduction * d.L_RateEmer[it];
-    r_base = 0.95              * d.L_RateBase[it];
+    r_base = 0.99             * d.L_RateBase[it];
     rate[it] = r_emer < r_base ? r_emer : r_base;
   }
   add_cons_thermal_li_lims(d, rate);
@@ -59,7 +59,7 @@ bool SCACOPFProblem::default_assembly()
   //d.L_RateBase : d.L_RateEmer;
   for(int it=0; it<sz; it++) {
     r_emer = T_rate_reduction * d.T_RateEmer[it];
-    r_base = 0.95              * d.T_RateBase[it];
+    r_base = 0.99              * d.T_RateBase[it];
     rate[it] = r_emer < r_base ? r_emer : r_base;
   }
   add_cons_thermal_ti_lims(d, rate);
@@ -109,8 +109,9 @@ bool SCACOPFProblem::add_contingency_block(const int K)
   SCACOPFData& dK = *(data_K).back(); //shortcut
   dK.rebuild_for_conting(K,1);
 
-  printf("adding blocks for contingency K=%d IDOut=%d outidx=%d Type=%s\n", 
-	 K, d.K_IDout[K], d.K_outidx[K], d.cont_type_string(K).c_str());
+  printf("adding blocks for contingency K=%d IDOut=%d outidx=%d Type=%s agc=%g pvpq=%g", 
+	 K, d.K_IDout[K], d.K_outidx[K], d.cont_type_string(K).c_str(),
+	 AGCSmoothing, PVPQSmoothing);
   
   bool SysCond_BaseCase = false;
 
@@ -1259,8 +1260,6 @@ void SCACOPFProblem::add_cons_thermal_li_lims(SCACOPFData& d,
 
   auto v_n = variable("v_n",d);
   auto p_li1 = variable("p_li1", d), q_li1 = variable("q_li1", d);
-  // - removed vector<double>& L_Rate = SysCond_BaseCase ? d.L_RateBase : d.L_RateEmer;
-  double L_rate_reduction_one = 1.;
 
   {
     auto pf_line_lim1 = new PFLineLimits(con_name("line_limits1",d), d.L_Line.size(),
@@ -2590,7 +2589,7 @@ void SCACOPFProblem::print_p_g_with_coupling_info(SCACOPFData& dB, OptVariablesB
   }
 }
 
-void SCACOPFProblem::print_PVPQ_info(SCACOPFData& dB)
+void SCACOPFProblem::print_PVPQ_info(SCACOPFData& dB, OptVariablesBlock* v_n0)
 {
   //indexes in data_sc.G_Generator
   vector<int> Gk, Gkp, Gknop;
@@ -2619,12 +2618,17 @@ void SCACOPFProblem::print_PVPQ_info(SCACOPFData& dB)
   int nPVPQGens=0, nPVPQCons=0; 
   int num_buses_all_qgen_fixed=0, num_qgens_fixed=0;
 
-  auto v_n0 = variable("v_n", data_sc);
+  if(v_n0 == NULL)
+    v_n0 = variable("v_n", data_sc);
   auto v_nk = variable("v_n", dB);
   auto q_gk = variable("q_g", dB);
   auto rhop = variable("nup_PVPQ", dB);
   auto rhom = variable("num_PVPQ", dB);
-  printf("busidx busid     v_n0         v_nk         num          nup      | genidx q_gk qlb qub : \n");
+  printf("busidx busid     v_n0         v_nk         Vlb         Vub          "
+	 "EVlb         EVub         num            nup      | genidx q_gk qlb qub : \n");
+
+  vector<double> &Vlb = data_sc.N_Vlb, &Vub = data_sc.N_Vub, 
+    &EVlb = data_sc.N_EVlb, &EVub = data_sc.N_EVub;
 
   for(auto n: N_PVPQ) {
     assert(dB.Gn[n].size()>0);
@@ -2661,7 +2665,9 @@ void SCACOPFProblem::print_PVPQ_info(SCACOPFData& dB)
       idxs_gen_agg.pop_back();
       num_buses_all_qgen_fixed++;
 
-      printf("%5d %5d %12.5e %12.5e        na        na       | ", n, data_sc.N_Bus[n], v_n0->x[n], v_nk->x[n]);
+      printf("%5d %5d %12.5e %12.5e %12.5e %12.5e | %12.5e %12.5e |      na        na       | ", 
+	     n, data_sc.N_Bus[n], v_n0->x[n], v_nk->x[n],
+	     Vlb[n], Vub[n], EVlb[n], EVub[n]);
       for(auto g: dB.Gn[n])
 	printf("%4d %12.5e %12.5e %12.5e : ", g, q_gk->x[g], dB.G_Qlb[g], dB.G_Qub[g]);
       printf("\n");
@@ -2676,8 +2682,9 @@ void SCACOPFProblem::print_PVPQ_info(SCACOPFData& dB)
       double drhom=0., drhop=0.;
       if(rhom) drhom = rhom->x[idx_nu];
       if(rhop) drhop = rhop->x[idx_nu];
-      printf("%5d %5d %12.5e %12.5e %12.5e %12.5e | ", n, data_sc.N_Bus[n], 
-	     v_n0->x[n], v_nk->x[n], drhom, drhop);
+      printf("%5d %5d %12.5e %12.5e %12.5e %12.5e %12.5e %12.5e | %12.5e %12.5e | ", n, data_sc.N_Bus[n], 
+	     v_n0->x[n], v_nk->x[n],
+	     Vlb[n], Vub[n], EVlb[n], EVub[n], drhom, drhop);
       for(auto g: dB.Gn[n])
 	printf("%4d %12.5e %12.5e %12.5e : ", g, q_gk->x[g], dB.G_Qlb[g], dB.G_Qub[g]);
       printf("\n");
