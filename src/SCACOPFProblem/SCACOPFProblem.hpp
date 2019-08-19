@@ -40,6 +40,8 @@ namespace gollnlp {
     //add block for contingency K_idx
     virtual bool add_contingency_block(const int K_idx);
     virtual bool has_contigency(const int K_idx);
+    //return idx in data.K_Contingency
+    virtual std::vector<int> get_contingencies() const;
 
     virtual void add_agc_reserves();
 

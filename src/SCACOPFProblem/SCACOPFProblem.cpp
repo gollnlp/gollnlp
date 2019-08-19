@@ -51,23 +51,6 @@ bool SCACOPFProblem::default_assembly()
   for(int it=0; it<sz; it++) {
     r_emer = L_rate_reduction * d.L_RateEmer[it];
     r_base = 0.95              * d.L_RateBase[it];
-    
-    //  1335  | -8.50053e-01 -6.41836e-02  5.09936e-09      8.57096e-01  7.84821e-02  5.09936e-09  |  1190      1351
-    //  1524  | -2.89706e+00  6.02566e-01  5.09936e-09      2.89906e+00 -6.03902e-01  5.09936e-09  |  1541      1542
-    //  1591  | -2.40693e+00  2.29775e-01  5.09937e-09      2.40923e+00 -2.40703e-01  5.10062e-09  |  1655      1660
-
-
-    //if(it==1335 || it==1591 || it==1524) {
-    if(false) {
- 
-        printf("aggresively reducing rate for line idx %d (frombusid, tobusid)=(%d,%d)\n",
-      	     it, d.L_From[it], d.L_To[it]);
-      
-        r_emer = 0.1*d.L_RateEmer[it];
-        r_base = d.L_RateBase[it];
-      }
-    
-
     rate[it] = r_emer < r_base ? r_emer : r_base;
   }
   add_cons_thermal_li_lims(d, rate);
@@ -98,33 +81,6 @@ bool SCACOPFProblem::default_assembly()
 					   variable("p_ti1", d), variable("q_ti1", d), 
 					   variable("p_ti2", d), variable("q_ti2", d)));
 
-
-  // //gplto->add_linear_penalty(48, d.G_Pub[48], 275485./d.K_Contingency.size(), d.G_Plb[48], d.G_Pub[48]);
-  // //gplto->add_linear_penalty(49, d.G_Pub[49], 414394./d.K_Contingency.size(), d.G_Plb[49], d.G_Pub[49]);
-  // gplto->add_quadr_penalty(48, d.G_Pub[48], 275485./d.K_Contingency.size(), d.G_Plb[48], d.G_Pub[48]);
-  // gplto->add_quadr_penalty(49, d.G_Pub[49], 414394./d.K_Contingency.size(), d.G_Plb[49], d.G_Pub[49]);
-  // gplto->add_quadr_penalty(62, 3.00416e+00, 192224./d.K_Contingency.size(), d.G_Plb[62], d.G_Pub[62]);
-  // //gplto->add_quadr_penalty( 2, 3.00416e+00, 192224./d.K_Contingency.size(), d.G_Plb[ 2], d.G_Pub[ 2]);
-
-  // //if(false) 
-  // {
-  // //  1335  | -8.50053e-01 -6.41836e-02  5.09936e-09      8.57096e-01  7.84821e-02  5.09936e-09  |  1190      1351
-  // //  1524  | -2.89706e+00  6.02566e-01  5.09936e-09      2.89906e+00 -6.03902e-01  5.09936e-09  |  1541      1542
-  // //  1591  | -2.40693e+00  2.29775e-01  5.09937e-09      2.40923e+00 -2.40703e-01  5.10062e-09  |  1655      1660
-  // //   822  |  2.30881e+00 -2.75296e-01  5.09936e-09     -2.30843e+00  2.79268e-01  5.09936e-09  |   805       806
-  // //   823  |  2.30843e+00 -2.79268e-01  5.09936e-09     -2.27914e+00  3.71432e-01  5.09936e-09  |   806       826
-
-  // TransmKPenaltyObjTerm* tplto=new TransmKPenaltyObjTerm("penalty_line_from_conting",
-  // 							 variable("p_li1", d), variable("q_li1", d), 
-  // 							 variable("p_li2", d), variable("q_li2", d));
-  // append_objterm(tplto);
-  // tplto->add_penalty(1335, -8.50053e-01, -6.41836e-02,  8.57096e-01,  7.84821e-02, 1.644216e+05/d.K_Contingency.size());
-  // tplto->add_penalty(1524, -2.89706e+00,  6.02566e-01,  2.89906e+00, -6.03902e-01, 2*1.226449e+05/d.K_Contingency.size());
-  // tplto->add_penalty(1591, -2.40693e+00,  2.29775e-01,  2.40923e+00, -2.40703e-01, 1.977436e+05/d.K_Contingency.size());
-  // tplto->add_penalty( 822,  2.30881e+00, -2.75296e-01, -2.30843e+00,  2.79268e-01, 1.749165e+05/d.K_Contingency.size());
-
-  // }
-
   add_agc_reserves_for_max_Lloss_Ugain();
   add_agc_reserves();
   return true;
@@ -140,30 +96,6 @@ bool SCACOPFProblem::assembly(const std::vector<int>& K_Cont)
 
   for(auto K : K_Cont) {
     add_contingency_block(K);
-
-    // data_K.push_back(new SCACOPFData(data_sc));
-    // SCACOPFData& dK = *(data_K).back(); //shortcut
-    // dK.rebuild_for_conting(K,nK);
-
-    // dK.PenaltyWeight = (1-d.DELTA) / nK;
-
-    // printf("adding blocks for contingency K=%d IDOut=%d outidx=%d Type=%s\n", 
-    // 	   K, d.K_IDout[K], d.K_outidx[K], d.cont_type_string(K).c_str());
-
-    // bool SysCond_BaseCase = false;
-
-    // add_variables(dK, SysCond_BaseCase);
-    // add_cons_lines_pf(dK);
-    // add_cons_transformers_pf(dK);
-    // add_cons_active_powbal(dK);
-    // add_cons_reactive_powbal(dK);
-
-    // add_cons_thermal_li_lims(dK,SysCond_BaseCase);
-    // add_cons_thermal_ti_lims(dK,SysCond_BaseCase);
-
-    // //coupling AGC and PVPQ; also creates delta_k
-    // add_cons_coupling(dK);
-
   }
   //print_summary();
   return true;
@@ -210,6 +142,13 @@ bool SCACOPFProblem::has_contigency(const int K_idx)
       return true;
     }
   return false;
+}
+
+std::vector<int> SCACOPFProblem::get_contingencies() const
+{
+  vector<int> v = data_K;
+  for(int& e : v) e--;
+  return v;
 }
 
 void SCACOPFProblem::add_cons_coupling(SCACOPFData& dB)
