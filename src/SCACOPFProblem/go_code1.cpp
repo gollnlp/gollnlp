@@ -67,7 +67,7 @@ MyCode1::MyCode1(const std::string& InFile1_, const std::string& InFile2_,
   phase3_scacopf_passes_solver=0;
   phase3_scacopf_pass_solution=-1;
   
-  pen_threshold = 100; //dolars
+  pen_threshold = 1; //dolars -> updated later
   high_pen_threshold_factor = 0.25; //25% relative to basecase cost
   cost_basecase=0.;
 
@@ -139,6 +139,9 @@ int MyCode1::initialize(int argc, char *argv[])
   phase3_scacopf_passes_solver = 0;
   phase3_scacopf_passes_master = 0;
   phase3_scacopf_pass_solution=-1;
+
+  pen_threshold = 2*data.K_Contingency.size(); //dolars; violations of 2 or less allowed per contingency
+
   return true;
 }
 void MyCode1::phase1_ranks_allocation()
@@ -241,7 +244,7 @@ bool MyCode1::do_phase1()
 
   //scacopf_prob->set_AGC_as_nonanticip(true);
   //scacopf_prob->set_AGC_simplified(true);
-  scacopf_prob->update_AGC_smoothing_param(1e-2);
+  scacopf_prob->update_AGC_smoothing_param(1e-4);
   //scacopf_prob->AGCSmoothing=1e-2;  
 
   scacopf_prob->update_PVPQ_smoothing_param( 1e-2 );
@@ -465,7 +468,7 @@ vector<int> MyCode1::phase1_SCACOPF_contingencies()
 std::vector<int> MyCode1::phase2_contingencies()
 {
   //assert(false);
-  //return data.K_Contingency;
+  return data.K_Contingency;
   //return {0, 1, 48, 106};
 
   //return {101,  102,  103,  110,  249,  344,  394,  816,  817, 55, 2, 2, 3, 4, 5, 6, 7, 8, 9, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 1};// 101,  102,  106,  110,  249,  344,  394,  816,  817, 55}; //net 7
@@ -746,8 +749,9 @@ bool MyCode1::do_phase2_master_part()
 
 	assert(K_info_phase2[idx].scacopf_actions.size() < K_info_phase2[idx].n_evals);
 	assert(K_info_phase2[idx].n_scacopf_solves       < K_info_phase2[idx].n_evals);
+#ifdef DEBUG_COMM
 	cout << "[comm] Master recv penalty\n   ContingInfo: " << K_info_phase2[idx];
-	
+#endif
 	//remove the request irecv for this rank
 	delete req_pen;
 	req_recv_penalty_for_rank[r].pop_back(); assert(req_recv_penalty_for_rank[r].size() == 0);
@@ -832,7 +836,7 @@ bool MyCode1::do_phase2_master_part()
       if(K_on_rank[r].size()>0) {
 	K_idx_next = K_on_rank[r].back();
 
-#ifdef DEBUG_SCHED   
+#ifdef DEBUG_COMM   
 	char msg[100]; sprintf(msg, "K_on_rank[%d] (on master before send new Kidx)", r);
 	printvec(K_on_rank[r], msg);
 #endif
@@ -1205,7 +1209,7 @@ bool MyCode1::do_phase3_master_solverpart(bool master_evalpart_done)
 	  ContingInfo& kinfo=K_info_phase2[itk];
 	  if(kinfo.scacopfed_at_pass == phase3_scacopf_passes_master) {
 	    kinfo.n_scacopf_solves++;
-	    assert(kinfo.n_scacopf_solves == kinfo.n_evals);
+	    assert(kinfo.n_scacopf_solves <= kinfo.n_evals);
 	    assert(kinfo.n_scacopf_solves == kinfo.scacopf_actions.size());
 
 	    if(kinfo.scacopf_actions.back() == -102) {
@@ -1522,7 +1526,7 @@ bool MyCode1::do_phase3_solver_part()
       req_recv_KidxSCACOPF->post_recv(Tag4, rank_master, comm_world);
 
 #ifdef DEBUG_COMM
-      printf("[ph3] Solver rank %3d posted recv for new SCACOPF contingencies"
+      printf("[ph3] Solver rank %3d recv posted for scacopf contingencies"
 	     "to (master) rank %3d  tag %d current pass %d\n",
 	     my_rank, rank_master, Tag4, phase3_scacopf_passes_solver);
 #endif
@@ -1542,7 +1546,7 @@ bool MyCode1::do_phase3_solver_part()
 	assert(K_idxs.size()==K_actions.size());
 
 
-	printf("[ph3] Solver rank %3d recv-ed request for n=%3lu conting for SCACOPF solve current pass %d "
+	printf("[ph3] Solver rank %3d request n=%3lu conting recv-ed scacopf solve current pass %d "
 	       "at global time: %g K_idxs=[ ", 
 	       my_rank, K_idxs.size(), phase3_scacopf_passes_solver, glob_timer.measureElapsedTime());
 	for(auto c: K_idxs) { 
@@ -1846,6 +1850,8 @@ double MyCode1::phase3_solve_scacopf(std::vector<int>& K_idxs,
 
     sprintf(msg, "K_idx=%d >> %d ", K_idxs[it], K_actions[it]); smsg += msg;
 
+    double penalty_weight = 10./data.K_Contingency.size();
+
     if(K_actions[it] == -101) {
       //penalize
       int idx_elem = data.K_outidx[K_idxs[it]];
@@ -1855,21 +1861,23 @@ double MyCode1::phase3_solve_scacopf(std::vector<int>& K_idxs,
 
       if(data.K_ConType[K_idxs[it]]==SCACOPFData::kGenerator) {
 	scacopf_prob->remove_quadr_conting_penalty_pg0(idx_elem);
-	scacopf_prob->add_quadr_conting_penalty_pg0(idx_elem, K_powers[it][0], penalty);
+	scacopf_prob->add_quadr_conting_penalty_pg0(idx_elem, 
+						    K_powers[it][0], 
+						    penalty_weight*penalty);
 	sprintf(msg, "[pen gen] |");
       } else if(data.K_ConType[K_idxs[it]]==SCACOPFData::kLine) {
 	scacopf_prob->remove_conting_penalty_line0(idx_elem);
 	scacopf_prob->add_conting_penalty_line0(idx_elem, 
 						K_powers[it][0], K_powers[it][1],
 						K_powers[it][2], K_powers[it][3],
-						penalty);
+						penalty_weight*penalty);
 	sprintf(msg, "[pen line] |");
       } else if(data.K_ConType[K_idxs[it]]==SCACOPFData::kTransformer) {
 	scacopf_prob->remove_conting_penalty_transf0(idx_elem);
 	scacopf_prob->add_conting_penalty_transf0(idx_elem, 
 						K_powers[it][0], K_powers[it][1],
 						K_powers[it][2], K_powers[it][3],
-						penalty);
+						penalty_weight*penalty);
 	sprintf(msg, "[pen transf] |");
       } else { assert(false); }
 
