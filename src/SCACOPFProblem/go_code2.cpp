@@ -97,6 +97,14 @@ int MyCode2::initialize(int argc, char *argv[])
       req_send_Kidx.push_back(std::vector<ReqKidx*>());
   }
 
+  K_Contingency = data.K_Contingency;
+  //!
+  //K_Contingency = {48};
+
+
+  K_left = vector<int>(K_Contingency.size());
+  iota(K_left.begin(), K_left.end(), 0);
+
   return true;
 }
 
@@ -144,7 +152,7 @@ int MyCode2::go()
 
       vector<double> sol;
 
-      bool bret = solve_contingency(k, sol);
+      bool bret = solve_contingency(K_Contingency[k], sol);
       assert(sol.size() == size_sol_block+1);
 
       //send the solution
@@ -317,7 +325,7 @@ int MyCode2::go()
 	    printf("[rank 0] completed recv request %d for contingencies for rank %d\n", num_req4Kidx_for_ranks[r], r);
 #endif
 	    //pick new contingency 
-	    int perRank = data.K_Contingency.size()/(comm_size-1);
+	    int perRank = K_Contingency.size()/(comm_size-1);
 	    int Kstart = perRank*(r-1);
 	    auto Kidxs = findall(K_left, [Kstart](int val) {return val>Kstart;});
 	    if(Kidxs.empty()) 
@@ -464,18 +472,23 @@ void MyCode2::initial_K_distribution()
 
   int num_ranks = comm_size;
 
+  //debuging code
+  //vector<vector<int> > Ks_to_ranks(num_ranks, vector<int>());
+  //Ks_to_ranks[1].push_back(48);
+
   //num contingencies; 
-  int S = data.K_Contingency.size(), R = num_ranks-1;
+  int S = K_Contingency.size(), R = num_ranks-1;
   if(R<=0) R=1;
 
-  K_left = vector<int>(S);
-  iota(K_left.begin(), K_left.end(), 0);
-
   int perRank = S/R; int remainder = S-R*perRank;
-  printf("ranks=%d contingencies=%d perRank=%d remainder=%d\n",
-  	 num_ranks, S, perRank, remainder);
+
+
+  if(0==perRank) {
+    perRank=1; remainder=0;
+  }
 
   if(iAmMaster) {
+    printf("ranks=%d contingencies=%d perRank=%d remainder=%d\n", num_ranks, S, perRank, remainder);
 
     //each slave rank gets one contingency idx = r*perRank
     for(int r=1; r<num_ranks; r++) {
@@ -484,11 +497,12 @@ void MyCode2::initial_K_distribution()
 	K_idx += r;
       else
 	K_idx += remainder;
-      
-      assert(K_idx < S);
-      K_on_slave_ranks[r].push_back(K_idx);
-      bool bret = erase_elem_from(K_left, K_idx);
-      assert(bret);
+       
+      if(K_idx < S) {
+	K_on_slave_ranks[r].push_back(K_idx);
+	bool bret = erase_elem_from(K_left, K_idx);
+	assert(bret);
+      }
     }
     //"initial Ks on each rank: "
     printvecvec(K_on_slave_ranks, "initial Ks on each rank: ");
@@ -502,22 +516,29 @@ void MyCode2::initial_K_distribution()
       K_idx += r;
     else
       K_idx += remainder;
-    K_local.push_back(K_idx);
     
-    char s[1000]; sprintf(s, "K_local on rank %d", my_rank);
-    printlist(K_local, string(s));
+    if(K_idx < S) {
+      K_local.push_back(K_idx);
+      char s[1000]; sprintf(s, "K_local on rank %d", my_rank);
+      printlist(K_local, string(s));
+    } else {
+      printf("K_local on rank %d  is empty\n", my_rank);
+    }
     //std::this_thread::sleep_for(std::chrono::milliseconds(1000));
   }
 }
 
 bool MyCode2::solve_contingency(int K_idx, std::vector<double>& sln)
 {
+
   goTimer t; t.start();
   int status;
   ContingencyProblem prob(data, K_idx, my_rank);
   
-  prob.update_AGC_smoothing_param(1e-2);
+  prob.update_AGC_smoothing_param(1e-4);
   prob.update_PVPQ_smoothing_param(1e-2);
+
+
 
   //prob.reg_vn = true;
   //prob.reg_thetan = true;
@@ -533,9 +554,9 @@ bool MyCode2::solve_contingency(int K_idx, std::vector<double>& sln)
     return false;
   }
 
-  //if(!prob.set_warm_start_from_base_of(*scacopf_prob)) {
-  //  status = -2;
-  //  return 1e+20;
+  //  if(!prob.set_warm_start_from_base_of(*scacopf_prob)) {
+  //status = -2;
+  //return 1e+20;
   //}
 
   prob.use_nlp_solver("ipopt");
@@ -569,11 +590,55 @@ bool MyCode2::solve_contingency(int K_idx, std::vector<double>& sln)
   }
   if(penalty>100)
     prob.print_objterms_evals();
+  int numiter1 =  prob.number_of_iterations();
+
+  /////////////////////////////////////////
+if(true)
+{
 
   prob.set_solver_option("print_frequency_iter", 11);
   prob.set_solver_option("mu_init", 1e-1);
 
-  prob.update_AGC_smoothing_param(1e-8);
+  prob.update_AGC_smoothing_param(1e-4);
+  prob.update_PVPQ_smoothing_param(1e-2);
+
+  if(!prob.reoptimize(OptProblem::primalDualRestart)) {
+    printf("Evaluator Rank %d failed in the evaluation 2 of contingency K_idx=%d\n",
+	   my_rank, K_idx);
+    status = -3;
+    return false;
+  }
+
+  penalty = prob.objective_value();
+  if(penalty>100)
+    prob.print_objterms_evals();
+  
+}
+
+  if(false) {
+
+
+  prob.set_solver_option("mu_init", 1e-4);
+
+  prob.update_AGC_smoothing_param(1e-4);
+  prob.update_PVPQ_smoothing_param(1e-2);
+
+  if(!prob.reoptimize(OptProblem::primalDualRestart)) {
+    printf("Evaluator Rank %d failed in the evaluation 2 of contingency K_idx=%d\n",
+	   my_rank, K_idx);
+    status = -3;
+    return false;
+  }
+
+  penalty = prob.objective_value();
+  if(penalty>100)
+    prob.print_objterms_evals();
+
+
+
+  prob.set_solver_option("mu_init", 1e-5);
+
+  prob.update_AGC_smoothing_param(1e-6);
   prob.update_PVPQ_smoothing_param(1e-6);
 
   if(!prob.reoptimize(OptProblem::primalDualRestart)) {
@@ -586,15 +651,35 @@ bool MyCode2::solve_contingency(int K_idx, std::vector<double>& sln)
   if(penalty>100)
     prob.print_objterms_evals();
 
+
+  prob.set_solver_option("mu_init", 1e-5);
+
+  prob.update_AGC_smoothing_param(1e-7);
+  prob.update_PVPQ_smoothing_param(1e-7);
+
+  if(!prob.reoptimize(OptProblem::primalDualRestart)) {
+    printf("Evaluator Rank %d failed in the evaluation 2 of contingency K_idx=%d\n",
+	   my_rank, K_idx);
+    status = -3;
+    return false;
+  }
+  penalty = prob.objective_value();
+  if(penalty>100)
+    prob.print_objterms_evals();
+
+
+    }
+
+
   prob.get_solution_simplicial_vectorized(sln);
   assert(size_sol_block == sln.size());
  
   //prob.print_p_g_with_coupling_info(*prob.data_K[0], p_g0);
   sln.push_back((double)K_idx);
   printf("Evaluator Rank %3d K_idx=%d finished with penalty %12.3f "
-	 "in %5.3f sec and %3d iterations  global time %g \n",
+	 "in %5.3f sec and %3d/%3d iterations  global time %g \n",
 	 my_rank, K_idx, penalty, t.stop(), 
-	 prob.number_of_iterations(), glob_timer.measureElapsedTime());
+	 numiter1, prob.number_of_iterations(), glob_timer.measureElapsedTime());
 
   return true;
 }
@@ -617,8 +702,8 @@ bool MyCode2::attempt_write_solution2(std::vector<std::vector<double> >& vvsols)
   while(true) {
     int Kidx = last_Kidx_written+1; assert(Kidx>=0);
 
-    if(Kidx==data.K_Contingency.size()) return true;
-    assert(Kidx<data.K_Contingency.size());
+    if(Kidx==K_Contingency.size()) return true;
+    assert(Kidx<K_Contingency.size());
 
     if(vvsols[Kidx].size()==1) return false; //solution has not arrived
 
@@ -641,7 +726,7 @@ bool MyCode2::attempt_write_solution2(std::vector<std::vector<double> >& vvsols)
     SCACOPFIO::write_solution2_block(Kidx, v_n, theta_n, b_s, p_g, q_g, delta,
 				     data, "solution2.txt");
     printf("[rank 0] wrote solution2 block for contingency %d [%d] label '%s'\n", 
-	   Kidx, data.K_Contingency[Kidx], data.K_Label[Kidx].c_str());
+	   Kidx, K_Contingency[Kidx], data.K_Label[Kidx].c_str());
 
     hardclear(vvsols[Kidx]);
     last_Kidx_written++;

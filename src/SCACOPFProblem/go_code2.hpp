@@ -100,6 +100,8 @@ private:
   //contingencies processed on each rank
   //outer size num_ranks, maintained only on master rank
   std::vector<std::vector<int> > K_on_slave_ranks;
+  
+  std::vector<int> K_Contingency;
   std::vector<int> K_left;
 
   //contingencies on current rank
