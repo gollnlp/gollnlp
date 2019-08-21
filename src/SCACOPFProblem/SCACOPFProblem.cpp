@@ -635,7 +635,7 @@ void SCACOPFProblem::add_agc_reserves()
 
     this->append_constraints(loss_rsrv);
 #ifdef DEBUG
-    printf(" -- added %d AGC loss reserve constraints for contingencies ", loss_rsrv->n);
+    printf(" -- added %d AGC loss reserve constraints for contingencies\n", loss_rsrv->n);
     //printvec(Kidxs_agc_loss_cons, "K_idxs");
 #endif
 
@@ -656,7 +656,7 @@ void SCACOPFProblem::add_agc_reserves()
 
     this->append_constraints(gain_rsrv);
 #ifdef DEBUG
-    printf(" -- added %d AGC gain reserve constraints for contingencies ", gain_rsrv->n);
+    printf(" -- added %d AGC gain reserve constraints for contingencies\n", gain_rsrv->n);
     //printvec(Kidxs_agc_gain_cons, "K_idxs");
 #endif
 
@@ -771,6 +771,10 @@ void SCACOPFProblem::add_agc_reserves_for_max_Lloss_Ugain()
     loss_rsrv->finalize_setup();
 
     this->append_constraints(loss_rsrv);
+#ifdef DEBUG
+    printf(" -- added %d AGC loss (Lloss) reserve constraints for contingencies\n", loss_rsrv->n);
+    //printvec(Kidxs_agc_loss_cons, "K_idxs");
+#endif
 
   } else {
     delete loss_rsrv;
@@ -784,6 +788,10 @@ void SCACOPFProblem::add_agc_reserves_for_max_Lloss_Ugain()
     gain_rsrv->finalize_setup();
 
     this->append_constraints(gain_rsrv);
+#ifdef DEBUG
+    printf(" -- added %d AGC gain (Ugain) reserve constraints for contingencies\n", loss_rsrv->n);
+    //printvec(Kidxs_agc_loss_cons, "K_idxs");
+#endif
 
   } else {
     delete gain_rsrv;
