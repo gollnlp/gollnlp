@@ -26,10 +26,10 @@ namespace gollnlp {
 
     //void compute_largest_pg_loss_contingency();
 
-    //return true if the at least one bound was tightened; otherwise false
-    //on entry, plb and pub contain the current bounds
-    //on entry, all arrays are G_Generator.size() (data_sc)
-    bool compute_pg_bounds_for_Kgens(const double* p_g0_in, double* plb, double* pub);
+    // //return true if the at least one bound was tightened; otherwise false
+    // //on entry, plb and pub contain the current bounds
+    // //on entry, all arrays are G_Generator.size() (data_sc)
+    // //bool compute_pg_bounds_for_Kgens(const double* p_g0_in, double* plb, double* pub);
 
 
     //Gk    - indexes of all generators 
@@ -38,6 +38,12 @@ namespace gollnlp {
     // all the above sets except 'outidx' if 'ConType' of Kidx is generator
     void get_AGC_participation(int Kidx, std::vector<int>& Gk, std::vector<int>& Gkp, std::vector<int>& Gknop);
 
+    //returns a vector with areas 
+    //void get_AGC_areas(std::vector<int>& vAreas);
+    //idxs of contingency generators: first vec is of gen idxs in G_Generator, the second is of idxs in K_Contingency
+    //void get_Kgen_idxs(std::vector<int>& gen_idxs, std::vector<int>& K_idxs);
+    //get a list of AGC generators (idxs in G_Generator) in the specified area
+    //void get_AGC_gens_in_area(int area);
     
   public:
     // 0 when used for ACOPF, conting index (1-based) for contingency subproblems

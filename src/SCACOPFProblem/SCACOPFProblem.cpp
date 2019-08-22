@@ -578,8 +578,7 @@ void SCACOPFProblem::add_agc_reserves()
     for(int kgi=0; kgi<max_num_Kgen; kgi++) {
       int Kgen_idx = K_gens_idxs_area_sorted[kgi];
 
-      //if(Kgen_idx != 49) continue; //aaa
-
+      //power injection - skip
       if(d.G_Pub[Kgen_idx]<=0) continue;
 
       //remove Kgen from AGC in case it is in there
@@ -638,8 +637,7 @@ void SCACOPFProblem::add_agc_reserves()
 
     this->append_constraints(loss_rsrv);
 #ifdef DEBUG
-    printf(" -- added %d AGC loss reserve constraints for contingencies\n", loss_rsrv->n);
-    //printvec(Kidxs_agc_loss_cons, "K_idxs");
+    printf(" -- added %d AGC loss reserves for contingencies\n", loss_rsrv->n);
 #endif
 
 
@@ -659,7 +657,7 @@ void SCACOPFProblem::add_agc_reserves()
 
     this->append_constraints(gain_rsrv);
 #ifdef DEBUG
-    printf(" -- added %d AGC gain reserve constraints for contingencies\n", gain_rsrv->n);
+    printf(" -- added %d AGC gain reserves for contingencies\n", gain_rsrv->n);
     //printvec(Kidxs_agc_gain_cons, "K_idxs");
 #endif
 
@@ -667,9 +665,80 @@ void SCACOPFProblem::add_agc_reserves()
     delete gain_rsrv;
   }
 }  
+
+void SCACOPFProblem::find_AGC_infeasible_Kgens(std::vector<int>& agc_infeas_gen_idxs, 
+					       std::vector<int>& agc_infeas_K_idxs)
+{
+  agc_infeas_gen_idxs.clear(); agc_infeas_K_idxs.clear();
+
+  SCACOPFData& d = data_sc; 
+  //! optimize - should reuse these as they are computed in add_agc_reservesXXX
+  //indexes in K_Contingency of generator contingencies
+  vector<int> idxsKGen = findall(d.K_ConType, [](int val) {return val==SCACOPFData::kGenerator;});
+  vector<int> K_gens_ids = selectfrom(d.K_IDout, idxsKGen);
+  //indexes in G_Generators of the generators subject to contingencies
+  vector<int> K_gens_idxs= indexin(K_gens_ids, d.G_Generator);
+#ifdef DEBUG
+  //all must be present
+  assert(K_gens_ids == selectfrom(d.G_Generator, K_gens_idxs));
+#endif
+
+  //compute areas and area of each generator
+  auto Gk = vector<int>(d.G_Generator.size()); iota(Gk.begin(), Gk.end(), 0);
+  assert(d.G_Nidx.size() == d.G_Generator.size());
+  //area of each generator
+  auto Garea = selectfrom(d.N_Area, d.G_Nidx);
+  Garea = selectfrom(Garea, Gk);
+  assert(Garea.size() == Gk.size());
+  
+  auto areas = Garea;
+  remove_duplicates(areas);
+
+  for(auto area: areas) {
+    //AGC generators in the area
+    auto AGC_gens_idxs_area = findall(Garea, [&](int val) {return val==area;});
+
+    //gens subj. to. contingencies in the area
+    auto K_gens_idxs_area = findall(K_gens_idxs, [&](int val) { return Garea[val]==area;});
+    K_gens_idxs_area = selectfrom(K_gens_idxs, K_gens_idxs_area);
+
+    for(int gkidx : K_gens_idxs_area) {
+      //compute maximum possible pg ramping
+      double ramp=0.;
+      for(int gagcidx: AGC_gens_idxs_area) {
+	if(gkidx != gagcidx) ramp += (d.G_Pub[gagcidx]-d.G_Plb[gagcidx]);
+      }
+      bool loss_infeas = (  d.G_Plb[gkidx] > ramp);
+      bool gain_infeas = (0-d.G_Pub[gkidx] > ramp);
+      if(loss_infeas || gain_infeas) {
+	agc_infeas_gen_idxs.push_back(gkidx);
+
+	int K_idx=-1; assert(d.K_outidx.size() == d.K_ConType.size());
+	for(int ki=0; ki<d.K_outidx.size(); ki++) {
+	  if(d.K_outidx[ki]==gkidx && d.K_ConType[ki]==SCACOPFData::kGenerator) {
+	    K_idx=ki;
+	    break;
+	  }
+	}
+	assert(K_idx>=0); assert(d.K_IDout[K_idx]==d.G_Generator[gkidx]);
+
+	agc_infeas_K_idxs.push_back(K_idx);
+#ifdef DEBUG
+	printf("[warning] min %s of %g from gen_idx=%d in K_idx=%d cannot be recovered"
+	       " only from AGC max response of %g\n", 
+	       loss_infeas ? "loss" : "gain", loss_infeas ? d.G_Plb[gkidx] : -d.G_Pub[gkidx],
+	       gkidx, K_idx, ramp);
+#endif
+      }
+	
+    }
+  }
+}
+
 void SCACOPFProblem::add_agc_reserves_for_max_Lloss_Ugain()
 {
-  SCACOPFData& d = data_sc;  
+  SCACOPFData& d = data_sc; 
+ 
   //indexes in K_Contingency of generator contingencies
   vector<int> idxsKGen = findall(d.K_ConType, [](int val) {return val==SCACOPFData::kGenerator;});
   vector<int> K_gens_ids = selectfrom(d.K_IDout, idxsKGen);
@@ -716,9 +785,9 @@ void SCACOPFProblem::add_agc_reserves_for_max_Lloss_Ugain()
 #endif
     if(AGC_gens_idxs_area.size()>100) continue;
 
-    double max_loss = 0., max_gain=0.; int max_loss_idx=-1, max_gain_idx=-1;
+    double max_loss = 0., max_gain=0., aux; int max_loss_idx=-1, max_gain_idx=-1;;
     for(int Kgenidx: K_gens_idxs_area) {
-      double aux =  std::max( d.G_Plb[Kgenidx], 0.);
+      aux = std::max( d.G_Plb[Kgenidx], 0.);
       if(aux>max_loss) { max_loss=aux; max_loss_idx=Kgenidx; }
       
       aux = std::max(-d.G_Pub[Kgenidx], 0.);
@@ -733,8 +802,8 @@ void SCACOPFProblem::add_agc_reserves_for_max_Lloss_Ugain()
 	if(d.K_ConType[i]==SCACOPFData::kGenerator && d.K_IDout[i]==d.G_Generator[max_loss_idx]) K_idx = i;
       assert( K_idx >= 0);
       
-      //printf(" -- max loss for area %d in the amount of %g for Kgenidx %d id %d  K_idx %d\n",
-      //     area, max_loss, max_loss_idx, d.G_Generator[max_loss_idx], K_idx);
+      printf(" -- max loss for area %d in the amount of %g for Kgenidx %d id %d  K_idx %d\n",
+           area, max_loss, max_loss_idx, d.G_Generator[max_loss_idx], K_idx);
     }
     if(max_gain>1e-6) {
       int K_idx = -1;
@@ -745,7 +814,6 @@ void SCACOPFProblem::add_agc_reserves_for_max_Lloss_Ugain()
       printf(" -- max gain for area %d in the amount of %g for Kgenidx %d id %d  K_idx %d\n",
            area, max_gain, max_gain_idx, d.G_Generator[max_gain_idx], K_idx);
     }
-    //printf("\n");
 #endif
     
     if(max_loss>1e-6) {
@@ -755,6 +823,10 @@ void SCACOPFProblem::add_agc_reserves_for_max_Lloss_Ugain()
 
       double percentage_of_loss = 1.;
       loss_rsrv->add_max_loss_reserve(responding_AGC_gens_idxs_area, max_loss, percentage_of_loss, d.G_Pub);
+
+
+
+
     }
     if(max_gain>1e-6) {
       assert(max_gain_idx>=0);

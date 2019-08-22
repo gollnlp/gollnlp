@@ -79,6 +79,7 @@ private: //methods
       rank_eval=-1;
       max_K_evals = MyCode1::MAX_K_EVALS;
       force_reeval=0;
+      restrictions=0;
     }
 
     int idx; //in K_phase2, which is formed of indexes in data.K_contingencies
@@ -93,6 +94,7 @@ private: //methods
     int n_evals; //how many times the conting was evaluated
     int rank_eval; //on which rank the evaluation was done last time
     vector<int> scacopf_actions; //-102, -101, or positive x (contingency was combined with conting idx x)
+    int restrictions; // 1 if is an infeas Kgen
     int max_K_evals;
     int force_reeval;
     inline bool operator==(const ContingInfo& other) const
@@ -155,6 +157,7 @@ private: //methods
   //outer size num_ranks, maintained only on master rank
   // -1 will be sent to (and pushed_back for) each rank to signal the end of evaluations
   // -2 will be pushed_back to mark that no more sends needs to be posted for the rank
+  // -3 will be pushed_back to put the rank on hold
   std::vector<std::vector<int> > K_on_rank;
 
   //contingencies processed by current rank
