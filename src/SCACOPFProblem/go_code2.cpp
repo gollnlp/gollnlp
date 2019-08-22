@@ -97,13 +97,25 @@ int MyCode2::initialize(int argc, char *argv[])
       req_send_Kidx.push_back(std::vector<ReqKidx*>());
   }
 
-  K_Contingency = data.K_Contingency;
+  //K_Contingency = data.K_Contingency;
   //!
-  //K_Contingency = {48};
+  K_Contingency = {106, 344 };
+  //K_Contingency = {106, 101,  102,  110,  249,  344,  394,  816,  817, 55, 497, 0, 1, 2, 3, 4, 5, 6,7,8,9,10, 15,16,17,18,19};
+//{1,2, 101, 106, 497, 816, 817};
 
 
   K_left = vector<int>(K_Contingency.size());
   iota(K_left.begin(), K_left.end(), 0);
+
+  //!!!
+  //for(double& p : data.G_Pub) p*=1.05;
+
+  //for(double& p : data.G_Qub) p*=2.05;
+  //for(double& p : data.G_Qlb) p*=0.5;
+
+
+  //for(double& p : data.N_EVub) p*=1.01;
+  //for(double& p : data.N_EVlb) p*=0.98;
 
   return true;
 }
@@ -536,7 +548,7 @@ bool MyCode2::solve_contingency(int K_idx, std::vector<double>& sln)
   ContingencyProblem prob(data, K_idx, my_rank);
   
   prob.update_AGC_smoothing_param(1e-4);
-  prob.update_PVPQ_smoothing_param(1e-2);
+  prob.update_PVPQ_smoothing_param(1e-4);
 
 
 
@@ -599,8 +611,8 @@ if(true)
   prob.set_solver_option("print_frequency_iter", 11);
   prob.set_solver_option("mu_init", 1e-1);
 
-  prob.update_AGC_smoothing_param(1e-4);
-  prob.update_PVPQ_smoothing_param(1e-2);
+  prob.update_AGC_smoothing_param(1e-6);
+  prob.update_PVPQ_smoothing_param(1e-6);
 
   if(!prob.reoptimize(OptProblem::primalDualRestart)) {
     printf("Evaluator Rank %d failed in the evaluation 2 of contingency K_idx=%d\n",
@@ -617,11 +629,10 @@ if(true)
 
   if(false) {
 
-
   prob.set_solver_option("mu_init", 1e-4);
 
-  prob.update_AGC_smoothing_param(1e-4);
-  prob.update_PVPQ_smoothing_param(1e-2);
+  prob.update_AGC_smoothing_param(1e-8);
+  prob.update_PVPQ_smoothing_param(1e-8);
 
   if(!prob.reoptimize(OptProblem::primalDualRestart)) {
     printf("Evaluator Rank %d failed in the evaluation 2 of contingency K_idx=%d\n",
@@ -634,8 +645,9 @@ if(true)
   if(penalty>100)
     prob.print_objterms_evals();
 
+  }
 
-
+if(false) {
   prob.set_solver_option("mu_init", 1e-5);
 
   prob.update_AGC_smoothing_param(1e-6);
@@ -646,11 +658,11 @@ if(true)
 	   my_rank, K_idx);
     status = -3;
     return false;
-  }
+  
   penalty = prob.objective_value();
   if(penalty>100)
     prob.print_objterms_evals();
-
+  }
 
   prob.set_solver_option("mu_init", 1e-5);
 
@@ -673,8 +685,11 @@ if(true)
 
   prob.get_solution_simplicial_vectorized(sln);
   assert(size_sol_block == sln.size());
- 
-  //prob.print_p_g_with_coupling_info(*prob.data_K[0], p_g0);
+
+  prob.print_p_g_with_coupling_info(*prob.data_K[0], p_g0);
+  //prob.print_PVPQ_info(*prob.data_K[0], v_n0);
+
+
   sln.push_back((double)K_idx);
   printf("Evaluator Rank %3d K_idx=%d finished with penalty %12.3f "
 	 "in %5.3f sec and %3d/%3d iterations  global time %g \n",

@@ -107,6 +107,25 @@ int MyCode1::initialize(int argc, char *argv[])
     return false;
   }
 
+   {printf("aaaaaaaaaaaaaaa\n");
+  //!
+  for(int i=0; i<data.G_Generator.size(); i++) {
+    double b = 0.025*fabs(data.G_Pub[i]-data.G_Plb[i]);
+    //data.G_Pub[i] -= b; data.G_Plb[i] += b;
+
+    b = 0.025*fabs(data.G_Qub[i]-data.G_Qlb[i]);
+    //data.G_Qub[i] -= b; data.G_Qlb[i] += b;
+  }
+  
+  for(int i=0; i<data.N_Bus.size(); i++) {
+    double b = 0.02*fabs(data.N_EVub[i]-data.N_EVlb[i]);
+    //data.N_EVub[i] -= b; data.N_EVlb[i] =+ b;
+
+    //b = 0.02*fabs(data.N_Vub[i]-data.N_Vlb[i]);
+    //data.N_Vub[i] -= b; data.N_Vlb[i] =+ b;
+  }
+  }
+
   phase3_initial_num_K_in_scacopf = (ScoringMethod==1 || ScoringMethod==3) ? 2 : 2;
   phase3_max_K_evals_to_wait_for = 1;//2*phase3_initial_num_K_in_scacopf;
   phase3_max_K_to_start_solver = 1;//phase3_initial_num_K_in_scacopf;
@@ -247,7 +266,7 @@ bool MyCode1::do_phase1()
   scacopf_prob->update_AGC_smoothing_param(1e-4);
   //scacopf_prob->AGCSmoothing=1e-2;  
 
-  scacopf_prob->update_PVPQ_smoothing_param( 1e-2 );
+  scacopf_prob->update_PVPQ_smoothing_param( 1e-4 );
   //scacopf_prob->set_PVPQ_as_nonanticip(true);
 
   //reduce T and L rates to min(RateBase, TL_rate_reduction*RateEmer)
@@ -468,12 +487,14 @@ vector<int> MyCode1::phase1_SCACOPF_contingencies()
 std::vector<int> MyCode1::phase2_contingencies()
 {
   //assert(false);
-  return data.K_Contingency;
+  //return data.K_Contingency;
   //return {0, 1, 48, 106};
 
   //return {101,  102,  103,  110,  249,  344,  394,  816,  817, 55, 2, 2, 3, 4, 5, 6, 7, 8, 9, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 1};// 101,  102,  106,  110,  249,  344,  394,  816,  817, 55}; //net 7
   //return {55, 101,  102,  106,  110,  249,  344,  394,  816,  817, 117, 211, 212, 217};// 101,  102,  106,  110,  249,  344,  394,  816,  817, 55}; //net 7
-  return {101,  102,  106,  110,  249,  344,  394,  816,  817, 55, 0, 1, 2, 3, 4, 5, 6,7,8,9,10, 15,16,17,18,19,0};// 101,  102,  106,  110,  249,  344,  394,  816,  817, 55}; //net 7
+  //return {106};
+  return {101, 106, 344};
+  return {101,  102, 106, 110,  249,  344,  394,  816,  817, 55, 497, 0, 1, 2};// 101,  102,  106,  110,  249,  344,  394,  816,  817, 55}; //net 7
 
 }
 
@@ -528,7 +549,6 @@ void MyCode1::phase2_initial_contingency_distribution()
       if(nEvaluators<S) {
 	//printf("r=%d K_idx=%d  K_value=%d\n", r, K_idx, K_phase2[K_idx]);
 	assert(K_idx_phase2 < K_phase2.size());
-	//!K_on_rank[r].push_back(K_phase2[K_idx]);
 	K_on_rank[r].push_back(K_idx_phase2);
       }
     }
@@ -1725,7 +1745,7 @@ double MyCode1::solve_contingency(int K_idx, int& status)
   ContingencyProblem prob(data, K_idx, my_rank);
 
   prob.update_AGC_smoothing_param(1e-4);
-  prob.update_PVPQ_smoothing_param(1e-2);
+  prob.update_PVPQ_smoothing_param(1e-4);
 
   //xxxcont
 
@@ -1950,6 +1970,8 @@ double MyCode1::phase3_solve_scacopf(std::vector<int>& K_idxs,
   bool bret = scacopf_prob->reoptimize(OptProblem::primalDualRestart);
   //bret = scacopf_prob->reoptimize(OptProblem::primalDualRestart);
 
+if(scacopf_prob->data_K.size()>0)
+  scacopf_prob->print_p_g_with_coupling_info(*scacopf_prob->data_K[0]);
 
   phase3_scacopf_passes_solver++;
   req_send_base_sols.post_new_sol(scacopf_prob, Tag7, my_rank, comm_world, phase3_scacopf_passes_solver);
