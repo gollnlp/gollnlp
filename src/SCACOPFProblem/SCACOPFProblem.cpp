@@ -109,7 +109,13 @@ bool SCACOPFProblem::add_contingency_block(const int K)
   SCACOPFData& dK = *(data_K).back(); //shortcut
   dK.rebuild_for_conting(K,1);
 
-  printf("adding blocks for contingency K=%d IDOut=%d outidx=%d Type=%s agc=%g pvpq=%g", 
+  //
+  // update penalties for the problem
+  double new_penalty_weight = (1-d.DELTA) / data_K.size();
+  //double new_penalty_weight = (1-d.DELTA) / data_sc.K_Contingency.size();
+  for(SCACOPFData* d : data_K) d->PenaltyWeight=new_penalty_weight;
+
+  printf("adding blocks for contingency K=%d IDOut=%d outidx=%d Type=%s agc=%g pvpq=%g\n", 
 	 K, d.K_IDout[K], d.K_outidx[K], d.cont_type_string(K).c_str(),
 	 AGCSmoothing, PVPQSmoothing);
   
@@ -127,10 +133,7 @@ bool SCACOPFProblem::add_contingency_block(const int K)
   //coupling AGC and PVPQ; also creates delta_k
   add_cons_coupling(dK);
   
-  //
-  //finally -> update penalties for the problem
-  double new_penalty_weight = (1-d.DELTA) / data_K.size();
-  for(SCACOPFData* d : data_K) d->PenaltyWeight=new_penalty_weight;
+
 
   return true;
 }
