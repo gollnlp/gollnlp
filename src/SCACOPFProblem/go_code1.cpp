@@ -159,7 +159,7 @@ int MyCode1::initialize(int argc, char *argv[])
   phase3_scacopf_passes_master = 0;
   phase3_scacopf_pass_solution=-1;
 
-  pen_threshold = data.K_Contingency.size(); //dolars; violations of O(1) or less allowed per contingency
+  pen_threshold = 1.*data.K_Contingency.size(); //dolars; violations of O(1) or less allowed per contingency
 
   return true;
 }
@@ -657,7 +657,7 @@ int MyCode1::get_next_conting_foreval(int Kidx_last, int rank, vector<ContingInf
   bool hold=false;
 
   //try to find one that was already evaluated and is in need of a new evaluation because
-  //it still has a high penalty after the evaluation
+  //it still has a high penalty after the evaluation or was rescheduled after an scacopf solve
   for(ContingInfo& kinfo : K_info_all) {
     if(kinfo.rank_eval==rank) {
       if(kinfo.n_evals==kinfo.n_scacopf_solves && 
@@ -1250,7 +1250,7 @@ bool MyCode1::do_phase3_master_solverpart(bool master_evalpart_done)
 	////////////////////////////////////////////////////////////////////////////////
 	// actions after the SCACOPF solve
 	////////////////////////////////////////////////////////////////////////////////
-	bool scacopf_includes = false;
+	bool scacopf_includes = false, force_reevals=false;
 	//update scacopf solves counter for elems of K_info_phase2
 	for(int itk=0; itk<K_info_phase2.size(); itk++) {
 	  ContingInfo& kinfo=K_info_phase2[itk];
@@ -1261,18 +1261,26 @@ bool MyCode1::do_phase3_master_solverpart(bool master_evalpart_done)
 
 	    if(kinfo.scacopf_actions.back() == -102) {
 	      scacopf_includes = true;
-	      kinfo.max_K_evals++;
+	      //kinfo.max_K_evals++;
+	      force_reevals=true;
+	    }
+	    if(kinfo.scacopf_actions.back() == -101) {
+	      force_reevals=true;
 	    }
 	  }
 	}
 	if(scacopf_includes) {
 	  MAX_K_EVALS = MAX_K_EVALS + 1;
+	}
+	if(force_reevals) {
 	  for(int itk=0; itk<K_info_phase2.size(); itk++) {
 	    ContingInfo& kinfo=K_info_phase2[itk];
 	    if(kinfo.n_evals==kinfo.max_K_evals) {
 	      kinfo.max_K_evals++;
 	    }
-	    else { assert(kinfo.n_evals<kinfo.max_K_evals); }
+	    else { 
+	      assert(kinfo.n_evals<kinfo.max_K_evals); 
+	    }
 	    kinfo.force_reeval = 1;
 	  }
 	}
