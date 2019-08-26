@@ -610,17 +610,17 @@ void  OptProblem::print_summary() const
   printf("Objective terms: \n");
   for(auto it: obj->vterms) printf("\t'%s' \n", it->id.c_str());
 
-  printf("Duals variables lower bounds: \n";
+  printf("Duals variables lower bounds: \n");
   for(auto it: vars_duals_bounds_L->vblocks) 
     printf("\t'%s' size %d  startsAt %d   providesStPoint %d\n",
 	   it->id.c_str(), it->n, it->index, it->providesStartingPoint);
 
-  printf("Duals variables upper bounds: \n";
+  printf("Duals variables upper bounds: \n");
   for(auto it: vars_duals_bounds_U->vblocks) 
     printf("\t'%s' size %d  startsAt %d   providesStPoint %d\n",
 	   it->id.c_str(), it->n, it->index, it->providesStartingPoint);
 
-	 printf("Duals variables constraints: \n";
+  printf("Duals variables constraints: \n");
   for(auto it: vars_duals_cons->vblocks) 
     printf("\t'%s' size %d  startsAt %d   providesStPoint %d\n",
 	   it->id.c_str(), it->n, it->index, it->providesStartingPoint);
