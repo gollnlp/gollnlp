@@ -1,5 +1,6 @@
 #include "OptProblem.hpp"
 #include "IpoptSolver.hpp"
+#include "KnitroSolver.hpp"
 #include <iostream>
 
 #include "blasdefs.hpp"
@@ -520,8 +521,17 @@ void OptProblem::set_duals_vars_cons(const double* lambda)
 void OptProblem::use_nlp_solver(const std::string& name)
 {
   if(NULL == nlp_solver) {
-    nlp_solver = new IpoptSolver(this);
-    nlp_solver->initialize();
+    if(name == "iptop") {
+      nlp_solver = new IpoptSolver(this);
+      nlp_solver->initialize();
+    }
+    else if(name == "knitro") {
+      nlp_solver = new KnitroSolver(this);
+      nlp_solver->initialize();
+    }
+  }
+  else {
+    printf("Attempting to assign new solver to optimization problem with existing solver. Existing solver must be deleted first.");
   }
 }
 
