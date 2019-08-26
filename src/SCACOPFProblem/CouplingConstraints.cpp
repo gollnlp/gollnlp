@@ -228,7 +228,8 @@ eval_Jac(const OptVariables& primal_vars, bool new_x,
       row = this->index+it;
       idxnz = J_nz_idxs[it];   
 
-      assert(idxnz+2<nnz && idxnz>=0);
+      //printf("%d %d \n", idxnz, nnz);
+      assert(idxnz+1<nnz); assert(idxnz>=0);
 
       //ia[idxnz]=row; ja[idxnz]=pg0->index+idx0[it];   idxnz++; // w.r.t. po
       ia[idxnz]=row; ja[idxnz]=pgK->index+idxK[it];   idxnz++; // w.r.t. pk
@@ -239,7 +240,7 @@ eval_Jac(const OptVariables& primal_vars, bool new_x,
   } else {
     for(int it=0; it<dim; it++) {
       idxnz = J_nz_idxs[it];
-      assert(idxnz+2<nnz && idxnz>=0);
+      assert(idxnz+1<nnz && idxnz>=0);
       
       //M[idxnz++] += 1.; // w.r.t. p0
       M[idxnz++] -= 1.; // w.r.t. pk

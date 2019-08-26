@@ -543,7 +543,7 @@ bool MyCode2::solve_contingency(int K_idx, std::vector<double>& sln)
 
   goTimer t; t.start();
   int status;
-  ContingencyProblemWithFixing prob(data, K_idx, my_rank);
+  ContingencyProblemWithFixing prob(data, K_idx, my_rank, dict_basecase_vars);
 
   prob.update_AGC_smoothing_param(1e-4);
   prob.update_PVPQ_smoothing_param(1e-4);
@@ -572,7 +572,7 @@ bool MyCode2::solve_contingency(int K_idx, std::vector<double>& sln)
   prob.use_nlp_solver("ipopt");
   prob.set_solver_option("print_frequency_iter", 25);
   prob.set_solver_option("linear_solver", "ma57"); 
-  prob.set_solver_option("print_level", 2);
+  prob.set_solver_option("print_level", 5);
   //prob.set_solver_option("mu_target", 1e-10);
 
   //return if it takes too long in phase2

@@ -5,6 +5,8 @@
 #include "OptObjTerms.hpp"
 #include "OPFConstraints.hpp"
 
+#include <string>
+
 #include "goUtils.hpp"
 #include "goTimer.hpp"
 #include "unistd.h"
@@ -82,7 +84,7 @@ namespace gollnlp {
   
 
     if(Gk_simplified.size() > 0) {
-      add_cons_AGC_simplified(d, Gk_simplified);
+      //!add_cons_AGC_simplified(d, Gk_simplified);
     }
 
     return true;
@@ -317,10 +319,10 @@ namespace gollnlp {
     p_g0 = pg0; v_n0=vn0;
 
     update_cons_nonanticip_using(pg0);
-    update_cons_AGC_using(pg0);
+    //update_cons_AGC_using(pg0);
 
     f = -1e+20;
-    vector<double> smoothing_continu = {1e-8};
+    vector<double> smoothing_continu = {1e-4};
     int smoothing_status = 0;
     vector<int> hist_iter, hist_obj;
 
@@ -330,8 +332,9 @@ namespace gollnlp {
       update_PVPQ_smoothing_param(smoothing);
       
       if(smoothing == smoothing_continu[0]) {
-	this->set_solver_option("mu_init", 1e-4);
-	if(!OptProblem::optimize("ipopt")) {
+	this->set_solver_option("mu_init", 1e-5);
+	//if(!OptProblem::optimize("ipopt")) {
+	  if(!OptProblem::reoptimize(OptProblem::primalDualRestart)) {
 	  smoothing_status=-1;
 	}
       } else {
@@ -368,7 +371,9 @@ namespace gollnlp {
 			 variable("v_n", *data_K[0]), variable("q_g", *data_K[0]));
     } 
 
-    if(true) {
+
+
+    if(false) {
     do_fixing_for_PVPQ(smoothing_continu.back(), fixVoltage, 
 		       variable("v_n", *data_K[0]), variable("q_g", *data_K[0]));
 
@@ -385,6 +390,7 @@ namespace gollnlp {
 #endif
 
     //print_PVPQ_info(*data_K[0], vn0);
+      print_p_g_with_coupling_info(*data_K[0], pg0);
     tmrec.stop();
 #ifdef BE_VERBOSE
     string sit = "["; for(auto iter:  hist_iter) sit += to_string(iter)+'/'; sit[sit.size()-1] = ']';
@@ -393,6 +399,8 @@ namespace gollnlp {
 	   K_idx, tmrec.getElapsedTime(), sit.c_str(), sobj.c_str(), my_rank);
     fflush(stdout);
 #endif
+
+    //print_summary();
 
     return true;
 
@@ -449,9 +457,125 @@ namespace gollnlp {
 
     add_variables(dK,false);
 
-    ////////////////////////////////////////////////////////////
-    //warm-start from base case
-    ////////////////////////////////////////////////////////////
+    if(!warm_start_variable_from_basecase(*vars_primal)) {
+      assert(false);
+      return false;
+    }
+
+    add_cons_lines_pf(dK);
+    add_cons_transformers_pf(dK);
+    add_cons_active_powbal(dK);
+    add_cons_reactive_powbal(dK);
+    bool SysCond_BaseCase = false;
+    add_cons_thermal_li_lims(dK,SysCond_BaseCase);
+    add_cons_thermal_ti_lims(dK,SysCond_BaseCase);
+
+    add_cons_nonanticip_using(pg0);
+    //add_cons_AGC_using(pg0);
+    add_cons_AGC_simplified(dK, pg0_partic_idxs, pgK_partic_idxs, pg0);
+
+    add_const_nonanticip_v_n_using(vn0, Gk);
+    //add_cons_PVPQ_using(vn0, Gk);
+
+    //depending on reg_vn, reg_thetan, reg_bs, reg_pg, and reg_qg
+    add_regularizations();
+
+
+    if(NULL==vars_duals_bounds_L || NULL==vars_duals_bounds_U || NULL==vars_duals_cons) {
+      //force allocation of duals
+      dual_problem_changed();
+    }
+    if(!warm_start_variable_from_basecase(*vars_duals_bounds_L)) return false;
+    if(!warm_start_variable_from_basecase(*vars_duals_bounds_U)) return false;
+    if(!warm_start_variable_from_basecase(*vars_duals_cons)) return false;
+    return true;
+  }
+
+  bool ContingencyProblemWithFixing::warm_start_variable_from_basecase(OptVariables& v)
+  {
+    SCACOPFData& dK = *data_K[0];
+    for(auto& b : v.vblocks) {
+      
+      size_t pos = b->id.find_last_of("_");
+      if(pos == string::npos) { 
+	assert(false);
+	b->providesStartingPoint = false; 
+	continue; 
+      }
+      const string b0_name = b->id.substr(0, pos+1) + "0";
+      auto b0p = dict_basecase_vars.find(b0_name);
+      if(b0p == dict_basecase_vars.end()) {
+	assert(b->id.find("delta") != string::npos || 
+	       b->id.find("AGC") != string::npos); //!remove agc later
+	continue;
+      }
+
+      auto b0 = b0p->second; assert(b0);
+      if(b0->n == b->n) {
+	b->set_start_to(*b0);
+      } else {
+	assert(b0->n - 1 == b->n);
+	if(dK.K_ConType[0] == SCACOPFData::kGenerator) {
+	  assert(b->id.find("_g_") != string::npos);
+	  for(int i=0; i<pg0_nonpartic_idxs.size(); i++) {
+	    assert(pgK_nonpartic_idxs[i] < b->n);
+	    assert(pg0_nonpartic_idxs[i] < b0->n);
+	    b->x[pgK_nonpartic_idxs[i]] = b0->x[pg0_nonpartic_idxs[i]];
+	  }
+
+	  for(int i=0; i<pg0_partic_idxs.size(); i++) {
+	    assert(pgK_partic_idxs[i] < b->n);
+	    assert(pg0_partic_idxs[i] < b0->n);
+	    b->x[pgK_partic_idxs[i]] = b0->x[pg0_partic_idxs[i]];
+	  }
+
+	} else if(dK.K_ConType[0] == SCACOPFData::kLine) {
+	  assert(b->id.find("_li") != string::npos);
+	  int i=0, i0=0;
+	  for(; i0<b0->n; i0++) {
+	    if(i0 != dK.K_outidx[0]) {
+	      b->x[i] = b0->x[i0];
+	      i++;
+	    }
+	  }
+	  assert(i0 == b0->n);
+	  assert(i  == b->n);
+	  
+	} else if(dK.K_ConType[0] == SCACOPFData::kTransformer) {
+	  assert(b->id.find("_ti") != string::npos || b->id.find("_trans_") != string::npos);
+	  int i=0, i0=0;
+	  for(; i0<b->n; i0++) {
+	    if(i0 != dK.K_outidx[0]) {
+	      b->x[i] = b0->x[i0];
+	      i0++;
+	    }
+	  }
+	  assert(i0 == b0->n);
+	  assert(i  == b->n);
+	}
+      }
+    }
+    return true;
+  }
+  bool ContingencyProblemWithFixing::set_warm_start_from_basecase()
+  {
+    assert(false && "do not use");
+    SCACOPFData& dK = *data_K[0];
+if(false) {
+    
+
+    if(!warm_start_variable_from_basecase(*vars_primal)) return false;
+
+    if(NULL==vars_duals_bounds_L || NULL==vars_duals_bounds_U || NULL==vars_duals_cons) {
+      //force allocation of duals
+      dual_problem_changed();
+    }
+    if(!warm_start_variable_from_basecase(*vars_duals_bounds_L)) return false;
+    if(!warm_start_variable_from_basecase(*vars_duals_bounds_U)) return false;
+    if(!warm_start_variable_from_basecase(*vars_duals_cons)) return false;
+    return true;
+
+} else {
     variable("v_n", dK)->set_start_to(*v_n0);
     variable("theta_n", dK)->set_start_to(*theta_n0);
     variable("b_s", dK)->set_start_to(*b_s0);
@@ -483,32 +607,34 @@ namespace gollnlp {
       variable("p_g", dK)->set_start_to(*p_g0);
       variable("q_g", dK)->set_start_to(*q_g0);
     }
+}
 
+  }
 
-    add_cons_lines_pf(dK);
-    add_cons_transformers_pf(dK);
-    add_cons_active_powbal(dK);
-    add_cons_reactive_powbal(dK);
-    bool SysCond_BaseCase = false;
-    add_cons_thermal_li_lims(dK,SysCond_BaseCase);
-    add_cons_thermal_ti_lims(dK,SysCond_BaseCase);
+  bool ContingencyProblemWithFixing::
+  add_cons_AGC_simplified(SCACOPFData& dB, 
+			  const std::vector<int>& idxs_pg0_AGC_particip, 
+			  const std::vector<int>& idxs_pgK_AGC_particip,
+			  OptVariablesBlock* pg0)
+  {
+    assert(idxs_pg0_AGC_particip.size()==idxs_pgK_AGC_particip.size());
+    assert(variable("p_g", dB));
 
+    if(idxs_pg0_AGC_particip.size()==0) {
+      printf("[warning] ContingencyProblemWithFixing: add_cons_AGC_simplified: NO gens participating !?! in contingency %d\n", dB.id);
+      return true;
+    }
 
-    
+    OptVariablesBlock* deltaK = new OptVariablesBlock(1, var_name("delta", dB));
+    append_variables(deltaK);
+    deltaK->set_start_to(0.);
 
+    auto cons = new AGCSimpleCons_pg0Fixed(con_name("AGC_simple_fixedpg0", dB), idxs_pg0_AGC_particip.size(), 
+					   pg0, variable("p_g", dB), deltaK, 
+					   idxs_pg0_AGC_particip, idxs_pgK_AGC_particip, 
+					   data_sc.G_alpha);
 
-    add_cons_nonanticip_using(pg0);
-    add_cons_AGC_using(pg0);
-    
-    add_const_nonanticip_v_n_using(vn0, Gk);
-    //add_cons_PVPQ_using(vn0, Gk);
-    
-
-    //print_summary();
-
-
-    //depending on reg_vn, reg_thetan, reg_bs, reg_pg, and reg_qg
-    add_regularizations();
+    append_constraints(cons);
 
     return true;
   }
