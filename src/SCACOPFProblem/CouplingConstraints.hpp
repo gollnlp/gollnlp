@@ -56,7 +56,7 @@ namespace gollnlp {
     virtual bool eval_body (const OptVariables& vars_primal, bool new_x, double* body);
     virtual bool eval_Jac(const OptVariables& primal_vars, bool new_x, 
 			  const int& nnz, int* i, int* j, double* M);
-    int get_Jacob_nnz();
+    virtual int get_Jacob_nnz();
     virtual bool get_Jacob_ij(std::vector<OptSparseEntry>& vij);
     
   protected:
@@ -64,6 +64,25 @@ namespace gollnlp {
     int *idx0, *idxK;
     const double* G_alpha; //size ngen base case, accessed via idx0
     int* J_nz_idxs; 
+  };
+
+  //this time with pg0 fixed
+  class AGCSimpleCons_pg0Fixed : public AGCSimpleCons
+  {
+  public:
+    AGCSimpleCons_pg0Fixed(const std::string& id_, int numcons,
+		  OptVariablesBlock* pg0_, OptVariablesBlock* pgK_, OptVariablesBlock* deltaK_,
+		  const std::vector<int>& idx0_, const std::vector<int>& idxK_,
+		  const std::vector<double>& G_alpha_)
+      : AGCSimpleCons(id_, numcons, pg0_, pgK_, deltaK_, idx0_, idxK_, G_alpha_)
+    { }
+
+    virtual ~AGCSimpleCons_pg0Fixed() {};
+
+    virtual bool eval_Jac(const OptVariables& primal_vars, bool new_x, 
+			  const int& nnz, int* i, int* j, double* M);
+    virtual int get_Jacob_nnz();
+    virtual bool get_Jacob_ij(std::vector<OptSparseEntry>& vij);
   };
 
   /////////////////////////////////////////////////////////////////////////////////
