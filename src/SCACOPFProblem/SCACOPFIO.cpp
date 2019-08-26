@@ -281,4 +281,46 @@ namespace gollnlp {
     }
   }
 
+  void SCACOPFIO::write_variable_block(OptVariablesBlock* var, SCACOPFData& data, FILE* file)
+  {
+    assert(NULL != file);
+    fprintf(file, "v %s %d\n", var->id.c_str(), var->n);
+    for(int i=0; i<var->n; i++) fprintf(file, "%.20f\n", var->x[i]);
+  }
+
+  void SCACOPFIO::read_variables_blocks(SCACOPFData& data, 
+					std::unordered_map<std::string, OptVariablesBlock*>& map_basecase_vars)
+  {
+    string filename = "solution_b_pd.txt";
+    ifstream file(filename.c_str());
+    if(!file.is_open()) {
+      printf("[warning] failed to load solution file '%s'\n", filename.c_str());
+      return;
+    }
+    size_t pos; bool ret; string line; 
+    ret = (bool)getline(file, line); assert(ret);
+    while(true) {
+      if(line.size()<3) { assert(false); continue; }
+      if(line[0] != 'v') {assert(false); continue; }
+      vector<string> tokens = split(line, ' ');
+      if(tokens.size() != 3) { assert(false); continue; }
+      assert(tokens[0] == "v"); 
+      const string& var_name = tokens[1];
+      const int var_size = atoi(tokens[2].c_str());
+      
+      OptVariablesBlock* var = new OptVariablesBlock(var_size, var_name);
+      var->set_xref_to_x();
+      for(int l=0; l<var_size; l++) {
+	ret = (bool)getline(file, line); assert(ret);
+	assert(line.size()>0); assert(line[0] != 'v');
+	if(ret) var->x[l] = atof(line.c_str());
+	else    var->x[l] = 0.;
+      }
+      map_basecase_vars.insert({var_name, var});
+
+      ret = (bool)getline(file, line); 
+      if(!ret) break;
+    }
+  }
+
 } //end namespace gollnlp

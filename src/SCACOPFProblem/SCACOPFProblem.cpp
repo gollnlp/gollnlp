@@ -3007,7 +3007,6 @@ void SCACOPFProblem::print_Transf_powers(SCACOPFData& dB, bool SysCond_BaseCase)
   assert(T_Rate.size() == q_ti2->n);
   assert(T_Rate.size() == dB.T_Transformer.size());
   
-
   printf("   #    ID     pti1        pti2         qt1         qt2       rate\n");
   for(int t=0; t<dB.T_Transformer.size(); t++) {
 
@@ -3056,77 +3055,82 @@ void SCACOPFProblem::write_solution_basecase()
   //SCACOPFIO::write_append_solution_block(v_n->x, theta_n->x, b_s->x, p_g->x, q_g->x,
   //					 data_sc, "solution1.txt", "w");
   SCACOPFIO::write_solution1(v_n->x, theta_n->x, b_s->x, p_g->x, q_g->x,
-			     data_sc, "solution1.txt");
+			     data_sc, "solution1.txt");  
+}
+
+void SCACOPFProblem::write_pridua_solution_basecase()
+{
+
+  string filename = "solution_b_pd.txt";
+  FILE* file = fopen(filename.c_str(), "w");
+  if(NULL == file) {
+    printf("[warning] could not open '%s' for writing. will return\n", filename.c_str());
+    return;
+  }
+
+  vector<string> vars_names={"v_n_0","theta_n_0",
+			     "p_li1_0","p_li2_0","q_li1_0","q_li2_0",
+			     "p_ti1_0","p_ti2_0","q_ti1_0","q_ti2_0",
+			     "b_s_0","p_g_0","q_g_0", 
+			     "pslack_n_p_balance_0", "qslack_n_q_balance_0",
+			     "sslack_li_line_limits1_0","sslack_li_line_limits2_0",
+			     "sslack_ti_trans_limits1_0","sslack_ti_trans_limits2_0"};
+  //,"t_h_0","sslack_agc_reserves_loss_bnd_0","sslack_agc_reserves_loss_Kgen_0","sslack_agc_reserves_gain_Kgen_0"};
   
-  // auto SSh_Nidx = indexin(data_sc.SSh_Bus, data_sc.N_Bus);
-  // double bcsn[data_sc.N_Bus.size()];
-  
-  // for(int i=0; i<data_sc.N_Bus.size(); i++) 
-  //   bcsn[i] = 0.;
+  //-vector<string> cons_names={"p_li1_powerflow_0","p_li2_powerflow_0","q_li1_powerflow_0","q_li2_powerflow_0",
+  //-			     "p_ti1_powerflow_0","p_ti2_powerflow_0","q_ti1_powerflow_0","q_ti2_powerflow_0",
+  //-			     "p_balance_0","q_balance_0",
+  //-			     "line_limits1_0","line_limits2_0","trans_limits1_0","trans_limits2_0"};
+  //-//,"prodcost_cons_0","agc_reserves_loss_bnd_0","agc_reserves_loss_Kgen_0","agc_reserves_gain_Kgen_0"};
 
-  // for(int itssh = 0; itssh<data_sc.SSh_SShunt.size(); itssh++) {
-  //   assert(itssh < SSh_Nidx.size());
-  //   assert(itssh < b_s->n);
-  //   assert(SSh_Nidx[itssh] < data_sc.N_Bus.size());
-  //   assert(SSh_Nidx[itssh]>=0);
-    
-  //   bcsn[SSh_Nidx[itssh]] += b_s->x[itssh];
-  // }
-
-  // for(int i=0; i<data_sc.N_Bus.size(); i++) 
-  //   bcsn[i] *= data_sc.MVAbase;
-
-  // string strFileName = "solution1.txt";
-  // FILE* file = fopen(strFileName.c_str(), "w");
-  // if(NULL==file) {
-  //   printf("[warning] could not open [%s] file for writing\n", strFileName.c_str());
-  //   return;
-  // }
-  // //
-  // // write bus section
-  // //
-  // fprintf(file, "--bus section\ni, v(p.u.), theta(deg), bcs(MVAR at v = 1 p.u.)\n");
-  // for(int n=0; n<data_sc.N_Bus.size(); n++) {
-  //   fprintf(file, "%d, %.20f, %.20f, %.20f\n", 
-  // 	    data_sc.N_Bus[n], v_n->x[n], 180/M_PI*theta_n->x[n], bcsn[n]);
-  // }
-
-  // int GID = SCACOPFData::GID;
-  // int GI  = SCACOPFData::GI; assert(GI==0);
-  // assert(data_sc.generators[GID].size() == data_sc.generators[GI].size());
-  // assert(data_sc.generators[GID].size()>=data_sc.G_Generator.size());
-
-  // auto gmap = vector<int>(data_sc.generators[GID].size(), -1);
-  // for(int g=0; g<data_sc.G_Generator.size(); g++) {
-  //   assert(g>=0);
-  //   assert(data_sc.G_Generator[g]<data_sc.generators[GID].size());
-    
-  //   gmap[data_sc.G_Generator[g]] = g;
-  // }
-
-  // assert(data_sc.G_Bus.size() == data_sc.G_BusUnitNum.size());
-
-  // int g;
-  // //write generator section
-  // fprintf(file, "--generator section\ni, id, p(MW), q(MW)\n");
-  // for(int gi=0; gi<data_sc.generators[GI].size(); gi++) {
-  //   g = gmap[gi];
-  //   if(-1 == g) {
-  //     fprintf(file, "%s, \'%s\', 0, 0\n", data_sc.generators[GI][gi].c_str(), data_sc.generators[GID][gi].c_str());
-  //   } else {
-  //     assert(g>=0);
-  //     assert(g<data_sc.G_Bus.size());
-  //     assert(g<p_g->n);
-  //     assert(g<q_g->n);
+  vector<string> duals_bndL_names={"duals_bndL_v_n_0","duals_bndL_theta_n_0","duals_bndL_p_li1_0","duals_bndL_p_li2_0","duals_bndL_q_li1_0","duals_bndL_q_li2_0","duals_bndL_p_ti1_0","duals_bndL_p_ti2_0","duals_bndL_q_ti1_0","duals_bndL_q_ti2_0","duals_bndL_b_s_0","duals_bndL_p_g_0","duals_bndL_q_g_0","duals_bndL_pslack_n_p_balance_0","duals_bndL_qslack_n_q_balance_0","duals_bndL_sslack_li_line_limits1_0","duals_bndL_sslack_li_line_limits2_0","duals_bndL_sslack_ti_trans_limits1_0","duals_bndL_sslack_ti_trans_limits2_0"};
+  //"duals_bndL_t_h_0","duals_bndL_sslack_agc_reserves_loss_bnd_0","duals_bndL_sslack_agc_reserves_loss_Kgen_0","duals_bndL_sslack_agc_reserves_gain_Kgen_0"};
 
 
-  //     fprintf(file, "%d, \'%s\', %.12f, %.12f\n", 
-  // 	      data_sc.G_Bus[g], data_sc.G_BusUnitNum[g].c_str(), 
-  // 	      data_sc.MVAbase*p_g->x[g], data_sc.MVAbase*q_g->x[g]);
-  //   }
-  // }
-  // fclose(file);
-  // printf("basecase solution written to file %s\n", strFileName.c_str());
+  vector<string> duals_bndU_names={"duals_bndU_v_n_0","duals_bndU_theta_n_0","duals_bndU_p_li1_0","duals_bndU_p_li2_0","duals_bndU_q_li1_0","duals_bndU_q_li2_0","duals_bndU_p_ti1_0","duals_bndU_p_ti2_0","duals_bndU_q_ti1_0","duals_bndU_q_ti2_0","duals_bndU_b_s_0","duals_bndU_p_g_0","duals_bndU_q_g_0","duals_bndU_pslack_n_p_balance_0","duals_bndU_qslack_n_q_balance_0","duals_bndU_sslack_li_line_limits1_0","duals_bndU_sslack_li_line_limits2_0","duals_bndU_sslack_ti_trans_limits1_0","duals_bndU_sslack_ti_trans_limits2_0"};
+  //"duals_bndU_t_h_0","duals_bndU_sslack_agc_reserves_loss_bnd_0","duals_bndU_sslack_agc_reserves_loss_Kgen_0","duals_bndU_sslack_agc_reserves_gain_Kgen_0"};
+
+  vector<string> duals_cons_names={"duals_p_li1_powerflow_0","duals_p_li2_powerflow_0","duals_q_li1_powerflow_0","duals_q_li2_powerflow_0","duals_p_ti1_powerflow_0","duals_p_ti2_powerflow_0","duals_q_ti1_powerflow_0","duals_q_ti2_powerflow_0","duals_p_balance_0","duals_q_balance_0","duals_line_limits1_0","duals_line_limits2_0","duals_trans_limits1_0","duals_trans_limits2_0"};
+  //"duals_prodcost_cons_0","duals_agc_reserves_loss_bnd_0","duals_agc_reserves_loss_Kgen_0","duals_agc_reserves_gain_Kgen_0"};
+
+  //vector<string> all_vars_names = vars_names;
+  //all_vars_names.insert(all_vars_names.end(), duals_bndL_names.begin(), duals_bndL_names.end());
+  //all_vars_names.insert(all_vars_names.end(), duals_bndU_names.begin(), duals_bndU_names.end());
+  //all_vars_names.insert(all_vars_names.end(), duals_cons_names.begin(), duals_cons_names.end());
+
+  for(string& var_name : vars_names) {
+    OptVariablesBlock* var = vars_block(var_name);
+    if(NULL==var) {
+      printf("[warning] '%s' variable NOT written: is missing from the problem\n", var_name.c_str());
+      continue;
+    }
+    SCACOPFIO::write_variable_block(var, data_sc, file);
+  }
+  for(string& var_name : duals_bndL_names) {
+    OptVariablesBlock* var = vars_block_duals_bounds_lower(var_name);
+    if(NULL==var) {
+      printf("[warning] '%s' variable NOT written: is missing from the problem\n", var_name.c_str());
+      continue;
+    }
+    SCACOPFIO::write_variable_block(var, data_sc, file);
+  }
+  for(string& var_name : duals_bndU_names) {
+    OptVariablesBlock* var = vars_block_duals_bounds_upper(var_name);
+    if(NULL==var) {
+      printf("[warning] '%s' variable NOT written: is missing from the problem\n", var_name.c_str());
+      continue;
+    }
+    SCACOPFIO::write_variable_block(var, data_sc, file);
+  }
+  for(string& var_name : duals_cons_names) {
+    OptVariablesBlock* var = vars_block_duals_cons(var_name);
+    if(NULL==var) {
+      printf("[warning] '%s' variable NOT written: is missing from the problem\n", var_name.c_str());
+      continue;
+    }
+    SCACOPFIO::write_variable_block(var, data_sc, file);
+  }
+  fclose(file);
 }
 
 void SCACOPFProblem::write_solution_extras_basecase()

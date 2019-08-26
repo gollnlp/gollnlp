@@ -5,9 +5,11 @@
 #include <string>
 #include <vector>
 #include <list>
+#include <unordered_map>
 
 #include "SCACOPFProblem.hpp"
 #include "ContingencyProblem.hpp"
+#include "ContingencyProblemWithFixing.hpp"
 
 #include "goTimer.hpp"
 
@@ -78,6 +80,8 @@ private:
   bool attempt_write_solution2(std::vector<std::vector<double> >& vvsols);
   int last_Kidx_written;
   int size_sol_block;
+
+  void read_solution1();
 private:
   std::string InFile1, InFile2, InFile3, InFile4;
   double TimeLimitInSec;
@@ -86,7 +90,11 @@ private:
 
   gollnlp::SCACOPFData data;
 
-  gollnlp::OptVariablesBlock *v_n0, *theta_n0, *b_s0, *p_g0, *q_g0;
+  inline gollnlp::OptVariablesBlock* v_n0() { return dict_basecase_vars["v_n_0"]; };
+  inline gollnlp::OptVariablesBlock* theta_n0() { return dict_basecase_vars["theta_n_0"]; };
+  inline gollnlp::OptVariablesBlock* b_s0() { return dict_basecase_vars["b_s_0"]; };
+  inline gollnlp::OptVariablesBlock* p_g0() { return dict_basecase_vars["p_g_0"]; };
+  inline gollnlp::OptVariablesBlock* q_g0() { return dict_basecase_vars["q_g_0"]; };
 
   //
   // communication
@@ -107,5 +115,6 @@ private:
   //contingencies on current rank
   std::list<int> K_local;
 
+  std::unordered_map<std::string, gollnlp::OptVariablesBlock*> dict_basecase_vars;
 };
 #endif

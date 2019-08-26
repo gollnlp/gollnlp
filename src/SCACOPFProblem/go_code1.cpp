@@ -445,12 +445,16 @@ bool MyCode1::do_phase1()
   if(!iAmSolver) {
     scacopf_prob->set_have_start();
   } else {
+
+    scacopf_prob->print_summary();
+
     K_SCACOPF_phase3 = K_SCACOPF_phase1;
     printf("[ph1] rank %d  phase 1 writes solution1.txt at global time %g\n", 
 	   my_rank, glob_timer.measureElapsedTime());
 
     //write solution
     scacopf_prob->write_solution_basecase();
+    scacopf_prob->write_pridua_solution_basecase();
     if(!bret) {
       printf("[warning] Solver rank %d: initial basecase solve failed; solution1 was written though at global time=%g\n",
 	     my_rank, glob_timer.measureElapsedTime());
@@ -2024,6 +2028,7 @@ if(scacopf_prob->data_K.size()>0)
 	   my_rank);
   } else {
     scacopf_prob->write_solution_basecase();
+    scacopf_prob->write_pridua_solution_basecase();
 #ifdef DEBUG
     scacopf_prob->write_solution_extras_basecase();
 #endif

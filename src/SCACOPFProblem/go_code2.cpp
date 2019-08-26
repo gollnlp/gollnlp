@@ -30,18 +30,15 @@ MyCode2::MyCode2(const std::string& InFile1_, const std::string& InFile2_,
 {
   glob_timer.start();
 
-  v_n0 = theta_n0 = b_s0 = p_g0 = q_g0 = NULL;
+  //v_n0 = theta_n0 = b_s0 = p_g0 = q_g0 = NULL;
   last_Kidx_written=-1;
   size_sol_block=-1;
 }
 
 MyCode2::~MyCode2()
 {
-  delete v_n0;
-  delete theta_n0;
-  delete b_s0;
-  delete p_g0;
-  delete q_g0;
+  for(auto& p : dict_basecase_vars) 
+    delete p.second;
 }
 
 int MyCode2::initialize(int argc, char *argv[])
@@ -78,9 +75,10 @@ int MyCode2::initialize(int argc, char *argv[])
     printf("error occured while reading instance\n");
     return false;
   }
-  
-  SCACOPFIO::read_solution1(&v_n0, &theta_n0, &b_s0, &p_g0, &q_g0, data, "solution1.txt");
-  size_sol_block = v_n0->n + theta_n0->n + b_s0->n + p_g0->n + q_g0->n + 1;
+
+  //will populate 'dict_basecase_vars'
+  read_solution1();
+
 
 
   if(iAmMaster) {
@@ -97,9 +95,9 @@ int MyCode2::initialize(int argc, char *argv[])
       req_send_Kidx.push_back(std::vector<ReqKidx*>());
   }
 
-  //K_Contingency = data.K_Contingency;
+  K_Contingency = data.K_Contingency;
   //!
-  K_Contingency = {106, 344 };
+  //K_Contingency = {101, 102, 106, 344 };
   //K_Contingency = {106, 101,  102,  110,  249,  344,  394,  816,  817, 55, 497, 0, 1, 2, 3, 4, 5, 6,7,8,9,10, 15,16,17,18,19};
 //{1,2, 101, 106, 497, 816, 817};
 
@@ -545,8 +543,8 @@ bool MyCode2::solve_contingency(int K_idx, std::vector<double>& sln)
 
   goTimer t; t.start();
   int status;
-  ContingencyProblem prob(data, K_idx, my_rank);
-  
+  ContingencyProblemWithFixing prob(data, K_idx, my_rank);
+
   prob.update_AGC_smoothing_param(1e-4);
   prob.update_PVPQ_smoothing_param(1e-4);
 
@@ -559,7 +557,7 @@ bool MyCode2::solve_contingency(int K_idx, std::vector<double>& sln)
   //prob.reg_qg = true;
 
 
-  if(!prob.default_assembly(v_n0, theta_n0, b_s0, p_g0, q_g0)) {
+  if(!prob.default_assembly(v_n0(), theta_n0(), b_s0(), p_g0(), q_g0())) {
     printf("Evaluator Rank %d failed in default_assembly for contingency K_idx=%d\n",
 	   my_rank, K_idx);
     status = -1;
@@ -574,9 +572,8 @@ bool MyCode2::solve_contingency(int K_idx, std::vector<double>& sln)
   prob.use_nlp_solver("ipopt");
   prob.set_solver_option("print_frequency_iter", 25);
   prob.set_solver_option("linear_solver", "ma57"); 
-  prob.set_solver_option("print_level", 5);
-  prob.set_solver_option("mu_init", 1e-1);
-  prob.set_solver_option("mu_target", 5e-9);
+  prob.set_solver_option("print_level", 2);
+  //prob.set_solver_option("mu_target", 1e-10);
 
   //return if it takes too long in phase2
   prob.set_solver_option("max_iter", 1000);
@@ -584,7 +581,7 @@ bool MyCode2::solve_contingency(int K_idx, std::vector<double>& sln)
   prob.set_solver_option("acceptable_constr_viol_tol", 1e-6);
   prob.set_solver_option("acceptable_iter", 5);
 
-  prob.set_solver_option("tol", 1e-9);
+  prob.set_solver_option("tol", 1e-8);
 
   prob.set_solver_option("bound_relax_factor", 0.);
   prob.set_solver_option("bound_push", 1e-16);
@@ -594,109 +591,147 @@ bool MyCode2::solve_contingency(int K_idx, std::vector<double>& sln)
 
 
   double penalty;
-  if(!prob.optimize(p_g0, v_n0, penalty)) {
+  if(!prob.optimize(p_g0(), v_n0(), penalty)) {
     printf("Evaluator Rank %d failed in the evaluation of contingency K_idx=%d\n",
 	   my_rank, K_idx);
     status = -3;
     return false;
   }
-  if(penalty>100)
-    prob.print_objterms_evals();
-  int numiter1 =  prob.number_of_iterations();
 
-  /////////////////////////////////////////
-if(true)
-{
 
-  prob.set_solver_option("print_frequency_iter", 11);
-  prob.set_solver_option("mu_init", 1e-1);
 
-  prob.update_AGC_smoothing_param(1e-6);
-  prob.update_PVPQ_smoothing_param(1e-6);
+//   if(penalty>100)
+//     prob.print_objterms_evals();
+//   int numiter1 =  prob.number_of_iterations();
 
-  if(!prob.reoptimize(OptProblem::primalDualRestart)) {
-    printf("Evaluator Rank %d failed in the evaluation 2 of contingency K_idx=%d\n",
-	   my_rank, K_idx);
-    status = -3;
-    return false;
-  }
+//   /////////////////////////////////////////
+// if(false)
+// {
 
-  penalty = prob.objective_value();
-  if(penalty>100)
-    prob.print_objterms_evals();
+//   prob.set_solver_option("print_frequency_iter", 11);
+//   prob.set_solver_option("mu_init", 1e-4);
+
+//   prob.update_AGC_smoothing_param(1e-8);
+//   prob.update_PVPQ_smoothing_param(1e-8);
+
+//   if(!prob.reoptimize(OptProblem::primalDualRestart)) {
+//     printf("Evaluator Rank %d failed in the evaluation 2 of contingency K_idx=%d\n",
+// 	   my_rank, K_idx);
+//     status = -3;
+//     return false;
+//   }
+
+//   penalty = prob.objective_value();
+//   if(penalty>100)
+//     prob.print_objterms_evals();
   
-}
+// }
 
-  if(false) {
+//   if(true) {
 
-  prob.set_solver_option("mu_init", 1e-4);
+//   prob.set_solver_option("mu_init", 1e-5);
 
-  prob.update_AGC_smoothing_param(1e-8);
-  prob.update_PVPQ_smoothing_param(1e-8);
+//   prob.update_AGC_smoothing_param(1e-10);
+//   prob.update_PVPQ_smoothing_param(1e-10);
 
-  if(!prob.reoptimize(OptProblem::primalDualRestart)) {
-    printf("Evaluator Rank %d failed in the evaluation 2 of contingency K_idx=%d\n",
-	   my_rank, K_idx);
-    status = -3;
-    return false;
-  }
+//   if(!prob.reoptimize(OptProblem::primalDualRestart)) {
+//     printf("Evaluator Rank %d failed in the evaluation 2 of contingency K_idx=%d\n",
+// 	   my_rank, K_idx);
+//     status = -3;
+//     return false;
+//   }
 
-  penalty = prob.objective_value();
-  if(penalty>100)
-    prob.print_objterms_evals();
+//   penalty = prob.objective_value();
+//   if(penalty>100)
+//     prob.print_objterms_evals();
 
-  }
+//   }
 
-if(false) {
-  prob.set_solver_option("mu_init", 1e-5);
+// if(false) {
+//   prob.set_solver_option("mu_init", 1e-5);
 
-  prob.update_AGC_smoothing_param(1e-6);
-  prob.update_PVPQ_smoothing_param(1e-6);
+//   prob.update_AGC_smoothing_param(1e-6);
+//   prob.update_PVPQ_smoothing_param(1e-6);
 
-  if(!prob.reoptimize(OptProblem::primalDualRestart)) {
-    printf("Evaluator Rank %d failed in the evaluation 2 of contingency K_idx=%d\n",
-	   my_rank, K_idx);
-    status = -3;
-    return false;
+//   if(!prob.reoptimize(OptProblem::primalDualRestart)) {
+//     printf("Evaluator Rank %d failed in the evaluation 2 of contingency K_idx=%d\n",
+// 	   my_rank, K_idx);
+//     status = -3;
+//     return false;
   
-  penalty = prob.objective_value();
-  if(penalty>100)
-    prob.print_objterms_evals();
-  }
+//   penalty = prob.objective_value();
+//   if(penalty>100)
+//     prob.print_objterms_evals();
+//   }
 
-  prob.set_solver_option("mu_init", 1e-5);
+//   prob.set_solver_option("mu_init", 1e-5);
 
-  prob.update_AGC_smoothing_param(1e-7);
-  prob.update_PVPQ_smoothing_param(1e-7);
+//   prob.update_AGC_smoothing_param(1e-7);
+//   prob.update_PVPQ_smoothing_param(1e-7);
 
-  if(!prob.reoptimize(OptProblem::primalDualRestart)) {
-    printf("Evaluator Rank %d failed in the evaluation 2 of contingency K_idx=%d\n",
-	   my_rank, K_idx);
-    status = -3;
-    return false;
-  }
-  penalty = prob.objective_value();
-  if(penalty>100)
-    prob.print_objterms_evals();
+//   if(!prob.reoptimize(OptProblem::primalDualRestart)) {
+//     printf("Evaluator Rank %d failed in the evaluation 2 of contingency K_idx=%d\n",
+// 	   my_rank, K_idx);
+//     status = -3;
+//     return false;
+//   }
+//   penalty = prob.objective_value();
+//   if(penalty>100)
+//     prob.print_objterms_evals();
 
 
-    }
+//     }
 
 
   prob.get_solution_simplicial_vectorized(sln);
   assert(size_sol_block == sln.size());
 
-  prob.print_p_g_with_coupling_info(*prob.data_K[0], p_g0);
+  //prob.print_p_g_with_coupling_info(*prob.data_K[0], p_g0);
   //prob.print_PVPQ_info(*prob.data_K[0], v_n0);
 
 
   sln.push_back((double)K_idx);
-  printf("Evaluator Rank %3d K_idx=%d finished with penalty %12.3f "
-	 "in %5.3f sec and %3d/%3d iterations  global time %g \n",
-	 my_rank, K_idx, penalty, t.stop(), 
-	 numiter1, prob.number_of_iterations(), glob_timer.measureElapsedTime());
+  //printf("Evaluator Rank %3d K_idx=%d finished with penalty %12.3f "
+  //	 "in %5.3f sec and %3d/%3d iterations  global time %g \n",
+  //	 my_rank, K_idx, penalty, t.stop(), 
+  //	 numiter1, prob.number_of_iterations(), glob_timer.measureElapsedTime());
 
   return true;
+}
+
+void MyCode2::read_solution1()
+{
+  gollnlp::SCACOPFIO::read_variables_blocks(data, dict_basecase_vars);
+  //for(auto& p: dict_basecase_vars) cout << "   - [" << p.first << "] size->" << p.second->n << endl;
+
+  size_sol_block = v_n0()->n + theta_n0()->n + b_s0()->n + p_g0()->n + q_g0()->n + 1;
+
+#ifdef DEBUG  
+  OptVariablesBlock *v_n00, *theta_n00, *b_s00, *p_g00, *q_g00;
+  SCACOPFIO::read_solution1(&v_n00, &theta_n00, &b_s00, &p_g00, &q_g00, data, "solution1.txt");
+  
+
+  assert(v_n00->n == v_n0()->n);
+  assert(diff_two_norm(v_n00->n, v_n00->x, v_n0()->x)<1e-12);
+  delete v_n00;
+
+  assert(theta_n00->n == theta_n0()->n);
+  assert(diff_two_norm(theta_n00->n, theta_n0()->x, theta_n00->x)<1e-12);
+  delete theta_n00;
+
+  assert(b_s00->n == b_s0()->n);
+  assert(diff_two_norm(b_s00->n, b_s00->x, b_s0()->x)<1e-12);
+  delete b_s00;
+
+  assert(p_g00->n == p_g0()->n);
+  assert(diff_two_norm(p_g00->n, p_g00->x, p_g0()->x)<1e-12);
+  delete p_g00;
+
+  assert(q_g00->n == q_g0()->n);
+  assert(diff_two_norm(q_g00->n, q_g00->x, q_g0()->x)<1e-12);
+  delete q_g00;
+
+#endif
 }
 
 void MyCode2::display_instance_info()
@@ -727,16 +762,16 @@ bool MyCode2::attempt_write_solution2(std::vector<std::vector<double> >& vvsols)
 
 #ifdef DEBUG
     if(Kidx>=1) assert(vvsols[Kidx-1].size() == 0); //should have been written already
-    assert(size_sol_block == v_n0->n + theta_n0->n + b_s0->n + p_g0->n + q_g0->n + 1);
+    assert(size_sol_block == v_n0()->n + theta_n0()->n + b_s0()->n + p_g0()->n + q_g0()->n + 1);
 #endif
     
     const double 
       *v_n     = vvsols[Kidx].data(), 
-      *theta_n = vvsols[Kidx].data() + v_n0->n, 
-      *b_s     = vvsols[Kidx].data() + v_n0->n + theta_n0->n, 
-      *p_g     = vvsols[Kidx].data() + v_n0->n + theta_n0->n + b_s0->n, 
-      *q_g     = vvsols[Kidx].data() + v_n0->n + theta_n0->n + b_s0->n + p_g0->n,
-      delta    = vvsols[Kidx][v_n0->n + theta_n0->n + b_s0->n + p_g0->n + q_g0->n];
+      *theta_n = vvsols[Kidx].data() + v_n0()->n, 
+      *b_s     = vvsols[Kidx].data() + v_n0()->n + theta_n0()->n, 
+      *p_g     = vvsols[Kidx].data() + v_n0()->n + theta_n0()->n + b_s0()->n, 
+      *q_g     = vvsols[Kidx].data() + v_n0()->n + theta_n0()->n + b_s0()->n + p_g0()->n,
+      delta    = vvsols[Kidx][v_n0()->n + theta_n0()->n + b_s0()->n + p_g0()->n + q_g0()->n];
 
     SCACOPFIO::write_solution2_block(Kidx, v_n, theta_n, b_s, p_g, q_g, delta,
 				     data, "solution2.txt");
@@ -749,3 +784,4 @@ bool MyCode2::attempt_write_solution2(std::vector<std::vector<double> >& vvsols)
 
   return false;
 }
+

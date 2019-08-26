@@ -221,6 +221,7 @@ namespace gollnlp {
     void print_line_limits_info(SCACOPFData& dB);
     void print_transf_limits_info(SCACOPFData& dB);
     void write_solution_basecase();
+    void write_pridua_solution_basecase();
     void write_solution_extras_basecase();
   }; // end of SCACOPFProblem
 
