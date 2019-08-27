@@ -54,22 +54,16 @@ link_directories("${IPOPT_DIR}/lib")
 set(IPOPT_LIBS "-lgfortran -lipopt -lm  -ldl")
 
 # KNITRO dependencies
-if(EXISTS "$ENV{KNITRODIR}")
-  set(KNITRO_DIR $ENV{KNITRODIR} CACHE PATH "path to Knitro directory")
-  set(KTR_RELEASE $ENV{KNITROVERSION} CACHE PATH "Knitro version")
-  message("Using Knitro dir ${KNITRO_DIR}")
-  include_directories("${KNITRO_DIR}/include")
-  include_directories("${KNITRO_DIR}/examples/C++/include")
-  include_directories("${KNITRO_DIR}/examples/C++/include/impl")
-  link_directories("${KNITRO_DIR}/lib")
-  set(KNITRO_LIB  libknitro${KTR_RELEASE}.so gfortran)
-  if (APPLE)
-    set(KNITRO_LIB "libknitro.dylib")
-  endif()
-else()
-  message("Knitro not found.")
-  set(KNITRO_LIB "")
-endif(EXISTS "$ENV{KNITRODIR}")
+set(KNITRO_DIR $ENV{KNITRODIR} CACHE PATH "path to Knitro directory")
+set(KTR_RELEASE $ENV{KNITROVERSION} CACHE PATH "Knitro version")
+message("Using Knitro dir ${KNITRO_DIR}")
+include_directories("${KNITRO_DIR}/include")
+include_directories("${KNITRO_DIR}/examples/C++/include")
+set(KNITRO_LIB  libknitro${KTR_RELEASE}.so gfortran)
+if (APPLE)
+  set(KNITRO_LIB "libknitro.dylib")
+endif(APPLE)
+link_directories("${KNITRO_DIR}/lib")
 
 # include build directory for Fortran name mangling header
 include_directories(${CMAKE_BINARY_DIR})
@@ -96,10 +90,10 @@ add_library(gollnlp STATIC $<TARGET_OBJECTS:goSCACOPF> $<TARGET_OBJECTS:goUtils>
 # competition executables
 #
 add_executable(MyExe1 MyCpp1.cpp)
-target_link_libraries(MyExe1 gollnlp ${LAPACK_LIBRARIES} ${IPOPT_LIBS} ${KNITRO_LIB})
+target_link_libraries(MyExe1 ${KNITRO_LIB} gollnlp ${LAPACK_LIBRARIES} ${IPOPT_LIBS})
 
 add_executable(MyExe2 MyCpp2.cpp)
-target_link_libraries(MyExe2 gollnlp ${LAPACK_LIBRARIES} ${IPOPT_LIBS} ${KNITRO_LIB})
+target_link_libraries(MyExe2 ${KNITRO_LIB} gollnlp ${LAPACK_LIBRARIES} ${IPOPT_LIBS})
 
 
 ##########################################################
