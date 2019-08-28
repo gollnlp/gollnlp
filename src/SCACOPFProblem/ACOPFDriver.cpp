@@ -54,14 +54,15 @@ int main(int argc, char *argv[])
     
     SCACOPFProblem*    scacopf_prob = new SCACOPFProblem(data);
     //scacopf_prob->set_AGC_as_nonanticip(true);
-    scacopf_prob->set_AGC_simplified(true);
+    //scacopf_prob->set_AGC_simplified(true);
     
 
-    vector<int> K_idxs = {};
+    vector<int> K_idxs = {0, 1};
     scacopf_prob->assembly(K_idxs);
+    scacopf_prob->update_AGC_smoothing_param(1E-2);
+    scacopf_prob->update_PVPQ_smoothing_param(1E-2);
 
-
-    scacopf_prob->use_nlp_solver("ipopt"); 
+    // scacopf_prob->use_nlp_solver("ipopt"); 
     // scacopf_prob->set_solver_option("linear_solver", "ma57"); 
     // scacopf_prob->set_solver_option("mu_init", 1e-4);
     // scacopf_prob->set_solver_option("print_frequency_iter", 1);
@@ -80,10 +81,20 @@ int main(int argc, char *argv[])
     
     // scacopf_prob->set_solver_option("print_level", 5);
   
-    bool bret = scacopf_prob->optimize("ipopt");
-
+    //scacopf_prob->use_nlp_solver("ipopt"); 
+    //scacopf_prob->set_solver_option("linear_solver", "ma57"); 
+    //bool bret = scacopf_prob->optimize("ipopt");
+    
+    scacopf_prob->use_nlp_solver("knitro");
+    scacopf_prob->set_solver_option("algorithm", 3);	// interior point: 1, active set: 3
+    bool bret = scacopf_prob->optimize("knitro");
+    
+    scacopf_prob->update_AGC_smoothing_param(1E-4);
+    scacopf_prob->update_PVPQ_smoothing_param(1E-4);
+    bret = scacopf_prob->reoptimize(OptProblem::primalDualRestart);
+    
     double cost = scacopf_prob->objective_value();
-  
+    
     delete scacopf_prob;
     // MyCode1 code1(argv[3], argv[4], argv[2], argv[1], 
     // 		  timeLimit, scoringMethod, argv[7]);

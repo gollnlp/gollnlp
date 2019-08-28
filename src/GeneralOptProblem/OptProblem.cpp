@@ -521,13 +521,17 @@ void OptProblem::set_duals_vars_cons(const double* lambda)
 void OptProblem::use_nlp_solver(const std::string& name)
 {
   if(NULL == nlp_solver) {
-    if(name == "iptop") {
+    if(name.compare("ipopt") == 0) {
       nlp_solver = new IpoptSolver(this);
       nlp_solver->initialize();
     }
-    else if(name == "knitro") {
+    else if(name.compare("knitro") == 0) {
       nlp_solver = new KnitroSolver(this);
       nlp_solver->initialize();
+      printf("knitro solver initialized\n");
+    }
+    else  {
+      printf("Unrecognized solver: %s\n", name.c_str());
     }
   }
   else {

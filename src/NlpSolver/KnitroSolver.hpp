@@ -22,15 +22,17 @@ public:
   KnitroNlp(OptProblem* p) :
     KTRProblem(p->get_num_variables(),
                p->get_num_constraints(),
-	       p->get_nnzJaccons(),
-	       p->get_nnzHessLagr()),
-    prob(p)
+               p->get_nnzJaccons(),
+               p->get_nnzHessLagr()),
+    prob(p),
+    has_primal_start(true),
+    has_dual_start(false)
   {
     setObjectiveProperties();
     setVariableProperties();
     setConstraintProperties();
     setDerivativeProperties();
-    setStartingPoint();
+    setPrimalStartingPoint();
   }
   
   /* destructor */
@@ -67,6 +69,20 @@ public:
     return 0;
   }
   
+  virtual void set_primal_start(bool pstart) {
+    if(pstart) {
+      setPrimalStartingPoint();
+    }
+    has_primal_start = pstart;
+  }
+
+  virtual void set_dual_start(bool dstart) {
+    if(dstart) {
+      setDualStartingPoint();
+    }
+    has_dual_start = dstart;
+  }
+
 private:
   virtual void setObjectiveProperties() {
     setObjType(knitro::KTREnums::ObjectiveType::ObjQuadratic);  // PENDING: maybe ObjLinear useful when using piecewise linear penalties
@@ -115,48 +131,45 @@ private:
     
   }
 
-  virtual void setStartingPoint() {
-    
-    // get sizes
-    auto nvars = getNumVars();
-    auto ncons = getNumCons();
-    
-    // setting primal starting point
-    {
-      std::vector<double> x0(nvars);
-      if(prob->fill_primal_start(&(x0[0]))) {
-        setXInitial(x0);
-      }
+  virtual void setPrimalStartingPoint() {
+    int nvars = getNumVars();
+    std::vector<double> x0(nvars);
+    if(prob->fill_primal_start(&(x0[0]))) {
+      setXInitial(x0);
     }
-
-    // setting dual starting point
-    // lambda contains both dual multipliers of constraints and bounds
-    // assumed order: (constraints, bounds) see https://www.artelys.com/docs/knitro/3_referenceManual/oldAPI.html?highlight=lambdainitial
-    {
-      std::vector<double> lambda0(ncons + nvars);
-      std::vector<double> lambda0_cons(lambda0.cbegin(), lambda0.cbegin()+ncons);
-      std::vector<double> lambda0_bnds(lambda0.cbegin()+ncons, lambda0.cbegin()+ncons+nvars);
-      if(!prob->fill_dual_cons_start(&(lambda0_cons[0]))) {
-        return;
-      }
-      {
-        std::vector<double> z_L(nvars);
-	std::vector<double> z_U(nvars);
-	if(!prob->fill_dual_bounds_start(&(z_L[0]), &(z_U[0]))) {
-	  return;
-        }
-        for(int i=0; i<nvars; i++){
-          lambda0_bnds[i] = z_L[i] + z_U[i]; // either lower or upper bound is binding, not both at the same time
-        }
-      }
-      setLambdaInitial(lambda0);
-    }
-    
   }
 
+  virtual void setDualStartingPoint() {
+    // lambda contains both dual multipliers of constraints and bounds
+    // assumed order: (constraints, bounds) see https://www.artelys.com/docs/knitro/3_referenceManual/oldAPI.html?highlight=lambdainitial
+
+    int nvars = getNumVars();
+    int ncons = getNumCons();
+
+    std::vector<double> lambda0(ncons + nvars);
+    std::vector<double> lambda0_cons(lambda0.cbegin(), lambda0.cbegin()+ncons);
+    std::vector<double> lambda0_bnds(lambda0.cbegin()+ncons, lambda0.cbegin()+ncons+nvars);
+    if(!prob->fill_dual_cons_start(&(lambda0_cons[0]))) {
+      return;
+    }
+    std::vector<double> z_L(nvars);
+    std::vector<double> z_U(nvars);
+    if(!prob->fill_dual_bounds_start(&(z_L[0]), &(z_U[0]))) {
+      return;
+    }
+    for(int i=0; i<nvars; i++){
+      lambda0_bnds[i] = z_L[i] + z_U[i]; // either lower or upper bound is binding, not both at the same time
+    }
+    setLambdaInitial(lambda0);
+   
+  }
+  
+protected:
+  bool has_primal_start;
+  bool has_dual_start;
+  
 private:
   OptProblem* prob;
-
   KnitroNlp();
   KnitroNlp(const KnitroNlp&);
   KnitroNlp& operator=(const KnitroNlp&);
@@ -175,7 +188,17 @@ public:
     return true;
   }
 
-  virtual bool set_start_type(OptProblem::RestartType t) { return true;}
+  virtual bool set_start_type(OptProblem::RestartType t) {
+    if(t==OptProblem::primalDualRestart) {
+      knitro_nlp_spec->set_primal_start(true);
+      knitro_nlp_spec->set_dual_start(true);
+    }
+    else if(t==OptProblem::primalRestart) {
+      knitro_nlp_spec->set_primal_start(true);
+      knitro_nlp_spec->set_dual_start(false);
+    }
+    return true;
+  }
   
   virtual int optimize() {
     
@@ -219,7 +242,12 @@ public:
     
   }
 
-  virtual int reoptimize() { return optimize(); }
+  virtual int reoptimize() {
+    const std::vector<double>& x0 = knitro_nlp_spec->getXInitial();
+    const std::vector<double>& lambda0 = knitro_nlp_spec->getLambdaInitial();
+    app->restart(x0, lambda0);
+    return optimize();
+  }
   
   virtual bool set_option(const std::string& name, int value) {
     app->setParam(name, value);
@@ -237,7 +265,6 @@ public:
   };
   
 private:
-  gollnlp::OptProblem* prob;
   gollnlp::KnitroNlp* knitro_nlp_spec;
   knitro::KTRSolver* app;
 };

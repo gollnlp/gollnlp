@@ -106,6 +106,8 @@ int MyCode1::initialize(int argc, char *argv[])
     printf("error occured while reading instance\n");
     return false;
   }
+  
+  printf("[ph1] data read\n");
 
   phase3_initial_num_K_in_scacopf = (ScoringMethod==1 || ScoringMethod==3) ? 2 : 2;
   phase3_max_K_evals_to_wait_for = 1;//2*phase3_initial_num_K_in_scacopf;

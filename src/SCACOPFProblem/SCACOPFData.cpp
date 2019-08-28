@@ -440,6 +440,7 @@ readinstance(const std::string& raw, const std::string& rop, const std::string& 
   DSCAL(&n, &scale, G_q0.data(),  &one);
 
   // generators_l - ROP
+  printf("reading ROP \n");
 
   VVStr generatordsp, activedsptables;
   VInt costcurves_ltbl; VStr costcurves_label; VVDou costcurves_xi; VVDou costcurves_yi;
@@ -528,6 +529,8 @@ readinstance(const std::string& raw, const std::string& rop, const std::string& 
     //printvecvec(G_CostCi, "Ci");
     //printvec(G_q0);
   }
+  
+  printf("reading INL \n");
 
   // generators -- INL
   {
