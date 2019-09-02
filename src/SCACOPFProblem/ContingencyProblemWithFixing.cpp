@@ -416,10 +416,10 @@ namespace gollnlp {
 	} else if(dK.K_ConType[0] == SCACOPFData::kTransformer) {
 	  assert(b->id.find("_ti") != string::npos || b->id.find("_trans_") != string::npos);
 	  int i=0, i0=0;
-	  for(; i0<b->n; i0++) {
+	  for(; i0<b0->n; i0++) {
 	    if(i0 != dK.K_outidx[0]) {
 	      b->x[i] = b0->x[i0];
-	      i0++;
+	      i++;
 	    }
 	  }
 	  assert(i0 == b0->n);
@@ -578,7 +578,7 @@ namespace gollnlp {
 	assert(delta<=0);
       }
 
-      printf("aaaaaa delta2=%g delta1=%g P=%g\n", delta2, delta1, P_out);
+      //printf("aaaaaa delta2=%g delta1=%g P=%g\n", delta2, delta1, P_out);
 
       if( (Pispos && (delta1 < delta2 + 1e-6)) || (!Pispos && (delta1 > delta2 - 1e-6)))  {
 	//enough to cover for P
