@@ -334,6 +334,20 @@ void OptProblem::fill_vars_lower_bounds(double* lb)
 {
   
   for(auto b: vars_primal->vblocks) {
+    //cout << "----fill_vars_lower_bounds: " << b->id << endl;
+    // if(b->id == "pslack_n_p_balance_1") {
+    //   //printf("\n");
+    //   //for(int i=0; i<b->n; i++) {printf("%12.5e ", b->x[i]); b->x[i]=0.;}
+    //   //printf("\n");
+
+    //   int size=b->n;
+    //   double buf1[size], buf2[size];
+    //   for(int i=0; i<size; i++) buf1[i]=10.;
+      
+    //   DCOPY(&size, buf1, &ione, buf2, &ione);
+
+    //   printf("---%g %d\n", buf2[size/2], b->n);
+    // }
     DCOPY(&(b->n), b->lb, &ione, lb + b->index, &ione);
   }
 }
@@ -369,17 +383,6 @@ void OptProblem::set_duals_vars_bounds(const double* zL, const double* zU)
     assert(bdualU->n == b->n);
     memcpy(bdualL->x, zL + b->index, b->n*sizeof(double));
     memcpy(bdualU->x, zU + b->index, b->n*sizeof(double));
-    // for(int i=0; i<b->n; i++) {
-    //   if(b->lb[i]<=-1e20 && b->ub[i] >=1e+20) {
-    // 	bdual->x[i]=0.;
-    //   } else if(b->lb[i]<=-1e20) {
-    // 	bdual->x[i] = zU[b->index+i];
-    //   } else if(b->ub[i] >=1e+20) {
-    // 	bdual->x[i] = zL[b->index+i];
-    //   } else { 
-    // 	bdual->x[i] = max(zL[b->index+i], zU[b->index+i]);
-    //   }
-    // }
   }
 }
 
@@ -390,26 +393,6 @@ void OptProblem::fill_dual_vars_bounds(double* zL, double* zU)
     auto* bdualU = vars_duals_bounds_U->get_block(string("duals_bndU_") + b->id);
     DCOPY(&(b->n), bdualL->x, &ione, zL + b->index, &ione);
     DCOPY(&(b->n), bdualU->x, &ione, zU + b->index, &ione);
-    
-    // for(int i=0; i<b->n; i++) {
-    //   if(b->lb[i]<=-1e20 && b->ub[i] >=1e+20) {
-    // 	zL[b->index+i] = zU[b->index+i] = 0; assert(bdual->x[i]==0);
-    //   } else if(b->lb[i]<=-1e20) {
-    // 	zU[b->index+i] = bdual->x[i];
-    // 	zL[b->index+i] = 0.;
-    //   } else if(b->ub[i] >=1e+20) {
-    // 	zL[b->index+i] = bdual->x[i];
-    // 	zU[b->index+i] = 0.;
-    //   } else { 
-    // 	if( (b->x[i] - b->lb[i]) > (b->ub[i] - b->x[i]) ) {
-    // 	  zU[b->index+i] = bdual->x[i];
-    // 	  zL[b->index+i] = 0.;
-    // 	} else {
-    // 	  zL[b->index+i] = bdual->x[i];
-    // 	  zU[b->index+i] = 0.;
-    // 	}
-    //   }
-    // }
   }
 }
 
@@ -429,24 +412,6 @@ bool OptProblem::fill_dual_bounds_start(double* zL, double* zU)
 
     DCOPY(&(b->n), bdualL->x, &ione, zL + b->index, &ione);
     DCOPY(&(b->n), bdualU->x, &ione, zU + b->index, &ione);
-    // for(int i=0; i<b->n; i++) {
-    //   if(b->lb[i]<=-1e20 && b->ub[i] >=1e+20) {
-    // 	zL[b->index+i] = zU[b->index+i] = 0; assert(bdual->x[i]==0);
-    //   } else if(b->lb[i]<=-1e20) {
-    // 	zU[b->index+i] = bdual->x[i];
-    // 	zL[b->index+i] = 0.;
-    //   } else if(b->ub[i] >=1e+20) {
-    // 	zL[b->index+i] = bdual->x[i];
-    // 	zU[b->index+i] = 0.;
-    //   } else { 
-    // 	if( (b->x[i] - b->lb[i]) > (b->ub[i] - b->x[i]) ) {
-    // 	  zU[b->index+i] = bdual->x[i];
-    // 	  zL[b->index+i] = 0.;
-    // 	} else {
-    // 	  zL[b->index+i] = bdual->x[i];
-    // 	  zU[b->index+i] = 0.;
-    // 	}
-    //   }
   }  
   return true;
 }
@@ -773,7 +738,22 @@ void OptVariables::copy_from(const std::vector<double>& v)
     b->set_start_to(v.data() + b->index);
   }
 }
+void OptVariables::delete_block(const std::string& id)
+{
+  OptVariablesBlock* block = NULL;
+  auto it = mblocks.find(id);
+  if(it!=mblocks.end()) {
+    block =  it->second; 
+    mblocks.erase(it);
+  }
 
+  auto vit = find(vblocks.begin(), vblocks.end(), block);
+  if(block) { assert(vit!=vblocks.end()); }
+
+  if(vit != vblocks.end()) vblocks.erase(vit);
+
+  if(block) delete block;
+}
 
 OptVariablesBlock::OptVariablesBlock(const int& n_, const std::string& id_)
   : n(n_), id(id_), index(-1), xref(NULL), providesStartingPoint(false)
@@ -878,6 +858,23 @@ OptConstraintsBlock* OptConstraints::get_block(const std::string& id)
     //cerr << "constraints block " << id << " was not found" << endl;
     return NULL;
   }
+}
+
+void OptConstraints::delete_block(const std::string& id)
+{
+  OptConstraintsBlock* block = NULL;
+  auto it = mblocks.find(id);
+  if(it!=mblocks.end()) {
+    block =  it->second; 
+    mblocks.erase(it);
+  }
+
+  auto vit = find(vblocks.begin(), vblocks.end(), block);
+  if(block) { assert(vit!=vblocks.end()); }
+
+  if(vit != vblocks.end()) vblocks.erase(vit);
+
+  if(block) delete block;
 }
 
 bool OptConstraints::append_consblock(OptConstraintsBlock* b)

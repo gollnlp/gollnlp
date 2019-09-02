@@ -75,6 +75,8 @@ public:
     return NULL;
   }
 
+  void delete_block(const std::string& id);
+
   bool provides_start();
 
   inline void set_xref_to_x() 
@@ -284,6 +286,8 @@ class OptConstraints
     return  vblocks.size()>0 ? vblocks.back()->index + vblocks.back()->n : 0;
   }
 
+  void delete_block(const std::string& id);
+
   friend class OptProblem;
 private:
   // appends a new constraints block and sets his 'index'
@@ -331,6 +335,12 @@ public:
   { 
     obj->append_objterm(objterm);
   }
+  inline void append_duals_constraint(const std::string& constraint_id)
+  {
+    OptConstraintsBlock* con_block = constraints_block(constraint_id); assert(con_block);
+    if(con_block) 
+      vars_duals_cons->append_varsblock(new OptVariablesBlock(con_block->n, std::string("duals_") + con_block->id));
+  }
 
   inline OptConstraintsBlock* constraints_block(const std::string& id)
   {
@@ -363,6 +373,16 @@ public:
   inline OptObjectiveTerm* objterm(const std::string& id)
   {
     return obj->objterm(id);
+  }
+
+  inline void delete_constraint_block(const std::string& id)
+  {
+    cons->delete_block(id);
+  }
+
+  inline void delete_duals_constraint(const std::string& constraint_id)
+  {
+    vars_duals_cons->delete_block("duals_" + constraint_id);
   }
 
   //
