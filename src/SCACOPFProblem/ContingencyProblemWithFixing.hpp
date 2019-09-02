@@ -24,7 +24,8 @@ namespace gollnlp {
     {
       return ContingencyProblem::default_assembly(vn0, thetan0, bs0, pg0, qg0);
     }
-    virtual bool optimize(OptVariablesBlock* pg0, OptVariablesBlock* vn0, double& f);
+    virtual bool optimize(OptVariablesBlock* pg0, OptVariablesBlock* vn0, double& f, 
+			  std::vector<double>& sln);
 
   protected:
     bool add_cons_AGC_simplified(SCACOPFData& dB, 
@@ -79,6 +80,8 @@ namespace gollnlp {
     std::vector<int> solv1_pg0_partic_idxs, solv1_pgK_partic_idxs, solv1_pgK_nonpartic_idxs, solv1_pg0_nonpartic_idxs;
     double solv1_delta_out, solv1_delta_needed, solv1_delta_blocking, solv1_delta_lb, solv1_delta_ub, solv1_delta_optim;
     bool solv1_Pg_was_enough;
+
+    static double g_bounds_abuse;
   };
 
 } //end namespace

@@ -15,14 +15,16 @@ using namespace std;
 #define BE_VERBOSE
 
 namespace gollnlp {
-  
+
+  double ContingencyProblemWithFixing::g_bounds_abuse=9e-5;
+
   ContingencyProblemWithFixing::~ContingencyProblemWithFixing()
   {
   }
 
   bool ContingencyProblemWithFixing::default_assembly(OptVariablesBlock* pg0, OptVariablesBlock* vn0) 
   {
-    printf("ContProbWithFixing K_idx=%d: IDOut=%d outidx=%d Type=%s\n",
+    printf("ContProbWithFixing K_idx=%d IDOut=%d outidx=%d Type=%s\n",
 	   K_idx, data_sc.K_IDout[K_idx], data_sc.K_outidx[K_idx],
 	   data_sc.cont_type_string(K_idx).c_str()); fflush(stdout);
 
@@ -99,7 +101,7 @@ namespace gollnlp {
 	pgK->x[solv1_pgK_partic_idxs[it]] = pg0->x[i0]+data_sc.G_alpha[i0] * solv1_delta_out;
       }
 #ifdef BE_VERBOSE
-      printf("ContProbWithFixing K_idx=%d (gener): %g gen missing; fixed %d gens; deltas out=%g needed=%g blocking=%g "
+      printf("ContProbWithFixing K_idx=%d (gener) %g gen missing; fixed %d gens; deltas out=%g needed=%g blocking=%g "
 	     "residualPg=%g feasib=%d\n",
 	     gen_K_diff, K_idx, pg0_partic_idxs.size()-solv1_pg0_partic_idxs.size(),
 	     solv1_delta_out, solv1_delta_needed, solv1_delta_blocking, residual_Pg, solv1_Pg_was_enough);
@@ -165,21 +167,22 @@ namespace gollnlp {
   }
 
 
-  bool ContingencyProblemWithFixing::optimize(OptVariablesBlock* pg0, OptVariablesBlock* vn0, double& f)
+  bool ContingencyProblemWithFixing::optimize(OptVariablesBlock* pg0, OptVariablesBlock* vn0, double& f, vector<double>& sln)
   {
     goTimer tmrec; tmrec.start();
     SCACOPFData& d = *data_K[0];
- 
+
     assert(p_g0 == pg0); assert(v_n0 == vn0);
     p_g0 = pg0; v_n0=vn0;
 
     vector<int> hist_iter, hist_obj;
-    set_solver_option("mu_init", 1e-5);
+    set_solver_option("mu_init", 1e-4);
     if(!OptProblem::reoptimize(OptProblem::primalDualRestart)) {
-      printf("[warning] ContProbWithFixing K_idx=%d: opt1 failed\n"); 
-    }
+      printf("[warning] ContProbWithFixing K_idx=%d opt1 failed\n"); 
+    } else {
+      get_solution_simplicial_vectorized(sln);
+
 #ifdef DEBUG
-    {
       auto pgK = variable("p_g", d); assert(pgK!=NULL); 
       double delta=0.; assert(variable("delta", d));
       if(variable("delta", d)) {
@@ -187,17 +190,15 @@ namespace gollnlp {
 	
 	for(int i=0; i<pg0_partic_idxs.size(); i++) {
 	  const double gen = pg0->x[pg0_partic_idxs[i]] + delta * data_sc.G_alpha[pg0_partic_idxs[i]];
-	  //assert(gen <= Pub[pg0_partic_idxs[i]]);
-	  //assert(gen >= Plb[pg0_partic_idxs[i]]);
 	  if(gen >= data_sc.G_Pub[pg0_partic_idxs[i]]) 
 	    assert(fabs(pgK->x[pgK_partic_idxs[i]] - data_sc.G_Pub[pg0_partic_idxs[i]]) < 9e-5);
 	  if(gen <= data_sc.G_Plb[pg0_partic_idxs[i]]) 
 	    assert(fabs(pgK->x[pgK_partic_idxs[i]] - data_sc.G_Plb[pg0_partic_idxs[i]]) < 9e-5);
 	}
       }
-    }
-#endif
 
+#endif
+    }
 
     hist_iter.push_back(number_of_iterations());
     //objective value
@@ -211,13 +212,13 @@ namespace gollnlp {
  #ifdef BE_VERBOSE
       print_objterms_evals();
       //print_p_g_with_coupling_info(*data_K[0], pg0);
-      printf("ContProbWithFixing K_idx=%d: first pass resulted in high pen: delta=%g\n", K_idx, solv1_delta_optim);
+      printf("ContProbWithFixing K_idx=%d first pass resulted in high pen delta=%g\n", K_idx, solv1_delta_optim);
 #endif
 
       double pplus, pminus, poverall;
       estimate_active_power_deficit(pplus, pminus, poverall);
 #ifdef BE_VERBOSE
-      printf("ContProbWithFixing K_idx=%d (after solv1): act pow imbalances: p+ p- poveral %g %g %g\n",
+      printf("ContProbWithFixing K_idx=%d (after solv1) act pow imbalances p+ p- poveral %g %g %g\n",
 	     K_idx, pplus, pminus, poverall);
 #endif
 
@@ -259,6 +260,7 @@ namespace gollnlp {
  	bool bfeasib;
 
 	if(fabs(gen_K_diff)>1e-6) {
+	  //print_p_g_with_coupling_info(*data_K[0], pg0);
 	  bfeasib = push_and_fix_AGCgen(d, gen_K_diff, solv1_delta_optim, 
 					pg0_partic_idxs_u, pgK_partic_idxs_u, pg0_nonpartic_idxs_u, pgK_nonpartic_idxs_u,
 					pg0, pgK, 
@@ -271,7 +273,7 @@ namespace gollnlp {
 	    pgK->x[pgK_partic_idxs_u[it]] = pg0->x[i0]+data_sc.G_alpha[i0]*delta_out;
 	  }
 #ifdef BE_VERBOSE
-	  printf("ContProbWithFixing K_idx=%d (gener)(after solv1): fixed %d gens; adtl deltas out=%g needed=%g blocking=%g "
+	  printf("ContProbWithFixing K_idx=%d (gener)(after solv1) fixed %d gens; adtl deltas out=%g needed=%g blocking=%g "
 		 "residualPg=%g feasib=%d\n",
 		 K_idx, solv1_pg0_partic_idxs.size()-pg0_partic_idxs_u.size(),
 		 delta_out, delta_needed, delta_blocking, residual_Pg, bfeasib);
@@ -294,53 +296,58 @@ namespace gollnlp {
 	}
       }
 
-#define perturb 0.
       //testing
       {
 	auto v = variable("v_n", d);
 	for(int i=0; i<v->n; i++) {
-	  v->lb[i] = v->lb[i] - perturb;;
-	  v->ub[i] = v->ub[i] + perturb;
+	  v->lb[i] = v->lb[i] - g_bounds_abuse;
+	  v->ub[i] = v->ub[i] + g_bounds_abuse;
 	}
       }
-      {
+      if(true){
 	auto v = variable("q_g", d);
 	for(int i=0; i<v->n; i++) {
-	  v->lb[i] = v->lb[i] - perturb;;
-	  v->ub[i] = v->ub[i] + perturb;
+	  v->lb[i] = v->lb[i] - g_bounds_abuse;
+	  v->ub[i] = v->ub[i] + g_bounds_abuse;
 	}
       }
 
-      {
+      if(true){
 	auto v = variable("p_g", d);
 	for(int i=0; i<v->n; i++) {
-	  v->lb[i] = v->lb[i] - perturb;;
-	  v->ub[i] = v->ub[i] + perturb;
+	  v->lb[i] = v->lb[i] - g_bounds_abuse;
+	  v->ub[i] = v->ub[i] + g_bounds_abuse;
 	}
       }
 
       do_qgen_fixing_for_PVPQ(variable("v_n", d), variable("q_g", d));
 
-      
-
+#ifdef DEBUG
       if(!vars_duals_bounds_L->provides_start()) print_summary();
       
       assert(vars_duals_bounds_L->provides_start());
       assert(vars_duals_bounds_U->provides_start());
       assert(vars_duals_cons->provides_start());
+#endif
       
       if(!OptProblem::reoptimize(OptProblem::primalDualRestart)) {
-	printf("[warning] ContProbWithFixing K_idx=%d: opt1-2 failed\n"); 
+	printf("[warning] ContProbWithFixing K_idx=%d opt1-2 failed\n"); 
       }
       hist_iter.push_back(number_of_iterations());
       hist_obj.push_back(this->obj_value);
-      
+
+      assert(hist_iter.size()>=1);
+      assert(hist_obj.size()>=1);
+      if(hist_obj.back() < hist_obj[0]) {
+	get_solution_simplicial_vectorized(sln);
+      }
+
       if(this->obj_value>100) {
 	double delta_optim = variable("delta", d)->x[0];
 #ifdef BE_VERBOSE
 	print_objterms_evals();
 	//print_p_g_with_coupling_info(*data_K[0], pg0);
-	printf("ContProbWithFixing K_idx=%d:  pass 1-2 resulted in high pen: delta=%g\n", K_idx, delta_optim);
+	printf("ContProbWithFixing K_idx=%d  pass 1-2 resulted in high pen delta=%g\n", K_idx, delta_optim);
 #endif
       }  
     }
@@ -349,7 +356,7 @@ namespace gollnlp {
 #ifdef BE_VERBOSE
     string sit = "["; for(auto iter:  hist_iter) sit += to_string(iter)+'/'; sit[sit.size()-1] = ']';
     string sobj="["; for(auto obj: hist_obj) sobj += to_string(obj)+'/'; sobj[sobj.size()-1]=']';
-    printf("ContProbWithFixing K_idx=%d: optimize took %g sec - iters %s objs %s on rank=%d\n", 
+    printf("ContProbWithFixing K_idx=%d optimize took %g sec - iters %s objs %s on rank=%d\n", 
 	   K_idx, tmrec.getElapsedTime(), sit.c_str(), sobj.c_str(), my_rank);
     fflush(stdout);
 #endif
@@ -495,7 +502,7 @@ namespace gollnlp {
     assert(variable("p_g", dB));
 
     if(idxs0_AGC_particip.size()==0) {
-      printf("[warning] ContingencyProblemWithFixing: add_cons_AGC_simplified: NO gens participating !?! in contingency %d\n", dB.id);
+      printf("[warning] ContingencyProblemWithFixing add_cons_AGC_simplified: NO gens participating !?! in contingency %d\n", dB.id);
       return true;
     }
 
@@ -578,9 +585,10 @@ namespace gollnlp {
 	assert(delta<=0);
       }
 
-      //printf("aaaaaa delta2=%g delta1=%g P=%g\n", delta2, delta1, P_out);
+      printf("aaaaaa delta2=%g delta1=%g P=%g\n", delta2, delta1, P_out);
 
-      if( (Pispos && (delta1 < delta2 + 1e-6)) || (!Pispos && (delta1 > delta2 - 1e-6)))  {
+      //if( (Pispos && (delta1 < delta2 + 1e-6)) || (!Pispos && (delta1 > delta2 - 1e-6)))  {
+      if( (Pispos && (delta1 < delta2 )) || (!Pispos && (delta1 > delta2 )))  {
 	//enough to cover for P
 	delta = delta1 = delta_in+delta1; 
 	delta2 = delta_in+delta2; 
@@ -667,7 +675,7 @@ namespace gollnlp {
     SCACOPFData& dK = *data_K[0]; assert(dK.id-1 == K_idx);
     OptVariablesBlock* pgK = variable("p_g", dK);
     if(NULL==pgK) {
-      printf("[warning] ContingencyProblemWithFixing K_idx=%d: p_g var not found in contingency  "
+      printf("[warning] ContingencyProblemWithFixing K_idx=%d p_g var not found in contingency  "
 	     "problem; will not enforce non-ACG coupling constraints.\n", dK.id);
       return;
     }
@@ -819,10 +827,12 @@ namespace gollnlp {
 	  //strict complementarity -> fix q_gk     to Qlb               
           //printf("  fixing q_gk to Qlb;  lower bound for v_nk updated\n");
 
-	  vnk->lb[busidx] = v_n0->x[busidx]; 
-	  vnk->ub[busidx] = data_sc.N_EVub[busidx];
-	  for(int g : idxs_gen_agg[itpvpq])
-	    qgk->lb[g] = qgk->ub[g] = d.G_Qlb[g];
+	  vnk->lb[busidx] = v_n0->x[busidx] - g_bounds_abuse;; 
+	  vnk->ub[busidx] = data_sc.N_EVub[busidx] + g_bounds_abuse;
+	  for(int g : idxs_gen_agg[itpvpq]) {
+	    qgk->lb[g] =  d.G_Qlb[g] - g_bounds_abuse;
+	    qgk->ub[g] =  d.G_Qlb[g] + g_bounds_abuse;
+	  }
 	}  else {
 	  //degenerate complementarity 
 	  
@@ -831,10 +841,12 @@ namespace gollnlp {
 	  //  vnk->lb[busidx] = vnk->ub[busidx] = v_n0->x[busidx];
 	  //} else {
 	  //printf("  degenerate complementarity (q_g close to lower) at busidx=%d; will put q_g close to lower\n", busidx); 
-	  vnk->lb[busidx] = v_n0->x[busidx]; 
-	  vnk->ub[busidx] = data_sc.N_EVub[busidx];
-	  for(int g : idxs_gen_agg[itpvpq])
-	    qgk->lb[g] = qgk->ub[g] = d.G_Qlb[g];
+	  vnk->lb[busidx] = v_n0->x[busidx] - g_bounds_abuse; 
+	  vnk->ub[busidx] = data_sc.N_EVub[busidx] + g_bounds_abuse;
+	  for(int g : idxs_gen_agg[itpvpq]){
+	    qgk->lb[g] =  d.G_Qlb[g] - g_bounds_abuse;
+	    qgk->ub[g] =  d.G_Qlb[g] + g_bounds_abuse;
+	  }
 	  
 	}
       } else { // if(dist_upper <= rtol)
@@ -843,11 +855,13 @@ namespace gollnlp {
 	  //strict complementarity -> fix q_gk to Qub 
 	  //printf("  fixing q_gk to Qub;  upper bound for v_nk updated\n");
 	  
-	  vnk->ub[busidx] = v_n0->x[busidx]; 
-	  vnk->lb[busidx] = data_sc.N_EVlb[busidx];
+	  vnk->ub[busidx] = v_n0->x[busidx] + g_bounds_abuse; 
+	  vnk->lb[busidx] = data_sc.N_EVlb[busidx] - g_bounds_abuse;
 
-	  for(int g : idxs_gen_agg[itpvpq]) 
-	    qgk->lb[g] = qgk->ub[g] = d.G_Qub[g];
+	  for(int g : idxs_gen_agg[itpvpq]) {
+	    qgk->lb[g] = d.G_Qub[g] - g_bounds_abuse;
+	    qgk->ub[g] = d.G_Qub[g] + g_bounds_abuse;
+	  }
 	} else {
 	  //degenerate complementarity 
 	  
@@ -857,10 +871,12 @@ namespace gollnlp {
 	  //    vnk->lb[busidx] = vnk->ub[busidx] = v_n0->x[busidx];
 	  //  } else {
 	  //printf("  degenerate complementarity (q_g close to upper) at busidx=%d; will put q_g to the upper\n", busidx); 
-	  vnk->ub[busidx] = v_n0->x[busidx]; 
-	  vnk->lb[busidx] = data_sc.N_EVlb[busidx];
-	  for(int g : idxs_gen_agg[itpvpq])
-	    qgk->lb[g] = qgk->ub[g] = d.G_Qub[g];
+	  vnk->ub[busidx] = v_n0->x[busidx] + g_bounds_abuse; 
+	  vnk->lb[busidx] = data_sc.N_EVlb[busidx] - g_bounds_abuse;
+	  for(int g : idxs_gen_agg[itpvpq]){
+	    qgk->lb[g] = d.G_Qub[g] - g_bounds_abuse;
+	    qgk->ub[g] = d.G_Qub[g] + g_bounds_abuse;
+	  }
 	}
       }
       
