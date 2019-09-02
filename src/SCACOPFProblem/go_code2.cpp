@@ -97,7 +97,7 @@ int MyCode2::initialize(int argc, char *argv[])
 
   K_Contingency = data.K_Contingency;
   //!
-  //K_Contingency = {530, 110, 702, 863, 19, 790, 495};//208, 154, 415, 461, 789, 368, 494, 748, 57, 1000, 817, 626, 576, 324, 913, 959, 248, 289, 209, 495, 416, 790, 155, 19, 749};//494, 495, 702, 749};
+  //K_Contingency = {530, 110, 702, 863, 106, 101};//208, 154, 415, 461, 789, 368, 494, 748, 57, 1000, 817, 626, 576, 324, 913, 959, 248, 289, 209, 495, 416, 790, 155, 19, 749};//494, 495, 702, 749};
   //K_Contingency = {106, 101,  102,  110,  249,  344,  394,  816,  817, 55, 497, 0, 1, 2, 3, 4, 5, 6,7,8,9,10, 15,16,17,18,19};
 //{1,2, 101, 106, 497, 816, 817};
 
@@ -178,6 +178,9 @@ int MyCode2::go()
 	assert(MPI_SUCCESS == ierr);
 	req_send_Ksln.push_back(req_send_sol);
     }
+
+    //delete ReqKSln* req_send_sol that completed (relevant on workers)
+    attempt_cleanup_req_send_Ksln();
 
     //master checks receive of contingency solution
     if(my_rank == rank_master) {
@@ -460,6 +463,8 @@ int MyCode2::go()
     }
   }
 
+  
+
   //write solution2.txt
   if(iAmMaster) {
     bool writing_done = attempt_write_solution2(vvslns);
@@ -467,6 +472,8 @@ int MyCode2::go()
       printf("[warning] couldn't write all contingency solutions; some are missing from vvslns\n");
     else 
       printf("writing of 'solution2.txt' completed\n");
+  } else {
+    attempt_cleanup_req_send_Ksln();
   }
 
   // final message
@@ -785,3 +792,24 @@ bool MyCode2::attempt_write_solution2(std::vector<std::vector<double> >& vvsols)
   return false;
 }
 
+
+void MyCode2::attempt_cleanup_req_send_Ksln()
+{
+  bool done=false; int mpi_test_flag, ierr; MPI_Status mpi_status;
+  while(!done) {
+    vector<ReqKSln*>::iterator it = req_send_Ksln.begin();
+    for(;it!=req_send_Ksln.end(); ++it) {
+      ReqKSln* req_sln = (*it);
+      const int ierr = MPI_Test(&(req_sln->request), &mpi_test_flag, &mpi_status);
+      if(mpi_test_flag != 0) {
+	//completed
+	delete req_sln;
+	req_send_Ksln.erase(it);
+	break;
+      }
+    }
+    if(it==req_send_Ksln.end()) done=true;
+  }
+}
+
+ 

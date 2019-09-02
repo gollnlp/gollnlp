@@ -46,6 +46,8 @@ private:
   std::vector<std::vector<ReqKSln*> > req_recv_Ksln;
   //on slave ranks
   std::vector<ReqKSln*> req_send_Ksln;
+  void attempt_cleanup_req_send_Ksln();
+  
 
   struct ReqKidx
   {
@@ -82,6 +84,7 @@ private:
   int size_sol_block;
 
   void read_solution1();
+
 private:
   std::string InFile1, InFile2, InFile3, InFile4;
   double TimeLimitInSec;
