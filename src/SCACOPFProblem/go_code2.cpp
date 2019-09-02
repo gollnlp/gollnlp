@@ -97,6 +97,7 @@ int MyCode2::initialize(int argc, char *argv[])
 
   K_Contingency = data.K_Contingency;
   //!
+  //K_Contingency = {2488,1572, 1057};
   //K_Contingency = {530, 110, 702, 863, 106, 101};//208, 154, 415, 461, 789, 368, 494, 748, 57, 1000, 817, 626, 576, 324, 913, 959, 248, 289, 209, 495, 416, 790, 155, 19, 749};//494, 495, 702, 749};
   //K_Contingency = {106, 101,  102,  110,  249,  344,  394,  816,  817, 55, 497, 0, 1, 2, 3, 4, 5, 6,7,8,9,10, 15,16,17,18,19};
 //{1,2, 101, 106, 497, 816, 817};
@@ -553,8 +554,8 @@ bool MyCode2::solve_contingency(int K_idx, std::vector<double>& sln)
   int status;
   ContingencyProblemWithFixing prob(data, K_idx, my_rank, dict_basecase_vars);
 
-  prob.update_AGC_smoothing_param(1e-4);
-  prob.update_PVPQ_smoothing_param(1e-4);
+  //prob.update_AGC_smoothing_param(1e-4);
+  //prob.update_PVPQ_smoothing_param(1e-4);
 
 
   //prob.reg_vn = true;
@@ -577,7 +578,7 @@ bool MyCode2::solve_contingency(int K_idx, std::vector<double>& sln)
   //}
 
   prob.use_nlp_solver("ipopt");
-  prob.set_solver_option("print_frequency_iter", 25);
+  prob.set_solver_option("print_frequency_iter", 5);
   prob.set_solver_option("linear_solver", "ma57"); 
   prob.set_solver_option("print_level", 2);
   //prob.set_solver_option("mu_target", 1e-10);
@@ -593,104 +594,19 @@ bool MyCode2::solve_contingency(int K_idx, std::vector<double>& sln)
   prob.set_solver_option("bound_relax_factor", 0.);
   prob.set_solver_option("bound_push", 1e-16);
   prob.set_solver_option("slack_bound_push", 1e-16);
-  prob.set_solver_option("mu_linear_decrease_factor", 0.4);
-  prob.set_solver_option("mu_superlinear_decrease_power", 1.25);
+  prob.set_solver_option("mu_linear_decrease_factor", 0.3);
+  prob.set_solver_option("mu_superlinear_decrease_power", 1.4);
 
 
   double penalty;
-  if(!prob.optimize(p_g0(), v_n0(), penalty)) {
+  if(!prob.optimize(p_g0(), v_n0(), penalty, sln)) {
     printf("Evaluator Rank %d failed in the evaluation of contingency K_idx=%d\n",
 	   my_rank, K_idx);
     status = -3;
     return false;
   }
 
-
-
-//   if(penalty>100)
-//     prob.print_objterms_evals();
-//   int numiter1 =  prob.number_of_iterations();
-
-//   /////////////////////////////////////////
-// if(false)
-// {
-
-//   prob.set_solver_option("print_frequency_iter", 11);
-//   prob.set_solver_option("mu_init", 1e-4);
-
-//   prob.update_AGC_smoothing_param(1e-8);
-//   prob.update_PVPQ_smoothing_param(1e-8);
-
-//   if(!prob.reoptimize(OptProblem::primalDualRestart)) {
-//     printf("Evaluator Rank %d failed in the evaluation 2 of contingency K_idx=%d\n",
-// 	   my_rank, K_idx);
-//     status = -3;
-//     return false;
-//   }
-
-//   penalty = prob.objective_value();
-//   if(penalty>100)
-//     prob.print_objterms_evals();
-  
-// }
-
-//   if(true) {
-
-//   prob.set_solver_option("mu_init", 1e-5);
-
-//   prob.update_AGC_smoothing_param(1e-10);
-//   prob.update_PVPQ_smoothing_param(1e-10);
-
-//   if(!prob.reoptimize(OptProblem::primalDualRestart)) {
-//     printf("Evaluator Rank %d failed in the evaluation 2 of contingency K_idx=%d\n",
-// 	   my_rank, K_idx);
-//     status = -3;
-//     return false;
-//   }
-
-//   penalty = prob.objective_value();
-//   if(penalty>100)
-//     prob.print_objterms_evals();
-
-//   }
-
-// if(false) {
-//   prob.set_solver_option("mu_init", 1e-5);
-
-//   prob.update_AGC_smoothing_param(1e-6);
-//   prob.update_PVPQ_smoothing_param(1e-6);
-
-//   if(!prob.reoptimize(OptProblem::primalDualRestart)) {
-//     printf("Evaluator Rank %d failed in the evaluation 2 of contingency K_idx=%d\n",
-// 	   my_rank, K_idx);
-//     status = -3;
-//     return false;
-  
-//   penalty = prob.objective_value();
-//   if(penalty>100)
-//     prob.print_objterms_evals();
-//   }
-
-//   prob.set_solver_option("mu_init", 1e-5);
-
-//   prob.update_AGC_smoothing_param(1e-7);
-//   prob.update_PVPQ_smoothing_param(1e-7);
-
-//   if(!prob.reoptimize(OptProblem::primalDualRestart)) {
-//     printf("Evaluator Rank %d failed in the evaluation 2 of contingency K_idx=%d\n",
-// 	   my_rank, K_idx);
-//     status = -3;
-//     return false;
-//   }
-//   penalty = prob.objective_value();
-//   if(penalty>100)
-//     prob.print_objterms_evals();
-
-
-//     }
-
-
-  prob.get_solution_simplicial_vectorized(sln);
+  //prob.get_solution_simplicial_vectorized(sln);
   assert(size_sol_block == sln.size());
 
   //prob.print_p_g_with_coupling_info(*prob.data_K[0], p_g0);
