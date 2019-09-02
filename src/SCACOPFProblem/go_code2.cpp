@@ -97,7 +97,7 @@ int MyCode2::initialize(int argc, char *argv[])
 
   K_Contingency = data.K_Contingency;
   //!
-  //K_Contingency = {101, 102, 106, 344 };
+  //K_Contingency = {530, 110, 702, 863, 19, 790, 495};//208, 154, 415, 461, 789, 368, 494, 748, 57, 1000, 817, 626, 576, 324, 913, 959, 248, 289, 209, 495, 416, 790, 155, 19, 749};//494, 495, 702, 749};
   //K_Contingency = {106, 101,  102,  110,  249,  344,  394,  816,  817, 55, 497, 0, 1, 2, 3, 4, 5, 6,7,8,9,10, 15,16,17,18,19};
 //{1,2, 101, 106, 497, 816, 817};
 
@@ -541,13 +541,13 @@ void MyCode2::initial_K_distribution()
 bool MyCode2::solve_contingency(int K_idx, std::vector<double>& sln)
 {
 
+
   goTimer t; t.start();
   int status;
   ContingencyProblemWithFixing prob(data, K_idx, my_rank, dict_basecase_vars);
 
   prob.update_AGC_smoothing_param(1e-4);
   prob.update_PVPQ_smoothing_param(1e-4);
-
 
 
   //prob.reg_vn = true;
@@ -572,7 +572,7 @@ bool MyCode2::solve_contingency(int K_idx, std::vector<double>& sln)
   prob.use_nlp_solver("ipopt");
   prob.set_solver_option("print_frequency_iter", 25);
   prob.set_solver_option("linear_solver", "ma57"); 
-  prob.set_solver_option("print_level", 5);
+  prob.set_solver_option("print_level", 2);
   //prob.set_solver_option("mu_target", 1e-10);
 
   //return if it takes too long in phase2
