@@ -25,10 +25,10 @@ NonAnticipCons::NonAnticipCons(const std::string& id_, int numcons,
   memcpy(idxK, idxK_.data(), numcons*sizeof(int));
 
   //rhs of this block
-  lb = new double[n];
+  //lb = new double[n];
   for(int i=0; i<n; i++) lb[i] = 0.; 
   
-  ub = new double[n];
+  //ub = new double[n];
   DCOPY(&n, lb, &ione, ub, &ione);
 }
 
@@ -129,7 +129,8 @@ AGCSimpleCons::AGCSimpleCons(const std::string& id_, int numcons,
   idxK = new int[dim];
   memcpy(idxK, idxK_.data(), dim*sizeof(int));
 
-  ub = new double[n];
+  assert(numcons==n);
+  //ub = new double[n];
   for(int i=0; i<n; i++) ub[i] = 0.;  
   DCOPY(&n, ub, &ione, lb, &ione);
 }
@@ -335,8 +336,8 @@ AGCComplementarityCons(const std::string& id_, int numcons,
   DAXPY(&dim, &dminusone, Plb, &ione, gb, &ione);
 
   //rhs of this constraints block
-  assert(r>=0);
-  ub = new double[n];
+  assert(r>=0);   assert(numcons==n);
+  //ub = new double[n];
   for(int i=0; i<n/3; i++) ub[i] = 0.;
   for(int i=n/3; i<n; i++) ub[i] = r;
   
@@ -344,7 +345,8 @@ AGCComplementarityCons(const std::string& id_, int numcons,
   //assert(r>0); 
   //for(int i=n/3; i<n; ) { ub[i++] = -r; ub[i++] = r;}
   
-  lb = new double[n];
+
+  //lb = new double[n];
   if(r==0)
     DCOPY(&n, ub, &ione, lb, &ione);
   else {
@@ -700,12 +702,13 @@ PVPQComplementarityCons(const std::string& id_, int numcons,
   DAXPY(&nbus, &dminusone, Qlb, &ione, gb, &ione);
 
   //rhs of this constraints block
-  assert(r>=0);
-  ub = new double[n];
+  assert(r>=0); assert(numcons==n);
+  //ub = new double[n];
   for(int i=0; i<n/3; i++) ub[i] = 0.;
   for(int i=n/3; i<n; i++) ub[i] = r; 
   
-  lb = new double[n];
+  assert(numcons==n);
+  //lb = new double[n];
   if(r==0)
     DCOPY(&n, ub, &ione, lb, &ione);
   else {

@@ -65,6 +65,7 @@ QuadrRegularizationObjTerm::~QuadrRegularizationObjTerm()
 {
   delete [] x0;
   delete [] a;
+  delete [] H_nz_idxs;
 }
 
 bool QuadrRegularizationObjTerm::eval_f(const OptVariables& vars, bool new_x, double& obj_val)
