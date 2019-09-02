@@ -606,7 +606,7 @@ namespace gollnlp {
 
 	//find blocking G indexes
 	vector<int> idxs0_to_remove, idxsK_to_remove; //participating idxs to remove
-	if(Pispos) { assert(delta2>0);
+	if(Pispos) { assert(delta2>=0);
 	  for(int it=0; it<idxs0_AGCparticip.size(); it++) {
 	    const int &i0=idxs0_AGCparticip[it], &iK = idxsK_AGCparticip[it];
 	    dist = Pub[i0] - pgK->x[iK]; assert(dist>=0);
@@ -620,7 +620,7 @@ namespace gollnlp {
 	      pgK->x[iK]  = Pub[i0];
 	    }
 	  }
-	} else { assert(P_out<0); assert(delta2<0);
+	} else { assert(P_out<0); assert(delta2<=0);
 	  for(int it=0; it<idxs0_AGCparticip.size(); it++) {
 	    const int &i0=idxs0_AGCparticip[it], &iK = idxsK_AGCparticip[it];
 	    dist = pg0->x[i0] - Plb[i0]; assert(dist>=0);

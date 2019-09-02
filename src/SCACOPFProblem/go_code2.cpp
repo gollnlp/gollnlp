@@ -97,7 +97,11 @@ int MyCode2::initialize(int argc, char *argv[])
 
   K_Contingency = data.K_Contingency;
   //!
-  //K_Contingency = {2488,1572, 1057};
+  //K_Contingency = {5269};
+  //net15 
+
+  //K_Contingency = {2488,1572, 1057}; //net83
+ 
   //K_Contingency = {530, 110, 702, 863, 106, 101};//208, 154, 415, 461, 789, 368, 494, 748, 57, 1000, 817, 626, 576, 324, 913, 959, 248, 289, 209, 495, 416, 790, 155, 19, 749};//494, 495, 702, 749};
   //K_Contingency = {106, 101,  102,  110,  249,  344,  394,  816,  817, 55, 497, 0, 1, 2, 3, 4, 5, 6,7,8,9,10, 15,16,17,18,19};
 //{1,2, 101, 106, 497, 816, 817};
@@ -608,12 +612,11 @@ bool MyCode2::solve_contingency(int K_idx, std::vector<double>& sln)
 
   //prob.get_solution_simplicial_vectorized(sln);
   assert(size_sol_block == sln.size());
+  sln.push_back((double)K_idx);
 
   //prob.print_p_g_with_coupling_info(*prob.data_K[0], p_g0);
   //prob.print_PVPQ_info(*prob.data_K[0], v_n0);
 
-
-  sln.push_back((double)K_idx);
   //printf("Evaluator Rank %3d K_idx=%d finished with penalty %12.3f "
   //	 "in %5.3f sec and %3d/%3d iterations  global time %g \n",
   //	 my_rank, K_idx, penalty, t.stop(), 
