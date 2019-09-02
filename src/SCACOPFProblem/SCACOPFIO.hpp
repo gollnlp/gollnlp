@@ -2,8 +2,9 @@
 #define SCACOPF_IO
 
 #include "SCACOPFProblem.hpp"
-
 #include "SCACOPFData.hpp"
+
+#include <unordered_map>
 
 #include <cstring>
 
@@ -47,7 +48,14 @@ namespace gollnlp {
       fclose(file);
     }
 
+    static
+    void write_variable_block(OptVariablesBlock* var, SCACOPFData& data, FILE* file);
+    
 
+    //will read from "solution_b_pd.txt"
+    static
+    void read_variables_blocks(SCACOPFData& data, 
+			       std::unordered_map<std::string, OptVariablesBlock*>& map_basecase_vars);
     // static 
     // void write_append_solution_block(OptVariablesBlock* v_n, OptVariablesBlock* theta_n, 
     // 				     OptVariablesBlock* b_s,

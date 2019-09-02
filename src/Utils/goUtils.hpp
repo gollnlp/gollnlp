@@ -1,5 +1,6 @@
 #ifndef GOLLNLP_UTILS
 #define GOLLNLP_UTILS
+
 #include <string>
 #include <fstream>
 #include <sstream>
@@ -204,11 +205,19 @@ template<class T> std::vector<T> selectfrom(const T* v, int v_size, const std::v
   return ret;
 }
 
-
 //j=max(i,j) and returns min(i,j)
 inline int uppertr_swap(const int& i, int& j, int& aux) {
   if(i>j) { aux=j; j=i; return aux; } return i;
 }  
+
+#ifdef DEBUG
+static double diff_two_norm(int n, const double* v1, const double* v2)
+{
+  double diff=0.;
+  for(int i=0; i<n; i++) diff += (v1[i]-v2[i])*(v1[i]-v2[i]);
+  return sqrt(diff);
+}
+#endif
 
 }//end namespace
 #endif

@@ -40,8 +40,10 @@ namespace gollnlp {
     //add block for contingency K_idx
     virtual bool add_contingency_block(const int K_idx);
     virtual bool has_contigency(const int K_idx);
+    
+    // contingencies considered in the SCACOPF; returns idx in data.K_Contingency
+    virtual std::vector<int> get_contingencies() const;
 
-    virtual void add_agc_reserves();
 
     //add reserve constraints on AGC so that AGC generators can ramp up and down to the largest 
     //power loss and gain (among all generator contingencies in each area). 
@@ -56,6 +58,25 @@ namespace gollnlp {
     //       sum(pg[i]-Plb[i]: i in AGC) - max_gain + sminus >=0 
     //       sminus >=0  and a quadratic penalty obj term on sminus
     virtual void add_agc_reserves_for_max_Lloss_Ugain();
+
+    //same as above but the power loss 'max_loss' or the power gain 'max_gain'
+    //is actually the active generation pg[Kgen_idx]
+    virtual void add_agc_reserves();
+
+    //vector of Kgen idxs for which there appears to be insufficient active power contingency
+    //response from the participating AGC generators even in the most optimistic case (AGC
+    //gens can respond at full capacity and the Kgen is at lower (for loss) or upper (for 
+    //gain/injection) limit
+    //
+    //essentially  returns Kgen K_idxs (indexes in data.K_Contingency) for which the Kgen
+    // i. power loss situation
+    //   Glb[Kgen_idx] > sum {Gub[gidx]-Glb[gidx] : gidx in responding AGC} 
+    // ii. power gain/injection situation
+    //  -Gub[Kgen_idx] > sum {Gub[gidx]-Glb[gidx] : gidx in responding AGC} 
+    //
+    // the second vector is of the corresponding K_idxs
+    virtual void find_AGC_infeasible_Kgens(std::vector<int>& agc_infeas_gen_idxs, 
+					   std::vector<int>& agc_infeas_K_idxs);
 
     //controllers of how AGC and PVPQ constraints are enforced
     inline void set_AGC_as_nonanticip(bool onOrOff)
@@ -191,7 +212,7 @@ namespace gollnlp {
     //printing
     void print_p_g(SCACOPFData& dB);
     void print_p_g_with_coupling_info(SCACOPFData& dB, OptVariablesBlock* p_g0=NULL);
-    void print_PVPQ_info(SCACOPFData& dB);
+    void print_PVPQ_info(SCACOPFData& dB, OptVariablesBlock* v_n0=NULL);
     void print_Transf_powers(SCACOPFData& dB, bool SysCond_BaseCase = true);
 
     void print_active_power_balance_info(SCACOPFData& dB);
@@ -200,6 +221,7 @@ namespace gollnlp {
     void print_line_limits_info(SCACOPFData& dB);
     void print_transf_limits_info(SCACOPFData& dB);
     void write_solution_basecase();
+    void write_pridua_solution_basecase();
     void write_solution_extras_basecase();
   }; // end of SCACOPFProblem
 

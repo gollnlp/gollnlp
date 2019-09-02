@@ -50,24 +50,7 @@ bool SCACOPFProblem::default_assembly()
   //d.L_RateBase : d.L_RateEmer;
   for(int it=0; it<sz; it++) {
     r_emer = L_rate_reduction * d.L_RateEmer[it];
-    r_base = 0.95              * d.L_RateBase[it];
-    
-    //  1335  | -8.50053e-01 -6.41836e-02  5.09936e-09      8.57096e-01  7.84821e-02  5.09936e-09  |  1190      1351
-    //  1524  | -2.89706e+00  6.02566e-01  5.09936e-09      2.89906e+00 -6.03902e-01  5.09936e-09  |  1541      1542
-    //  1591  | -2.40693e+00  2.29775e-01  5.09937e-09      2.40923e+00 -2.40703e-01  5.10062e-09  |  1655      1660
-
-
-    //if(it==1335 || it==1591 || it==1524) {
-    if(false) {
- 
-        printf("aggresively reducing rate for line idx %d (frombusid, tobusid)=(%d,%d)\n",
-      	     it, d.L_From[it], d.L_To[it]);
-      
-        r_emer = 0.1*d.L_RateEmer[it];
-        r_base = d.L_RateBase[it];
-      }
-    
-
+    r_base = 0.99             * d.L_RateBase[it];
     rate[it] = r_emer < r_base ? r_emer : r_base;
   }
   add_cons_thermal_li_lims(d, rate);
@@ -76,7 +59,7 @@ bool SCACOPFProblem::default_assembly()
   //d.L_RateBase : d.L_RateEmer;
   for(int it=0; it<sz; it++) {
     r_emer = T_rate_reduction * d.T_RateEmer[it];
-    r_base = 0.95              * d.T_RateBase[it];
+    r_base = 0.99              * d.T_RateBase[it];
     rate[it] = r_emer < r_base ? r_emer : r_base;
   }
   add_cons_thermal_ti_lims(d, rate);
@@ -98,33 +81,6 @@ bool SCACOPFProblem::default_assembly()
 					   variable("p_ti1", d), variable("q_ti1", d), 
 					   variable("p_ti2", d), variable("q_ti2", d)));
 
-
-  // //gplto->add_linear_penalty(48, d.G_Pub[48], 275485./d.K_Contingency.size(), d.G_Plb[48], d.G_Pub[48]);
-  // //gplto->add_linear_penalty(49, d.G_Pub[49], 414394./d.K_Contingency.size(), d.G_Plb[49], d.G_Pub[49]);
-  // gplto->add_quadr_penalty(48, d.G_Pub[48], 275485./d.K_Contingency.size(), d.G_Plb[48], d.G_Pub[48]);
-  // gplto->add_quadr_penalty(49, d.G_Pub[49], 414394./d.K_Contingency.size(), d.G_Plb[49], d.G_Pub[49]);
-  // gplto->add_quadr_penalty(62, 3.00416e+00, 192224./d.K_Contingency.size(), d.G_Plb[62], d.G_Pub[62]);
-  // //gplto->add_quadr_penalty( 2, 3.00416e+00, 192224./d.K_Contingency.size(), d.G_Plb[ 2], d.G_Pub[ 2]);
-
-  // //if(false) 
-  // {
-  // //  1335  | -8.50053e-01 -6.41836e-02  5.09936e-09      8.57096e-01  7.84821e-02  5.09936e-09  |  1190      1351
-  // //  1524  | -2.89706e+00  6.02566e-01  5.09936e-09      2.89906e+00 -6.03902e-01  5.09936e-09  |  1541      1542
-  // //  1591  | -2.40693e+00  2.29775e-01  5.09937e-09      2.40923e+00 -2.40703e-01  5.10062e-09  |  1655      1660
-  // //   822  |  2.30881e+00 -2.75296e-01  5.09936e-09     -2.30843e+00  2.79268e-01  5.09936e-09  |   805       806
-  // //   823  |  2.30843e+00 -2.79268e-01  5.09936e-09     -2.27914e+00  3.71432e-01  5.09936e-09  |   806       826
-
-  // TransmKPenaltyObjTerm* tplto=new TransmKPenaltyObjTerm("penalty_line_from_conting",
-  // 							 variable("p_li1", d), variable("q_li1", d), 
-  // 							 variable("p_li2", d), variable("q_li2", d));
-  // append_objterm(tplto);
-  // tplto->add_penalty(1335, -8.50053e-01, -6.41836e-02,  8.57096e-01,  7.84821e-02, 1.644216e+05/d.K_Contingency.size());
-  // tplto->add_penalty(1524, -2.89706e+00,  6.02566e-01,  2.89906e+00, -6.03902e-01, 2*1.226449e+05/d.K_Contingency.size());
-  // tplto->add_penalty(1591, -2.40693e+00,  2.29775e-01,  2.40923e+00, -2.40703e-01, 1.977436e+05/d.K_Contingency.size());
-  // tplto->add_penalty( 822,  2.30881e+00, -2.75296e-01, -2.30843e+00,  2.79268e-01, 1.749165e+05/d.K_Contingency.size());
-
-  // }
-
   add_agc_reserves_for_max_Lloss_Ugain();
   add_agc_reserves();
   return true;
@@ -140,30 +96,6 @@ bool SCACOPFProblem::assembly(const std::vector<int>& K_Cont)
 
   for(auto K : K_Cont) {
     add_contingency_block(K);
-
-    // data_K.push_back(new SCACOPFData(data_sc));
-    // SCACOPFData& dK = *(data_K).back(); //shortcut
-    // dK.rebuild_for_conting(K,nK);
-
-    // dK.PenaltyWeight = (1-d.DELTA) / nK;
-
-    // printf("adding blocks for contingency K=%d IDOut=%d outidx=%d Type=%s\n", 
-    // 	   K, d.K_IDout[K], d.K_outidx[K], d.cont_type_string(K).c_str());
-
-    // bool SysCond_BaseCase = false;
-
-    // add_variables(dK, SysCond_BaseCase);
-    // add_cons_lines_pf(dK);
-    // add_cons_transformers_pf(dK);
-    // add_cons_active_powbal(dK);
-    // add_cons_reactive_powbal(dK);
-
-    // add_cons_thermal_li_lims(dK,SysCond_BaseCase);
-    // add_cons_thermal_ti_lims(dK,SysCond_BaseCase);
-
-    // //coupling AGC and PVPQ; also creates delta_k
-    // add_cons_coupling(dK);
-
   }
   //print_summary();
   return true;
@@ -177,8 +109,15 @@ bool SCACOPFProblem::add_contingency_block(const int K)
   SCACOPFData& dK = *(data_K).back(); //shortcut
   dK.rebuild_for_conting(K,1);
 
-  printf("adding blocks for contingency K=%d IDOut=%d outidx=%d Type=%s\n", 
-	 K, d.K_IDout[K], d.K_outidx[K], d.cont_type_string(K).c_str());
+  //
+  // update penalties for the problem
+  double new_penalty_weight = (1-d.DELTA) / data_K.size();
+  //double new_penalty_weight = (1-d.DELTA) / data_sc.K_Contingency.size();
+  for(SCACOPFData* d : data_K) d->PenaltyWeight=new_penalty_weight;
+
+  printf("adding blocks for contingency K=%d IDOut=%d outidx=%d Type=%s agc=%g pvpq=%g\n", 
+	 K, d.K_IDout[K], d.K_outidx[K], d.cont_type_string(K).c_str(),
+	 AGCSmoothing, PVPQSmoothing);
   
   bool SysCond_BaseCase = false;
 
@@ -194,10 +133,7 @@ bool SCACOPFProblem::add_contingency_block(const int K)
   //coupling AGC and PVPQ; also creates delta_k
   add_cons_coupling(dK);
   
-  //
-  //finally -> update penalties for the problem
-  double new_penalty_weight = (1-d.DELTA) / data_K.size();
-  for(SCACOPFData* d : data_K) d->PenaltyWeight=new_penalty_weight;
+
 
   return true;
 }
@@ -210,6 +146,14 @@ bool SCACOPFProblem::has_contigency(const int K_idx)
       return true;
     }
   return false;
+}
+
+std::vector<int> SCACOPFProblem::get_contingencies() const
+{
+  vector<int> v (data_K.size());
+  for(int i=0; i<data_K.size(); i++)
+    v[i] = data_K[i]->id-1;
+  return v;
 }
 
 void SCACOPFProblem::add_cons_coupling(SCACOPFData& dB)
@@ -634,8 +578,7 @@ void SCACOPFProblem::add_agc_reserves()
     for(int kgi=0; kgi<max_num_Kgen; kgi++) {
       int Kgen_idx = K_gens_idxs_area_sorted[kgi];
 
-      //if(Kgen_idx != 49) continue; //aaa
-
+      //power injection - skip
       if(d.G_Pub[Kgen_idx]<=0) continue;
 
       //remove Kgen from AGC in case it is in there
@@ -694,8 +637,7 @@ void SCACOPFProblem::add_agc_reserves()
 
     this->append_constraints(loss_rsrv);
 #ifdef DEBUG
-    printf(" -- added %d AGC loss reserve constraints for contingencies ", loss_rsrv->n);
-    //printvec(Kidxs_agc_loss_cons, "K_idxs");
+    printf(" -- added %d AGC loss reserves for contingencies\n", loss_rsrv->n);
 #endif
 
 
@@ -715,7 +657,7 @@ void SCACOPFProblem::add_agc_reserves()
 
     this->append_constraints(gain_rsrv);
 #ifdef DEBUG
-    printf(" -- added %d AGC gain reserve constraints for contingencies ", gain_rsrv->n);
+    printf(" -- added %d AGC gain reserves for contingencies\n", gain_rsrv->n);
     //printvec(Kidxs_agc_gain_cons, "K_idxs");
 #endif
 
@@ -723,9 +665,80 @@ void SCACOPFProblem::add_agc_reserves()
     delete gain_rsrv;
   }
 }  
+
+void SCACOPFProblem::find_AGC_infeasible_Kgens(std::vector<int>& agc_infeas_gen_idxs, 
+					       std::vector<int>& agc_infeas_K_idxs)
+{
+  agc_infeas_gen_idxs.clear(); agc_infeas_K_idxs.clear();
+
+  SCACOPFData& d = data_sc; 
+  //! optimize - should reuse these as they are computed in add_agc_reservesXXX
+  //indexes in K_Contingency of generator contingencies
+  vector<int> idxsKGen = findall(d.K_ConType, [](int val) {return val==SCACOPFData::kGenerator;});
+  vector<int> K_gens_ids = selectfrom(d.K_IDout, idxsKGen);
+  //indexes in G_Generators of the generators subject to contingencies
+  vector<int> K_gens_idxs= indexin(K_gens_ids, d.G_Generator);
+#ifdef DEBUG
+  //all must be present
+  assert(K_gens_ids == selectfrom(d.G_Generator, K_gens_idxs));
+#endif
+
+  //compute areas and area of each generator
+  auto Gk = vector<int>(d.G_Generator.size()); iota(Gk.begin(), Gk.end(), 0);
+  assert(d.G_Nidx.size() == d.G_Generator.size());
+  //area of each generator
+  auto Garea = selectfrom(d.N_Area, d.G_Nidx);
+  Garea = selectfrom(Garea, Gk);
+  assert(Garea.size() == Gk.size());
+  
+  auto areas = Garea;
+  remove_duplicates(areas);
+
+  for(auto area: areas) {
+    //AGC generators in the area
+    auto AGC_gens_idxs_area = findall(Garea, [&](int val) {return val==area;});
+
+    //gens subj. to. contingencies in the area
+    auto K_gens_idxs_area = findall(K_gens_idxs, [&](int val) { return Garea[val]==area;});
+    K_gens_idxs_area = selectfrom(K_gens_idxs, K_gens_idxs_area);
+
+    for(int gkidx : K_gens_idxs_area) {
+      //compute maximum possible pg ramping
+      double ramp=0.;
+      for(int gagcidx: AGC_gens_idxs_area) {
+	if(gkidx != gagcidx) ramp += (d.G_Pub[gagcidx]-d.G_Plb[gagcidx]);
+      }
+      bool loss_infeas = (  d.G_Plb[gkidx] > ramp);
+      bool gain_infeas = (0-d.G_Pub[gkidx] > ramp);
+      if(loss_infeas || gain_infeas) {
+	agc_infeas_gen_idxs.push_back(gkidx);
+
+	int K_idx=-1; assert(d.K_outidx.size() == d.K_ConType.size());
+	for(int ki=0; ki<d.K_outidx.size(); ki++) {
+	  if(d.K_outidx[ki]==gkidx && d.K_ConType[ki]==SCACOPFData::kGenerator) {
+	    K_idx=ki;
+	    break;
+	  }
+	}
+	assert(K_idx>=0); assert(d.K_IDout[K_idx]==d.G_Generator[gkidx]);
+
+	agc_infeas_K_idxs.push_back(K_idx);
+#ifdef DEBUG
+	printf("[warning] min %s of %g from gen_idx=%d in K_idx=%d cannot be recovered"
+	       " only from AGC max response of %g\n", 
+	       loss_infeas ? "loss" : "gain", loss_infeas ? d.G_Plb[gkidx] : -d.G_Pub[gkidx],
+	       gkidx, K_idx, ramp);
+#endif
+      }
+	
+    }
+  }
+}
+
 void SCACOPFProblem::add_agc_reserves_for_max_Lloss_Ugain()
 {
-  SCACOPFData& d = data_sc;  
+  SCACOPFData& d = data_sc; 
+ 
   //indexes in K_Contingency of generator contingencies
   vector<int> idxsKGen = findall(d.K_ConType, [](int val) {return val==SCACOPFData::kGenerator;});
   vector<int> K_gens_ids = selectfrom(d.K_IDout, idxsKGen);
@@ -772,9 +785,9 @@ void SCACOPFProblem::add_agc_reserves_for_max_Lloss_Ugain()
 #endif
     if(AGC_gens_idxs_area.size()>100) continue;
 
-    double max_loss = 0., max_gain=0.; int max_loss_idx=-1, max_gain_idx=-1;
+    double max_loss = 0., max_gain=0., aux; int max_loss_idx=-1, max_gain_idx=-1;;
     for(int Kgenidx: K_gens_idxs_area) {
-      double aux =  std::max( d.G_Plb[Kgenidx], 0.);
+      aux = std::max( d.G_Plb[Kgenidx], 0.);
       if(aux>max_loss) { max_loss=aux; max_loss_idx=Kgenidx; }
       
       aux = std::max(-d.G_Pub[Kgenidx], 0.);
@@ -789,8 +802,8 @@ void SCACOPFProblem::add_agc_reserves_for_max_Lloss_Ugain()
 	if(d.K_ConType[i]==SCACOPFData::kGenerator && d.K_IDout[i]==d.G_Generator[max_loss_idx]) K_idx = i;
       assert( K_idx >= 0);
       
-      //printf(" -- max loss for area %d in the amount of %g for Kgenidx %d id %d  K_idx %d\n",
-      //     area, max_loss, max_loss_idx, d.G_Generator[max_loss_idx], K_idx);
+      printf(" -- max loss for area %d in the amount of %g for Kgenidx %d id %d  K_idx %d\n",
+           area, max_loss, max_loss_idx, d.G_Generator[max_loss_idx], K_idx);
     }
     if(max_gain>1e-6) {
       int K_idx = -1;
@@ -801,7 +814,6 @@ void SCACOPFProblem::add_agc_reserves_for_max_Lloss_Ugain()
       printf(" -- max gain for area %d in the amount of %g for Kgenidx %d id %d  K_idx %d\n",
            area, max_gain, max_gain_idx, d.G_Generator[max_gain_idx], K_idx);
     }
-    //printf("\n");
 #endif
     
     if(max_loss>1e-6) {
@@ -811,6 +823,10 @@ void SCACOPFProblem::add_agc_reserves_for_max_Lloss_Ugain()
 
       double percentage_of_loss = 1.;
       loss_rsrv->add_max_loss_reserve(responding_AGC_gens_idxs_area, max_loss, percentage_of_loss, d.G_Pub);
+
+
+
+
     }
     if(max_gain>1e-6) {
       assert(max_gain_idx>=0);
@@ -830,6 +846,10 @@ void SCACOPFProblem::add_agc_reserves_for_max_Lloss_Ugain()
     loss_rsrv->finalize_setup();
 
     this->append_constraints(loss_rsrv);
+#ifdef DEBUG
+    printf(" -- added %d AGC loss (Lloss) reserve constraints for contingencies\n", loss_rsrv->n);
+    //printvec(Kidxs_agc_loss_cons, "K_idxs");
+#endif
 
   } else {
     delete loss_rsrv;
@@ -843,6 +863,10 @@ void SCACOPFProblem::add_agc_reserves_for_max_Lloss_Ugain()
     gain_rsrv->finalize_setup();
 
     this->append_constraints(gain_rsrv);
+#ifdef DEBUG
+    printf(" -- added %d AGC gain (Ugain) reserve constraints for contingencies\n", loss_rsrv->n);
+    //printvec(Kidxs_agc_loss_cons, "K_idxs");
+#endif
 
   } else {
     delete gain_rsrv;
@@ -1319,8 +1343,6 @@ void SCACOPFProblem::add_cons_thermal_li_lims(SCACOPFData& d,
 
   auto v_n = variable("v_n",d);
   auto p_li1 = variable("p_li1", d), q_li1 = variable("q_li1", d);
-  // - removed vector<double>& L_Rate = SysCond_BaseCase ? d.L_RateBase : d.L_RateEmer;
-  double L_rate_reduction_one = 1.;
 
   {
     auto pf_line_lim1 = new PFLineLimits(con_name("line_limits1",d), d.L_Line.size(),
@@ -2650,7 +2672,7 @@ void SCACOPFProblem::print_p_g_with_coupling_info(SCACOPFData& dB, OptVariablesB
   }
 }
 
-void SCACOPFProblem::print_PVPQ_info(SCACOPFData& dB)
+void SCACOPFProblem::print_PVPQ_info(SCACOPFData& dB, OptVariablesBlock* v_n0)
 {
   //indexes in data_sc.G_Generator
   vector<int> Gk, Gkp, Gknop;
@@ -2679,12 +2701,17 @@ void SCACOPFProblem::print_PVPQ_info(SCACOPFData& dB)
   int nPVPQGens=0, nPVPQCons=0; 
   int num_buses_all_qgen_fixed=0, num_qgens_fixed=0;
 
-  auto v_n0 = variable("v_n", data_sc);
+  if(v_n0 == NULL)
+    v_n0 = variable("v_n", data_sc);
   auto v_nk = variable("v_n", dB);
   auto q_gk = variable("q_g", dB);
   auto rhop = variable("nup_PVPQ", dB);
   auto rhom = variable("num_PVPQ", dB);
-  printf("busidx busid     v_n0         v_nk         num          nup      | genidx q_gk qlb qub : \n");
+  printf("busidx busid     v_n0         v_nk         Vlb         Vub          "
+	 "EVlb         EVub         num            nup      | genidx q_gk qlb qub : \n");
+
+  vector<double> &Vlb = data_sc.N_Vlb, &Vub = data_sc.N_Vub, 
+    &EVlb = data_sc.N_EVlb, &EVub = data_sc.N_EVub;
 
   for(auto n: N_PVPQ) {
     assert(dB.Gn[n].size()>0);
@@ -2721,7 +2748,9 @@ void SCACOPFProblem::print_PVPQ_info(SCACOPFData& dB)
       idxs_gen_agg.pop_back();
       num_buses_all_qgen_fixed++;
 
-      printf("%5d %5d %12.5e %12.5e        na        na       | ", n, data_sc.N_Bus[n], v_n0->x[n], v_nk->x[n]);
+      printf("%5d %5d %12.5e %12.5e %12.5e %12.5e | %12.5e %12.5e |      na        na       | ", 
+	     n, data_sc.N_Bus[n], v_n0->x[n], v_nk->x[n],
+	     Vlb[n], Vub[n], EVlb[n], EVub[n]);
       for(auto g: dB.Gn[n])
 	printf("%4d %12.5e %12.5e %12.5e : ", g, q_gk->x[g], dB.G_Qlb[g], dB.G_Qub[g]);
       printf("\n");
@@ -2736,8 +2765,9 @@ void SCACOPFProblem::print_PVPQ_info(SCACOPFData& dB)
       double drhom=0., drhop=0.;
       if(rhom) drhom = rhom->x[idx_nu];
       if(rhop) drhop = rhop->x[idx_nu];
-      printf("%5d %5d %12.5e %12.5e %12.5e %12.5e | ", n, data_sc.N_Bus[n], 
-	     v_n0->x[n], v_nk->x[n], drhom, drhop);
+      printf("%5d %5d %12.5e %12.5e %12.5e %12.5e %12.5e %12.5e | %12.5e %12.5e | ", n, data_sc.N_Bus[n], 
+	     v_n0->x[n], v_nk->x[n],
+	     Vlb[n], Vub[n], EVlb[n], EVub[n], drhom, drhop);
       for(auto g: dB.Gn[n])
 	printf("%4d %12.5e %12.5e %12.5e : ", g, q_gk->x[g], dB.G_Qlb[g], dB.G_Qub[g]);
       printf("\n");
@@ -2977,7 +3007,6 @@ void SCACOPFProblem::print_Transf_powers(SCACOPFData& dB, bool SysCond_BaseCase)
   assert(T_Rate.size() == q_ti2->n);
   assert(T_Rate.size() == dB.T_Transformer.size());
   
-
   printf("   #    ID     pti1        pti2         qt1         qt2       rate\n");
   for(int t=0; t<dB.T_Transformer.size(); t++) {
 
@@ -3026,77 +3055,82 @@ void SCACOPFProblem::write_solution_basecase()
   //SCACOPFIO::write_append_solution_block(v_n->x, theta_n->x, b_s->x, p_g->x, q_g->x,
   //					 data_sc, "solution1.txt", "w");
   SCACOPFIO::write_solution1(v_n->x, theta_n->x, b_s->x, p_g->x, q_g->x,
-			     data_sc, "solution1.txt");
+			     data_sc, "solution1.txt");  
+}
+
+void SCACOPFProblem::write_pridua_solution_basecase()
+{
+
+  string filename = "solution_b_pd.txt";
+  FILE* file = fopen(filename.c_str(), "w");
+  if(NULL == file) {
+    printf("[warning] could not open '%s' for writing. will return\n", filename.c_str());
+    return;
+  }
+
+  vector<string> vars_names={"v_n_0","theta_n_0",
+			     "p_li1_0","p_li2_0","q_li1_0","q_li2_0",
+			     "p_ti1_0","p_ti2_0","q_ti1_0","q_ti2_0",
+			     "b_s_0","p_g_0","q_g_0", 
+			     "pslack_n_p_balance_0", "qslack_n_q_balance_0",
+			     "sslack_li_line_limits1_0","sslack_li_line_limits2_0",
+			     "sslack_ti_trans_limits1_0","sslack_ti_trans_limits2_0"};
+  //,"t_h_0","sslack_agc_reserves_loss_bnd_0","sslack_agc_reserves_loss_Kgen_0","sslack_agc_reserves_gain_Kgen_0"};
   
-  // auto SSh_Nidx = indexin(data_sc.SSh_Bus, data_sc.N_Bus);
-  // double bcsn[data_sc.N_Bus.size()];
-  
-  // for(int i=0; i<data_sc.N_Bus.size(); i++) 
-  //   bcsn[i] = 0.;
+  //-vector<string> cons_names={"p_li1_powerflow_0","p_li2_powerflow_0","q_li1_powerflow_0","q_li2_powerflow_0",
+  //-			     "p_ti1_powerflow_0","p_ti2_powerflow_0","q_ti1_powerflow_0","q_ti2_powerflow_0",
+  //-			     "p_balance_0","q_balance_0",
+  //-			     "line_limits1_0","line_limits2_0","trans_limits1_0","trans_limits2_0"};
+  //-//,"prodcost_cons_0","agc_reserves_loss_bnd_0","agc_reserves_loss_Kgen_0","agc_reserves_gain_Kgen_0"};
 
-  // for(int itssh = 0; itssh<data_sc.SSh_SShunt.size(); itssh++) {
-  //   assert(itssh < SSh_Nidx.size());
-  //   assert(itssh < b_s->n);
-  //   assert(SSh_Nidx[itssh] < data_sc.N_Bus.size());
-  //   assert(SSh_Nidx[itssh]>=0);
-    
-  //   bcsn[SSh_Nidx[itssh]] += b_s->x[itssh];
-  // }
-
-  // for(int i=0; i<data_sc.N_Bus.size(); i++) 
-  //   bcsn[i] *= data_sc.MVAbase;
-
-  // string strFileName = "solution1.txt";
-  // FILE* file = fopen(strFileName.c_str(), "w");
-  // if(NULL==file) {
-  //   printf("[warning] could not open [%s] file for writing\n", strFileName.c_str());
-  //   return;
-  // }
-  // //
-  // // write bus section
-  // //
-  // fprintf(file, "--bus section\ni, v(p.u.), theta(deg), bcs(MVAR at v = 1 p.u.)\n");
-  // for(int n=0; n<data_sc.N_Bus.size(); n++) {
-  //   fprintf(file, "%d, %.20f, %.20f, %.20f\n", 
-  // 	    data_sc.N_Bus[n], v_n->x[n], 180/M_PI*theta_n->x[n], bcsn[n]);
-  // }
-
-  // int GID = SCACOPFData::GID;
-  // int GI  = SCACOPFData::GI; assert(GI==0);
-  // assert(data_sc.generators[GID].size() == data_sc.generators[GI].size());
-  // assert(data_sc.generators[GID].size()>=data_sc.G_Generator.size());
-
-  // auto gmap = vector<int>(data_sc.generators[GID].size(), -1);
-  // for(int g=0; g<data_sc.G_Generator.size(); g++) {
-  //   assert(g>=0);
-  //   assert(data_sc.G_Generator[g]<data_sc.generators[GID].size());
-    
-  //   gmap[data_sc.G_Generator[g]] = g;
-  // }
-
-  // assert(data_sc.G_Bus.size() == data_sc.G_BusUnitNum.size());
-
-  // int g;
-  // //write generator section
-  // fprintf(file, "--generator section\ni, id, p(MW), q(MW)\n");
-  // for(int gi=0; gi<data_sc.generators[GI].size(); gi++) {
-  //   g = gmap[gi];
-  //   if(-1 == g) {
-  //     fprintf(file, "%s, \'%s\', 0, 0\n", data_sc.generators[GI][gi].c_str(), data_sc.generators[GID][gi].c_str());
-  //   } else {
-  //     assert(g>=0);
-  //     assert(g<data_sc.G_Bus.size());
-  //     assert(g<p_g->n);
-  //     assert(g<q_g->n);
+  vector<string> duals_bndL_names={"duals_bndL_v_n_0","duals_bndL_theta_n_0","duals_bndL_p_li1_0","duals_bndL_p_li2_0","duals_bndL_q_li1_0","duals_bndL_q_li2_0","duals_bndL_p_ti1_0","duals_bndL_p_ti2_0","duals_bndL_q_ti1_0","duals_bndL_q_ti2_0","duals_bndL_b_s_0","duals_bndL_p_g_0","duals_bndL_q_g_0","duals_bndL_pslack_n_p_balance_0","duals_bndL_qslack_n_q_balance_0","duals_bndL_sslack_li_line_limits1_0","duals_bndL_sslack_li_line_limits2_0","duals_bndL_sslack_ti_trans_limits1_0","duals_bndL_sslack_ti_trans_limits2_0"};
+  //"duals_bndL_t_h_0","duals_bndL_sslack_agc_reserves_loss_bnd_0","duals_bndL_sslack_agc_reserves_loss_Kgen_0","duals_bndL_sslack_agc_reserves_gain_Kgen_0"};
 
 
-  //     fprintf(file, "%d, \'%s\', %.12f, %.12f\n", 
-  // 	      data_sc.G_Bus[g], data_sc.G_BusUnitNum[g].c_str(), 
-  // 	      data_sc.MVAbase*p_g->x[g], data_sc.MVAbase*q_g->x[g]);
-  //   }
-  // }
-  // fclose(file);
-  // printf("basecase solution written to file %s\n", strFileName.c_str());
+  vector<string> duals_bndU_names={"duals_bndU_v_n_0","duals_bndU_theta_n_0","duals_bndU_p_li1_0","duals_bndU_p_li2_0","duals_bndU_q_li1_0","duals_bndU_q_li2_0","duals_bndU_p_ti1_0","duals_bndU_p_ti2_0","duals_bndU_q_ti1_0","duals_bndU_q_ti2_0","duals_bndU_b_s_0","duals_bndU_p_g_0","duals_bndU_q_g_0","duals_bndU_pslack_n_p_balance_0","duals_bndU_qslack_n_q_balance_0","duals_bndU_sslack_li_line_limits1_0","duals_bndU_sslack_li_line_limits2_0","duals_bndU_sslack_ti_trans_limits1_0","duals_bndU_sslack_ti_trans_limits2_0"};
+  //"duals_bndU_t_h_0","duals_bndU_sslack_agc_reserves_loss_bnd_0","duals_bndU_sslack_agc_reserves_loss_Kgen_0","duals_bndU_sslack_agc_reserves_gain_Kgen_0"};
+
+  vector<string> duals_cons_names={"duals_p_li1_powerflow_0","duals_p_li2_powerflow_0","duals_q_li1_powerflow_0","duals_q_li2_powerflow_0","duals_p_ti1_powerflow_0","duals_p_ti2_powerflow_0","duals_q_ti1_powerflow_0","duals_q_ti2_powerflow_0","duals_p_balance_0","duals_q_balance_0","duals_line_limits1_0","duals_line_limits2_0","duals_trans_limits1_0","duals_trans_limits2_0"};
+  //"duals_prodcost_cons_0","duals_agc_reserves_loss_bnd_0","duals_agc_reserves_loss_Kgen_0","duals_agc_reserves_gain_Kgen_0"};
+
+  //vector<string> all_vars_names = vars_names;
+  //all_vars_names.insert(all_vars_names.end(), duals_bndL_names.begin(), duals_bndL_names.end());
+  //all_vars_names.insert(all_vars_names.end(), duals_bndU_names.begin(), duals_bndU_names.end());
+  //all_vars_names.insert(all_vars_names.end(), duals_cons_names.begin(), duals_cons_names.end());
+
+  for(string& var_name : vars_names) {
+    OptVariablesBlock* var = vars_block(var_name);
+    if(NULL==var) {
+      printf("[warning] '%s' variable NOT written: is missing from the problem\n", var_name.c_str());
+      continue;
+    }
+    SCACOPFIO::write_variable_block(var, data_sc, file);
+  }
+  for(string& var_name : duals_bndL_names) {
+    OptVariablesBlock* var = vars_block_duals_bounds_lower(var_name);
+    if(NULL==var) {
+      printf("[warning] '%s' variable NOT written: is missing from the problem\n", var_name.c_str());
+      continue;
+    }
+    SCACOPFIO::write_variable_block(var, data_sc, file);
+  }
+  for(string& var_name : duals_bndU_names) {
+    OptVariablesBlock* var = vars_block_duals_bounds_upper(var_name);
+    if(NULL==var) {
+      printf("[warning] '%s' variable NOT written: is missing from the problem\n", var_name.c_str());
+      continue;
+    }
+    SCACOPFIO::write_variable_block(var, data_sc, file);
+  }
+  for(string& var_name : duals_cons_names) {
+    OptVariablesBlock* var = vars_block_duals_cons(var_name);
+    if(NULL==var) {
+      printf("[warning] '%s' variable NOT written: is missing from the problem\n", var_name.c_str());
+      continue;
+    }
+    SCACOPFIO::write_variable_block(var, data_sc, file);
+  }
+  fclose(file);
 }
 
 void SCACOPFProblem::write_solution_extras_basecase()

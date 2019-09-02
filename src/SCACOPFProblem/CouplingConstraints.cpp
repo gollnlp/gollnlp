@@ -25,10 +25,10 @@ NonAnticipCons::NonAnticipCons(const std::string& id_, int numcons,
   memcpy(idxK, idxK_.data(), numcons*sizeof(int));
 
   //rhs of this block
-  lb = new double[n];
+  //lb = new double[n];
   for(int i=0; i<n; i++) lb[i] = 0.; 
   
-  ub = new double[n];
+  //ub = new double[n];
   DCOPY(&n, lb, &ione, ub, &ione);
 }
 
@@ -129,7 +129,8 @@ AGCSimpleCons::AGCSimpleCons(const std::string& id_, int numcons,
   idxK = new int[dim];
   memcpy(idxK, idxK_.data(), dim*sizeof(int));
 
-  ub = new double[n];
+  assert(numcons==n);
+  //ub = new double[n];
   for(int i=0; i<n; i++) ub[i] = 0.;  
   DCOPY(&n, ub, &ione, lb, &ione);
 }
@@ -215,6 +216,71 @@ bool AGCSimpleCons::get_Jacob_ij(std::vector<OptSparseEntry>& vij)
   return true;
 }
 
+////////////////////////////////////////////////////////////////////
+// Fixed pg0
+////////////////////////////////////////////////////////////////////
+bool AGCSimpleCons_pg0Fixed::
+eval_Jac(const OptVariables& primal_vars, bool new_x, 
+	 const int& nnz, int* ia, int* ja, double* M)
+{
+  int row=0, idxnz, dim = n;
+  if(NULL==M) {
+    for(int it=0; it<dim; it++) {
+      row = this->index+it;
+      idxnz = J_nz_idxs[it];   
+
+      //printf("%d %d \n", idxnz, nnz);
+      assert(idxnz+1<nnz); assert(idxnz>=0);
+
+      //ia[idxnz]=row; ja[idxnz]=pg0->index+idx0[it];   idxnz++; // w.r.t. po
+      ia[idxnz]=row; ja[idxnz]=pgK->index+idxK[it];   idxnz++; // w.r.t. pk
+      assert(idxnz<nnz);
+      ia[idxnz]=row; ja[idxnz]=deltaK->index;        idxnz++; // w.r.t. delta
+    }
+    assert(row+1 == this->index+this->n);
+  } else {
+    for(int it=0; it<dim; it++) {
+      idxnz = J_nz_idxs[it];
+      assert(idxnz+1<nnz && idxnz>=0);
+      
+      //M[idxnz++] += 1.; // w.r.t. p0
+      M[idxnz++] -= 1.; // w.r.t. pk
+      M[idxnz++] += G_alpha[idx0[it]]; // w.r.t. delta
+    }
+  }
+  return true;
+}
+
+int AGCSimpleCons_pg0Fixed::get_Jacob_nnz()
+{
+  return 2*n; 
+}
+
+bool AGCSimpleCons_pg0Fixed::get_Jacob_ij(std::vector<OptSparseEntry>& vij)
+{
+#ifdef DEBUG
+  int loc_nnz = get_Jacob_nnz();
+  int vij_sz_in = vij.size();
+#endif
+  
+  if(!J_nz_idxs) 
+    J_nz_idxs = new int[n];
+
+  //p0 + alpha*deltak - pk = 0
+  int row=0; 
+  for(int it=0; it<n; it++) {
+    row = this->index+it;
+    vij.push_back(OptSparseEntry(row, pgK->index+idxK[it], J_nz_idxs+it)); //pK
+    vij.push_back(OptSparseEntry(row, deltaK->index, NULL)); //delta
+  }
+
+#ifdef DEBUG
+  assert(row+1 == this->index+this->n);
+  assert(vij.size() == loc_nnz+vij_sz_in);
+#endif
+  return true;
+}
+
 
 
 /////////////////////////////////////////////////////////////////////////////////
@@ -270,8 +336,8 @@ AGCComplementarityCons(const std::string& id_, int numcons,
   DAXPY(&dim, &dminusone, Plb, &ione, gb, &ione);
 
   //rhs of this constraints block
-  assert(r>=0);
-  ub = new double[n];
+  assert(r>=0);   assert(numcons==n);
+  //ub = new double[n];
   for(int i=0; i<n/3; i++) ub[i] = 0.;
   for(int i=n/3; i<n; i++) ub[i] = r;
   
@@ -279,7 +345,8 @@ AGCComplementarityCons(const std::string& id_, int numcons,
   //assert(r>0); 
   //for(int i=n/3; i<n; ) { ub[i++] = -r; ub[i++] = r;}
   
-  lb = new double[n];
+
+  //lb = new double[n];
   if(r==0)
     DCOPY(&n, ub, &ione, lb, &ione);
   else {
@@ -635,12 +702,13 @@ PVPQComplementarityCons(const std::string& id_, int numcons,
   DAXPY(&nbus, &dminusone, Qlb, &ione, gb, &ione);
 
   //rhs of this constraints block
-  assert(r>=0);
-  ub = new double[n];
+  assert(r>=0); assert(numcons==n);
+  //ub = new double[n];
   for(int i=0; i<n/3; i++) ub[i] = 0.;
   for(int i=n/3; i<n; i++) ub[i] = r; 
   
-  lb = new double[n];
+  assert(numcons==n);
+  //lb = new double[n];
   if(r==0)
     DCOPY(&n, ub, &ione, lb, &ione);
   else {

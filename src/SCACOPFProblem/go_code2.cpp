@@ -30,18 +30,15 @@ MyCode2::MyCode2(const std::string& InFile1_, const std::string& InFile2_,
 {
   glob_timer.start();
 
-  v_n0 = theta_n0 = b_s0 = p_g0 = q_g0 = NULL;
+  //v_n0 = theta_n0 = b_s0 = p_g0 = q_g0 = NULL;
   last_Kidx_written=-1;
   size_sol_block=-1;
 }
 
 MyCode2::~MyCode2()
 {
-  delete v_n0;
-  delete theta_n0;
-  delete b_s0;
-  delete p_g0;
-  delete q_g0;
+  for(auto& p : dict_basecase_vars) 
+    delete p.second;
 }
 
 int MyCode2::initialize(int argc, char *argv[])
@@ -78,9 +75,10 @@ int MyCode2::initialize(int argc, char *argv[])
     printf("error occured while reading instance\n");
     return false;
   }
-  
-  SCACOPFIO::read_solution1(&v_n0, &theta_n0, &b_s0, &p_g0, &q_g0, data, "solution1.txt");
-  size_sol_block = v_n0->n + theta_n0->n + b_s0->n + p_g0->n + q_g0->n + 1;
+
+  //will populate 'dict_basecase_vars'
+  read_solution1();
+
 
 
   if(iAmMaster) {
@@ -96,6 +94,31 @@ int MyCode2::initialize(int argc, char *argv[])
     for(int it=0; it<comm_size; it++) 
       req_send_Kidx.push_back(std::vector<ReqKidx*>());
   }
+
+  K_Contingency = data.K_Contingency;
+  //!
+  //K_Contingency = {5269};
+  //net15 
+
+  //K_Contingency = {2488,1572, 1057}; //net83
+ 
+  //K_Contingency = {530, 110, 702, 863, 106, 101};//208, 154, 415, 461, 789, 368, 494, 748, 57, 1000, 817, 626, 576, 324, 913, 959, 248, 289, 209, 495, 416, 790, 155, 19, 749};//494, 495, 702, 749};
+  //K_Contingency = {106, 101,  102,  110,  249,  344,  394,  816,  817, 55, 497, 0, 1, 2, 3, 4, 5, 6,7,8,9,10, 15,16,17,18,19};
+//{1,2, 101, 106, 497, 816, 817};
+
+
+  K_left = vector<int>(K_Contingency.size());
+  iota(K_left.begin(), K_left.end(), 0);
+
+  //!!!
+  //for(double& p : data.G_Pub) p*=1.05;
+
+  //for(double& p : data.G_Qub) p*=2.05;
+  //for(double& p : data.G_Qlb) p*=0.5;
+
+
+  //for(double& p : data.N_EVub) p*=1.01;
+  //for(double& p : data.N_EVlb) p*=0.98;
 
   return true;
 }
@@ -144,7 +167,7 @@ int MyCode2::go()
 
       vector<double> sol;
 
-      bool bret = solve_contingency(k, sol);
+      bool bret = solve_contingency(K_Contingency[k], sol);
       assert(sol.size() == size_sol_block+1);
 
       //send the solution
@@ -160,6 +183,9 @@ int MyCode2::go()
 	assert(MPI_SUCCESS == ierr);
 	req_send_Ksln.push_back(req_send_sol);
     }
+
+    //delete ReqKSln* req_send_sol that completed (relevant on workers)
+    attempt_cleanup_req_send_Ksln();
 
     //master checks receive of contingency solution
     if(my_rank == rank_master) {
@@ -317,7 +343,7 @@ int MyCode2::go()
 	    printf("[rank 0] completed recv request %d for contingencies for rank %d\n", num_req4Kidx_for_ranks[r], r);
 #endif
 	    //pick new contingency 
-	    int perRank = data.K_Contingency.size()/(comm_size-1);
+	    int perRank = K_Contingency.size()/(comm_size-1);
 	    int Kstart = perRank*(r-1);
 	    auto Kidxs = findall(K_left, [Kstart](int val) {return val>Kstart;});
 	    if(Kidxs.empty()) 
@@ -442,6 +468,8 @@ int MyCode2::go()
     }
   }
 
+  
+
   //write solution2.txt
   if(iAmMaster) {
     bool writing_done = attempt_write_solution2(vvslns);
@@ -449,6 +477,8 @@ int MyCode2::go()
       printf("[warning] couldn't write all contingency solutions; some are missing from vvslns\n");
     else 
       printf("writing of 'solution2.txt' completed\n");
+  } else {
+    attempt_cleanup_req_send_Ksln();
   }
 
   // final message
@@ -464,18 +494,23 @@ void MyCode2::initial_K_distribution()
 
   int num_ranks = comm_size;
 
+  //debuging code
+  //vector<vector<int> > Ks_to_ranks(num_ranks, vector<int>());
+  //Ks_to_ranks[1].push_back(48);
+
   //num contingencies; 
-  int S = data.K_Contingency.size(), R = num_ranks-1;
+  int S = K_Contingency.size(), R = num_ranks-1;
   if(R<=0) R=1;
 
-  K_left = vector<int>(S);
-  iota(K_left.begin(), K_left.end(), 0);
-
   int perRank = S/R; int remainder = S-R*perRank;
-  printf("ranks=%d contingencies=%d perRank=%d remainder=%d\n",
-  	 num_ranks, S, perRank, remainder);
+
+
+  if(0==perRank) {
+    perRank=1; remainder=0;
+  }
 
   if(iAmMaster) {
+    printf("ranks=%d contingencies=%d perRank=%d remainder=%d\n", num_ranks, S, perRank, remainder);
 
     //each slave rank gets one contingency idx = r*perRank
     for(int r=1; r<num_ranks; r++) {
@@ -484,11 +519,12 @@ void MyCode2::initial_K_distribution()
 	K_idx += r;
       else
 	K_idx += remainder;
-      
-      assert(K_idx < S);
-      K_on_slave_ranks[r].push_back(K_idx);
-      bool bret = erase_elem_from(K_left, K_idx);
-      assert(bret);
+       
+      if(K_idx < S) {
+	K_on_slave_ranks[r].push_back(K_idx);
+	bool bret = erase_elem_from(K_left, K_idx);
+	assert(bret);
+      }
     }
     //"initial Ks on each rank: "
     printvecvec(K_on_slave_ranks, "initial Ks on each rank: ");
@@ -502,49 +538,54 @@ void MyCode2::initial_K_distribution()
       K_idx += r;
     else
       K_idx += remainder;
-    K_local.push_back(K_idx);
     
-    char s[1000]; sprintf(s, "K_local on rank %d", my_rank);
-    printlist(K_local, string(s));
+    if(K_idx < S) {
+      K_local.push_back(K_idx);
+      char s[1000]; sprintf(s, "K_local on rank %d", my_rank);
+      printlist(K_local, string(s));
+    } else {
+      printf("K_local on rank %d  is empty\n", my_rank);
+    }
     //std::this_thread::sleep_for(std::chrono::milliseconds(1000));
   }
 }
 
 bool MyCode2::solve_contingency(int K_idx, std::vector<double>& sln)
 {
+
+
   goTimer t; t.start();
   int status;
-  ContingencyProblem prob(data, K_idx, my_rank);
-  
-  prob.update_AGC_smoothing_param(1e-4);
-  prob.update_PVPQ_smoothing_param(1e-4);
+  ContingencyProblemWithFixing prob(data, K_idx, my_rank, dict_basecase_vars);
 
-  prob.reg_vn = true;
-  prob.reg_thetan = true;
-  prob.reg_bs = true;
-  prob.reg_pg = true;
-  prob.reg_qg = true;
+  //prob.update_AGC_smoothing_param(1e-4);
+  //prob.update_PVPQ_smoothing_param(1e-4);
 
 
+  //prob.reg_vn = true;
+  //prob.reg_thetan = true;
+  //prob.reg_bs = true;
+  //prob.reg_pg = true;
+  //prob.reg_qg = true;
 
-  if(!prob.default_assembly(v_n0, theta_n0, b_s0, p_g0, q_g0)) {
+
+  if(!prob.default_assembly(v_n0(), theta_n0(), b_s0(), p_g0(), q_g0())) {
     printf("Evaluator Rank %d failed in default_assembly for contingency K_idx=%d\n",
 	   my_rank, K_idx);
     status = -1;
     return false;
   }
 
-  //if(!prob.set_warm_start_from_base_of(*scacopf_prob)) {
-  //  status = -2;
-  //  return 1e+20;
+  //  if(!prob.set_warm_start_from_base_of(*scacopf_prob)) {
+  //status = -2;
+  //return 1e+20;
   //}
 
   prob.use_nlp_solver("ipopt");
-  prob.set_solver_option("print_frequency_iter", 1);
+  prob.set_solver_option("print_frequency_iter", 5);
   prob.set_solver_option("linear_solver", "ma57"); 
   prob.set_solver_option("print_level", 2);
-  prob.set_solver_option("mu_init", 1e-4);
-  prob.set_solver_option("mu_target", 1e-8);
+  //prob.set_solver_option("mu_target", 1e-10);
 
   //return if it takes too long in phase2
   prob.set_solver_option("max_iter", 1000);
@@ -552,34 +593,71 @@ bool MyCode2::solve_contingency(int K_idx, std::vector<double>& sln)
   prob.set_solver_option("acceptable_constr_viol_tol", 1e-6);
   prob.set_solver_option("acceptable_iter", 5);
 
+  prob.set_solver_option("tol", 1e-8);
+
   prob.set_solver_option("bound_relax_factor", 0.);
   prob.set_solver_option("bound_push", 1e-16);
   prob.set_solver_option("slack_bound_push", 1e-16);
-  prob.set_solver_option("mu_linear_decrease_factor", 0.4);
-  prob.set_solver_option("mu_superlinear_decrease_power", 1.25);
+  prob.set_solver_option("mu_linear_decrease_factor", 0.3);
+  prob.set_solver_option("mu_superlinear_decrease_power", 1.4);
 
 
   double penalty;
-  if(!prob.optimize(p_g0, v_n0, penalty)) {
+  if(!prob.optimize(p_g0(), v_n0(), penalty, sln)) {
     printf("Evaluator Rank %d failed in the evaluation of contingency K_idx=%d\n",
 	   my_rank, K_idx);
     status = -3;
     return false;
   }
 
-  prob.print_objterms_evals();
-
-  prob.get_solution_simplicial_vectorized(sln);
+  //prob.get_solution_simplicial_vectorized(sln);
   assert(size_sol_block == sln.size());
- 
-  //prob.print_p_g_with_coupling_info(*prob.data_K[0], p_g0);
   sln.push_back((double)K_idx);
-  printf("Evaluator Rank %3d K_idx %5d finished with penalty %12.3f "
-	 "in %5.3f sec and %3d iterations  global time %g \n",
-	 my_rank, K_idx, penalty, t.stop(), 
-	 prob.number_of_iterations(), glob_timer.measureElapsedTime());
+
+  //prob.print_p_g_with_coupling_info(*prob.data_K[0], p_g0);
+  //prob.print_PVPQ_info(*prob.data_K[0], v_n0);
+
+  //printf("Evaluator Rank %3d K_idx=%d finished with penalty %12.3f "
+  //	 "in %5.3f sec and %3d/%3d iterations  global time %g \n",
+  //	 my_rank, K_idx, penalty, t.stop(), 
+  //	 numiter1, prob.number_of_iterations(), glob_timer.measureElapsedTime());
 
   return true;
+}
+
+void MyCode2::read_solution1()
+{
+  gollnlp::SCACOPFIO::read_variables_blocks(data, dict_basecase_vars);
+  //for(auto& p: dict_basecase_vars) cout << "   - [" << p.first << "] size->" << p.second->n << endl;
+
+  size_sol_block = v_n0()->n + theta_n0()->n + b_s0()->n + p_g0()->n + q_g0()->n + 1;
+
+#ifdef DEBUG  
+  OptVariablesBlock *v_n00, *theta_n00, *b_s00, *p_g00, *q_g00;
+  SCACOPFIO::read_solution1(&v_n00, &theta_n00, &b_s00, &p_g00, &q_g00, data, "solution1.txt");
+  
+
+  assert(v_n00->n == v_n0()->n);
+  assert(diff_two_norm(v_n00->n, v_n00->x, v_n0()->x)<1e-12);
+  delete v_n00;
+
+  assert(theta_n00->n == theta_n0()->n);
+  assert(diff_two_norm(theta_n00->n, theta_n0()->x, theta_n00->x)<1e-12);
+  delete theta_n00;
+
+  assert(b_s00->n == b_s0()->n);
+  assert(diff_two_norm(b_s00->n, b_s00->x, b_s0()->x)<1e-12);
+  delete b_s00;
+
+  assert(p_g00->n == p_g0()->n);
+  assert(diff_two_norm(p_g00->n, p_g00->x, p_g0()->x)<1e-12);
+  delete p_g00;
+
+  assert(q_g00->n == q_g0()->n);
+  assert(diff_two_norm(q_g00->n, q_g00->x, q_g0()->x)<1e-12);
+  delete q_g00;
+
+#endif
 }
 
 void MyCode2::display_instance_info()
@@ -600,8 +678,8 @@ bool MyCode2::attempt_write_solution2(std::vector<std::vector<double> >& vvsols)
   while(true) {
     int Kidx = last_Kidx_written+1; assert(Kidx>=0);
 
-    if(Kidx==data.K_Contingency.size()) return true;
-    assert(Kidx<data.K_Contingency.size());
+    if(Kidx==K_Contingency.size()) return true;
+    assert(Kidx<K_Contingency.size());
 
     if(vvsols[Kidx].size()==1) return false; //solution has not arrived
 
@@ -610,21 +688,21 @@ bool MyCode2::attempt_write_solution2(std::vector<std::vector<double> >& vvsols)
 
 #ifdef DEBUG
     if(Kidx>=1) assert(vvsols[Kidx-1].size() == 0); //should have been written already
-    assert(size_sol_block == v_n0->n + theta_n0->n + b_s0->n + p_g0->n + q_g0->n + 1);
+    assert(size_sol_block == v_n0()->n + theta_n0()->n + b_s0()->n + p_g0()->n + q_g0()->n + 1);
 #endif
     
     const double 
       *v_n     = vvsols[Kidx].data(), 
-      *theta_n = vvsols[Kidx].data() + v_n0->n, 
-      *b_s     = vvsols[Kidx].data() + v_n0->n + theta_n0->n, 
-      *p_g     = vvsols[Kidx].data() + v_n0->n + theta_n0->n + b_s0->n, 
-      *q_g     = vvsols[Kidx].data() + v_n0->n + theta_n0->n + b_s0->n + p_g0->n,
-      delta    = vvsols[Kidx][v_n0->n + theta_n0->n + b_s0->n + p_g0->n + q_g0->n];
+      *theta_n = vvsols[Kidx].data() + v_n0()->n, 
+      *b_s     = vvsols[Kidx].data() + v_n0()->n + theta_n0()->n, 
+      *p_g     = vvsols[Kidx].data() + v_n0()->n + theta_n0()->n + b_s0()->n, 
+      *q_g     = vvsols[Kidx].data() + v_n0()->n + theta_n0()->n + b_s0()->n + p_g0()->n,
+      delta    = vvsols[Kidx][v_n0()->n + theta_n0()->n + b_s0()->n + p_g0()->n + q_g0()->n];
 
     SCACOPFIO::write_solution2_block(Kidx, v_n, theta_n, b_s, p_g, q_g, delta,
 				     data, "solution2.txt");
     printf("[rank 0] wrote solution2 block for contingency %d [%d] label '%s'\n", 
-	   Kidx, data.K_Contingency[Kidx], data.K_Label[Kidx].c_str());
+	   Kidx, K_Contingency[Kidx], data.K_Label[Kidx].c_str());
 
     hardclear(vvsols[Kidx]);
     last_Kidx_written++;
@@ -632,3 +710,25 @@ bool MyCode2::attempt_write_solution2(std::vector<std::vector<double> >& vvsols)
 
   return false;
 }
+
+
+void MyCode2::attempt_cleanup_req_send_Ksln()
+{
+  bool done=false; int mpi_test_flag, ierr; MPI_Status mpi_status;
+  while(!done) {
+    vector<ReqKSln*>::iterator it = req_send_Ksln.begin();
+    for(;it!=req_send_Ksln.end(); ++it) {
+      ReqKSln* req_sln = (*it);
+      const int ierr = MPI_Test(&(req_sln->request), &mpi_test_flag, &mpi_status);
+      if(mpi_test_flag != 0) {
+	//completed
+	delete req_sln;
+	req_send_Ksln.erase(it);
+	break;
+      }
+    }
+    if(it==req_send_Ksln.end()) done=true;
+  }
+}
+
+ 

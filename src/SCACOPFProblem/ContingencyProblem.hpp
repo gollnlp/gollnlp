@@ -45,15 +45,7 @@ namespace gollnlp {
     //
     // simply set lb = ub =pg0 for p_gK  for non-AGC generators
     void bodyof_cons_nonanticip_using(OptVariablesBlock* pg0);
-
-    inline void add_cons_nonanticip_using(OptVariablesBlock* pg0) {
-      bodyof_cons_nonanticip_using(pg0);
-#ifdef DEBUG
-      printf("ContProb K_id %d on rank %d: "
-	     "AGC: %lu gens NOT participating: fixed all of them.\n",
-	     K_idx, my_rank, pg0_nonpartic_idxs.size());
-#endif
-    }
+    void add_cons_nonanticip_using(OptVariablesBlock* pg0);
     inline void update_cons_nonanticip_using(OptVariablesBlock* pg0) {
       bodyof_cons_nonanticip_using(pg0);
     }
