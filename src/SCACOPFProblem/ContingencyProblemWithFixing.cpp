@@ -79,7 +79,8 @@ namespace gollnlp {
     solv1_pgK_nonpartic_idxs=pgK_nonpartic_idxs; solv1_pg0_nonpartic_idxs=pg0_nonpartic_idxs;
     double gen_K_diff=0.;//default for transmission contingencies; surplus or deficit of generation
     double residual_Pg;
-    solv1_delta_out=0.; solv1_delta_lb=-1e+20; solv1_delta_ub=1e+20;
+    solv1_delta_out=0.; solv1_delta_lb=-1e+20; solv1_delta_ub=1e+20; 
+    solv1_delta_blocking=0.; solv1_delta_needed=0.;
     if(dK.K_ConType[0]==SCACOPFData::kGenerator) {
       assert(data_sc.K_outidx[K_idx]<pg0->n);
       gen_K_diff = pg0->x[data_sc.K_outidx[K_idx]];
