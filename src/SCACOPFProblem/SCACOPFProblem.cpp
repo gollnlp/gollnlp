@@ -1546,7 +1546,7 @@ bool SCACOPFProblem::set_warm_start_from_base_of(SCACOPFProblem& srcProb)
     for(auto id: ids) {
       auto b = vars_primal->vars_block(id);
       auto bsrc = srcProb.vars_primal->vars_block(id);
-      if(bsrc) if(b) b->set_start_to(*bsrc);
+      if(bsrc) { if(b) b->set_start_to(*bsrc); }
       else { assert(false); }
     }
 
@@ -1554,7 +1554,7 @@ bool SCACOPFProblem::set_warm_start_from_base_of(SCACOPFProblem& srcProb)
     for(auto id: ids) {
       auto b = vars_duals_bounds_L->vars_block(id);
       auto bsrc = srcProb.vars_duals_bounds_L->vars_block(id);
-      if(bsrc) if(b) b->set_start_to(*bsrc);
+      if(bsrc) { if(b) b->set_start_to(*bsrc); }
       else { assert(false); }
     }
 
@@ -1562,7 +1562,7 @@ bool SCACOPFProblem::set_warm_start_from_base_of(SCACOPFProblem& srcProb)
     for(auto id: ids) {
       auto b = vars_duals_bounds_U->vars_block(id);
       auto bsrc = srcProb.vars_duals_bounds_U->vars_block(id);
-      if(bsrc) if(b) b->set_start_to(*bsrc);
+      if(bsrc) { if(b) b->set_start_to(*bsrc); }
       else { assert(false); }
     }
 
@@ -1570,7 +1570,7 @@ bool SCACOPFProblem::set_warm_start_from_base_of(SCACOPFProblem& srcProb)
     for(auto id: ids) {
       auto b = vars_duals_cons->vars_block(id);
       auto bsrc = srcProb.vars_duals_cons->vars_block(id);
-      if(bsrc) if(b) b->set_start_to(*bsrc);
+      if(bsrc) { if(b) b->set_start_to(*bsrc); }
       else { assert(false); }
     }
     return true;

@@ -101,9 +101,9 @@ namespace gollnlp {
 	pgK->x[solv1_pgK_partic_idxs[it]] = pg0->x[i0]+data_sc.G_alpha[i0] * solv1_delta_out;
       }
 #ifdef BE_VERBOSE
-      printf("ContProbWithFixing K_idx=%d (gener) %g gen missing; fixed %d gens; deltas out=%g needed=%g blocking=%g "
+      printf("ContProbWithFixing K_idx=%d (gener) %g gen missing; fixed %lu gens; deltas out=%g needed=%g blocking=%g "
 	     "residualPg=%g feasib=%d\n",
-	     gen_K_diff, K_idx, pg0_partic_idxs.size()-solv1_pg0_partic_idxs.size(),
+	     K_idx, gen_K_diff, pg0_partic_idxs.size()-solv1_pg0_partic_idxs.size(),
 	     solv1_delta_out, solv1_delta_needed, solv1_delta_blocking, residual_Pg, solv1_Pg_was_enough);
 #endif
     }
@@ -178,7 +178,7 @@ namespace gollnlp {
     vector<int> hist_iter, hist_obj;
     set_solver_option("mu_init", 1e-4);
     if(!OptProblem::reoptimize(OptProblem::primalDualRestart)) {
-      printf("[warning] ContProbWithFixing K_idx=%d opt1 failed\n"); 
+      printf("[warning] ContProbWithFixing K_idx=%d opt1 failed\n", K_idx); 
     } else {
       get_solution_simplicial_vectorized(sln);
 
@@ -273,7 +273,7 @@ namespace gollnlp {
 	    pgK->x[pgK_partic_idxs_u[it]] = pg0->x[i0]+data_sc.G_alpha[i0]*delta_out;
 	  }
 #ifdef BE_VERBOSE
-	  printf("ContProbWithFixing K_idx=%d (gener)(after solv1) fixed %d gens; adtl deltas out=%g needed=%g blocking=%g "
+	  printf("ContProbWithFixing K_idx=%d (gener)(after solv1) fixed %lu gens; adtl deltas out=%g needed=%g blocking=%g "
 		 "residualPg=%g feasib=%d\n",
 		 K_idx, solv1_pg0_partic_idxs.size()-pg0_partic_idxs_u.size(),
 		 delta_out, delta_needed, delta_blocking, residual_Pg, bfeasib);
@@ -331,7 +331,7 @@ namespace gollnlp {
 #endif
       
       if(!OptProblem::reoptimize(OptProblem::primalDualRestart)) {
-	printf("[warning] ContProbWithFixing K_idx=%d opt1-2 failed\n"); 
+	printf("[warning] ContProbWithFixing K_idx=%d opt1-2 failed\n", K_idx); 
       }
       hist_iter.push_back(number_of_iterations());
       hist_obj.push_back(this->obj_value);
