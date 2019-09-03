@@ -1778,7 +1778,7 @@ double MyCode1::solve_contingency(int K_idx, int& status)
   
   ContingencyProblem prob(data, K_idx, my_rank);
 
-  prob.update_AGC_smoothing_param(1e-4);
+  prob.update_AGC_smoothing_param(1e-2);
   prob.update_PVPQ_smoothing_param(1e-2);
 
   //xxxcont
