@@ -12,9 +12,12 @@ namespace gollnlp {
   public:
     ContingencyProblemWithFixing(SCACOPFData& d_in, int K_idx_, 
 				 int my_rank,
-				 std::unordered_map<std::string, gollnlp::OptVariablesBlock*>& dict_basecase_vars_)
+				 std::unordered_map<std::string, 
+				 gollnlp::OptVariablesBlock*>& dict_basecase_vars_,
+				 const int& num_K_done_, const double& time_so_far_)
       : ContingencyProblem(d_in, K_idx_, my_rank), 
-	dict_basecase_vars(dict_basecase_vars_), solv1_Pg_was_enough(true)
+	dict_basecase_vars(dict_basecase_vars_), solv1_Pg_was_enough(true),
+	num_K_done(num_K_done_), time_so_far(time_so_far_)
     { };
     virtual ~ContingencyProblemWithFixing();
 
@@ -82,6 +85,8 @@ namespace gollnlp {
     bool solv1_Pg_was_enough;
 
     static double g_bounds_abuse;
+    int num_K_done;
+    double time_so_far;
   };
 
 } //end namespace

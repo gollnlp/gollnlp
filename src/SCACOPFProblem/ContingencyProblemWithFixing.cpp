@@ -24,9 +24,10 @@ namespace gollnlp {
 
   bool ContingencyProblemWithFixing::default_assembly(OptVariablesBlock* pg0, OptVariablesBlock* vn0) 
   {
-    printf("ContProbWithFixing K_idx=%d IDOut=%d outidx=%d Type=%s\n",
+    double K_avg_time_so_far = time_so_far / std::max(num_K_done,1);
+    printf("ContProbWithFixing K_idx=%d IDOut=%d outidx=%d Type=%s avgtm=%.2f\n",
 	   K_idx, data_sc.K_IDout[K_idx], data_sc.K_outidx[K_idx],
-	   data_sc.cont_type_string(K_idx).c_str()); fflush(stdout);
+	   data_sc.cont_type_string(K_idx).c_str(), K_avg_time_so_far); fflush(stdout);
 
     p_g0=pg0; v_n0=vn0;
 
@@ -201,14 +202,17 @@ namespace gollnlp {
     }
 
     hist_iter.push_back(number_of_iterations());
-    //objective value
     hist_obj.push_back(this->obj_value);
 
     if(variable("delta", d)) solv1_delta_optim = variable("delta", d)->x[0];
     else                     solv1_delta_optim = 0.;
 
+    double K_avg_time_so_far = (time_so_far+tmrec.measureElapsedTime()) / (num_K_done+1);
+    bool skip_2nd_solve = (K_avg_time_so_far > 0.925*143.*2.);
 
-    if(this->obj_value>100) {
+    if(this->obj_value>1e6 && K_avg_time_so_far < 1.05*143.*2.) skip_2nd_solve=false;
+
+    if(this->obj_value>100 && !skip_2nd_solve) {
  #ifdef BE_VERBOSE
       print_objterms_evals();
       //print_p_g_with_coupling_info(*data_K[0], pg0);
@@ -330,26 +334,31 @@ namespace gollnlp {
       assert(vars_duals_cons->provides_start());
 #endif
       
+      this->set_solver_option("max_iter", 400);
+
       if(!OptProblem::reoptimize(OptProblem::primalDualRestart)) {
 	printf("[warning] ContProbWithFixing K_idx=%d opt1-2 failed\n", K_idx); 
-      }
-      hist_iter.push_back(number_of_iterations());
-      hist_obj.push_back(this->obj_value);
-
-      assert(hist_iter.size()>=1);
-      assert(hist_obj.size()>=1);
-      if(hist_obj.back() < hist_obj[0]) {
-	get_solution_simplicial_vectorized(sln);
-      }
-
-      if(this->obj_value>100) {
-	double delta_optim = variable("delta", d)->x[0];
+      } else {
+	hist_iter.push_back(number_of_iterations());
+	hist_obj.push_back(this->obj_value);
+	
+	assert(hist_iter.size()>=1);
+	assert(hist_obj.size()>=1);
+	if(hist_obj.back() < hist_obj[0]) {
+	  get_solution_simplicial_vectorized(sln);
+	}
+	
+	if(this->obj_value>100) {
+	  double delta_optim = variable("delta", d)->x[0];
 #ifdef BE_VERBOSE
-	print_objterms_evals();
-	//print_p_g_with_coupling_info(*data_K[0], pg0);
-	printf("ContProbWithFixing K_idx=%d  pass 1-2 resulted in high pen delta=%g\n", K_idx, delta_optim);
+	  print_objterms_evals();
+	  //print_p_g_with_coupling_info(*data_K[0], pg0);
+	  printf("ContProbWithFixing K_idx=%d  pass 1-2 resulted in high pen delta=%g\n", K_idx, delta_optim);
 #endif
-      }  
+	}  
+      }
+    } else {
+      if(skip_2nd_solve) printf("ContProbWithFixing K_idx=%d pass2 needed but not done - time restrictions\n", K_idx);
     }
       
     tmrec.stop();
@@ -585,7 +594,7 @@ namespace gollnlp {
 	assert(delta<=0);
       }
 
-      printf("aaaaaa delta2=%g delta1=%g P=%g\n", delta2, delta1, P_out);
+      //printf("aaaaaa delta2=%g delta1=%g P=%g\n", delta2, delta1, P_out);
 
       //if( (Pispos && (delta1 < delta2 + 1e-6)) || (!Pispos && (delta1 > delta2 - 1e-6)))  {
       if( (Pispos && (delta1 < delta2 )) || (!Pispos && (delta1 > delta2 )))  {

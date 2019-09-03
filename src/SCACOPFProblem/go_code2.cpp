@@ -33,6 +33,8 @@ MyCode2::MyCode2(const std::string& InFile1_, const std::string& InFile2_,
   //v_n0 = theta_n0 = b_s0 = p_g0 = q_g0 = NULL;
   last_Kidx_written=-1;
   size_sol_block=-1;
+
+  num_K_done=0; 
 }
 
 MyCode2::~MyCode2()
@@ -109,16 +111,6 @@ int MyCode2::initialize(int argc, char *argv[])
 
   K_left = vector<int>(K_Contingency.size());
   iota(K_left.begin(), K_left.end(), 0);
-
-  //!!!
-  //for(double& p : data.G_Pub) p*=1.05;
-
-  //for(double& p : data.G_Qub) p*=2.05;
-  //for(double& p : data.G_Qlb) p*=0.5;
-
-
-  //for(double& p : data.N_EVub) p*=1.01;
-  //for(double& p : data.N_EVlb) p*=0.98;
 
   return true;
 }
@@ -200,8 +192,10 @@ int MyCode2::go()
 	  if(mpi_test_flag != 0) {
 	    //completed
 	    assert(req_recv_Ksln[r][i]->buffer.back() == k);
+	    num_K_done++;
 #ifdef DEBUG_COMM
-	    printf("[rank 0] contsol recv from rank=%d conting=%d done\n", r, k); 
+	    printf("[rank 0] contsol recv from rank=%d conting=%d done; so far K_done=%d\n", 
+		   r, k, num_K_done); 
 #endif	    
 	    vvslns[k] = req_recv_Ksln[r][i]->buffer;
 	    vvslns[k].pop_back(); //remove the last entry, which is the Kidx (used for checking)
@@ -209,6 +203,8 @@ int MyCode2::go()
 	    delete req_recv_Ksln[r][i];
 	    req_recv_Ksln[r][i] = NULL;
 	    K_on_slave_ranks[r][i] = -1;
+
+	    
 
 	    attempt_write_solution2(vvslns);
 	  }
@@ -221,7 +217,7 @@ int MyCode2::go()
       if(K_local.size()<=2 && ask_for_conting) {
 	//there may be data in the pipe - only if the send and recv completed
 	if(req_recv_Kidx.empty() && req_send_req4Kidx.empty()) {
-	  ReqKidx* req_send_4idx = new ReqKidx(num_req4Kidx);
+	  ReqKidx* req_send_4idx = new ReqKidx(num_req4Kidx,-1);
 	  
 	  int tag3 = 333;                       
 	  int ierr = MPI_Isend(req_send_4idx->buffer.data(), req_send_4idx->buffer.size(),
@@ -254,7 +250,7 @@ int MyCode2::go()
 #endif      
 	  // post the recv for the actual indexes
 	  int tag4 = 444;
-	  ReqKidx* req_recv_idx = new ReqKidx(num_req4Kidx);
+	  ReqKidx* req_recv_idx = new ReqKidx(num_req4Kidx, -1);
 	  ierr = MPI_Irecv(req_recv_idx->buffer.data(), req_recv_idx->buffer.size(), 
 			   MPI_INT, rank_master, tag4, comm_world, &req_recv_idx->request);
 	  assert(MPI_SUCCESS == ierr);
@@ -288,6 +284,12 @@ int MyCode2::go()
 	printf("[rank %d] irecv request %d for indexes completed globtime %g\n", 
 	  my_rank, num_req4Kidx, glob_timer.measureElapsedTime());
 #endif
+	assert(req_recv_idx->buffer.size()>=2);
+	if(req_recv_idx->buffer.size()>=2) {
+	  num_K_done = req_recv_idx->buffer.back();
+	  req_recv_idx->buffer.pop_back();
+	}
+
 	for(auto k: req_recv_idx->buffer) {
 	  if(k>=0) {
 	    K_local.push_back(k);
@@ -320,7 +322,7 @@ int MyCode2::go()
 	if(req_recv_req4Kidx[r].empty() && req_send_Kidx[r].empty()) {
 
 	  // initiate Irecv 
-	  ReqKidx* req_recv_idx = new ReqKidx(num_req4Kidx_for_ranks[r]);
+	  ReqKidx* req_recv_idx = new ReqKidx(num_req4Kidx_for_ranks[r],-1);
 	  int tag3 = 333;
 	  int ierr = MPI_Irecv(req_recv_idx->buffer.data(), req_recv_idx->buffer.size(), 
 			       MPI_INT, r, tag3, comm_world, &req_recv_idx->request);
@@ -356,7 +358,7 @@ int MyCode2::go()
 	    } 
 
 	    //create send
-	    ReqKidx* req_send_idx = new ReqKidx(Kidx);
+	    ReqKidx* req_send_idx = new ReqKidx(Kidx, num_K_done);
 	    int tag4 = 444;
 	    ierr = MPI_Isend(req_send_idx->buffer.data(), req_send_idx->buffer.size(),
 			     MPI_INT, r, tag4, comm_world, &req_send_idx->request);
@@ -459,6 +461,8 @@ int MyCode2::go()
 	    req_recv_Ksln[r][i]=NULL;
 	    K_on_slave_ranks[r][i] = -1;
 
+	    num_K_done++;
+
 	    attempt_write_solution2(vvslns);
 	  } else {
 	    recv_sln_done = false;
@@ -474,16 +478,18 @@ int MyCode2::go()
   if(iAmMaster) {
     bool writing_done = attempt_write_solution2(vvslns);
     if(!writing_done) 
-      printf("[warning] couldn't write all contingency solutions; some are missing from vvslns\n");
+      printf("[warning] couldn't write all contingency solutions; some are missing from vvslns; num_K_done=%d\n",
+	     num_K_done);
     else 
-      printf("writing of 'solution2.txt' completed\n");
+      printf("writing of 'solution2.txt' completed at glob time %g; num_K_done=%d\n", 
+	     glob_timer.measureElapsedTime(), num_K_done);
   } else {
     attempt_cleanup_req_send_Ksln();
   }
 
   // final message
   if(iAmMaster)
-    printf("--finished in %g sec  global time %g sec\n", ttot.stop(), glob_timer.measureElapsedTime());
+    printf("--finished in %g sec  glob time %g sec\n", ttot.stop(), glob_timer.measureElapsedTime());
 
   return 0;
 }
@@ -552,16 +558,14 @@ void MyCode2::initial_K_distribution()
 
 bool MyCode2::solve_contingency(int K_idx, std::vector<double>& sln)
 {
-
-
   goTimer t; t.start();
+
   int status;
-  ContingencyProblemWithFixing prob(data, K_idx, my_rank, dict_basecase_vars);
+  ContingencyProblemWithFixing prob(data, K_idx, my_rank, dict_basecase_vars, num_K_done, 
+				    glob_timer.measureElapsedTime());
 
   //prob.update_AGC_smoothing_param(1e-4);
   //prob.update_PVPQ_smoothing_param(1e-4);
-
-
   //prob.reg_vn = true;
   //prob.reg_thetan = true;
   //prob.reg_bs = true;
@@ -575,11 +579,6 @@ bool MyCode2::solve_contingency(int K_idx, std::vector<double>& sln)
     status = -1;
     return false;
   }
-
-  //  if(!prob.set_warm_start_from_base_of(*scacopf_prob)) {
-  //status = -2;
-  //return 1e+20;
-  //}
 
   prob.use_nlp_solver("ipopt");
   prob.set_solver_option("print_frequency_iter", 5);
@@ -617,10 +616,9 @@ bool MyCode2::solve_contingency(int K_idx, std::vector<double>& sln)
   //prob.print_p_g_with_coupling_info(*prob.data_K[0], p_g0);
   //prob.print_PVPQ_info(*prob.data_K[0], v_n0);
 
-  //printf("Evaluator Rank %3d K_idx=%d finished with penalty %12.3f "
-  //	 "in %5.3f sec and %3d/%3d iterations  global time %g \n",
-  //	 my_rank, K_idx, penalty, t.stop(), 
-  //	 numiter1, prob.number_of_iterations(), glob_timer.measureElapsedTime());
+  printf("Evaluator Rank %3d K_idx=%d finished with penalty %12.3f "
+  	 "in %5.3f sec global time %g \n",
+  	 my_rank, K_idx, penalty, t.stop(), glob_timer.measureElapsedTime());
 
   return true;
 }

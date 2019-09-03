@@ -51,9 +51,10 @@ private:
 
   struct ReqKidx
   {
-    ReqKidx(int K_idx)
+    ReqKidx(int K_idx, const int K_done_so_far)
     {
       buffer.push_back(K_idx);
+      buffer.push_back(K_done_so_far);
     }
     std::vector<int> buffer;
     MPI_Request request;
@@ -107,6 +108,7 @@ private:
   int comm_size;
   bool iAmMaster;
   gollnlp::goTimer glob_timer;
+  int num_K_done; //updated on master; sent to workers
 
   //contingencies processed on each rank
   //outer size num_ranks, maintained only on master rank

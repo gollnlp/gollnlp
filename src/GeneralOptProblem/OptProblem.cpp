@@ -528,6 +528,8 @@ bool OptProblem::optimize(const std::string& solver_name)
 
   if(true==nlp_solver->optimize()) {
     this->set_have_start();
+  } else {
+    return false;
   }
 
   return true;
@@ -543,6 +545,8 @@ bool OptProblem::reoptimize(RestartType t)
 
   if(true==nlp_solver->reoptimize()) {
     this->set_have_start();
+  } else {
+    return false;
   }
 
   return true;
