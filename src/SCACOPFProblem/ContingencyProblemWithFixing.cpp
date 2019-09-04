@@ -215,11 +215,20 @@ namespace gollnlp {
 
     if(num_K_done<comm_size-1) num_K_done=comm_size-1;
 
-    double K_avg_time_so_far = (time_so_far+tmrec.measureElapsedTime()) / (num_K_done+1);
-    bool skip_2nd_solve = (K_avg_time_so_far > 0.9*(comm_size-1)*2.);
+    //double K_avg_time_so_far = (time_so_far+tmrec.measureElapsedTime()) / num_K_done;
+    double K_avg_time_so_far = time_so_far  / num_K_done;
 
-    if(this->obj_value>=2e5 && K_avg_time_so_far < 0.950*(comm_size-1)*2.) skip_2nd_solve=false;
-    if(this->obj_value>=1e6 && K_avg_time_so_far < 1.025*(comm_size-1)*2.) skip_2nd_solve=false;
+    //bool skip_2nd_solve = (K_avg_time_so_far > 0.9*(comm_size-1)*2.);
+    bool skip_2nd_solve = (K_avg_time_so_far > 0.9*2.);
+
+    //intf("K_avg_time_so_far=%g  num_K_done %d  time_so_far+elapsed %g\n", 
+    //	   K_avg_time_so_far, num_K_done, time_so_far+tmrec.measureElapsedTime());
+
+    //if(this->obj_value>=2e5 && K_avg_time_so_far < 0.950*(comm_size-1)*2.) skip_2nd_solve=false;
+    //if(this->obj_value>=1e6 && K_avg_time_so_far < 1.025*(comm_size-1)*2.) skip_2nd_solve=false;
+    if(this->obj_value>=2e5 && K_avg_time_so_far < 0.950*2.) skip_2nd_solve=false;
+    if(this->obj_value>=1e6 && K_avg_time_so_far < 1.025*2.) skip_2nd_solve=false;
+
 
     if(this->obj_value>pen_threshold && !skip_2nd_solve) {
  #ifdef BE_VERBOSE
@@ -368,7 +377,8 @@ namespace gollnlp {
 	}  
       }
     } else {
-      if(skip_2nd_solve) printf("ContProbWithFixing K_idx=%d pass2 needed but not done - time restrictions\n", K_idx);
+      if(this->obj_value>pen_threshold && skip_2nd_solve) 
+	printf("ContProbWithFixing K_idx=%d pass2 needed but not done - time restrictions\n", K_idx);
     }
       
     tmrec.stop();

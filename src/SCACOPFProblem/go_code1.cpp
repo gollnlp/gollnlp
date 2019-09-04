@@ -107,25 +107,6 @@ int MyCode1::initialize(int argc, char *argv[])
     return false;
   }
 
-  if(false) {printf("aaaaaaaaaaaaaaa\n");
-  //!
-  for(int i=0; i<data.G_Generator.size(); i++) {
-    double b = 0.025*fabs(data.G_Pub[i]-data.G_Plb[i]);
-    //data.G_Pub[i] -= b; data.G_Plb[i] += b;
-
-    b = 0.025*fabs(data.G_Qub[i]-data.G_Qlb[i]);
-    //data.G_Qub[i] -= b; data.G_Qlb[i] += b;
-  }
-  
-  for(int i=0; i<data.N_Bus.size(); i++) {
-    double b = 0.02*fabs(data.N_EVub[i]-data.N_EVlb[i]);
-    //data.N_EVub[i] -= b; data.N_EVlb[i] =+ b;
-
-    //b = 0.02*fabs(data.N_Vub[i]-data.N_Vlb[i]);
-    //data.N_Vub[i] -= b; data.N_Vlb[i] =+ b;
-  }
-  }
-
   phase3_initial_num_K_in_scacopf = (ScoringMethod==1 || ScoringMethod==3) ? 2 : 2;
   phase3_max_K_evals_to_wait_for = 1;//2*phase3_initial_num_K_in_scacopf;
   phase3_max_K_to_start_solver = 1;//phase3_initial_num_K_in_scacopf;
@@ -2055,65 +2036,3 @@ void MyCode1::display_instance_info()
   printf("[%s]\n[%s]\n[%s]\n[%s]\n\n", InFile1.c_str(), InFile2.c_str(), InFile3.c_str(), InFile4.c_str());
 }
 
-// double MyCode1::solve_contingency_with_basecase(int K_idx, int& status)
-// {
-//   assert(iAmEvaluator);
-//   assert(scacopf_prob != NULL);
-  
-//   status = 0; //be positive
-//   auto p_g0 = scacopf_prob->variable("p_g", data); 
-//   auto v_n0 = scacopf_prob->variable("v_n", data);
-
-//   goTimer t; t.start();
-  
-//   SCACOPFProblem prob(data);
-//   prob.set_AGC_simplified(true);
-//   prob.set_PVPQ_as_nonanticip(true);
-//   //prob.update_PVPQ_smoothing_param( 1e-2 );
-
-//   TL_rate_reduction = 0.85;
-  
-//   prob.set_basecase_L_rate_reduction(TL_rate_reduction);
-//   prob.set_basecase_T_rate_reduction(TL_rate_reduction);
-
-
-//   prob.assembly({K_idx});
-//   //bbb
-
-//   prob.use_nlp_solver("ipopt");
-//   prob.set_solver_option("print_frequency_iter", 1);
-//   prob.set_solver_option("linear_solver", "ma57"); 
-//   prob.set_solver_option("print_level", 5);
-//   prob.set_solver_option("mu_init", 1e-4);
-//   prob.set_solver_option("mu_target", 1e-9);
-//   prob.set_solver_option("tol", 1e-10);
-
-//   //return if it takes too long in phase2
-//   prob.set_solver_option("max_iter", 1700);
-//   prob.set_solver_option("acceptable_tol", 1e-3);
-//   prob.set_solver_option("acceptable_constr_viol_tol", 1e-5);
-//   prob.set_solver_option("acceptable_iter", 5);
-
-//   prob.set_solver_option("bound_relax_factor", 0.);
-//   prob.set_solver_option("bound_push", 1e-16);
-//   prob.set_solver_option("slack_bound_push", 1e-16);
-//   prob.set_solver_option("mu_linear_decrease_factor", 0.4);
-//   prob.set_solver_option("mu_superlinear_decrease_power", 1.25);
-
-  
-
-//   //scacopf_prob->duals_bounds_lower()->print_summary("duals bounds lower");
-//   //scacopf_prob->duals_bounds_upper()->print_summary("duals bounds upper");
-//   //scacopf_prob->duals_constraints()->print_summary("duals constraints");
-
-//   bool bret = prob.optimize("ipopt");
-
-//   double penalty = prob.objective_value();
-
-//   printf("Evaluator Rank %3d K_idx %5d finished with penalty %12.3f "
-// 	 "in %5.3f sec and %3d iterations  global time %g \n",
-// 	 my_rank, K_idx, penalty, t.stop(), 
-// 	 prob.number_of_iterations(), glob_timer.measureElapsedTime());
-  
-//   return penalty;
-// }

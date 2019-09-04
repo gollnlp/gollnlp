@@ -68,10 +68,10 @@ public:
     auto it = mblocks.find(id);
     if(it != mblocks.end())
       return it->second;
-#ifdef DEBUG
-    printf("Warning: block id '%s' was not found in optimiz variables '%s'\n", 
-	   id.c_str(), var_name==""?"name_not_passed":var_name.c_str());
-#endif
+    //#ifdef DEBUG
+    //printf("Warning: block id '%s' was not found in optimiz variables '%s'\n", 
+    //	   id.c_str(), var_name==""?"name_not_passed":var_name.c_str());
+    //#endif
     return NULL;
   }
 
