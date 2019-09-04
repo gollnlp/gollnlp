@@ -228,8 +228,8 @@ void SCACOPFProblem::get_idxs_PVPQ(SCACOPFData& dB, const std::vector<int>& Gk,
 #endif
       if(abs(dB.G_Qub[g]-dB.G_Qlb[g])<=1e-8) {
 	numfixed++; num_qgens_fixed++;
-	printf("PVPQ: gen ID=%d p_q at bus idx %d id %d is fixed; will not add PVPQ constraint\n",
-	       dB.G_Generator[g], dB.G_Nidx[g], data_sc.N_Bus[dB.G_Nidx[g]]);
+	//printf("PVPQ: gen ID=%d p_q at bus idx %d id %d is fixed; will not add PVPQ constraint\n",
+	//       dB.G_Generator[g], dB.G_Nidx[g], data_sc.N_Bus[dB.G_Nidx[g]]);
 	continue;
       }
       idxs_gen_agg.back().push_back(g);

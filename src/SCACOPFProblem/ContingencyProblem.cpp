@@ -281,8 +281,8 @@ namespace gollnlp {
 	if(abs(dB.G_Qub[g]-dB.G_Qlb[g])<=1e-8) {
 	  numfixed++; num_qgens_fixed++;
 #ifdef BE_VERBOSE
-	  printf("PVPQ: gen ID=%d p_q at bus idx %d id %d is fixed; will not enforce voltage nonanticip constraint\n",
-		 dB.G_Generator[g], dB.G_Nidx[g], data_sc.N_Bus[dB.G_Nidx[g]]);
+	  //printf("PVPQ: gen ID=%d p_q at bus idx %d id %d is fixed; will not enforce voltage nonanticip constraint\n",
+	  //	 dB.G_Generator[g], dB.G_Nidx[g], data_sc.N_Bus[dB.G_Nidx[g]]);
 #endif
 	  continue;
 	}

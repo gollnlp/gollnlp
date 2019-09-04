@@ -176,6 +176,11 @@ namespace gollnlp {
     assert(p_g0 == pg0); assert(v_n0 == vn0);
     p_g0 = pg0; v_n0=vn0;
 
+    double pen_threshold=100.;
+    if(data_sc.N_Bus.size()>10000) pen_threshold=250.;
+    if(data_sc.N_Bus.size()>17000) pen_threshold=500.;
+    if(data_sc.N_Bus.size()>29000) pen_threshold=1000.;
+
     vector<int> hist_iter, hist_obj;
     set_solver_option("mu_init", 1e-4);
     if(!OptProblem::reoptimize(OptProblem::primalDualRestart)) {
@@ -200,6 +205,7 @@ namespace gollnlp {
 
 #endif
     }
+    f = this->obj_value;
 
     hist_iter.push_back(number_of_iterations());
     hist_obj.push_back(this->obj_value);
@@ -207,12 +213,15 @@ namespace gollnlp {
     if(variable("delta", d)) solv1_delta_optim = variable("delta", d)->x[0];
     else                     solv1_delta_optim = 0.;
 
+    if(num_K_done<comm_size-1) num_K_done=comm_size-1;
+
     double K_avg_time_so_far = (time_so_far+tmrec.measureElapsedTime()) / (num_K_done+1);
-    bool skip_2nd_solve = (K_avg_time_so_far > 0.925*143.*2.);
+    bool skip_2nd_solve = (K_avg_time_so_far > 0.9*(comm_size-1)*2.);
 
-    if(this->obj_value>1e6 && K_avg_time_so_far < 1.05*143.*2.) skip_2nd_solve=false;
+    if(this->obj_value>=2e5 && K_avg_time_so_far < 0.950*(comm_size-1)*2.) skip_2nd_solve=false;
+    if(this->obj_value>=1e6 && K_avg_time_so_far < 1.025*(comm_size-1)*2.) skip_2nd_solve=false;
 
-    if(this->obj_value>100 && !skip_2nd_solve) {
+    if(this->obj_value>pen_threshold && !skip_2nd_solve) {
  #ifdef BE_VERBOSE
       print_objterms_evals();
       //print_p_g_with_coupling_info(*data_K[0], pg0);
@@ -300,7 +309,7 @@ namespace gollnlp {
 	}
       }
 
-      //testing
+      //
       {
 	auto v = variable("v_n", d);
 	for(int i=0; i<v->n; i++) {
@@ -334,11 +343,12 @@ namespace gollnlp {
       assert(vars_duals_cons->provides_start());
 #endif
       
-      this->set_solver_option("max_iter", 400);
+      this->set_solver_option("max_iter", 250);
 
       if(!OptProblem::reoptimize(OptProblem::primalDualRestart)) {
 	printf("[warning] ContProbWithFixing K_idx=%d opt1-2 failed\n", K_idx); 
       } else {
+	f = this->obj_value;
 	hist_iter.push_back(number_of_iterations());
 	hist_obj.push_back(this->obj_value);
 	

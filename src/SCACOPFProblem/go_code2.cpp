@@ -561,7 +561,7 @@ bool MyCode2::solve_contingency(int K_idx, std::vector<double>& sln)
   goTimer t; t.start();
 
   int status;
-  ContingencyProblemWithFixing prob(data, K_idx, my_rank, dict_basecase_vars, num_K_done, 
+  ContingencyProblemWithFixing prob(data, K_idx, my_rank, comm_size, dict_basecase_vars, num_K_done, 
 				    glob_timer.measureElapsedTime());
 
   //prob.update_AGC_smoothing_param(1e-4);
