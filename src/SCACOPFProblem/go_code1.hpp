@@ -115,6 +115,7 @@ private: //methods
   //std::vector<double> K_penalty_phase2;
   //the same order as in K_phase2
   std::vector<ContingInfo> K_info_phase2;  
+  std::vector<int> K_high_prio_phase2;
   std::vector<ContingInfo> K_info_last_scacopf_solve;
 
   //computes the next contingency idx given the last one
@@ -581,6 +582,8 @@ private: //methods
 			      const std::vector<double>& K_penalties,
 			      const std::vector<std::vector<double> >& K_powers,
 			      const std::vector<int>& K_actions);
+private:
+  void append_high_priority_Kgens(std::vector<int>& K_high_prio, gollnlp::SCACOPFProblem* prob);
 private: //data members
   std::string InFile1, InFile2, InFile3, InFile4;
   double TimeLimitInSec;

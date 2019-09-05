@@ -30,10 +30,6 @@ bool SCACOPFProblem::default_assembly()
 
   SCACOPFData& d = data_sc; //shortcut
 
-  //auto plb = d.G_Plb, pub = d.G_Pub;
-  //bool was_updated = d.compute_pg_bounds_for_Kgens(d.G_Pub.data(), plb.data(), pub.data());
-
-
   //
   // base case
   //
@@ -543,6 +539,7 @@ void SCACOPFProblem::add_agc_reserves()
 
 #ifdef DEBUG
   vector<int> Kidxs_agc_loss_cons, Kidxs_agc_gain_cons;
+  string str=""; char msg[1024];
 #endif	
 					       
 
@@ -637,7 +634,10 @@ void SCACOPFProblem::add_agc_reserves()
 
     this->append_constraints(loss_rsrv);
 #ifdef DEBUG
-    printf(" -- added %d AGC loss reserves for contingencies\n", loss_rsrv->n);
+    if(my_rank==1) {
+      sprintf(msg, " -- added %d AGC loss reserves for contingencies\n", loss_rsrv->n);
+      str += msg;
+    }
 #endif
 
 
@@ -657,13 +657,19 @@ void SCACOPFProblem::add_agc_reserves()
 
     this->append_constraints(gain_rsrv);
 #ifdef DEBUG
-    printf(" -- added %d AGC gain reserves for contingencies\n", gain_rsrv->n);
+    if(my_rank==1) {
+      sprintf(msg, " -- added %d AGC gain reserves for contingencies\n", gain_rsrv->n);
+      str += msg;
     //printvec(Kidxs_agc_gain_cons, "K_idxs");
+    }
 #endif
 
   } else {
     delete gain_rsrv;
   }
+#ifdef DEBUG
+  if(str.size()>0) printf("add_agc_reserves\n%s", str.c_str());
+#endif
 }  
 
 void SCACOPFProblem::find_AGC_infeasible_Kgens(std::vector<int>& agc_infeas_gen_idxs, 
@@ -766,7 +772,9 @@ void SCACOPFProblem::add_agc_reserves_for_max_Lloss_Ugain()
 						   variable("p_g", d));
   AGCReservesCons* gain_rsrv = new AGCReservesCons(con_name("agc_reserves_gain_bnd", d),
 						   variable("p_g", d));
-						       
+#ifdef DEBUG
+    string str=""; char msg[1024]; 
+#endif						       
 
   for(auto area: areas) {
     auto AGC_gens_idxs_area = findall(Garea, [&](int val) {return val==area;});
@@ -780,7 +788,7 @@ void SCACOPFProblem::add_agc_reserves_for_max_Lloss_Ugain()
     //printvec(selectfrom(d.G_Generator,K_gens_idxs_area));
 
 #ifdef DEBUG
-    //printf("agc reserves lb-ub: area %d has %d AGC gens and %d gens subj. to. contingencies\n",
+    //printf("agc Lloss_Ugain reserves lb-ub: area %d has %d AGC gens and %d gens subj. to. contingencies\n",
     //	   area, AGC_gens_idxs_area.size(), K_gens_idxs_area.size());
 #endif
     if(AGC_gens_idxs_area.size()>100) continue;
@@ -795,24 +803,30 @@ void SCACOPFProblem::add_agc_reserves_for_max_Lloss_Ugain()
     }
 
 
-#ifdef DEBUG
-    if(max_loss>1e-6) {
-      int K_idx = -1;
-      for(int i=0; i<d.K_Contingency.size(); i++) 
-	if(d.K_ConType[i]==SCACOPFData::kGenerator && d.K_IDout[i]==d.G_Generator[max_loss_idx]) K_idx = i;
-      assert( K_idx >= 0);
+#ifdef DEBUG 
+    if(my_rank==1) {
       
-      printf(" -- max loss for area %d in the amount of %g for Kgenidx %d id %d  K_idx %d\n",
-           area, max_loss, max_loss_idx, d.G_Generator[max_loss_idx], K_idx);
-    }
-    if(max_gain>1e-6) {
-      int K_idx = -1;
-      for(int i=0; i<d.K_Contingency.size(); i++) 
-	if(d.K_ConType[i]==SCACOPFData::kGenerator && d.K_IDout[i]==d.G_Generator[max_gain_idx]) K_idx = i;
-      assert( K_idx >= 0);
+      if(max_loss>1e-6) {
+	int K_idx = -1;
+	for(int i=0; i<d.K_Contingency.size(); i++) 
+	  if(d.K_ConType[i]==SCACOPFData::kGenerator && d.K_IDout[i]==d.G_Generator[max_loss_idx]) K_idx = i;
+	assert( K_idx >= 0);
       
-      printf(" -- max gain for area %d in the amount of %g for Kgenidx %d id %d  K_idx %d\n",
-           area, max_gain, max_gain_idx, d.G_Generator[max_gain_idx], K_idx);
+	sprintf(msg, " -- max loss for area %d in the amount of %g for Kgenidx %d id %d  K_idx %d\n",
+		area, max_loss, max_loss_idx, d.G_Generator[max_loss_idx], K_idx);
+	str += msg;
+      }
+      if(max_gain>1e-6) {
+	int K_idx = -1;
+	for(int i=0; i<d.K_Contingency.size(); i++) 
+	  if(d.K_ConType[i]==SCACOPFData::kGenerator && d.K_IDout[i]==d.G_Generator[max_gain_idx]) K_idx = i;
+	assert( K_idx >= 0);
+      
+	sprintf(msg, " -- max gain for area %d in the amount of %g for Kgenidx %d id %d  K_idx %d\n",
+	       area, max_gain, max_gain_idx, d.G_Generator[max_gain_idx], K_idx);
+	str += msg;
+      }
+      
     }
 #endif
     
@@ -823,10 +837,6 @@ void SCACOPFProblem::add_agc_reserves_for_max_Lloss_Ugain()
 
       double percentage_of_loss = 1.;
       loss_rsrv->add_max_loss_reserve(responding_AGC_gens_idxs_area, max_loss, percentage_of_loss, d.G_Pub);
-
-
-
-
     }
     if(max_gain>1e-6) {
       assert(max_gain_idx>=0);
@@ -847,8 +857,11 @@ void SCACOPFProblem::add_agc_reserves_for_max_Lloss_Ugain()
 
     this->append_constraints(loss_rsrv);
 #ifdef DEBUG
-    printf(" -- added %d AGC loss (Lloss) reserve constraints for contingencies\n", loss_rsrv->n);
-    //printvec(Kidxs_agc_loss_cons, "K_idxs");
+    if(my_rank==1) {
+      sprintf(msg, " -- added %d AGC loss (Lloss) reserve constraints for contingencies\n", loss_rsrv->n);
+      str += msg;
+      //printvec(Kidxs_agc_loss_cons, "K_idxs");
+    }
 #endif
 
   } else {
@@ -864,13 +877,19 @@ void SCACOPFProblem::add_agc_reserves_for_max_Lloss_Ugain()
 
     this->append_constraints(gain_rsrv);
 #ifdef DEBUG
-    printf(" -- added %d AGC gain (Ugain) reserve constraints for contingencies\n", loss_rsrv->n);
-    //printvec(Kidxs_agc_loss_cons, "K_idxs");
+    if(my_rank==1) {
+      sprintf(msg, " -- added %d AGC gain (Ugain) reserve constraints for contingencies\n", loss_rsrv->n);
+      str += msg;
+      //printvec(Kidxs_agc_loss_cons, "K_idxs");
+    }
 #endif
 
   } else {
     delete gain_rsrv;
   }
+#ifdef DEBUG
+  if(str.size()>0) printf("[rank 1] reserves_Lloss_Ugain\n%s", str.c_str());
+#endif
 }
 
 void SCACOPFProblem::add_quadr_conting_penalty_pg0(const int& idx_gen, const double& p0, const double& f_pen)

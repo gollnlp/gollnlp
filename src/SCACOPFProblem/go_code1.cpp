@@ -9,6 +9,7 @@
 using namespace gollnlp;
 
 #include <algorithm>
+#include <unordered_map>
 
 #include "unistd.h"
 #include <chrono>
@@ -169,10 +170,10 @@ void MyCode1::phase1_ranks_allocation()
       if(my_rank==0) iAmEvaluator=false;
     }
   }
-#ifdef DEBUG_SCHED
-  printf("[comm] [Phase 1] Rank %d ismaster %d issolver %d isevaluator %d\n",
-  	 my_rank, iAmMaster, iAmSolver, iAmEvaluator);
-#endif
+  //#ifdef DEBUG_SCHED
+  //printf("[comm] [Phase 1] Rank %d ismaster %d issolver %d isevaluator %d\n",
+  //	 my_rank, iAmMaster, iAmSolver, iAmEvaluator);
+  //#endif
 }
 
 void MyCode1::phase2_ranks_allocation()   
@@ -212,10 +213,10 @@ void MyCode1::phase2_ranks_allocation()
     for(int r=2; r<comm_size; r++) 
       type_of_rank.push_back(4);
   }
-#ifdef DEBUG_SCHED 
-  printf("[comm] [Phase 2] Rank %d ismaster %d issolver %d isevaluator %d\n",
-  	 my_rank, iAmMaster, iAmSolver, iAmEvaluator);
-#endif
+  //#ifdef DEBUG_SCHED 
+  //printf("[comm] [Phase 2] Rank %d ismaster %d issolver %d isevaluator %d\n",
+  //	 my_rank, iAmMaster, iAmSolver, iAmEvaluator);
+  //#endif
 }
 
 void MyCode1::phase3_ranks_allocation()
@@ -252,6 +253,8 @@ bool MyCode1::do_phase1()
   //
   scacopf_prob = new SCACOPFProblem(data);
 
+  scacopf_prob->my_rank = my_rank;
+
   scacopf_prob->update_AGC_smoothing_param(1e-4);
   scacopf_prob->update_PVPQ_smoothing_param(1e-2);
   //scacopf_prob->set_AGC_as_nonanticip(true);
@@ -272,9 +275,6 @@ bool MyCode1::do_phase1()
 
   if(iAmMaster) {
     vector<int> Kgen_infeas_gen_idxs, Kgen_infeas_K_idxs;
-
-    printvec(Kgen_infeas_K_idxs);
-    printvec(K_info_phase2);
     scacopf_prob->find_AGC_infeasible_Kgens(Kgen_infeas_gen_idxs, 
 					    Kgen_infeas_K_idxs);
     for(int& K_idx : Kgen_infeas_K_idxs) {
@@ -283,17 +283,22 @@ bool MyCode1::do_phase1()
 	  K_info_phase2[k].restrictions = 1; //do not include in SCACOPF
       }
     }
+
+    //build info for contingencies priorities
+    
+
   }
   
 
   scacopf_prob->use_nlp_solver("ipopt"); 
+  scacopf_prob->set_solver_option("sb","yes");
   scacopf_prob->set_solver_option("linear_solver", "ma57"); 
   scacopf_prob->set_solver_option("mu_init", 1.);
   scacopf_prob->set_solver_option("print_frequency_iter", 10);
   scacopf_prob->set_solver_option("tol", 1e-10);
   scacopf_prob->set_solver_option("mu_target", 1e-10);
 
-  //scacopf_prob->set_solver_option("max_iter", 100);
+  scacopf_prob->set_solver_option("max_iter", 2000);
 
   scacopf_prob->set_solver_option("acceptable_tol", 1e-3);
   scacopf_prob->set_solver_option("acceptable_constr_viol_tol", 1e-5);
@@ -323,83 +328,59 @@ bool MyCode1::do_phase1()
   bool bret = scacopf_prob->optimize("ipopt");
 
   
-  if(false) {
-    scacopf_prob->set_solver_option("tol", 1e-9);
-    scacopf_prob->set_solver_option("bound_push", 1e-12);
-    scacopf_prob->set_solver_option("slack_bound_push", 1e-12);
+  // if(false) {
+  //   scacopf_prob->set_solver_option("tol", 1e-9);
+  //   scacopf_prob->set_solver_option("bound_push", 1e-12);
+  //   scacopf_prob->set_solver_option("slack_bound_push", 1e-12);
     
-    scacopf_prob->set_solver_option("warm_start_init_point", "yes");
+  //   scacopf_prob->set_solver_option("warm_start_init_point", "yes");
     
-    scacopf_prob->set_solver_option("warm_start_bound_push", 1e-12);
-    scacopf_prob->set_solver_option("warm_start_slack_bound_push", 1e-12);
-    scacopf_prob->set_solver_option("warm_start_mult_bound_push", 1e-12);
+  //   scacopf_prob->set_solver_option("warm_start_bound_push", 1e-12);
+  //   scacopf_prob->set_solver_option("warm_start_slack_bound_push", 1e-12);
+  //   scacopf_prob->set_solver_option("warm_start_mult_bound_push", 1e-12);
     
-    scacopf_prob->set_solver_option("warm_start_bound_frac", 1e-12);
-    scacopf_prob->set_solver_option("warm_start_slack_bound_frac", 1e-12);
+  //   scacopf_prob->set_solver_option("warm_start_bound_frac", 1e-12);
+  //   scacopf_prob->set_solver_option("warm_start_slack_bound_frac", 1e-12);
     
-    scacopf_prob->set_solver_option("mu_target", 5e-9);
-    scacopf_prob->set_solver_option("mu_init", 1e-8);
+  //   scacopf_prob->set_solver_option("mu_target", 5e-9);
+  //   scacopf_prob->set_solver_option("mu_init", 1e-8);
     
-    //scacopf_prob->update_PVPQ_smoothing_param( 1e-2 );  
-    scacopf_prob->reoptimize(OptProblem::primalDualRestart);
+  //   //scacopf_prob->update_PVPQ_smoothing_param( 1e-2 );  
+  //   scacopf_prob->reoptimize(OptProblem::primalDualRestart);
     
-    //scacopf_prob->update_PVPQ_smoothing_param( 1e-2 );  
-    scacopf_prob->reoptimize(OptProblem::primalDualRestart);
+  //   //scacopf_prob->update_PVPQ_smoothing_param( 1e-2 );  
+  //   scacopf_prob->reoptimize(OptProblem::primalDualRestart);
     
-    //scacopf_prob->update_PVPQ_smoothing_param( 1e-5 );  
-    //scacopf_prob->reoptimize(OptProblem::primalDualRestart);
+  //   //scacopf_prob->update_PVPQ_smoothing_param( 1e-5 );  
+  //   //scacopf_prob->reoptimize(OptProblem::primalDualRestart);
 
     
-    //scacopf_prob->update_PVPQ_smoothing_param( 1e-7 );  
-    //scacopf_prob->reoptimize(OptProblem::primalDualRestart);
+  //   //scacopf_prob->update_PVPQ_smoothing_param( 1e-7 );  
+  //   //scacopf_prob->reoptimize(OptProblem::primalDualRestart);
     
-    //scacopf_prob->update_PVPQ_smoothing_param( 1e-8 );  
-    //scacopf_prob->reoptimize(OptProblem::primalDualRestart);
+  //   //scacopf_prob->update_PVPQ_smoothing_param( 1e-8 );  
+  //   //scacopf_prob->reoptimize(OptProblem::primalDualRestart);
     
-    //scacopf_prob->update_PVPQ_smoothing_param( 1e-9 );  
-    //scacopf_prob->reoptimize(OptProblem::primalDualRestart);
+  //   //scacopf_prob->update_PVPQ_smoothing_param( 1e-9 );  
+  //   //scacopf_prob->reoptimize(OptProblem::primalDualRestart);
     
-  //scacopf_prob->update_PVPQ_smoothing_param( 1e-8 );  
-  //scacopf_prob->reoptimize(OptProblem::primalDualRestart);
-    printf("final ------------------------\n");
-  }
+  // //scacopf_prob->update_PVPQ_smoothing_param( 1e-8 );  
+  // //scacopf_prob->reoptimize(OptProblem::primalDualRestart);
+  //   printf("final ------------------------\n");
+  // }
   
   if(iAmSolver) {
     cost_basecase = scacopf_prob->objective_value();
     scacopf_prob->print_objterms_evals();
 
     //if(scacopf_prob->data_K.size()>0)
-    //  scacopf_prob->print_p_g_with_coupling_info(*scacopf_prob->data_K[0]);
-    //else
-    //  scacopf_prob->print_p_g(data);
-
-    //if(scacopf_prob->data_K.size()>0)
-    //  scacopf_prob->print_PVPQ_info(*scacopf_prob->data_K[0]);
-
-    //auto v_n0 = scacopf_prob->variable("v_n", data);
-    //v_n0->print();
-    //auto v_nk = scacopf_prob->variable("v_n", *scacopf_prob->data_K[0]);
-    //v_nk->print();
-
-    //scacopf_prob->print_active_power_balance_info(*scacopf_prob->data_K[0]);
-
-    if(scacopf_prob->data_K.size()>0)
-      scacopf_prob->print_reactive_power_balance_info(*scacopf_prob->data_K[0]);
-
+    //  scacopf_prob->print_reactive_power_balance_info(*scacopf_prob->data_K[0]);
     //scacopf_prob->print_reactive_power_balance_info(data);
-
-    scacopf_prob->print_line_limits_info(data);
-
-    //auto q_g0 = scacopf_prob->variable("q_g", data);
-    //q_g0->print();
-    //auto q_gk = scacopf_prob->variable("q_g", *scacopf_prob->data_K[0]);
-    //q_gk->print();
+    //scacopf_prob->print_line_limits_info(data);
 
   }
   printf("[ph1] rank %d  scacopf solve phase 1 done at global time %g\n", 
 	   my_rank, glob_timer.measureElapsedTime());
-
-
 
   //
   //communication -> solver rank0 bcasts basecase solutions
@@ -416,10 +397,8 @@ bool MyCode1::do_phase1()
   //  MPI_Bcast_x(rank_solver_rank0, comm_world, my_rank);
 
   MPI_Bcast(&cost_basecase, 1, MPI_DOUBLE, rank_solver_rank0, comm_world);
-
   //printf("[ph1] rank %d  phase 1 basecase bcasts done at global time %g\n", 
   //	   my_rank, glob_timer.measureElapsedTime());
-
 
 
   //force a have_start set
@@ -427,7 +406,7 @@ bool MyCode1::do_phase1()
     scacopf_prob->set_have_start();
   } else {
 
-    scacopf_prob->print_summary();
+    //scacopf_prob->print_summary();
 
     K_SCACOPF_phase3 = K_SCACOPF_phase1;
     printf("[ph1] rank %d  phase 1 writes solution1.txt at global time %g\n", 
@@ -461,7 +440,7 @@ bool MyCode1::do_phase1()
     req_recv_base_sol.post(scacopf_prob, Tag7, rank_solver_rank0, comm_world);
 
     while(!req_recv_base_sol.is_done()) {
-      std::this_thread::sleep_for(std::chrono::milliseconds(200));
+      std::this_thread::sleep_for(std::chrono::milliseconds(100));
     }
     int scacopf_pass = req_recv_base_sol.update_prob_variables(scacopf_prob);
     //printf("rank %d  basecase solution pass %d received\n", my_rank, scacopf_pass);
@@ -473,6 +452,10 @@ bool MyCode1::do_phase1()
       std::this_thread::sleep_for(std::chrono::milliseconds(100));
     }
     //printf("rank %d  basecase solution pass %d send to all\n", my_rank, phase3_scacopf_passes_solver);
+  }
+
+  if(iAmMaster) {
+    append_high_priority_Kgens(K_high_prio_phase2, scacopf_prob);
   }
 
   return true;
@@ -695,7 +678,7 @@ int MyCode1::get_next_conting_foreval(int Kidx_last, int rank, vector<ContingInf
 #ifdef DEBUG_SCHED  
     printf("[comm] Master: did NOT find a next contingency to follow Kidx=%d on rank %d, will return K_idx=-1\n",
       Kidx_last, rank);
-    printvec(K_info_phase2);
+    //printvec(K_info_phase2);
 #endif
     }
     return -1;
@@ -2036,3 +2019,112 @@ void MyCode1::display_instance_info()
   printf("[%s]\n[%s]\n[%s]\n[%s]\n\n", InFile1.c_str(), InFile2.c_str(), InFile3.c_str(), InFile4.c_str());
 }
 
+struct KGenInfo {
+  KGenInfo() : Kidx(-1), genidx(-1), loss(0.) {};
+  KGenInfo(const int& Kidx_, const int& genidx_, const double& loss_) 
+    : Kidx(Kidx_), genidx(genidx_), loss(loss_) {};
+  int Kidx, genidx;
+  double loss;
+};
+
+void MyCode1::append_high_priority_Kgens(std::vector<int>& K_high_prio, gollnlp::SCACOPFProblem* prob)
+{
+  //gollnlp::goTimer timer; timer.start();
+  auto p_g0 = prob->variable("p_g", data), q_g0 = prob->variable("p_g", data);
+
+  std::unordered_map<int, KGenInfo> N_gens_loss;
+  std::unordered_map<int, KGenInfo> N_gens_gain;
+
+  int nKgens=0;
+
+  //find the largest generator loss and gain at each Bus with Kgenerators 
+
+  for(int i=0; i<data.K_Contingency.size(); i++) {
+    if(data.K_ConType[i] != gollnlp::SCACOPFData::kGenerator) continue;
+    nKgens++;
+    const int Kidx = data.K_Contingency[i];
+    const int genidx = data.K_outidx[i]; 
+    assert(genidx>=0); assert(genidx<p_g0->n); assert(genidx<q_g0->n); 
+
+    if(p_g0->x[i] > 1e-4) {
+      double loss = p_g0->x[genidx];
+      auto it = N_gens_loss.find(data.G_Bus[genidx]);
+      if(it != N_gens_loss.end()) {
+	if(it->second.loss < loss) {
+	  it->second.loss = loss; 
+	  it->second.Kidx = Kidx;
+	  it->second.genidx = genidx;
+	}
+	//printf(" ++++ bus %d  loss %.4f genidx %d lb=%g ub=%g\n", it->first, loss, genidx, data.G_Plb[genidx],  data.G_Pub[genidx]);
+      } else {
+
+	N_gens_loss[data.G_Bus[i]] = KGenInfo(Kidx, genidx, loss);
+
+	auto it = N_gens_loss.find(data.G_Bus[i]);
+	//printf(" !!!! bus %d  loss %.4f genidx %d lb=%g ub=%g\n", it->first, loss, genidx, data.G_Plb[genidx],  data.G_Pub[genidx]);
+      }
+
+    } else if(p_g0->x[i] < -1e-4) {
+      double gain = p_g0->x[genidx];
+      auto it = N_gens_gain.find(data.G_Bus[genidx]);
+      if(it != N_gens_gain.end()) {
+	if(it->second.loss > gain) {
+	  it->second.loss = gain; 
+	  it->second.Kidx = Kidx;
+	  it->second.genidx = genidx;
+	}
+      } else {
+	N_gens_gain[data.G_Bus[i]] = KGenInfo(Kidx, genidx, gain);
+      }
+    }
+  }
+
+#ifdef DEBUG
+  int nbuseswithgens = 0;
+  {
+    std::unordered_map<int, int> N_with_gens;
+    for(int i=0; i<data.G_Bus.size(); i++) {
+      auto it = N_with_gens.find(data.G_Bus[i]);
+      if(it != N_with_gens.end()) {
+	N_with_gens[data.G_Bus[i]]++;
+      } else {
+	N_with_gens[data.G_Bus[i]]=1;
+      }
+    }
+    nbuseswithgens = N_with_gens.size();
+  }
+
+  printf("found %lu buses with Kgens having losses (total buses with gens %d); total gens %lu out of which %d are Kgens\n", 
+	 N_gens_loss.size(), nbuseswithgens, data.G_Bus.size(), nKgens);
+  printf("found %lu buses with Kgens having gains; total gens %lu out of which %d are Kgens\n", 
+	 N_gens_gain.size(), data.G_Bus.size(), nKgens);
+  
+#endif
+
+  vector<KGenInfo> v;
+  for(auto it=N_gens_loss.begin(); it != N_gens_loss.end(); ++it) {
+    //printf(" -------- bus %d  loss %.4f genidx %d\n", it->first, it->second.loss, it->second.genidx);
+    v.push_back(it->second);
+  }
+  std::sort(v.begin(), v.end(), [&](const KGenInfo& a, const KGenInfo& b) { return a.loss > b.loss; });
+  int MAX_K = std::min(144, (int)v.size());
+  for(int i=0; i<MAX_K; i++) K_high_prio.push_back(v[i].Kidx);
+
+
+#ifdef DEBUG
+  //printvec(K_high_prio, "Kidx largest losses");
+  //for(int i=0; i<K_high_prio.size(); i++) {
+  //  printf(" [%d] Kidx %d  loss %.3f genidx %d\n", i, K_high_prio[i], p_g0->x[data.K_outidx[K_high_prio[i]]], data.K_outidx[K_high_prio[i]]);
+  //}
+#endif
+
+  v.clear();
+  for(auto it=N_gens_gain.begin(); it != N_gens_gain.end(); ++it)
+    v.push_back(it->second);
+  std::sort(v.begin(), v.end(), [&](const KGenInfo& a, const KGenInfo& b) { return a.loss < b.loss; });
+  MAX_K = std::min(144, (int)N_gens_gain.size());
+  for(int i=0; i<MAX_K; i++) K_high_prio.push_back(v[i].Kidx);
+  //printvec(K_high_prio, "Kidx largest gains");
+
+  //printf("append_high_priority_Kgens took %.3f sec\n", timer.getElapsedTime());
+}

@@ -21,6 +21,7 @@ namespace gollnlp {
 	quadr_penalty_qg0(false)
     {
       L_rate_reduction = T_rate_reduction = 1.;
+      my_rank=-1;
     }
     virtual ~SCACOPFProblem();
 
@@ -152,6 +153,7 @@ namespace gollnlp {
     //options
     bool useQPen;
     double slacks_scale;
+    int my_rank;
   protected:
     double AGCSmoothing, PVPQSmoothing;
     bool quadr_penalty_qg0;
