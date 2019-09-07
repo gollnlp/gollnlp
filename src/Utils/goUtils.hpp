@@ -151,6 +151,15 @@ template<class T> inline bool erase_elem_from(std::vector<T>& v, const T& e)
   v.erase(it);
   return true;
 }
+// erase first elem 'e' from the vector; if e is not in v return false, otherwise true
+template<class T> inline bool erase_elem_from(std::list<T>& v, const T& e) 
+{ 
+  auto it = std::find(v.begin(), v.end(), e);
+  if(it==v.end()) 
+    return false;
+  v.erase(it);
+  return true;
+}
 
 //erase elem at index 'i' from the vector
 template<class T> inline void erase_idx_from(std::vector<T>& v, const int& idx)

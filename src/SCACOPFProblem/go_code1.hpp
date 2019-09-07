@@ -131,8 +131,6 @@ private: //methods
   //holds indexes of contingencies in data.K_Contingency
   std::vector<int> K_phase2;
   
-  
-
 
   //high penalty threshold factor relative to the basecase ACOPF from phase1
   double high_pen_threshold_factor;

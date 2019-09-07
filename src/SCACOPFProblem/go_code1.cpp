@@ -28,7 +28,7 @@ ostream& operator<<(ostream& os, const MyCode1::ContingInfo& o)
      << " scacopf_solves=" << o.n_scacopf_solves << " n_evals=" << o.n_evals 
      << " max_K_evals=" << o.max_K_evals <<  " force_reev=" << o.force_reeval
      << " rank=" << o.rank_eval 
-     << " P| " << o.p1 << ' ' << o.q1 << ' ' << o.p2 << ' ' << o.q2 << " | "
+    //<< " P| " << o.p1 << ' ' << o.q1 << ' ' << o.p2 << ' ' << o.q2 << " | "
      << " scacopf actions: [";
   for(auto a : o.scacopf_actions) os << a << ' ';
   
@@ -37,7 +37,7 @@ ostream& operator<<(ostream& os, const MyCode1::ContingInfo& o)
 };
 
 int MyCode1::MAX_NUM_Kidxs_SCACOPF=512;
-int MyCode1::MAX_K_EVALS=2;
+int MyCode1::MAX_K_EVALS=3;
 MyCode1::MyCode1(const std::string& InFile1_, const std::string& InFile2_,
 		 const std::string& InFile3_, const std::string& InFile4_,
 		 double TimeLimitInSeconds, 
@@ -534,8 +534,8 @@ void MyCode1::phase2_initial_contingency_distribution()
   //assert(S >= R);
   
   int perRank = S/R; int remainder = S-R*(S/R);
-  printf("evaluators=%d contingencies=%d perRank=%d remainder=%d\n",
-  	 R, S, perRank, remainder);
+  //printf("evaluators=%d contingencies=%d perRank=%d remainder=%d\n",
+  //	 R, S, perRank, remainder);
 
   //each rank gets one contingency idx = r*perRank
   int nEvaluators=-1;
@@ -544,16 +544,25 @@ void MyCode1::phase2_initial_contingency_distribution()
       //evaluator rank
       nEvaluators++;
       
-      int K_idx_phase2 = nEvaluators*perRank;
-      if(nEvaluators<remainder)
-	K_idx_phase2 += nEvaluators;
-      else
-	K_idx_phase2 += remainder;
-
-      if(nEvaluators<S) {
-	//printf("r=%d K_idx=%d  K_value=%d\n", r, K_idx, K_phase2[K_idx]);
-	assert(K_idx_phase2 < K_phase2.size());
+      int K_idx_phase2=-55;
+      if(1.0*r/num_ranks <= 110.0/144 && !K_high_prio_phase2.empty()) {
+	K_idx_phase2 = K_high_prio_phase2.front();
+	K_high_prio_phase2.pop_front();
 	K_on_rank[r].push_back(K_idx_phase2);
+
+      } else {
+	K_idx_phase2 = nEvaluators*perRank;
+	if(nEvaluators<remainder)
+	  K_idx_phase2 += nEvaluators;
+	else
+	  K_idx_phase2 += remainder;
+	
+	if(nEvaluators<S) {
+	  //printf("r=%d K_idx=%d  K_value=%d\n", r, K_idx, K_phase2[K_idx]);
+	  assert(K_idx_phase2 < K_phase2.size());
+	  erase_elem_from(K_high_prio_phase2, K_idx_phase2);
+	  K_on_rank[r].push_back(K_idx_phase2);
+	}
       }
     }
   }
@@ -591,12 +600,20 @@ int MyCode1::get_next_conting_foreval(int Kidx_last, int rank, vector<ContingInf
 
   bool have_new_firsttimer=false;
   //basic strategy to pick the next contingency
-  // try Kidx_last+1, Kidx_last+2, ..., numK, 1, 2, ..., Kidx_last-1
-  bool done=false;
+  // get one from the front of K_high_prio_phase2
+  // or 
+  // try Kidx_last+1, Kidx_last+2, ..., numK, 1, 2, ..., Kidx_last-1 (and remove it from K_high_prio_phase2)
+  bool done=false, is_high_prior=false; int comm_size = K_on_rank.size(); 
   int Kidx_next = Kidx_last;
   while(!done) {
-    Kidx_next += 1;
-    if(Kidx_next>=K_phase2.size()) Kidx_next=0;
+
+    if(1.0*rank/comm_size <= 110.0/144 && !K_high_prio_phase2.empty()) {
+      Kidx_next = K_high_prio_phase2.front();
+      is_high_prior=true;
+    } else {
+      Kidx_next += 1;
+      if(Kidx_next>=K_phase2.size()) Kidx_next=0;
+    }
 
     bool previously_scheduled = false;
     for(auto& Kr : K_on_rank) {
@@ -612,19 +629,21 @@ int MyCode1::get_next_conting_foreval(int Kidx_last, int rank, vector<ContingInf
     if(!previously_scheduled) {
       if(false == only_first_timers_last_iters) {
 #ifdef DEBUG_SCHED
-	printf("[sched] Master: found next  contingency for K_idx=%d (globidx=%d) to have "
-	       "idx=%d (globidx=%d) [1]\n",
-	       Kidx_last, K_phase2[Kidx_last], Kidx_next, K_phase2[Kidx_next]);
+	printf("[sched] Master: next contingency for K_idx=%d (globidx=%d) to have "
+	       "idx=%d (globidx=%d) [1] [%s] on rank %d\n",
+	       Kidx_last, K_phase2[Kidx_last], Kidx_next, K_phase2[Kidx_next],
+	       is_high_prior ? "high prior" : "", rank);
 #endif      
-      return Kidx_next;
+	erase_elem_from(K_high_prio_phase2, Kidx_next);
+	return Kidx_next;
       } else {
 	//we found a new one but we don't return it since the rank has only evaluated first timers
 	//recently and we may want to use the rank to reevaluate a high penalty contingency
 	have_new_firsttimer=true;
 	done = true;
       }
-    }
-
+    } else { assert(is_high_prior==false); }
+    
     if(Kidx_next == Kidx_last) {
       //we looped over all elements of K_phase2 and couldn't find a contingency
       //that were not already assigned to a rank
@@ -635,8 +654,20 @@ int MyCode1::get_next_conting_foreval(int Kidx_last, int rank, vector<ContingInf
   assert(done==true);
   if(have_new_firsttimer) { assert( only_first_timers_last_iters ); assert(Kidx_next != Kidx_last); }
 
-  bool hold=false;
+  //to do
+  if(!have_new_firsttimer) {
+    
+    //if !have_new_first_timer -> check that evaled_with_sol_at_pass == phase3_scacopf_passes_master or, if not,
+    //return one for which evaled_with_sol_at_pass < phase3_scacopf_passes_master
+    for(ContingInfo& kinfo : K_info_all) {
+      if(kinfo.rank_eval==rank) {
+	if(kinfo.evaled_with_sol_at_pass<phase3_scacopf_passes_master || kinfo.force_reeval)
+	  return kinfo.idx;
+      }
+    }
+  }
 
+  bool hold=false;
   //try to find one that was already evaluated and is in need of a new evaluation because
   //it still has a high penalty after the evaluation or was rescheduled after an scacopf solve
   for(ContingInfo& kinfo : K_info_all) {
@@ -650,6 +681,7 @@ int MyCode1::get_next_conting_foreval(int Kidx_last, int rank, vector<ContingInf
       if(kinfo.force_reeval)
 	return kinfo.idx;
 
+
       //if there are NO firsttimer contingencies, we may want to put the rank on hold
       if(!have_new_firsttimer) {
 	if(kinfo.penalty>=pen_threshold && kinfo.n_evals<kinfo.max_K_evals) 
@@ -662,9 +694,6 @@ int MyCode1::get_next_conting_foreval(int Kidx_last, int rank, vector<ContingInf
 
   if(hold) {
     assert(false==have_new_firsttimer);
-    //#ifdef DEBUG_COMM  
-    //printf("[comm] Master: putting rank %d on hold.\n", rank);
-    //#endif
     return -3;
   } else {
     if(have_new_firsttimer) {
@@ -672,21 +701,24 @@ int MyCode1::get_next_conting_foreval(int Kidx_last, int rank, vector<ContingInf
       assert(Kidx_next>=0 && Kidx_next<K_phase2.size());
 #ifdef DEBUG_SCHED
       printf("[comm] Master: found next  contingency for K_idx=%d (globidx=%d) to have "
-	     "idx=%d (globidx=%d) (no reevals were needed)\n",
-	     Kidx_last, K_phase2[Kidx_last], Kidx_next, K_phase2[Kidx_next]);
+	     "idx=%d (globidx=%d) (no reevals were needed) [%s]\n",
+	     Kidx_last, K_phase2[Kidx_last], Kidx_next, K_phase2[Kidx_next],
+	     is_high_prior ? "high prior" : "");
 #endif
+      erase_elem_from(K_high_prio_phase2, Kidx_next);
       return Kidx_next;
       
     } else { //!have_new_first_timer
 
-      //if any of the rank is on hold, this should also be on hold
-      //for(auto& Kr : K_on_rank) for(auto Kidx : Kr) if(Kidx==-3) return -3;
+      
 
       for(ContingInfo& kinfo: K_info_phase2) {
 	//on hold if high pens (without restriction==1)
 	if((kinfo.penalty>=pen_threshold && kinfo.restrictions!=1) || kinfo.penalty<=-1e20) return -3;
 	if(kinfo.force_reeval!=0) return -3;
       }
+
+
 
 #ifdef DEBUG_SCHED  
     printf("[comm] Master: did NOT find a next contingency to follow Kidx=%d on rank %d, will return K_idx=-1\n",
@@ -1231,7 +1263,7 @@ bool MyCode1::do_phase3_master_solverpart(bool master_evalpart_done)
 	////////////////////////////////////////////////////////////////////////////////
 	// actions after the SCACOPF solve
 	////////////////////////////////////////////////////////////////////////////////
-	bool scacopf_includes = false, force_reevals=false;
+	bool scacopf_includes = false, scacopf_penalize=false, force_reevals=false; 
 	//update scacopf solves counter for elems of K_info_phase2
 	for(int itk=0; itk<K_info_phase2.size(); itk++) {
 	  ContingInfo& kinfo=K_info_phase2[itk];
@@ -1246,13 +1278,20 @@ bool MyCode1::do_phase3_master_solverpart(bool master_evalpart_done)
 	      force_reevals=true;
 	    }
 	    if(kinfo.scacopf_actions.back() == -101) {
-	      force_reevals=true;
+	      scacopf_penalize = true;
 	    }
 	  }
 	}
 	if(scacopf_includes) {
 	  MAX_K_EVALS = MAX_K_EVALS + 1;
 	}
+	if(scacopf_penalize) {
+	  bool all_in=true;
+	  for(auto& ci : K_info_phase2) { if(ci.rank_eval<0) { all_in = false; break; } }
+	  if(all_in) force_reevals=true;
+	}
+	
+
 	if(force_reevals) {
 	  for(int itk=0; itk<K_info_phase2.size(); itk++) {
 	    ContingInfo& kinfo=K_info_phase2[itk];
