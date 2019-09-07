@@ -1297,9 +1297,13 @@ bool MyCode1::do_phase3_master_solverpart(bool master_evalpart_done)
 	    ContingInfo& kinfo=K_info_phase2[itk];
 	    if(kinfo.n_evals==kinfo.max_K_evals) {
 	      kinfo.max_K_evals++;
-	    }
-	    else { 
-	      assert(kinfo.n_evals<kinfo.max_K_evals); 
+	    } else { 
+	      //assert(kinfo.n_evals<kinfo.max_K_evals); 
+	      if(kinfo.n_evals>kinfo.max_K_evals) {
+		printf("[warning] kinfo.n_evals<kinfo.max_K_evals (%d < %d) for Kidx=%d\n",
+		       kinfo.n_evals, kinfo.max_K_evals, kinfo.idx);
+		printvec(K_info_phase2);
+	      }
 	    }
 	    kinfo.force_reeval = 1;
 	  }
