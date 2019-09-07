@@ -455,7 +455,20 @@ bool MyCode1::do_phase1()
   }
 
   if(iAmMaster) {
-    append_high_priority_Kgens(K_high_prio_phase2, scacopf_prob);
+    gollnlp::goTimer tm; tm.start();
+    string str; char msg[1024];
+    vector<int> Kgens_highp, Ktransm_highp;
+    get_high_priority_Kgens(1024, Kgens_highp, scacopf_prob);
+    get_high_priority_Ktransm(2048, Ktransm_highp, scacopf_prob);
+    sprintf(msg, "Kscreen: %d gens %d transm ", Kgens_highp.size(), Ktransm_highp.size()); str += msg;
+
+    auto itg = Kgens_highp.begin(), itt=Ktransm_highp.begin();
+    while(itg!=Kgens_highp.end() || itt!=Ktransm_highp.end()) {
+      if(itg!=Kgens_highp.end()) { K_high_prio_phase2.push_back(*itg); ++itg; }
+      if(itt!=Ktransm_highp.end()) { K_high_prio_phase2.push_back(*itt); ++itt; }
+    }
+    sprintf(msg, " took %.4f sec\n", tm.getElapsedTime()); str += msg;
+    printf("[rank 0] %s", str.c_str());
   }
 
   return true;
@@ -557,7 +570,7 @@ int MyCode1::get_next_conting_foreval(int Kidx_last, int rank, vector<ContingInf
   assert(Kidx_last>=0);
 
   bool only_first_timers_last_iters = true;
-  int nmax_K_prev_firsttimers_evals=2; //contingencies that were evaluated only once
+  int nmax_K_prev_firsttimers_evals=3; //contingencies that were evaluated only once
 
   int nK_on_rank = K_on_rank[rank].size();
   if(nK_on_rank>=nmax_K_prev_firsttimers_evals) {
@@ -2027,7 +2040,7 @@ struct KGenInfo {
   double loss;
 };
 
-void MyCode1::append_high_priority_Kgens(std::vector<int>& K_high_prio, gollnlp::SCACOPFProblem* prob)
+void MyCode1::get_high_priority_Kgens(int Kmax, std::vector<int>& K_high_prio, gollnlp::SCACOPFProblem* prob)
 {
   //gollnlp::goTimer timer; timer.start();
   auto p_g0 = prob->variable("p_g", data), q_g0 = prob->variable("p_g", data);
@@ -2055,13 +2068,15 @@ void MyCode1::append_high_priority_Kgens(std::vector<int>& K_high_prio, gollnlp:
 	  it->second.Kidx = Kidx;
 	  it->second.genidx = genidx;
 	}
-	//printf(" ++++ bus %d  loss %.4f genidx %d lb=%g ub=%g\n", it->first, loss, genidx, data.G_Plb[genidx],  data.G_Pub[genidx]);
+	//printf(" ++++ bus %d  loss %.4f genidx %d lb=%g ub=%g\n", 
+	//it->first, loss, genidx, data.G_Plb[genidx],  data.G_Pub[genidx]);
       } else {
 
 	N_gens_loss[data.G_Bus[i]] = KGenInfo(Kidx, genidx, loss);
 
 	auto it = N_gens_loss.find(data.G_Bus[i]);
-	//printf(" !!!! bus %d  loss %.4f genidx %d lb=%g ub=%g\n", it->first, loss, genidx, data.G_Plb[genidx],  data.G_Pub[genidx]);
+	//printf(" !!!! bus %d  loss %.4f genidx %d lb=%g ub=%g\n", 
+	//it->first, loss, genidx, data.G_Plb[genidx],  data.G_Pub[genidx]);
       }
 
     } else if(p_g0->x[i] < -1e-4) {
@@ -2107,8 +2122,8 @@ void MyCode1::append_high_priority_Kgens(std::vector<int>& K_high_prio, gollnlp:
     v.push_back(it->second);
   }
   std::sort(v.begin(), v.end(), [&](const KGenInfo& a, const KGenInfo& b) { return a.loss > b.loss; });
-  int MAX_K = std::min(144, (int)v.size());
-  for(int i=0; i<MAX_K; i++) K_high_prio.push_back(v[i].Kidx);
+  int Kmax1 = std::min(Kmax, (int)v.size());
+  for(int i=0; i<Kmax1; i++) K_high_prio.push_back(v[i].Kidx);
 
 
 #ifdef DEBUG
@@ -2122,9 +2137,425 @@ void MyCode1::append_high_priority_Kgens(std::vector<int>& K_high_prio, gollnlp:
   for(auto it=N_gens_gain.begin(); it != N_gens_gain.end(); ++it)
     v.push_back(it->second);
   std::sort(v.begin(), v.end(), [&](const KGenInfo& a, const KGenInfo& b) { return a.loss < b.loss; });
-  MAX_K = std::min(144, (int)N_gens_gain.size());
-  for(int i=0; i<MAX_K; i++) K_high_prio.push_back(v[i].Kidx);
+  Kmax1 = std::min(Kmax, (int)N_gens_gain.size());
+  for(int i=0; i<Kmax1; i++) K_high_prio.push_back(v[i].Kidx);
   //printvec(K_high_prio, "Kidx largest gains");
 
   //printf("append_high_priority_Kgens took %.3f sec\n", timer.getElapsedTime());
+}
+
+struct KTransmInfo {
+  KTransmInfo() : Kidx(-1), TL_idx(-1), priority(-1.17) {};
+  KTransmInfo(const int& Kidx_, const int& TL_idx_, const double& priority_) 
+    : Kidx(Kidx_), TL_idx(TL_idx_), priority(priority_) {};
+  int Kidx, TL_idx;
+  double priority;
+};
+
+ostream& operator<<(ostream& os, const KTransmInfo& o)
+{
+  os<< "Kidx=" << o.Kidx << " TL_idx=" << o.TL_idx << " priori=" << o.priority << endl;
+  return os;
+}
+
+void MyCode1::get_high_priority_Ktransm(int Kmax, std::vector<int>& K_high_prio, gollnlp::SCACOPFProblem* prob)
+{
+  gollnlp::goTimer timer; timer.start();
+  auto p_g = prob->variable("p_g", data), q_g = prob->variable("p_g", data);
+  auto v_n = prob->variable("v_n", data); 
+  auto p_li1 = prob->variable("p_li1", data), p_li2 = prob->variable("p_li2", data);
+  auto q_li1 = prob->variable("q_li1", data), q_li2 = prob->variable("q_li2", data);
+  auto p_ti1 = prob->variable("p_ti1", data), p_ti2 = prob->variable("p_ti2", data);
+  auto q_ti1 = prob->variable("q_ti1", data), q_ti2 = prob->variable("q_ti2", data);
+
+  //compute max capacity
+  const int L = data.L_Line.size(), T=data.T_Transformer.size();
+  vector<double> pli1_capac(L), pli2_capac(L), pti1_capac(T), pti2_capac(T);
+  double aux1, aux2;
+  for(int i=0; i<L; i++) {
+    aux1 = 0.85*data.L_RateEmer[i]; aux1 = aux1*aux1;
+    aux2=aux1 - q_li1->x[i]*q_li1->x[i];
+    pli1_capac[i] = aux2>0 ? sqrt(aux2) : 0.;
+    aux2=aux1 - q_li2->x[i]*q_li2->x[i];
+    pli2_capac[i] = aux2>0 ? sqrt(aux2) : 0.;
+  }
+  for(int i=0; i<T; i++) {
+    aux1 = 0.85*data.T_RateEmer[i]; aux1 = aux1*aux1;
+    aux2=aux1 - q_ti1->x[i]*q_ti1->x[i];
+    pti1_capac[i] = aux2>0 ? sqrt(aux2) : 0.;
+
+    aux2=aux1 - q_ti2->x[i]*q_ti2->x[i];
+    pti2_capac[i] = aux2>0 ? sqrt(aux2) : 0.;
+  }
+  //printvec(pli1_capac);   printvec(pli2_capac);   printvec(pti1_capac);   printvec(pti2_capac);
+
+  double pli_max=0., pti_max=0.;
+  for(int i=0; i<L; i++) {
+    aux1 = abs(p_li1->x[i]); if(aux1>pli_max) pli_max = aux1;
+    aux1 = abs(p_li2->x[i]); if(aux1>pli_max) pli_max = aux1;
+  }
+  for(int i=0; i<T; i++) {
+    aux1 = abs(p_ti1->x[i]); if(aux1>pti_max) pti_max = aux1;
+    aux1 = abs(p_ti2->x[i]); if(aux1>pti_max) pti_max = aux1;
+  }
+  pti_max = std::max(pli_max, pti_max); pli_max=pti_max;
+
+  //priorities range from 0 to +1e+10
+  vector<KTransmInfo> kline_info, ktransf_info;
+
+  int B = data.N_Bus.size();
+  //maximum ramping for inflow/positive and outflow/negative powers as the sum of the capacities of 
+  //inflow and outflow transmission and generators
+  vector<double> bus_inflow_ramping(B, -1e20),  bus_outflow_ramping(B, +1e20);
+  for(int i=0; i<data.K_Contingency.size(); i++) {
+    if(data.K_ConType[i] == gollnlp::SCACOPFData::kGenerator) continue;
+    const int TL_idx = data.K_outidx[i];
+    const int Kidx = data.K_Contingency[i];
+    int N_from_idx = -1, N_to_idx = -1;
+    if(data.K_ConType[i] == gollnlp::SCACOPFData::kLine) { 
+      N_from_idx = data.L_Nidx[0][TL_idx];//data.L_From[TL_idx]; 
+      N_to_idx   = data.L_Nidx[1][TL_idx];//data.L_To[TL_idx]; 
+      //printf("KLineidx %d N_from_idx %d  N_to_idx %d\n", TL_idx, N_from_idx, N_to_idx);
+    } else {
+      assert(data.K_ConType[i] == gollnlp::SCACOPFData::kTransformer);
+      N_from_idx = data.T_Nidx[0][TL_idx];//data.T_From[TL_idx]; 
+      N_to_idx   = data.T_Nidx[1][TL_idx];//data.T_To[TL_idx]; 
+      //printf("KKTransfidx %d N_from_idx %d  N_to_idx %d\n", TL_idx, N_from_idx, N_to_idx);
+    }
+
+    if(bus_inflow_ramping[N_from_idx] == -1e20 || bus_outflow_ramping[N_from_idx] == +1e20) { 
+      double in, out;
+      compute_bus_inflow_outflow_rampings(N_from_idx, p_g, v_n, 
+					  p_li1, p_li2, p_ti1, p_ti2, 
+					  pli1_capac, pli2_capac, pti1_capac, pti2_capac,
+					  in, out);
+      assert(in>=0 && out<=0);
+      bus_inflow_ramping[N_from_idx] = in;
+      bus_outflow_ramping[N_from_idx] = out;
+    }
+
+    if(bus_outflow_ramping[N_to_idx] == -1e20 || bus_outflow_ramping[N_to_idx] == +1e20) {
+      double in, out;
+      compute_bus_inflow_outflow_rampings(N_to_idx, p_g, v_n, 
+					  p_li1, p_li2, p_ti1, p_ti2, 
+					  pli1_capac, pli2_capac, pti1_capac, pti2_capac,
+					  in, out); assert(in>=0 && out<=0);
+      bus_inflow_ramping[N_to_idx] = in;
+      bus_outflow_ramping[N_to_idx] = out;
+    }
+    
+    if(data.K_ConType[i] == gollnlp::SCACOPFData::kLine) {
+
+      bool special=false;
+
+      double r1=0.;
+      if(p_li1->x[TL_idx] < -1e-8) {
+	double remaining_inflow_ramping = bus_inflow_ramping[N_from_idx] - std::max(0., pli1_capac[TL_idx] + p_li1->x[TL_idx]);
+
+	//printf(" --- lidx=%d, pli=%g remaining_inflow_ramping=%g\n", 
+	//       TL_idx, p_li1->x[TL_idx], remaining_inflow_ramping);
+	assert(remaining_inflow_ramping >=0);
+
+	r1 = 1. + (-p_li1->x[TL_idx])/pli_max;
+	if(remaining_inflow_ramping>1e-8) {
+	  r1 = - p_li1->x[TL_idx] / remaining_inflow_ramping;
+	  if(r1>1) r1 = 1. + (-p_li1->x[TL_idx])/pli_max;
+	} else {
+	  special=true;
+	}
+
+      } else if(p_li1->x[TL_idx] > 1e-8) {
+	double remaining_outflow_ramping = bus_outflow_ramping[N_from_idx] + std::max(0., pli1_capac[TL_idx]-p_li1->x[TL_idx]);
+	assert(remaining_outflow_ramping<=0);
+
+	r1 = 1. + (p_li1->x[TL_idx])/pli_max;
+	if(remaining_outflow_ramping<-1e-8) {
+	  r1 = p_li1->x[TL_idx] / (0-remaining_outflow_ramping);
+	  if(r1>1.) r1 = 1. + (p_li1->x[TL_idx])/pli_max;
+	} else {
+	  special=true;
+	}
+
+      } else {
+
+      }
+      
+      
+      double r2 = 0.;
+      if(p_li2->x[TL_idx] < -1e-8) {
+
+	double remaining_inflow_ramping = bus_inflow_ramping[N_to_idx] - std::max(0., p_li2->x[TL_idx] + pli2_capac[TL_idx]);
+
+	assert(remaining_inflow_ramping >=0);
+	r2 = 1. + (-p_li2->x[TL_idx])/pli_max;;//-100*p_li2->x[TL_idx];
+
+     	if(remaining_inflow_ramping>1e-8) {
+     	  r2 = - p_li2->x[TL_idx] / remaining_inflow_ramping; assert(r2>=0);
+	  if(r2>1.) r2 = 1. + (-p_li2->x[TL_idx])/pli_max;
+	} else {
+	  special=true;
+	}
+
+      } else if(p_li2->x[TL_idx] > 1e-8) {
+	double remaining_outflow_ramping = bus_outflow_ramping[N_to_idx] +  std::max(0., pli2_capac[TL_idx]-p_li2->x[TL_idx]);
+	assert(remaining_outflow_ramping<=0);
+	r2 = 1. + (p_li2->x[TL_idx])/pli_max;
+     	if(remaining_outflow_ramping<-1e-8) {
+     	  r2 = p_li2->x[TL_idx] / (0-remaining_outflow_ramping); assert(r2>=0);
+	  if(r2>1.) r2 = 1. + (p_li2->x[TL_idx])/pli_max;
+	} else {
+	  special=true;
+	}
+
+      } else {
+	
+      }
+      
+      kline_info.push_back(KTransmInfo(Kidx, TL_idx, std::max(r1,r2))); 
+
+      //printf("Kidx=%d Kline_idx %d N_from_idx %d  N_to_idx %d r1,r2=%g %g %s\n", 
+      //     Kidx, TL_idx, N_from_idx, N_to_idx, r1, r2, special ? "!S!" : "");
+    } // end of if ConType==kLine
+    else     if(data.K_ConType[i] == gollnlp::SCACOPFData::kTransformer) {
+
+      bool special=false;
+
+      double r1=0.;
+      if(p_ti1->x[TL_idx] < -1e-8) {
+	double remaining_inflow_ramping = bus_inflow_ramping[N_from_idx] - std::max(0., pti1_capac[TL_idx] + p_ti1->x[TL_idx]);
+
+	//printf(" --- lidx=%d, pli=%g remaining_inflow_ramping=%g\n", 
+	//       TL_idx, p_li1->x[TL_idx], remaining_inflow_ramping);
+	assert(remaining_inflow_ramping >=0);
+
+	r1 = 1. + (-p_ti1->x[TL_idx])/pti_max;
+	if(remaining_inflow_ramping>1e-8) {
+	  r1 = - p_ti1->x[TL_idx] / remaining_inflow_ramping;
+	  if(r1>1) r1 = 1. + (-p_ti1->x[TL_idx])/pti_max;
+	} else {
+	  special=true;
+	}
+
+      } else if(p_ti1->x[TL_idx] > 1e-8) {
+	double remaining_outflow_ramping = bus_outflow_ramping[N_from_idx] + std::max(0., pti1_capac[TL_idx]-p_ti1->x[TL_idx]);
+	assert(remaining_outflow_ramping<=0);
+
+	r1 = 1. + (p_ti1->x[TL_idx])/pti_max;
+	if(remaining_outflow_ramping<-1e-8) {
+	  r1 = p_ti1->x[TL_idx] / (0-remaining_outflow_ramping);
+	  if(r1>1.) r1 = 1. + (p_ti1->x[TL_idx])/pti_max;
+	} else {
+	  special=true;
+	}
+
+      } else {
+
+      }
+      
+      
+      double r2 = 0.;
+      if(p_ti2->x[TL_idx] < -1e-8) {
+
+	double remaining_inflow_ramping = bus_inflow_ramping[N_to_idx] - std::max(0., p_ti2->x[TL_idx] + pti2_capac[TL_idx]);
+
+	//printf("bus_inflow_ramping[N_to_idx]=%12.6e remaining_inflow_ramping=%12.6e pli2_capac[TL_idx]=%12.6e\n", 
+	//       bus_inflow_ramping[N_to_idx], remaining_inflow_ramping, pli2_capac[TL_idx]);
+
+	assert(remaining_inflow_ramping >=0);
+	r2 = 1. + (-p_ti2->x[TL_idx])/pti_max;;//-100*p_li2->x[TL_idx];
+
+     	if(remaining_inflow_ramping>1e-8) {
+     	  r2 = - p_ti2->x[TL_idx] / remaining_inflow_ramping; assert(r2>=0);
+	  if(r2>1.) r2 = 1. + (-p_ti2->x[TL_idx])/pti_max;
+	} else {
+	  special=true;
+	}
+
+      } else if(p_ti2->x[TL_idx] > 1e-8) {
+	double remaining_outflow_ramping = bus_outflow_ramping[N_to_idx] +  std::max(0., pti2_capac[TL_idx]-p_ti2->x[TL_idx]);
+	assert(remaining_outflow_ramping<=0);
+	r2 = 1. + (p_ti2->x[TL_idx])/pti_max;
+     	if(remaining_outflow_ramping<-1e-8) {
+     	  r2 = p_ti2->x[TL_idx] / (0-remaining_outflow_ramping); assert(r2>=0);
+	  if(r2>1.) r2 = 1. + (p_ti2->x[TL_idx])/pti_max;
+	} else {
+	  special=true;
+	}
+
+      } else {
+	
+      }
+      
+      ktransf_info.push_back(KTransmInfo(Kidx, TL_idx, std::max(r1,r2))); 
+
+      //printf("Kidx=%d KTran_idx %d N_from_idx %d  N_to_idx %d r1,r2=%g %g %s\n", 
+      //     Kidx, TL_idx, N_from_idx, N_to_idx, r1, r2, special ? "!S!" : "");
+    } // end of if ConType==kTransformer
+      
+  } 
+
+#ifdef DEBUG
+  std::sort(kline_info.begin(), kline_info.end(), 
+	    [&](const KTransmInfo& a, const KTransmInfo& b) { return a.priority > b.priority; });
+  std::sort(ktransf_info.begin(), ktransf_info.end(), 
+	    [&](const KTransmInfo& a, const KTransmInfo& b) { return a.priority > b.priority; });
+
+
+  //printvec(kline_info, "Klines in order");
+  //printvec(ktransf_info, "Ktransf in order");
+#endif
+  kline_info.insert(kline_info.end(), ktransf_info.begin(), ktransf_info.end());
+  std::sort(kline_info.begin(), kline_info.end(), 
+	    [&](const KTransmInfo& a, const KTransmInfo& b) { return a.priority > b.priority; });
+  
+  int Kmax1 = std::min(Kmax, (int)kline_info.size());
+
+  for(int i=0; i<Kmax1; i++)  {
+    K_high_prio.push_back(kline_info[i].Kidx);
+    if(kline_info[i].priority <= 0.1) break;
+  }
+  
+}
+
+
+double MyCode1::
+compute_bus_inflow_outflow_rampings(const int Nidx, 
+				    gollnlp::OptVariablesBlock* p_g, 
+				    gollnlp::OptVariablesBlock* v_n,
+				    gollnlp::OptVariablesBlock* p_li1,
+				    gollnlp::OptVariablesBlock* p_li2,
+				    gollnlp::OptVariablesBlock* p_ti1,
+				    gollnlp::OptVariablesBlock* p_ti2,
+				    std::vector<double>& pli1_capac,
+				    std::vector<double>& pli2_capac,
+				    std::vector<double>& pti1_capac,
+				    std::vector<double>& pti2_capac,
+				    double& inflow_ramp, double& outflow_ramp)
+{
+  inflow_ramp = outflow_ramp = 0.;
+#ifdef DEBUG
+  double inflow2 = 0,  outflow2 = 0;
+
+  if(data.N_Pd[Nidx] > 0) outflow2  -= data.N_Pd[Nidx];
+  else                    inflow2   -= data.N_Pd[Nidx];
+
+  if(data.N_Gsh[Nidx] > 0) outflow2 -= data.N_Gsh[Nidx] * v_n->xref[Nidx] * v_n->xref[Nidx];
+  else                     inflow2  -= data.N_Gsh[Nidx] * v_n->xref[Nidx] * v_n->xref[Nidx];
+  string str; char msg[1024];
+  sprintf(msg, "Bus[%d] ", Nidx); str += msg;
+#endif
+
+  for(int ig=0; ig<data.Gn[Nidx].size(); ig++) {
+    const int genidx=data.Gn[Nidx][ig]; assert(genidx>=0 && genidx<p_g->n);
+    const double pg = p_g->x[genidx];
+    if(pg>0) {
+      inflow_ramp += p_g->ub[genidx]-pg;
+      outflow_ramp -=  pg - p_g->lb[genidx];
+#ifdef DEBUG
+      inflow2 += pg;
+#endif
+    } else {
+      inflow_ramp += p_g->ub[genidx]-pg;
+      outflow_ramp -=  pg - p_g->lb[genidx];
+#ifdef DEBUG
+      outflow2 += pg;
+#endif   
+    }
+#ifdef DEBUG
+    sprintf(msg, "g[%d]->%g [%g,%g]  ", genidx, pg, p_g->lb[genidx], p_g->ub[genidx]); str += msg;
+#endif
+  }
+
+  for(int ilix=0; ilix<data.Lidxn1[Nidx].size(); ilix++) {
+    const int lidx = data.Lidxn1[Nidx][ilix];
+    const double pli = p_li1->x[lidx];
+    //printf("---- pli1=%15.8f capac=%15.8f \n", pli, pli1_capac[lidx]);
+    if(pli>0) { 
+      outflow_ramp -= std::max(0., pli1_capac[lidx]-pli);
+#ifdef DEBUG
+      outflow2 -= pli;
+#endif
+    } else { //assert(pli<=pli1_capac[lidx]);
+      inflow_ramp +=  std::max(0., pli+pli1_capac[lidx]);
+#ifdef DEBUG
+      inflow2 -= pli;
+#endif
+    }
+#ifdef DEBUG
+    sprintf(msg, "pli1[%d]->%g  ", lidx, pli); str += msg;
+#endif
+  }
+
+  for(int ilix=0; ilix<data.Lidxn2[Nidx].size(); ilix++) {
+    const int lidx = data.Lidxn2[Nidx][ilix];
+    const double pli = p_li2->x[lidx];
+    //printf("---- pli2=%15.8f capac=%15.8f idx=%d\n", pli, pli1_capac[lidx], lidx);
+    if(pli>0) {
+      outflow_ramp -= std::max(0., pli2_capac[lidx]-pli);
+#ifdef DEBUG
+      outflow2 -= pli;
+#endif
+    } else {
+      inflow_ramp += std::max(0., pli + pli2_capac[lidx]);
+#ifdef DEBUG
+      inflow2 -= pli;
+#endif
+    }
+#ifdef DEBUG
+    sprintf(msg, "pli2[%d]->%g ", lidx, pli); str += msg;
+#endif
+  }
+
+  for(int itix=0; itix<data.Tidxn1[Nidx].size(); itix++) {
+    const int tidx = data.Tidxn1[Nidx][itix];
+    const double pti = p_ti1->x[tidx];
+    //printf("---- pti1=%15.8f capac=%15.8f idx=%d\n", pti, pti1_capac[tidx], tidx);
+    if(pti>0) {
+      outflow_ramp -= std::max(0., pti1_capac[tidx] - pti);
+#ifdef DEBUG
+      outflow2 -= pti;
+#endif
+    } else {
+      inflow_ramp += std::max(0., pti + pti1_capac[tidx]);
+#ifdef DEBUG
+      inflow2 -= pti;
+#endif
+    }
+#ifdef DEBUG
+    sprintf(msg, "pti1[%d]->%g ", tidx, pti); str += msg;
+#endif
+  }
+
+  for(int itix=0; itix<data.Tidxn2[Nidx].size(); itix++) {
+    const int tidx = data.Tidxn2[Nidx][itix];
+    const double pti = p_ti2->x[data.Tidxn2[Nidx][itix]];
+    //printf("---- pti2=%15.8f capac=%15.8f idx=%d\n", pti, pti2_capac[tidx], tidx);
+    if(pti>0) {
+      outflow_ramp -= std::max(0., pti2_capac[tidx] - pti);
+#ifdef DEBUG
+      outflow2 -= pti;
+#endif
+    } else {
+      inflow_ramp += std::max(0., pti + pti2_capac[tidx]);
+#ifdef DEBUG
+      inflow2 -= pti;
+#endif
+    }
+#ifdef DEBUG
+    sprintf(msg, "pti2[%d]->%g ", tidx, pti); str += msg;
+#endif
+  }
+
+#ifdef DEBUG
+  sprintf(msg, "[inflow %15.8e outflow %15.8e] [inflow_ramp %6.2f  outflow_ramp %6.2f] ", 
+  	  inflow2, outflow2, inflow_ramp, outflow_ramp);
+
+
+  //sprintf(msg, "[inflow/outflow_ramps %6.2f %6.2f][flowoneside %6.3f] ", 
+  //	  inflow_ramp, outflow_ramp, inflow2);
+  str = msg+str;
+  //printf("%s\n", str.c_str());
+#endif
+
+  return 0;
 }

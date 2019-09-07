@@ -115,7 +115,7 @@ private: //methods
   //std::vector<double> K_penalty_phase2;
   //the same order as in K_phase2
   std::vector<ContingInfo> K_info_phase2;  
-  std::vector<int> K_high_prio_phase2;
+  std::list<int> K_high_prio_phase2;
   std::vector<ContingInfo> K_info_last_scacopf_solve;
 
   //computes the next contingency idx given the last one
@@ -583,7 +583,21 @@ private: //methods
 			      const std::vector<std::vector<double> >& K_powers,
 			      const std::vector<int>& K_actions);
 private:
-  void append_high_priority_Kgens(std::vector<int>& K_high_prio, gollnlp::SCACOPFProblem* prob);
+  void get_high_priority_Kgens(int Kmax, std::vector<int>& Kgens_high_prio, gollnlp::SCACOPFProblem* prob);
+  void get_high_priority_Ktransm(int Kmax, std::vector<int>& Ktrasm_high_prio, gollnlp::SCACOPFProblem* prob);
+
+  double compute_bus_inflow_outflow_rampings(const int Nidx, 
+					     gollnlp::OptVariablesBlock* p_g, 
+					     gollnlp::OptVariablesBlock* v_n,
+					     gollnlp::OptVariablesBlock* p_li1,
+					     gollnlp::OptVariablesBlock* p_li2,
+					     gollnlp::OptVariablesBlock* p_ti1,
+					     gollnlp::OptVariablesBlock* p_ti2,
+					     std::vector<double>& pli1_capac,
+					     std::vector<double>& pli2_capac,
+					     std::vector<double>& pti1_capac,
+					     std::vector<double>& pti2_capac,
+					     double& inflow, double& outflow);
 private: //data members
   std::string InFile1, InFile2, InFile3, InFile4;
   double TimeLimitInSec;
