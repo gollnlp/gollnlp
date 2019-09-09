@@ -159,8 +159,8 @@ namespace gollnlp {
 
     f = -1e+20;
     //if(!optimize("ipopt")) {
-    //if(!reoptimize(OptProblem::primalDualRestart)) {
-    if(!reoptimize(OptProblem::primalRestart)) {
+    if(!reoptimize(OptProblem::primalDualRestart)) {
+      //if(!reoptimize(OptProblem::primalRestart)) {
       return false;
     }
 
@@ -532,7 +532,7 @@ namespace gollnlp {
 
   }
 
-#define SIGNED_DUALS_VAL 1.
+#define SIGNED_DUALS_VAL 0.
 
   bool ContingencyProblem::set_warm_start_from_base_of(SCACOPFProblem& srcProb)
   {

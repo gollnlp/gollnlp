@@ -1074,9 +1074,12 @@ void MyCode1::determine_solver_actions(const vector<ContingInfo>& K_info_all,
 	
       } else {
 	if(kinfo.n_evals>kinfo.n_scacopf_solves) {
-	  kinfo.scacopf_actions.push_back(-101);
-	  assert(kinfo.n_scacopf_solves == kinfo.scacopf_actions.size()-1);
-	  K_info_next_solve.push_back(kinfo);
+
+	  if((data.N_Bus.size()>=3200 && kinfo.n_scacopf_solves<=3) || data.N_Bus.size()<3200) {
+	    kinfo.scacopf_actions.push_back(-101);
+	    assert(kinfo.n_scacopf_solves == kinfo.scacopf_actions.size()-1);
+	    K_info_next_solve.push_back(kinfo);
+	  }
 	}
       }
     }
@@ -1306,16 +1309,19 @@ bool MyCode1::do_phase3_master_solverpart(bool master_evalpart_done)
 	      scacopf_includes = true;
 	      //kinfo.max_K_evals++;
 	      //force_reevals=true;
+	      kinfo.force_reeval = 1;
 	    }
 	    if(kinfo.scacopf_actions.back() == -101) {
 	      scacopf_penalize = true;
+	      kinfo.force_reeval = 1;
 	    }
 	  }
 	}
 	if(scacopf_includes) {
 	  MAX_K_EVALS = MAX_K_EVALS + 1;
 	}
-	if(scacopf_penalize || scacopf_includes) {
+	//if(scacopf_penalize || scacopf_includes) {
+	if(scacopf_includes) {
 	  bool all_in=true;
 	  for(auto& ci : K_info_phase2) { if(ci.rank_eval<0) { all_in = false; break; } }
 	  if(all_in) force_reevals=true;
@@ -1849,7 +1855,7 @@ double MyCode1::solve_contingency(int K_idx, int& status)
   prob.set_solver_option("print_frequency_iter", 1);
   prob.set_solver_option("linear_solver", "ma57"); 
   prob.set_solver_option("print_level", 2);
-  prob.set_solver_option("mu_init", 1e-1);
+  prob.set_solver_option("mu_init", 1e-4);
   prob.set_solver_option("mu_target", 1e-8);//!
 
   //return if it takes too long in phase2
