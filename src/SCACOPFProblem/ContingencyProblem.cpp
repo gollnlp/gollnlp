@@ -43,10 +43,10 @@ namespace gollnlp {
 
   bool ContingencyProblem::default_assembly(OptVariablesBlock* pg0, OptVariablesBlock* vn0) 
   {
-    printf("ContProb K_idx=%d: IDOut=%d outidx=%d Type=%s\n",
-	   K_idx, data_sc.K_IDout[K_idx], data_sc.K_outidx[K_idx],
-	   data_sc.cont_type_string(K_idx).c_str());
-    fflush(stdout);
+    //printf("ContProb K_idx=%d: IDOut=%d outidx=%d Type=%s\n",
+    //	   K_idx, data_sc.K_IDout[K_idx], data_sc.K_outidx[K_idx],
+    //	   data_sc.cont_type_string(K_idx).c_str());
+    //fflush(stdout);
 
     p_g0=pg0; v_n0=vn0;
 

@@ -630,7 +630,7 @@ int MyCode1::get_next_conting_foreval(int Kidx_last, int rank, vector<ContingInf
       if(false == only_first_timers_last_iters) {
 #ifdef DEBUG_SCHED
 	printf("[sched] Master: next contingency for K_idx=%d (globidx=%d) to have "
-	       "idx=%d (globidx=%d) [1] [%s] on rank %d\n",
+	       "idx=%d (globidx=%d) [1] [%s] for rank %d\n",
 	       Kidx_last, K_phase2[Kidx_last], Kidx_next, K_phase2[Kidx_next],
 	       is_high_prior ? "high prior" : "", rank);
 #endif      
@@ -654,35 +654,64 @@ int MyCode1::get_next_conting_foreval(int Kidx_last, int rank, vector<ContingInf
   assert(done==true);
   if(have_new_firsttimer) { assert( only_first_timers_last_iters ); assert(Kidx_next != Kidx_last); }
 
-  //to do
-  if(!have_new_firsttimer) {
-    
-    //if !have_new_first_timer -> check that evaled_with_sol_at_pass == phase3_scacopf_passes_master or, if not,
-    //return one for which evaled_with_sol_at_pass < phase3_scacopf_passes_master
-    for(ContingInfo& kinfo : K_info_all) {
-      if(kinfo.rank_eval==rank) {
-	if(kinfo.evaled_with_sol_at_pass<phase3_scacopf_passes_master || kinfo.force_reeval)
-	  return kinfo.idx;
-      }
-    }
-  }
-
   bool hold=false;
-  //try to find one that was already evaluated and is in need of a new evaluation because
-  //it still has a high penalty after the evaluation or was rescheduled after an scacopf solve
+
   for(ContingInfo& kinfo : K_info_all) {
     if(kinfo.rank_eval==rank) {
+
+      //try to find one that was already evaluated and is in need of a new evaluation because
+      //it still has a high penalty after the evaluation or was rescheduled after an scacopf solve
       if(kinfo.n_evals==kinfo.n_scacopf_solves && 
 	 kinfo.n_evals < kinfo.max_K_evals && 
 	 kinfo.scacopfed_at_pass <= phase3_scacopf_passes_master) {
+#ifdef DEBUG_SCHED
+	printf("[sched] Master: next contingency for K_idx=%d (globidx=%d) to have "
+	       "idx=%d (globidx=%d) [4] [%s] for rank %d\n",
+	       Kidx_last, K_phase2[Kidx_last], kinfo.idx, K_phase2[kinfo.idx],
+	       is_high_prior ? "high prior" : "", rank);
+#endif   
 	  return kinfo.idx;
       } 
-
-      if(kinfo.force_reeval)
+    }
+  }
+  //
+  // second pass - find one that has been scheduled for reval
+  //
+  for(ContingInfo& kinfo : K_info_all) {
+    if(kinfo.rank_eval==rank) {
+      if(kinfo.force_reeval) {
+#ifdef DEBUG_SCHED
+	printf("[sched] Master: next contingency for K_idx=%d (globidx=%d) to have "
+	       "idx=%d (globidx=%d) [5] [%s] for rank %d\n",
+	       Kidx_last, K_phase2[Kidx_last], kinfo.idx, K_phase2[kinfo.idx],
+	       is_high_prior ? "high prior" : "", rank);
+#endif 
 	return kinfo.idx;
-
-
-      //if there are NO firsttimer contingencies, we may want to put the rank on hold
+      }
+    }
+  }
+  
+  //
+  // third pass -> find first one evaluated with an old basecase solution
+  //
+  for(ContingInfo& kinfo : K_info_all) {
+    if(kinfo.rank_eval==rank) {
+      //if !have_new_first_timer -> check that evaled_with_sol_at_pass == phase3_scacopf_passes_master 
+      // if not, return it (evaled_with_sol_at_pass < phase3_scacopf_passes_master)
+      if(!have_new_firsttimer) {
+	if(kinfo.evaled_with_sol_at_pass<phase3_scacopf_passes_master) {
+#ifdef DEBUG_SCHED
+	  printf("[sched] Master: next contingency for K_idx=%d (globidx=%d) to have "
+		 "idx=%d (globidx=%d) [3] [%s] for rank %d\n",
+		 Kidx_last, K_phase2[Kidx_last], kinfo.idx, K_phase2[kinfo.idx],
+		 is_high_prior ? "high prior" : "", rank);
+#endif   
+	  return kinfo.idx;
+	}
+      } //end of if have_new_firsttimer
+      
+      //if there are NO firsttimer contingencies and no Kidx is to be found in this pass, 
+      //we may want to put the rank on hold
       if(!have_new_firsttimer) {
 	if(kinfo.penalty>=pen_threshold && kinfo.n_evals<kinfo.max_K_evals) 
 	  hold=true; //need to eval or eval is in progress
@@ -691,7 +720,7 @@ int MyCode1::get_next_conting_foreval(int Kidx_last, int rank, vector<ContingInf
       }
     }
   }
-
+  
   if(hold) {
     assert(false==have_new_firsttimer);
     return -3;
@@ -701,9 +730,9 @@ int MyCode1::get_next_conting_foreval(int Kidx_last, int rank, vector<ContingInf
       assert(Kidx_next>=0 && Kidx_next<K_phase2.size());
 #ifdef DEBUG_SCHED
       printf("[comm] Master: found next  contingency for K_idx=%d (globidx=%d) to have "
-	     "idx=%d (globidx=%d) (no reevals were needed) [%s]\n",
+	     "idx=%d (globidx=%d) (no reevals were needed) [%s]  for rank %d\n",
 	     Kidx_last, K_phase2[Kidx_last], Kidx_next, K_phase2[Kidx_next],
-	     is_high_prior ? "high prior" : "");
+	     is_high_prior ? "high prior" : "", rank);
 #endif
       erase_elem_from(K_high_prio_phase2, Kidx_next);
       return Kidx_next;
@@ -1295,8 +1324,8 @@ bool MyCode1::do_phase3_master_solverpart(bool master_evalpart_done)
 	if(force_reevals) {
 	  for(int itk=0; itk<K_info_phase2.size(); itk++) {
 	    ContingInfo& kinfo=K_info_phase2[itk];
-	    if(kinfo.n_evals==kinfo.max_K_evals) {
-	      kinfo.max_K_evals++;
+	    if(kinfo.n_evals>=kinfo.max_K_evals) {
+	      kinfo.max_K_evals = kinfo.n_evals+1;
 	    } else { 
 	      //assert(kinfo.n_evals<kinfo.max_K_evals); 
 	      if(kinfo.n_evals>kinfo.max_K_evals) {
@@ -1312,7 +1341,7 @@ bool MyCode1::do_phase3_master_solverpart(bool master_evalpart_done)
 
 #ifdef DEBUG_SCHED
 	if(scacopf_includes) printf("[sched] MAX_K_EVALS=%d (was increased)\n", MAX_K_EVALS);
-	printvec(K_info_phase2, "[sched]] K_info_phase2 on master after recv pen");
+	printvec(K_info_phase2, "[sched] K_info_phase2 on master after recv pen");
 #endif
 	ierr = MPI_Test(&req_send_KidxSCACOPF->request, &mpi_test_flag, &mpi_status); 
 	assert(ierr == MPI_SUCCESS);
@@ -1884,8 +1913,8 @@ double MyCode1::solve_contingency(int K_idx, int& status)
     //prob.print_reactive_power_balance_info(*prob.data_K[0]);
     //prob.print_line_limits_info(*prob.data_K[0]);
   }
-  printf("Evaluator Rank %3d K_idx %5d finished with penalty %12.3f "
-	 "in %5.3f sec and %3d iterations  sol_from_scacopf_pass %d  global time %g \n\n",
+  printf("Evaluator Rank %3d K_idx=%d finished with penalty %12.3f "
+	 "in %5.3f sec and %3d iterations  sol_from_scacopf_pass %d  global time %g\n",
 	 my_rank, K_idx, penalty, t.stop(), 
 	 num_iter, phase3_scacopf_pass_solution, glob_timer.measureElapsedTime());
   
@@ -2024,8 +2053,8 @@ double MyCode1::phase3_solve_scacopf(std::vector<int>& K_idxs,
   bool bret = scacopf_prob->reoptimize(OptProblem::primalDualRestart);
   //bret = scacopf_prob->reoptimize(OptProblem::primalDualRestart);
 
-if(scacopf_prob->data_K.size()>0)
-  scacopf_prob->print_p_g_with_coupling_info(*scacopf_prob->data_K[0]);
+  //if(scacopf_prob->data_K.size()>0)
+  //  scacopf_prob->print_p_g_with_coupling_info(*scacopf_prob->data_K[0]);
 
   phase3_scacopf_passes_solver++;
   req_send_base_sols.post_new_sol(scacopf_prob, Tag7, my_rank, comm_world, phase3_scacopf_passes_solver);
