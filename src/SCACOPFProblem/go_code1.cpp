@@ -1053,7 +1053,8 @@ void MyCode1::determine_solver_actions(const vector<ContingInfo>& K_info_all,
 
     if(kinfo.penalty>pen_threshold) {
       //attempt to "include" if "penalized" was done MAX_K_EVALS and did not reduce penalty
-      if(kinfo.n_evals>=kinfo.max_K_evals  && kinfo.n_evals-1==kinfo.n_scacopf_solves) {
+      // this is disabled for medium and large networks
+      if(kinfo.n_evals>=kinfo.max_K_evals  && kinfo.n_evals-1==kinfo.n_scacopf_solves && data.N_Bus.size()<3200) {
 
 	bool include_it=true;
        
@@ -1304,7 +1305,7 @@ bool MyCode1::do_phase3_master_solverpart(bool master_evalpart_done)
 	    if(kinfo.scacopf_actions.back() == -102) {
 	      scacopf_includes = true;
 	      //kinfo.max_K_evals++;
-	      force_reevals=true;
+	      //force_reevals=true;
 	    }
 	    if(kinfo.scacopf_actions.back() == -101) {
 	      scacopf_penalize = true;
@@ -1314,7 +1315,7 @@ bool MyCode1::do_phase3_master_solverpart(bool master_evalpart_done)
 	if(scacopf_includes) {
 	  MAX_K_EVALS = MAX_K_EVALS + 1;
 	}
-	if(scacopf_penalize) {
+	if(scacopf_penalize || scacopf_includes) {
 	  bool all_in=true;
 	  for(auto& ci : K_info_phase2) { if(ci.rank_eval<0) { all_in = false; break; } }
 	  if(all_in) force_reevals=true;
