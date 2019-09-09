@@ -45,12 +45,18 @@ message("LAPACK/BLAS libs: ${LAPACK_LIBRARIES}")
 # "/home/petra1/work/installs/Ipopt-3.12.5/"
 # "/opt/Ipopt/v3.12.12/"
 # "~/bin/COIN-OR/Ipopt/"
-set(IPOPT_DIR $ENV{IPOPT_3_12_13_GCC492_PATH} CACHE PATH "path to ipopt directory")
+set(IPOPT_DIR $ENV{IPOPT_PATH} CACHE PATH "path to ipopt directory")
 message("Using Ipopt dir ${IPOPT_DIR}")
 include_directories("${IPOPT_DIR}/include/coin")
-link_directories("${IPOPT_DIR}/lib")
+#link_directories("${IPOPT_DIR}/lib")
 #set (CMAKE_SHARED_LINKER_FLAGS "${CMAKE_SHARED_LINKER_FLAGS} -Wl,--rpath -Wl,${IPOPT_DIR}/lib")
-set(IPOPT_LIBS "-lgfortran -lipopt -lm  -ldl")
+#set(IPOPT_LIBS "-lgfortran -lipopt -lm  -ldl")
+add_library(coinmetis STATIC IMPORTED GLOBAL)
+set_target_properties(coinmetis PROPERTIES IMPORTED_LOCATION "${IPOPT_DIR}/lib/libcoinmetis.a")
+add_library(coinhsl STATIC IMPORTED GLOBAL)
+set_target_properties(coinhsl PROPERTIES IMPORTED_LOCATION "${IPOPT_DIR}/lib/libcoinhsl.a")
+add_library(ipopt STATIC IMPORTED GLOBAL)
+set_target_properties(ipopt PROPERTIES IMPORTED_LOCATION "${IPOPT_DIR}/lib/libipopt.a")
 
 # include build directory for Fortran name mangling header
 include_directories(${CMAKE_BINARY_DIR})
@@ -68,7 +74,6 @@ add_subdirectory(src/Utils)
 add_subdirectory(src/SCACOPFProblem)
 add_subdirectory(src/Ex1OptProblem)
 
-
 add_library(gollnlp STATIC $<TARGET_OBJECTS:goSCACOPF> $<TARGET_OBJECTS:goUtils> $<TARGET_OBJECTS:goOptimiz>)
 
 #set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${CMAKE_HOME_DIRECTORY})
@@ -77,10 +82,10 @@ add_library(gollnlp STATIC $<TARGET_OBJECTS:goSCACOPF> $<TARGET_OBJECTS:goUtils>
 # competition executables
 #
 add_executable(MyExe1 MyCpp1.cpp)
-target_link_libraries(MyExe1 gollnlp ${LAPACK_LIBRARIES}  ${IPOPT_LIBS})
+target_link_libraries(MyExe1 gollnlp "-lgfortran" ipopt coinhsl coinmetis ${LAPACK_LIBRARIES})
 
 add_executable(MyExe2 MyCpp2.cpp)
-target_link_libraries(MyExe2 gollnlp ${LAPACK_LIBRARIES}  ${IPOPT_LIBS})
+target_link_libraries(MyExe2 gollnlp "-lgfortran" ipopt coinhsl coinmetis ${LAPACK_LIBRARIES})
 
 
 ##########################################################
