@@ -99,7 +99,7 @@ int MyCode2::initialize(int argc, char *argv[])
 
   K_Contingency = data.K_Contingency;
   //!
-  //K_Contingency = {5269};
+  //K_Contingency = {1936, 913, 792};
   //net15 
 
   //K_Contingency = {2488,1572, 1057}; //net83
@@ -587,7 +587,7 @@ bool MyCode2::solve_contingency(int K_idx, std::vector<double>& sln)
   //prob.set_solver_option("mu_target", 1e-10);
 
   //return if it takes too long in phase2
-  prob.set_solver_option("max_iter", 1000);
+  prob.set_solver_option("max_iter", 250);
   prob.set_solver_option("acceptable_tol", 1e-3);
   prob.set_solver_option("acceptable_constr_viol_tol", 1e-6);
   prob.set_solver_option("acceptable_iter", 5);
@@ -610,7 +610,13 @@ bool MyCode2::solve_contingency(int K_idx, std::vector<double>& sln)
   }
 
   //prob.get_solution_simplicial_vectorized(sln);
+#ifdef DEBUG
+  if(size_sol_block != sln.size()) {
+    printf("Evaluator Rank %d size mismatch in the evaluation of contingency K_idx=%d\n",
+	   my_rank, K_idx);
+  }
   assert(size_sol_block == sln.size());
+#endif
   sln.push_back((double)K_idx);
 
   //prob.print_p_g_with_coupling_info(*prob.data_K[0], p_g0);

@@ -185,7 +185,21 @@ namespace gollnlp {
     set_solver_option("mu_init", 1e-4);
     if(!OptProblem::reoptimize(OptProblem::primalDualRestart)) {
       printf("[warning] ContProbWithFixing K_idx=%d opt1 failed\n", K_idx); 
-    } else {
+
+      hist_iter.push_back(number_of_iterations());
+      hist_obj.push_back(this->obj_value);
+
+      set_solver_option("mu_init", 1e-1);
+      set_solver_option("max_iter", 400);
+      if(!OptProblem::reoptimize(OptProblem::primalRestart)) {
+	printf("[warning] ContProbWithFixing K_idx=%d opt11 failed\n", K_idx); 
+	//get a solution even if it failed
+	get_solution_simplicial_vectorized(sln);
+      }
+      
+    } 
+    //else 
+    {
       get_solution_simplicial_vectorized(sln);
 
 #ifdef DEBUG
@@ -229,8 +243,8 @@ namespace gollnlp {
     if(this->obj_value>=2e5 && K_avg_time_so_far < 0.950*2.) skip_2nd_solve=false;
     if(this->obj_value>=1e6 && K_avg_time_so_far < 1.025*2.) skip_2nd_solve=false;
 
-
     if(this->obj_value>pen_threshold && !skip_2nd_solve) {
+
  #ifdef BE_VERBOSE
       print_objterms_evals();
       //print_p_g_with_coupling_info(*data_K[0], pg0);
@@ -316,7 +330,7 @@ namespace gollnlp {
 	  
 	  primal_problem_changed();
 	}
-      }
+      } // else of if(one_more_push_and_fix)
 
       //
       {
@@ -355,27 +369,39 @@ namespace gollnlp {
       this->set_solver_option("max_iter", 250);
 
       if(!OptProblem::reoptimize(OptProblem::primalDualRestart)) {
-	printf("[warning] ContProbWithFixing K_idx=%d opt1-2 failed\n", K_idx); 
-      } else {
-	f = this->obj_value;
+	printf("[warning] ContProbWithFixing K_idx=%d opt2 failed\n", K_idx); 
+	
 	hist_iter.push_back(number_of_iterations());
 	hist_obj.push_back(this->obj_value);
 	
-	assert(hist_iter.size()>=1);
-	assert(hist_obj.size()>=1);
-	if(hist_obj.back() < hist_obj[0]) {
-	  get_solution_simplicial_vectorized(sln);
+	set_solver_option("mu_init", 1e-1);
+	set_solver_option("max_iter", 400);
+	if(!OptProblem::reoptimize(OptProblem::primalRestart)) {
+	  printf("[warning] ContProbWithFixing K_idx=%d opt22 failed\n", K_idx); 
 	}
+	//get a solution even if it failed
+	get_solution_simplicial_vectorized(sln);
 	
-	if(this->obj_value>100) {
-	  double delta_optim = variable("delta", d)->x[0];
-#ifdef BE_VERBOSE
-	  print_objterms_evals();
-	  //print_p_g_with_coupling_info(*data_K[0], pg0);
-	  printf("ContProbWithFixing K_idx=%d  pass 1-2 resulted in high pen delta=%g\n", K_idx, delta_optim);
-#endif
-	}  
       }
+
+      f = this->obj_value;
+      hist_iter.push_back(number_of_iterations());
+      hist_obj.push_back(this->obj_value);
+      
+      assert(hist_iter.size()>=1);
+      assert(hist_obj.size()>=1);
+      if(hist_obj.back() < hist_obj[0]) {
+	get_solution_simplicial_vectorized(sln);
+      }
+      
+      if(this->obj_value>100) {
+	double delta_optim = variable("delta", d)->x[0];
+#ifdef BE_VERBOSE
+	print_objterms_evals();
+	//print_p_g_with_coupling_info(*data_K[0], pg0);
+	printf("ContProbWithFixing K_idx=%d  pass 1-2 resulted in high pen delta=%g\n", K_idx, delta_optim);
+#endif
+      }  
     } else {
       if(this->obj_value>pen_threshold && skip_2nd_solve) 
 	printf("ContProbWithFixing K_idx=%d pass2 needed but not done - time restrictions\n", K_idx);
