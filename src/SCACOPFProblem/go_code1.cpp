@@ -142,6 +142,10 @@ int MyCode1::initialize(int argc, char *argv[])
   phase3_scacopf_pass_solution=-1;
 
   pen_threshold = 1.*data.K_Contingency.size(); //dolars; violations of O(1) or less allowed per contingency
+  if(data.N_bus.size()<7000) pen_threshold = 0.5*data.K_Contingency.size();
+  if(data.N_bus.size()<4000) pen_threshold = 0.25*data.K_Contingency.size();
+
+
 
   return true;
 }
