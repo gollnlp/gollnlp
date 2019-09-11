@@ -101,7 +101,7 @@ int MyCode2::initialize(int argc, char *argv[])
   //!
   //K_Contingency = {1936, 913, 792};
   //net15 
-  //K_Contingency = {1894, 2164, 6841};
+  //K_Contingency = {1894};//, 2164, 6841};
   //K_Contingency = {2488,1572, 1057}; //net83
  
   //K_Contingency = {530, 110, 702, 863, 106, 101};//208, 154, 415, 461, 789, 368, 494, 748, 57, 1000, 817, 626, 576, 324, 913, 959, 248, 289, 209, 495, 416, 790, 155, 19, 749};//494, 495, 702, 749};
@@ -347,7 +347,7 @@ int MyCode2::go()
 	    //pick new contingency 
 	    int perRank = K_Contingency.size()/(comm_size-1);
 	    int Kstart = perRank*(r-1);
-	    auto Kidxs = findall(K_left, [Kstart](int val) {return val>Kstart;});
+	    auto Kidxs = findall(K_left, [Kstart](int val) {return val>=Kstart;});
 	    if(Kidxs.empty()) 
 	      Kidxs = findall(K_left, [](int val) {return val>=0;});
 	    

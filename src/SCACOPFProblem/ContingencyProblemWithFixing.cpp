@@ -240,6 +240,8 @@ namespace gollnlp {
     //bool skip_2nd_solve = (K_avg_time_so_far > 0.9*(comm_size-1)*2.);
     bool skip_2nd_solve = (K_avg_time_so_far > 0.9*2.);
 
+    if(time_so_far < 0.075*2.*data_sc.K_Contingency.size()) skip_2nd_solve=false;
+
     //intf("K_avg_time_so_far=%g  num_K_done %d  time_so_far+elapsed %g\n", 
     //	   K_avg_time_so_far, num_K_done, time_so_far+tmrec.measureElapsedTime());
 
