@@ -404,7 +404,7 @@ bool MyCode1::do_phase1()
     if(blarge_prob) {
       scacopf_prob->set_solver_option("tol", 1e-9);
       scacopf_prob->set_solver_option("bound_relax_factor", 1e-8);
-      scacopf_prob->set_solver_option("bound_push", 1e-18);
+      scacopf_prob->set_solver_option("bound_push", 1e-8);
       scacopf_prob->set_solver_option("slack_bound_push", 1e-8);
 
       //scacopf_prob->set_solver_option("bound_push", 1e-12);
@@ -1888,25 +1888,25 @@ double MyCode1::solve_contingency(int K_idx, int& status)
     printf("Evaluator Rank %d failed in the eval_obj of contingency K_idx=%d\n",
 	   my_rank, K_idx);
     status = -3;
-    return 1e+20;
+    penalty=1e+6;
   }
   int num_iter = prob.number_of_iterations();
 
-  if(false) {
-    vector<double> smoothing_params = {1e-3, 1e-4, 1e-5, 1e-6};  
+  // if(false) {
+  //   vector<double> smoothing_params = {1e-3, 1e-4, 1e-5, 1e-6};  
 
-    for(auto smo: smoothing_params) {
-      prob.update_AGC_smoothing_param(smo);
-      prob.update_PVPQ_smoothing_param(smo);
-      prob.set_solver_option("mu_init", 1e-8);
-      prob.reoptimize(OptProblem::primalDualRestart);
-      num_iter += prob.number_of_iterations();
-      printf("Evaluator Rank %3d contingency reoptimize done K_idx=%4d - smoothing=%8.2e\n", 
-	     my_rank, K_idx, smo);
-    }
-    //prob.print_p_g_with_coupling_info(*prob.data_K[0], p_g0);
-  }
-  if(true)   {
+  //   for(auto smo: smoothing_params) {
+  //     prob.update_AGC_smoothing_param(smo);
+  //     prob.update_PVPQ_smoothing_param(smo);
+  //     prob.set_solver_option("mu_init", 1e-8);
+  //     prob.reoptimize(OptProblem::primalDualRestart);
+  //     num_iter += prob.number_of_iterations();
+  //     printf("Evaluator Rank %3d contingency reoptimize done K_idx=%4d - smoothing=%8.2e\n", 
+  // 	     my_rank, K_idx, smo);
+  //   }
+  //   //prob.print_p_g_with_coupling_info(*prob.data_K[0], p_g0);
+  // }
+  //if(true)   {
     //prob.print_objterms_evals();
     
     //scacopf_prob->print_p_g_with_coupling_info(*scacopf_prob->data_K[0]);
@@ -1928,7 +1928,7 @@ double MyCode1::solve_contingency(int K_idx, int& status)
     //prob.print_active_power_balance_info(*prob.data_K[0]);
     //prob.print_reactive_power_balance_info(*prob.data_K[0]);
     //prob.print_line_limits_info(*prob.data_K[0]);
-  }
+  // }
   printf("Evaluator Rank %3d K_idx=%d finished with penalty %12.3f "
 	 "in %5.3f sec and %3d iterations  sol_from_scacopf_pass %d  global time %g\n",
 	 my_rank, K_idx, penalty, t.stop(), 
