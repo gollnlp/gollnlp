@@ -306,7 +306,8 @@ namespace gollnlp {
  	bool bfeasib;
 
 	if(fabs(gen_K_diff)>1e-6) {
-	  //print_p_g_with_coupling_info(*data_K[0], pg0);
+	  //solv1_delta_optim and gen_K_diff must have same sign at this point
+	  if(solv1_delta_optim * gen_K_diff < 0) gen_K_diff=0.;
 	  bfeasib = push_and_fix_AGCgen(d, gen_K_diff, solv1_delta_optim, 
 					pg0_partic_idxs_u, pgK_partic_idxs_u, pg0_nonpartic_idxs_u, pgK_nonpartic_idxs_u,
 					pg0, pgK, 
@@ -610,15 +611,26 @@ namespace gollnlp {
 		      double& P_out)
   {
     P_out = P_in;
+
     double sum, dist;
     delta1=delta2=0.;
     const bool Pispos = (P_in > 0);
+
+    if(fabs(P_in) < 1e-12) {
+      printf("[warning] push_and_fix_AGCgen P_in came in too small; K_idx=%d P_in=%g delta_in=%g rank=%d\n",
+	     K_idx, P_in, delta_in, my_rank);
+      return true;
+    }
+    
 
     printf("push_and_fix_AGCgen K_idx=%d P_in=%g delta_in=%g rank=%d\n", K_idx, P_in, delta_in, my_rank);
     if(!Pispos && delta_in>0) printf("K_idx=%d !!!!!!!!\n", K_idx);
 
     if(Pispos) { delta_lb=0.;     delta_ub=1e+20; assert(delta_in>=0); }
-    else       { delta_lb=-1e+20; delta_ub=0.;    assert(delta_in<=0); }
+    else { 
+      delta_lb=-1e+20; delta_ub=0.;    
+      if(P_in<0) assert(delta_in<=0); 
+  }
 
     if(idxs0_AGCparticip.size()==0) P_out=0.; //force exit
 
