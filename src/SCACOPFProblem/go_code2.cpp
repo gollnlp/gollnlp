@@ -584,7 +584,7 @@ bool MyCode2::solve_contingency(int K_idx, std::vector<double>& sln)
   prob.set_solver_option("sb","yes");
   prob.set_solver_option("print_frequency_iter", 5);
   prob.set_solver_option("linear_solver", "ma57"); 
-  prob.set_solver_option("print_level", 5);
+  prob.set_solver_option("print_level", 2);
 
 
   //return if it takes too long in phase2
