@@ -48,7 +48,9 @@ private: //methods
   // on evaluators, primal and dual variables are initialized with the master's
   // respective solutions (Bcast)
   gollnlp::SCACOPFProblem *scacopf_prob;
-  
+
+  void attempt_write_solutions(gollnlp::SCACOPFProblem* prob, bool opt_success);
+
   /////////////////////////////////////////////////////////////////////////////////
   // phase 2 - evaluate contingencies using phase 1 solution
   // stop after a limited number of contingencies with high penalty are found

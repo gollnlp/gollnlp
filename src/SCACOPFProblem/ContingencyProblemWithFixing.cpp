@@ -873,10 +873,10 @@ namespace gollnlp {
       double dist_upper = (Qubn - qapprox_nk)/gen_band; 
       
 
-      if(dist_lower<=0 || dist_upper<=0 || gen_band<1e-6)
-	printf("busidx=%d %g %g %g qlb[%g %g] qub[%g %g]\n", 
-	       busidx, gen_band, dist_lower,  dist_upper,
-	       Qlbn, Qlb[itpvpq], Qubn, Qub[itpvpq]);
+      //if(dist_lower<=0 || dist_upper<=0 || gen_band<1e-6)
+      //printf("busidx=%d %g %g %g qlb[%g %g] qub[%g %g]\n", 
+      //       busidx, gen_band, dist_lower,  dist_upper,
+      //       Qlbn, Qlb[itpvpq], Qubn, Qub[itpvpq]);
 
       assert(dist_lower>=0); assert(dist_upper>=0); assert(gen_band>=0);
       assert(fabs(Qlbn-Qlb[itpvpq])<1e-10);  assert(fabs(Qubn-Qub[itpvpq])<1e-10);

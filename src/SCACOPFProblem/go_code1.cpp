@@ -273,7 +273,7 @@ bool MyCode1::do_phase1()
   scacopf_prob->set_basecase_L_rate_reduction(TL_rate_reduction);
   scacopf_prob->set_basecase_T_rate_reduction(TL_rate_reduction);
 
-  scacopf_prob->set_quadr_penalty_qg0(true);
+  //scacopf_prob->set_quadr_penalty_qg0(true);
 
   scacopf_prob->assembly(K_SCACOPF_phase1);
 
@@ -289,30 +289,42 @@ bool MyCode1::do_phase1()
     }
 
     //build info for contingencies priorities
-    
-
   }
   
+  bool blarge_prob = data.N_Bus.size() > 20000;
 
   scacopf_prob->use_nlp_solver("ipopt"); 
   scacopf_prob->set_solver_option("sb","yes");
   scacopf_prob->set_solver_option("linear_solver", "ma57"); 
-  scacopf_prob->set_solver_option("mu_init", 1.);
-  scacopf_prob->set_solver_option("print_frequency_iter", 10);
-  scacopf_prob->set_solver_option("tol", 1e-10);
-  scacopf_prob->set_solver_option("mu_target", 1e-10);
 
-  scacopf_prob->set_solver_option("max_iter", 2000);
-
+  scacopf_prob->set_solver_option("print_frequency_iter", 5);
+  scacopf_prob->set_solver_option("max_iter", 2000);    
   scacopf_prob->set_solver_option("acceptable_tol", 1e-3);
-  scacopf_prob->set_solver_option("acceptable_constr_viol_tol", 1e-5);
+  scacopf_prob->set_solver_option("acceptable_constr_viol_tol", 1e-6);
   scacopf_prob->set_solver_option("acceptable_iter", 7);
 
-  scacopf_prob->set_solver_option("bound_relax_factor", 0.);
-  scacopf_prob->set_solver_option("bound_push", 1e-16);
-  scacopf_prob->set_solver_option("slack_bound_push", 1e-16);
-  scacopf_prob->set_solver_option("mu_linear_decrease_factor", 0.4);
-  scacopf_prob->set_solver_option("mu_superlinear_decrease_power", 1.4);
+  if(!blarge_prob) {
+    scacopf_prob->set_solver_option("mu_init", 1.);
+    scacopf_prob->set_solver_option("tol", 1e-9);
+    scacopf_prob->set_solver_option("mu_target", 1e-9);
+
+    scacopf_prob->set_solver_option("bound_relax_factor", 0.);
+    scacopf_prob->set_solver_option("bound_push", 1e-16);
+    scacopf_prob->set_solver_option("slack_bound_push", 1e-16);
+    scacopf_prob->set_solver_option("mu_linear_decrease_factor", 0.4);
+    scacopf_prob->set_solver_option("mu_superlinear_decrease_power", 1.4);
+
+  } else {
+    scacopf_prob->set_solver_option("mu_init", 0.1);
+    scacopf_prob->set_solver_option("tol", 1e-6);
+    scacopf_prob->set_solver_option("mu_target", 1e-8);
+    
+    //scacopf_prob->set_solver_option("bound_relax_factor", 0.);
+    //scacopf_prob->set_solver_option("bound_push", 1e-16);
+    //scacopf_prob->set_solver_option("slack_bound_push", 1e-16);
+    scacopf_prob->set_solver_option("mu_linear_decrease_factor", 0.5);
+    scacopf_prob->set_solver_option("mu_superlinear_decrease_power", 1.2);
+  }
 
   if(iAmSolver) {    assert(my_rank==rank_solver_rank0);
     //if(true) {
@@ -331,60 +343,16 @@ bool MyCode1::do_phase1()
   
   bool bret = scacopf_prob->optimize("ipopt");
 
-  
-  // if(false) {
-  //   scacopf_prob->set_solver_option("tol", 1e-9);
-  //   scacopf_prob->set_solver_option("bound_push", 1e-12);
-  //   scacopf_prob->set_solver_option("slack_bound_push", 1e-12);
-    
-  //   scacopf_prob->set_solver_option("warm_start_init_point", "yes");
-    
-  //   scacopf_prob->set_solver_option("warm_start_bound_push", 1e-12);
-  //   scacopf_prob->set_solver_option("warm_start_slack_bound_push", 1e-12);
-  //   scacopf_prob->set_solver_option("warm_start_mult_bound_push", 1e-12);
-    
-  //   scacopf_prob->set_solver_option("warm_start_bound_frac", 1e-12);
-  //   scacopf_prob->set_solver_option("warm_start_slack_bound_frac", 1e-12);
-    
-  //   scacopf_prob->set_solver_option("mu_target", 5e-9);
-  //   scacopf_prob->set_solver_option("mu_init", 1e-8);
-    
-  //   //scacopf_prob->update_PVPQ_smoothing_param( 1e-2 );  
-  //   scacopf_prob->reoptimize(OptProblem::primalDualRestart);
-    
-  //   //scacopf_prob->update_PVPQ_smoothing_param( 1e-2 );  
-  //   scacopf_prob->reoptimize(OptProblem::primalDualRestart);
-    
-  //   //scacopf_prob->update_PVPQ_smoothing_param( 1e-5 );  
-  //   //scacopf_prob->reoptimize(OptProblem::primalDualRestart);
-
-    
-  //   //scacopf_prob->update_PVPQ_smoothing_param( 1e-7 );  
-  //   //scacopf_prob->reoptimize(OptProblem::primalDualRestart);
-    
-  //   //scacopf_prob->update_PVPQ_smoothing_param( 1e-8 );  
-  //   //scacopf_prob->reoptimize(OptProblem::primalDualRestart);
-    
-  //   //scacopf_prob->update_PVPQ_smoothing_param( 1e-9 );  
-  //   //scacopf_prob->reoptimize(OptProblem::primalDualRestart);
-    
-  // //scacopf_prob->update_PVPQ_smoothing_param( 1e-8 );  
-  // //scacopf_prob->reoptimize(OptProblem::primalDualRestart);
-  //   printf("final ------------------------\n");
-  // }
-  
-  if(iAmSolver) {
-    cost_basecase = scacopf_prob->objective_value();
-    scacopf_prob->print_objterms_evals();
-
-    //if(scacopf_prob->data_K.size()>0)
-    //  scacopf_prob->print_reactive_power_balance_info(*scacopf_prob->data_K[0]);
-    //scacopf_prob->print_reactive_power_balance_info(data);
-    //scacopf_prob->print_line_limits_info(data);
-
-  }
-  printf("[ph1] rank %d  scacopf solve phase 1 done at global time %g\n", 
+  if(!iAmSolver)
+    printf("[ph1] rank %d  scacopf solve phase 1 done at global time %g\n", 
 	   my_rank, glob_timer.measureElapsedTime());
+
+
+  //if(scacopf_prob->data_K.size()>0)
+  //  scacopf_prob->print_reactive_power_balance_info(*scacopf_prob->data_K[0]);
+  //scacopf_prob->print_reactive_power_balance_info(data);
+  //scacopf_prob->print_line_limits_info(data);
+  
 
   //
   //communication -> solver rank0 bcasts basecase solutions
@@ -413,25 +381,7 @@ bool MyCode1::do_phase1()
     //scacopf_prob->print_summary();
 
     K_SCACOPF_phase3 = K_SCACOPF_phase1;
-    printf("[ph1] rank %d  phase 1 writes solution1.txt at global time %g\n", 
-	   my_rank, glob_timer.measureElapsedTime());
-
-    //write solution
-    scacopf_prob->write_solution_basecase();
-    scacopf_prob->write_pridua_solution_basecase();
-    if(!bret) {
-      printf("[warning] Solver rank %d: initial basecase solve failed; solution1 was written though at global time=%g\n",
-	     my_rank, glob_timer.measureElapsedTime());
-    }
-
-#ifdef DEBUG
-    //write solution extras
-    scacopf_prob->write_solution_extras_basecase();
-    if(!bret) {
-      printf("[warning] Solver rank %d: initial basecase solve failed; solution1 extras were written though\n",
-             my_rank);
-    }
-#endif
+    attempt_write_solutions(scacopf_prob, bret);
   }
 
   if(my_rank<=3)
@@ -451,6 +401,33 @@ bool MyCode1::do_phase1()
   } else {
     req_send_base_sols.post_new_sol(scacopf_prob, Tag7, my_rank, comm_world, phase3_scacopf_passes_solver);
     
+    if(blarge_prob) {
+      scacopf_prob->set_solver_option("tol", 1e-9);
+      scacopf_prob->set_solver_option("bound_relax_factor", 1e-8);
+      scacopf_prob->set_solver_option("bound_push", 1e-18);
+      scacopf_prob->set_solver_option("slack_bound_push", 1e-8);
+
+      //scacopf_prob->set_solver_option("bound_push", 1e-12);
+      //scacopf_prob->set_solver_option("slack_bound_push", 1e-12);
+      //scacopf_prob->set_solver_option("warm_start_init_point", "yes");
+      //scacopf_prob->set_solver_option("warm_start_bound_push", 1e-12);
+      //scacopf_prob->set_solver_option("warm_start_slack_bound_push", 1e-12);
+      //scacopf_prob->set_solver_option("warm_start_mult_bound_push", 1e-12);
+      //scacopf_prob->set_solver_option("warm_start_bound_frac", 1e-12);
+      //scacopf_prob->set_solver_option("warm_start_slack_bound_frac", 1e-12);
+      
+      scacopf_prob->set_solver_option("mu_target", 1e-8);
+      scacopf_prob->set_solver_option("mu_init", 1e-8);
+      
+      bool bret = scacopf_prob->reoptimize(OptProblem::primalDualRestart);
+      attempt_write_solutions(scacopf_prob, bret);
+    }      
+    cost_basecase = scacopf_prob->objective_value();
+    scacopf_prob->print_objterms_evals();
+    printf("[ph1] rank %d  scacopf solve phase 1 done at global time %g\n", 
+	   my_rank, glob_timer.measureElapsedTime());
+
+      
     std::this_thread::sleep_for(std::chrono::milliseconds(50));
     while(!req_send_base_sols.sends_list.back()->all_are_done()) {
       std::this_thread::sleep_for(std::chrono::milliseconds(100));
@@ -476,6 +453,29 @@ bool MyCode1::do_phase1()
   }
 
   return true;
+}
+
+void MyCode1::attempt_write_solutions(gollnlp::SCACOPFProblem* prob, bool opt_success)
+{
+  printf("[ph1] rank %d  phase 1 writes solution1.txt at global time %g\n", 
+	 my_rank, glob_timer.measureElapsedTime());
+  
+  //write solution
+  prob->write_solution_basecase();
+  prob->write_pridua_solution_basecase();
+  if(!opt_success) {
+    printf("[warning] Solver rank %d: initial basecase solve failed; solution1 was written though at global time=%g\n",
+	   my_rank, glob_timer.measureElapsedTime());
+  }
+  
+#ifdef DEBUG
+  //write solution extras
+  prob->write_solution_extras_basecase();
+  if(!opt_success) {
+    printf("[warning] Solver rank %d: initial basecase solve failed; solution1 extras were written though\n",
+	   my_rank);
+  }
+#endif  
 }
 
 vector<int> MyCode1::phase1_SCACOPF_contingencies()
@@ -1252,7 +1252,8 @@ bool MyCode1::do_phase3_master_solverpart(bool master_evalpart_done)
 	     r, Tag4, phase3_scacopf_passes_master);
 #endif
 #ifdef DEBUG_SCHED
-      printvec(K_info_next_scacopf_solve, "[comm] Ks on master to be solved next");
+      if(data.K_Contingency.size()<1250)
+	printvec(K_info_next_scacopf_solve, "[comm] Ks on master to be solved next");
 #endif
 
       req_send_KidxSCACOPF->post_send(Tag4, r, comm_world);
@@ -1352,7 +1353,8 @@ bool MyCode1::do_phase3_master_solverpart(bool master_evalpart_done)
 
 #ifdef DEBUG_SCHED
 	if(scacopf_includes) printf("[sched] MAX_K_EVALS=%d (was increased)\n", MAX_K_EVALS);
-	printvec(K_info_phase2, "[sched] K_info_phase2 on master after recv pen");
+	if(data.K_Contingency.size()<1250)
+	  printvec(K_info_phase2, "[sched] K_info_phase2 on master after recv pen");
 #endif
 	ierr = MPI_Test(&req_send_KidxSCACOPF->request, &mpi_test_flag, &mpi_status); 
 	assert(ierr == MPI_SUCCESS);
@@ -1869,9 +1871,11 @@ double MyCode1::solve_contingency(int K_idx, int& status)
   prob.set_solver_option("acceptable_constr_viol_tol", 1e-5);
   prob.set_solver_option("acceptable_iter", 5);
 
-  prob.set_solver_option("bound_relax_factor", 0.);
-  prob.set_solver_option("bound_push", 1e-16);
-  prob.set_solver_option("slack_bound_push", 1e-16);
+  if(data.N_Bus.size()<10000) {
+    prob.set_solver_option("bound_relax_factor", 0.);
+    prob.set_solver_option("bound_push", 1e-16);
+    prob.set_solver_option("slack_bound_push", 1e-16);
+  }
   prob.set_solver_option("mu_linear_decrease_factor", 0.4);
   prob.set_solver_option("mu_superlinear_decrease_power", 1.25);
 
@@ -2042,24 +2046,36 @@ double MyCode1::phase3_solve_scacopf(std::vector<int>& K_idxs,
 
   //!  scacopf_prob->set_quadr_penalty_qg0(true);
 
+  bool blarge_prob = data.N_Bus.size() > 20000;
+
   scacopf_prob->use_nlp_solver("ipopt"); 
   scacopf_prob->set_solver_option("linear_solver", "ma57"); 
   scacopf_prob->set_solver_option("mu_init", 1e-4);
-  scacopf_prob->set_solver_option("print_frequency_iter", 10);
-  scacopf_prob->set_solver_option("mu_target", 1e-10);
-  scacopf_prob->set_solver_option("max_iter", 600);
+  scacopf_prob->set_solver_option("print_frequency_iter", 5);
+  scacopf_prob->set_solver_option("print_level", 5);
 
   scacopf_prob->set_solver_option("acceptable_tol", 1e-4);
   scacopf_prob->set_solver_option("acceptable_constr_viol_tol", 1e-6);
   scacopf_prob->set_solver_option("acceptable_iter", 7);
+    
+  if(!blarge_prob) {
+    scacopf_prob->set_solver_option("mu_target", 1e-9);
+    scacopf_prob->set_solver_option("max_iter", 600);
+    scacopf_prob->set_solver_option("bound_relax_factor", 0.);
+    scacopf_prob->set_solver_option("bound_push", 1e-18);
+    scacopf_prob->set_solver_option("slack_bound_push", 1e-18);
+    scacopf_prob->set_solver_option("mu_linear_decrease_factor", 0.4);
+    scacopf_prob->set_solver_option("mu_superlinear_decrease_power", 1.4); 
+  } else {
+    scacopf_prob->set_solver_option("mu_target", 1e-8);
+    scacopf_prob->set_solver_option("max_iter", 400);
+    scacopf_prob->set_solver_option("bound_relax_factor", 1e-8);
+    scacopf_prob->set_solver_option("bound_push", 1e-8);
+    scacopf_prob->set_solver_option("slack_bound_push", 1e-8);
+    scacopf_prob->set_solver_option("mu_linear_decrease_factor", 0.5);
+    scacopf_prob->set_solver_option("mu_superlinear_decrease_power", 1.2);     
+  }
 
-  scacopf_prob->set_solver_option("bound_relax_factor", 0.);
-  scacopf_prob->set_solver_option("bound_push", 1e-18);
-  scacopf_prob->set_solver_option("slack_bound_push", 1e-18);
-  scacopf_prob->set_solver_option("mu_linear_decrease_factor", 0.4);
-  scacopf_prob->set_solver_option("mu_superlinear_decrease_power", 1.4);
-
-  scacopf_prob->set_solver_option("print_level", 5);
   
   //bool bret = scacopf_prob->optimize("ipopt");
   bool bret = scacopf_prob->reoptimize(OptProblem::primalDualRestart);

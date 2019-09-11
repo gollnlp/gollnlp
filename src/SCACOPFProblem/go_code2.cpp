@@ -584,8 +584,8 @@ bool MyCode2::solve_contingency(int K_idx, std::vector<double>& sln)
   prob.set_solver_option("sb","yes");
   prob.set_solver_option("print_frequency_iter", 5);
   prob.set_solver_option("linear_solver", "ma57"); 
-  prob.set_solver_option("print_level", 2);
-  //prob.set_solver_option("mu_target", 1e-10);
+  prob.set_solver_option("print_level", 5);
+
 
   //return if it takes too long in phase2
   prob.set_solver_option("max_iter", 250);
@@ -594,12 +594,28 @@ bool MyCode2::solve_contingency(int K_idx, std::vector<double>& sln)
   prob.set_solver_option("acceptable_iter", 5);
 
   prob.set_solver_option("tol", 1e-8);
+  prob.set_solver_option("mu_linear_decrease_factor", 0.3);
+  prob.set_solver_option("mu_superlinear_decrease_power", 1.4);
 
   prob.set_solver_option("bound_relax_factor", 0.);
   prob.set_solver_option("bound_push", 1e-16);
   prob.set_solver_option("slack_bound_push", 1e-16);
-  prob.set_solver_option("mu_linear_decrease_factor", 0.3);
-  prob.set_solver_option("mu_superlinear_decrease_power", 1.4);
+
+
+  if(data.N_Bus.size()<=20000) {
+
+  } else {
+    //large run
+    prob.set_solver_option("mu_target", 1e-8);
+    prob.set_solver_option("bound_relax_factor", 1e-8);
+    prob.set_solver_option("bound_push", 1e-8);
+    prob.set_solver_option("slack_bound_push", 1e-8);
+
+    prob.set_solver_option("mu_linear_decrease_factor", 0.5);
+    prob.set_solver_option("mu_superlinear_decrease_power", 1.2);
+
+  }
+
 
 
   double penalty;
