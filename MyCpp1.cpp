@@ -34,7 +34,7 @@ int main(int argc, char *argv[])
   int retcode=0;
   gollnlp::goTimer ttot; ttot.start();
 
-  std::cout << "MyExe1 - v. Sept 9, 2019 - 09:56pm" << std::endl;
+  std::cout << "MyExe1 - v. Sept 11, 2019 - 06:56am" << std::endl;
 #ifdef DEBUG
   std::cout << "DEBUG build !!!!" << std::endl;
 #endif

@@ -1856,6 +1856,7 @@ double MyCode1::solve_contingency(int K_idx, int& status)
   }
 
   prob.use_nlp_solver("ipopt");
+  prob.set_solver_option("sb","yes");
   prob.set_solver_option("print_frequency_iter", 1);
   prob.set_solver_option("linear_solver", "ma57"); 
   prob.set_solver_option("print_level", 2);

@@ -101,7 +101,7 @@ int MyCode2::initialize(int argc, char *argv[])
   //!
   //K_Contingency = {1936, 913, 792};
   //net15 
-
+  //K_Contingency = {1894, 2164, 6841};
   //K_Contingency = {2488,1572, 1057}; //net83
  
   //K_Contingency = {530, 110, 702, 863, 106, 101};//208, 154, 415, 461, 789, 368, 494, 748, 57, 1000, 817, 626, 576, 324, 913, 959, 248, 289, 209, 495, 416, 790, 155, 19, 749};//494, 495, 702, 749};
@@ -581,6 +581,7 @@ bool MyCode2::solve_contingency(int K_idx, std::vector<double>& sln)
   }
 
   prob.use_nlp_solver("ipopt");
+  prob.set_solver_option("sb","yes");
   prob.set_solver_option("print_frequency_iter", 5);
   prob.set_solver_option("linear_solver", "ma57"); 
   prob.set_solver_option("print_level", 2);
@@ -642,23 +643,38 @@ void MyCode2::read_solution1()
   
 
   assert(v_n00->n == v_n0()->n);
-  assert(diff_two_norm(v_n00->n, v_n00->x, v_n0()->x)<1e-12);
+#ifdef DEBUG
+  if(diff_two_norm(v_n00->n, v_n00->x, v_n0()->x)>1e-12)
+     printf("[warning] difference between read_variables read_solution1 in v\n");
+#endif
   delete v_n00;
 
   assert(theta_n00->n == theta_n0()->n);
-  assert(diff_two_norm(theta_n00->n, theta_n0()->x, theta_n00->x)<1e-12);
+#ifdef DEBUG
+  if(diff_two_norm(theta_n00->n, theta_n0()->x, theta_n00->x)>1e-12)
+    printf("[warning] difference between read_variables read_solution1 in theta\n");
+#endif
   delete theta_n00;
 
   assert(b_s00->n == b_s0()->n);
-  assert(diff_two_norm(b_s00->n, b_s00->x, b_s0()->x)<1e-12);
+#ifdef DEBUG
+  if(diff_two_norm(b_s00->n, b_s00->x, b_s0()->x)>1e-12)
+    printf("[warning] difference between read_variables read_solution1 in b_s\n");
+#endif
   delete b_s00;
 
   assert(p_g00->n == p_g0()->n);
-  assert(diff_two_norm(p_g00->n, p_g00->x, p_g0()->x)<1e-12);
+#ifdef DEBUG
+  if(diff_two_norm(p_g00->n, p_g00->x, p_g0()->x)>1e-12)
+    printf("[warning] difference between read_variables read_solution1 in p_g\n");
+#endif
   delete p_g00;
 
   assert(q_g00->n == q_g0()->n);
-  assert(diff_two_norm(q_g00->n, q_g00->x, q_g0()->x)<1e-12);
+#ifdef DEBUG
+  if(diff_two_norm(q_g00->n, q_g00->x, q_g0()->x)>1e-12)
+    printf("[warning] difference between read_variables read_solution1 in q_g\n");
+#endif
   delete q_g00;
 
 #endif

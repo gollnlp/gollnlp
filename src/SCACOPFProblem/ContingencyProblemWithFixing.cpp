@@ -25,9 +25,9 @@ namespace gollnlp {
   bool ContingencyProblemWithFixing::default_assembly(OptVariablesBlock* pg0, OptVariablesBlock* vn0) 
   {
     double K_avg_time_so_far = time_so_far / std::max(num_K_done,1);
-    printf("ContProbWithFixing K_idx=%d IDOut=%d outidx=%d Type=%s avgtm=%.2f\n",
+    printf("ContProbWithFixing K_idx=%d IDOut=%d outidx=%d Type=%s avgtm=%.2f rank=%d\n",
 	   K_idx, data_sc.K_IDout[K_idx], data_sc.K_outidx[K_idx],
-	   data_sc.cont_type_string(K_idx).c_str(), K_avg_time_so_far); fflush(stdout);
+	   data_sc.cont_type_string(K_idx).c_str(), K_avg_time_so_far, my_rank); fflush(stdout);
 
     p_g0=pg0; v_n0=vn0;
 
@@ -249,6 +249,7 @@ namespace gollnlp {
     if(this->obj_value>=1e6 && K_avg_time_so_far < 1.025*2.) skip_2nd_solve=false;
 
     if(!bFirstSolveOK) skip_2nd_solve=false;
+    //skip_2nd_solve=false;
 
     if(this->obj_value>pen_threshold && !skip_2nd_solve) {
 
@@ -611,7 +612,7 @@ namespace gollnlp {
     delta1=delta2=0.;
     const bool Pispos = (P_in > 0);
 
-    printf("push_and_fix_AGCgen K_idx=%d P_in=%g delta_in=%g\n", K_idx, P_in, delta_in);
+    printf("push_and_fix_AGCgen K_idx=%d P_in=%g delta_in=%g rank=%d\n", K_idx, P_in, delta_in, my_rank);
     if(!Pispos && delta_in>0) printf("K_idx=%d !!!!!!!!\n", K_idx);
 
     if(Pispos) { delta_lb=0.;     delta_ub=1e+20; assert(delta_in>=0); }
@@ -647,7 +648,7 @@ namespace gollnlp {
 	assert(delta<=0);
       }
 
-      //printf("aaaaaa delta2=%g delta1=%g P=%g\n", delta2, delta1, P_out);
+      //printf("aaaaaa delta2=%g delta1=%g P=%g\n", delta2, delta1, P_out); fflush(stdout);
 
       //if( (Pispos && (delta1 < delta2 + 1e-6)) || (!Pispos && (delta1 > delta2 - 1e-6)))  {
       if( (Pispos && (delta1 < delta2 )) || (!Pispos && (delta1 > delta2 )))  {
@@ -677,25 +678,26 @@ namespace gollnlp {
 	    if( fabs(dist - alpha[i0]*delta2) < 1e-5 ) { 
 	      idxs0_to_remove.push_back(i0); idxsK_to_remove.push_back(iK); 
 	      assert(pgK->ub[iK]==Pub[i0]); assert(pgK->lb[iK]==Plb[i0]);
+	      pgK->x[iK]  = Pub[i0];
 	      pgK->lb[iK] = Pub[i0]-1e-6;
 	      pgK->ub[iK] = Pub[i0]+1e-6;
-	      pgK->x[iK]  = Pub[i0];
 	    }
 	  }
 	} else { assert(P_out<0); assert(delta2<=0);
 	  for(int it=0; it<idxs0_AGCparticip.size(); it++) {
 	    const int &i0=idxs0_AGCparticip[it], &iK = idxsK_AGCparticip[it];
-	    dist = pg0->x[i0] - Plb[i0]; assert(dist>=0);
+	    dist = pgK->x[i0] - Plb[i0]; assert(dist>=0);
 	    //if(dist < 0-alpha[i0]*delta) 
-	    //  printf("---- dist=%g alpha[i0=%d]=%g delta2=%g\n", dist, i0, alpha[i0], delta2);
-	    //fflush(stdout);
+	    if(dist < 0-alpha[i0]*delta2 - 1e-6)
+	      printf("---- dist=%g alpha[i0=%d]=%g delta2=%g [%12.5e] \n", dist, i0, alpha[i0], delta2, dist + alpha[i0]*delta2);
+	    fflush(stdout);
 	    assert(dist >= 0-alpha[i0]*delta2 - 1e-6);
 	    if( fabs(dist + alpha[i0]*delta2) < 1e-5) { 
 	      idxs0_to_remove.push_back(i0); idxsK_to_remove.push_back(iK); 
 	      assert(pgK->ub[iK]==Pub[i0]); assert(pgK->lb[iK]==Plb[i0]);
+	      pgK->x[iK]  = Plb[i0];
 	      pgK->lb[iK] = Plb[i0]-1e-6;
 	      pgK->ub[iK] = Plb[i0]+1e-6;
-	      pgK->x[iK]  = Plb[i0];
 	    }
 	  }
 	} // end of if / else Pispos 
