@@ -209,10 +209,19 @@ namespace gollnlp {
 	
 	set_solver_option("mu_init", 1e-1);
 	set_solver_option("max_iter", 400);
+
+	set_solver_option("bound_relax_factor", 1e-8);
+	set_solver_option("bound_push", 0.01);
+	set_solver_option("slack_bound_push", 0.01);
+	set_solver_option("mu_linear_decrease_factor", 0.5);
+	set_solver_option("mu_superlinear_decrease_power", 1.2);
+	set_solver_option("tol", 1e-7);
+
 	if(!OptProblem::reoptimize(OptProblem::primalRestart)) {
-	  printf("[warning] ContProbWithFixing K_idx=%d opt11 failed\n", K_idx); 
+	  printf("[warning] ContProbWithFixing K_idx=%d opt11 failed user[stop]=%d\n", K_idx, monitor.user_stopped); 
 	  //get a solution even if it failed
 	  get_solution_simplicial_vectorized(sln);
+	  
 	  bFirstSolveOK=false;
 	} else {
 	  bFirstSolveOK=true;
@@ -389,11 +398,13 @@ namespace gollnlp {
       do_qgen_fixing_for_PVPQ(variable("v_n", d), variable("q_g", d));
 
 #ifdef DEBUG
-      if(!vars_duals_bounds_L->provides_start()) print_summary();
-      
-      assert(vars_duals_bounds_L->provides_start());
-      assert(vars_duals_bounds_U->provides_start());
-      assert(vars_duals_cons->provides_start());
+      if(bFirstSolveOK) {
+	if(!vars_duals_bounds_L->provides_start()) print_summary();
+	
+	assert(vars_duals_bounds_L->provides_start());
+	assert(vars_duals_bounds_U->provides_start());
+	assert(vars_duals_cons->provides_start());
+      }
 #endif
       
 
@@ -403,8 +414,12 @@ namespace gollnlp {
       if(data_sc.N_Bus.size()>8999) {
 	set_solver_option("mu_init", 1e-2);
       }
-      bool opt2_ok = OptProblem::reoptimize(OptProblem::primalDualRestart);
-
+      bool opt2_ok = false;
+      if(bFirstSolveOK) {
+	opt2_ok = OptProblem::reoptimize(OptProblem::primalDualRestart);
+      } else {
+	opt2_ok = OptProblem::reoptimize(OptProblem::primalRestart);
+      }
 
       if(!opt2_ok) {
 	if(!monitor.user_stopped) {
@@ -417,8 +432,16 @@ namespace gollnlp {
 	  
 	  set_solver_option("mu_init", 1e-1);
 	  set_solver_option("max_iter", 500);
+
+	  set_solver_option("bound_relax_factor", 1e-8);
+	  set_solver_option("bound_push", 0.01);
+	  set_solver_option("slack_bound_push", 0.01);
+	  set_solver_option("mu_linear_decrease_factor", 0.5);
+	  set_solver_option("mu_superlinear_decrease_power", 1.2);
+	  set_solver_option("tol", 1e-7);
+
 	  if(!OptProblem::reoptimize(OptProblem::primalRestart)) {
-	    printf("[warning] ContProbWithFixing K_idx=%d opt22 failed\n", K_idx); 
+	    printf("[warning] ContProbWithFixing K_idx=%d opt22 failed user[stop]=%d\n", K_idx, monitor.user_stopped); 
 	  }
 	  //get a solution even if it failed
 	  get_solution_simplicial_vectorized(sln);
