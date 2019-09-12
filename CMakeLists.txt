@@ -82,10 +82,10 @@ add_library(gollnlp STATIC $<TARGET_OBJECTS:goSCACOPF> $<TARGET_OBJECTS:goUtils>
 # competition executables
 #
 add_executable(MyExe1 MyCpp1.cpp)
-target_link_libraries(MyExe1 gollnlp "-lgfortran" ipopt coinhsl coinmetis ${LAPACK_LIBRARIES})
+target_link_libraries(MyExe1 gollnlp "-lifcore" ipopt coinhsl coinmetis ${LAPACK_LIBRARIES})
 
 add_executable(MyExe2 MyCpp2.cpp)
-target_link_libraries(MyExe2 gollnlp "-lgfortran" ipopt coinhsl coinmetis ${LAPACK_LIBRARIES})
+target_link_libraries(MyExe2 gollnlp "-lifcore" ipopt coinhsl coinmetis ${LAPACK_LIBRARIES})
 
 
 ##########################################################
