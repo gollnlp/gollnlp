@@ -1,4 +1,7 @@
 cmake_minimum_required (VERSION 2.8)
+SET(CMAKE_C_COMPILER icc)
+SET(CMAKE_CXX_COMPILER icpc)
+SET(CMAKE_Fortran_COMPILER ifort)
 project (goSpecCpp)
 # enable Fortran for Fortran name mangling
 enable_language(Fortran)
@@ -34,7 +37,7 @@ if(GOLLNLP_USE_MPI)
   endif(NOT DEFINED MPI_CXX_COMPILER)
 endif(GOLLNLP_USE_MPI)
 
-find_package(OpenMP)
+#find_package(OpenMP)
 
 if(NOT DEFINED LAPACK_LIBRARIES)
   # in case the toolchain defines them
