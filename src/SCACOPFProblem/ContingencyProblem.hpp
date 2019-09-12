@@ -95,20 +95,31 @@ namespace gollnlp {
 	if(monitor.is_late) {
 	  if(obj_value<2*monitor.pen_threshold && inf_pr<5e-6 && mu<=5e-6) {
 	    monitor.user_stopped=true;
-	    printf("[stop]la   K_idx=%d iter %d : obj=%12.5e inf_pr=%12.5e mu=%12.5e inf_du=%12.5e a_du=%12.5e a_pr=%12.5e rank=%d\n",
+	    printf("[stop]late   K_idx=%d iter %d : obj=%12.5e inf_pr=%12.5e mu=%12.5e inf_du=%12.5e a_du=%12.5e a_pr=%12.5e rank=%d\n",
 		   K_idx, iter, obj_value, inf_pr, mu, inf_du,  alpha_du, alpha_pr, my_rank);
 	    return false;
 	  } 
 	} else {
 	  if(obj_value<monitor.pen_threshold && inf_pr<1e-6 && mu<=1e-6) {
 	    monitor.user_stopped=true;
-	    printf("[stop]no   K_idx=%d iter %d : obj=%12.5e inf_pr=%12.5e mu=%12.5e inf_du=%12.5e a_du=%12.5e a_pr=%12.5e rank=%d\n",
+	    printf("[stop]norm   K_idx=%d iter %d : obj=%12.5e inf_pr=%12.5e mu=%12.5e inf_du=%12.5e a_du=%12.5e a_pr=%12.5e rank=%d\n",
 		   K_idx, iter, obj_value, inf_pr, mu, inf_du,  alpha_du, alpha_pr, my_rank);
 	    return false;
 	  }
 	}
-
       }
+
+      if(!monitor.safe_mode) {
+	if(monitor.timer.getElapsedTime() > 500.) {
+	  printf("[stop]time   K_idx=%d iter %d : obj=%12.5e inf_pr=%12.5e mu=%12.5e inf_du=%12.5e a_du=%12.5e a_pr=%12.5e rank=%d\n",
+		 K_idx, iter, obj_value, inf_pr, mu, inf_du,  alpha_du, alpha_pr, my_rank);
+
+	  // do not set monitor.user_stopped=true;
+
+	  return false;
+	}
+      }
+
       return true; 
     }
     

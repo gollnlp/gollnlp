@@ -184,10 +184,24 @@ namespace gollnlp {
     bool bFirstSolveOK=true;
 
     vector<int> hist_iter, hist_obj;
-    set_solver_option("mu_init", 1e-4);
-    if(!OptProblem::reoptimize(OptProblem::primalDualRestart)) {
+
+    double mu_init; bool opt_ok=false;
+
+    monitor.safe_mode=false;
+    set_solver_option("max_iter", 250);
+
+    if(data_sc.N_Bus.size()>8999) {
+      set_solver_option("mu_init", 1e-1);
+      opt_ok = OptProblem::optimize("ipopt");
+    } else {
+      set_solver_option("mu_init", 1e-4);
+      opt_ok = OptProblem::reoptimize(OptProblem::primalDualRestart);
+    }
+
+    if(!opt_ok) {
       if(!monitor.user_stopped) {
 	monitor.user_stopped=false;
+	monitor.safe_mode=true;
 	printf("[warning] ContProbWithFixing K_idx=%d opt1 failed\n", K_idx); 
 	bFirstSolveOK=false;
 	hist_iter.push_back(number_of_iterations());
@@ -382,19 +396,27 @@ namespace gollnlp {
       assert(vars_duals_cons->provides_start());
 #endif
       
-      this->set_solver_option("max_iter", 250);
 
       //second solve
-      if(!OptProblem::reoptimize(OptProblem::primalDualRestart)) {
+      monitor.safe_mode = false;
+      this->set_solver_option("max_iter", 250);
+      if(data_sc.N_Bus.size()>8999) {
+	set_solver_option("mu_init", 1e-2);
+      }
+      bool opt2_ok = OptProblem::reoptimize(OptProblem::primalDualRestart);
+
+
+      if(!opt2_ok) {
 	if(!monitor.user_stopped) {
 	  monitor.user_stopped=false;
+	  monitor.safe_mode = true;
 	  printf("[warning] ContProbWithFixing K_idx=%d opt2 failed\n", K_idx); 
 	  
 	  hist_iter.push_back(number_of_iterations());
 	  hist_obj.push_back(this->obj_value);
 	  
 	  set_solver_option("mu_init", 1e-1);
-	  set_solver_option("max_iter", 400);
+	  set_solver_option("max_iter", 500);
 	  if(!OptProblem::reoptimize(OptProblem::primalRestart)) {
 	    printf("[warning] ContProbWithFixing K_idx=%d opt22 failed\n", K_idx); 
 	  }
