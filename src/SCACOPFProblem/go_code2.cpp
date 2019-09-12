@@ -579,7 +579,7 @@ bool MyCode2::solve_contingency(int K_idx, std::vector<double>& sln)
 
   prob.pen_threshold = pen_threshold;
 
-  if(data.N_Bus.size()>999) {
+  if(data.N_Bus.size()>8999) {
     ContingencyProblemWithFixing::g_bounds_abuse = 5e-5;
     prob.monitor.is_active = true;
     prob.monitor.pen_threshold = pen_threshold;
