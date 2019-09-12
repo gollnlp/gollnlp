@@ -7,6 +7,7 @@
 
 #include <cstring>
 #include "blasdefs.hpp"
+#include "goTimer.hpp"
 //this class is for ACOPF base case and is inherited by ACOPFContingencyProblem
 
 namespace gollnlp {
@@ -231,12 +232,17 @@ namespace gollnlp {
     
     struct ConvMonitor
     {
-      ConvMonitor() : is_active(false), user_stopped(false), pen_threshold(0.), is_late(false) {};
+      ConvMonitor() : is_active(false), user_stopped(false), pen_threshold(0.), is_late(false), safe_mode(false) 
+      {
+	timer.start();
+      };
 
       bool is_active;
       bool user_stopped;
       double pen_threshold;
       bool is_late;
+      goTimer timer;
+      bool safe_mode;
     };
     ConvMonitor monitor;
 

@@ -184,10 +184,24 @@ namespace gollnlp {
     bool bFirstSolveOK=true;
 
     vector<int> hist_iter, hist_obj;
-    set_solver_option("mu_init", 1e-4);
-    if(!OptProblem::reoptimize(OptProblem::primalDualRestart)) {
+
+    double mu_init; bool opt_ok=false;
+
+    monitor.safe_mode=false;
+    set_solver_option("max_iter", 250);
+
+    if(data_sc.N_Bus.size()>8999) {
+      set_solver_option("mu_init", 1e-1);
+      opt_ok = OptProblem::optimize("ipopt");
+    } else {
+      set_solver_option("mu_init", 1e-4);
+      opt_ok = OptProblem::reoptimize(OptProblem::primalDualRestart);
+    }
+
+    if(!opt_ok) {
       if(!monitor.user_stopped) {
 	monitor.user_stopped=false;
+	monitor.safe_mode=true;
 	printf("[warning] ContProbWithFixing K_idx=%d opt1 failed\n", K_idx); 
 	bFirstSolveOK=false;
 	hist_iter.push_back(number_of_iterations());
@@ -195,10 +209,19 @@ namespace gollnlp {
 	
 	set_solver_option("mu_init", 1e-1);
 	set_solver_option("max_iter", 400);
+
+	set_solver_option("bound_relax_factor", 1e-8);
+	set_solver_option("bound_push", 0.01);
+	set_solver_option("slack_bound_push", 0.01);
+	set_solver_option("mu_linear_decrease_factor", 0.5);
+	set_solver_option("mu_superlinear_decrease_power", 1.2);
+	set_solver_option("tol", 1e-7);
+
 	if(!OptProblem::reoptimize(OptProblem::primalRestart)) {
-	  printf("[warning] ContProbWithFixing K_idx=%d opt11 failed\n", K_idx); 
+	  printf("[warning] ContProbWithFixing K_idx=%d opt11 failed user[stop]=%d\n", K_idx, monitor.user_stopped); 
 	  //get a solution even if it failed
 	  get_solution_simplicial_vectorized(sln);
+	  
 	  bFirstSolveOK=false;
 	} else {
 	  bFirstSolveOK=true;
@@ -375,28 +398,50 @@ namespace gollnlp {
       do_qgen_fixing_for_PVPQ(variable("v_n", d), variable("q_g", d));
 
 #ifdef DEBUG
-      if(!vars_duals_bounds_L->provides_start()) print_summary();
-      
-      assert(vars_duals_bounds_L->provides_start());
-      assert(vars_duals_bounds_U->provides_start());
-      assert(vars_duals_cons->provides_start());
+      if(bFirstSolveOK) {
+	if(!vars_duals_bounds_L->provides_start()) print_summary();
+	
+	assert(vars_duals_bounds_L->provides_start());
+	assert(vars_duals_bounds_U->provides_start());
+	assert(vars_duals_cons->provides_start());
+      }
 #endif
       
-      this->set_solver_option("max_iter", 250);
 
       //second solve
-      if(!OptProblem::reoptimize(OptProblem::primalDualRestart)) {
+      monitor.safe_mode = false;
+      this->set_solver_option("max_iter", 250);
+      if(data_sc.N_Bus.size()>8999) {
+	set_solver_option("mu_init", 1e-2);
+      }
+      bool opt2_ok = false;
+      if(bFirstSolveOK) {
+	opt2_ok = OptProblem::reoptimize(OptProblem::primalDualRestart);
+      } else {
+	opt2_ok = OptProblem::reoptimize(OptProblem::primalRestart);
+      }
+
+      if(!opt2_ok) {
 	if(!monitor.user_stopped) {
 	  monitor.user_stopped=false;
+	  monitor.safe_mode = true;
 	  printf("[warning] ContProbWithFixing K_idx=%d opt2 failed\n", K_idx); 
 	  
 	  hist_iter.push_back(number_of_iterations());
 	  hist_obj.push_back(this->obj_value);
 	  
 	  set_solver_option("mu_init", 1e-1);
-	  set_solver_option("max_iter", 400);
+	  set_solver_option("max_iter", 500);
+
+	  set_solver_option("bound_relax_factor", 1e-8);
+	  set_solver_option("bound_push", 0.01);
+	  set_solver_option("slack_bound_push", 0.01);
+	  set_solver_option("mu_linear_decrease_factor", 0.5);
+	  set_solver_option("mu_superlinear_decrease_power", 1.2);
+	  set_solver_option("tol", 1e-7);
+
 	  if(!OptProblem::reoptimize(OptProblem::primalRestart)) {
-	    printf("[warning] ContProbWithFixing K_idx=%d opt22 failed\n", K_idx); 
+	    printf("[warning] ContProbWithFixing K_idx=%d opt22 failed user[stop]=%d\n", K_idx, monitor.user_stopped); 
 	  }
 	  //get a solution even if it failed
 	  get_solution_simplicial_vectorized(sln);
