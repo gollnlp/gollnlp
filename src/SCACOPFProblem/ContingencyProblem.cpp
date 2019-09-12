@@ -161,8 +161,10 @@ namespace gollnlp {
     //if(!optimize("ipopt")) {
     if(!reoptimize(OptProblem::primalDualRestart)) {
       //if(!reoptimize(OptProblem::primalRestart)) {
-      f = 1e+6;
-      return false;
+      if(!monitor.user_stopped) {
+	f = 1e+6;
+	return false;
+      }
     }
 
     // objective value

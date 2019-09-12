@@ -268,8 +268,8 @@ public:
       return true;
     }
     else {
-      //if(status != Ipopt::User_Requested_Stop)
-      printf("Ipopt solve FAILED with status %d!!!\n", status);
+      if(status != Ipopt::User_Requested_Stop)
+	printf("Ipopt solve FAILED with status %d!!!\n", status);
       return false;
     }
   }

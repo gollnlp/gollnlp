@@ -176,32 +176,34 @@ namespace gollnlp {
     assert(p_g0 == pg0); assert(v_n0 == vn0);
     p_g0 = pg0; v_n0=vn0;
 
-    double pen_threshold=100.;
-    if(data_sc.N_Bus.size()>10000) pen_threshold=250.;
-    if(data_sc.N_Bus.size()>17000) pen_threshold=500.;
-    if(data_sc.N_Bus.size()>29000) pen_threshold=1000.;
+    //double pen_threshold=100.;
+    //if(data_sc.N_Bus.size()>10000) pen_threshold=250.;
+    //if(data_sc.N_Bus.size()>17000) pen_threshold=500.;
+    //if(data_sc.N_Bus.size()>29000) pen_threshold=1000.;
 
     bool bFirstSolveOK=true;
 
     vector<int> hist_iter, hist_obj;
     set_solver_option("mu_init", 1e-4);
     if(!OptProblem::reoptimize(OptProblem::primalDualRestart)) {
-      printf("[warning] ContProbWithFixing K_idx=%d opt1 failed\n", K_idx); 
-      bFirstSolveOK=false;
-      hist_iter.push_back(number_of_iterations());
-      hist_obj.push_back(this->obj_value);
-
-      set_solver_option("mu_init", 1e-1);
-      set_solver_option("max_iter", 400);
-      if(!OptProblem::reoptimize(OptProblem::primalRestart)) {
-	printf("[warning] ContProbWithFixing K_idx=%d opt11 failed\n", K_idx); 
-	//get a solution even if it failed
-	get_solution_simplicial_vectorized(sln);
+      if(!monitor.user_stopped) {
+	monitor.user_stopped=false;
+	printf("[warning] ContProbWithFixing K_idx=%d opt1 failed\n", K_idx); 
 	bFirstSolveOK=false;
-      } else {
-	bFirstSolveOK=true;
-      }
-      
+	hist_iter.push_back(number_of_iterations());
+	hist_obj.push_back(this->obj_value);
+	
+	set_solver_option("mu_init", 1e-1);
+	set_solver_option("max_iter", 400);
+	if(!OptProblem::reoptimize(OptProblem::primalRestart)) {
+	  printf("[warning] ContProbWithFixing K_idx=%d opt11 failed\n", K_idx); 
+	  //get a solution even if it failed
+	  get_solution_simplicial_vectorized(sln);
+	  bFirstSolveOK=false;
+	} else {
+	  bFirstSolveOK=true;
+	}
+      } // end of if(!monitor.user_stopped) {
     } 
     //else 
     {
@@ -238,7 +240,10 @@ namespace gollnlp {
     double K_avg_time_so_far = time_so_far  / num_K_done;
 
     //bool skip_2nd_solve = (K_avg_time_so_far > 0.9*(comm_size-1)*2.);
-    bool skip_2nd_solve = (K_avg_time_so_far > 0.9*2.);
+
+    if(K_avg_time_so_far > 0.9*2.) monitor.is_late=true;
+
+    bool skip_2nd_solve = monitor.is_late;
 
     if(time_so_far < 0.075*2.*data_sc.K_Contingency.size()) skip_2nd_solve=false;
 
@@ -379,20 +384,23 @@ namespace gollnlp {
       
       this->set_solver_option("max_iter", 250);
 
+      //second solve
       if(!OptProblem::reoptimize(OptProblem::primalDualRestart)) {
-	printf("[warning] ContProbWithFixing K_idx=%d opt2 failed\n", K_idx); 
-	
-	hist_iter.push_back(number_of_iterations());
-	hist_obj.push_back(this->obj_value);
-	
-	set_solver_option("mu_init", 1e-1);
-	set_solver_option("max_iter", 400);
-	if(!OptProblem::reoptimize(OptProblem::primalRestart)) {
-	  printf("[warning] ContProbWithFixing K_idx=%d opt22 failed\n", K_idx); 
+	if(!monitor.user_stopped) {
+	  monitor.user_stopped=false;
+	  printf("[warning] ContProbWithFixing K_idx=%d opt2 failed\n", K_idx); 
+	  
+	  hist_iter.push_back(number_of_iterations());
+	  hist_obj.push_back(this->obj_value);
+	  
+	  set_solver_option("mu_init", 1e-1);
+	  set_solver_option("max_iter", 400);
+	  if(!OptProblem::reoptimize(OptProblem::primalRestart)) {
+	    printf("[warning] ContProbWithFixing K_idx=%d opt22 failed\n", K_idx); 
+	  }
+	  //get a solution even if it failed
+	  get_solution_simplicial_vectorized(sln);
 	}
-	//get a solution even if it failed
-	get_solution_simplicial_vectorized(sln);
-	
       }
 
       f = this->obj_value;

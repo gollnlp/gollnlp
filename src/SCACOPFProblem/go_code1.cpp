@@ -1840,6 +1840,11 @@ double MyCode1::solve_contingency(int K_idx, int& status)
   
   ContingencyProblem prob(data, K_idx, my_rank);
 
+  if(data.N_Bus.size()>8999) {
+    prob.monitor.is_active = true;
+    prob.monitor.pen_threshold = pen_threshold;
+  }
+
   prob.update_AGC_smoothing_param(1e-2);
   prob.update_PVPQ_smoothing_param(1e-2);
 

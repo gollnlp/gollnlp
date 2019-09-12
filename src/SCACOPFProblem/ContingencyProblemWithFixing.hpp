@@ -18,8 +18,10 @@ namespace gollnlp {
       : ContingencyProblem(d_in, K_idx_, my_rank),  comm_size(comm_size_),
 	dict_basecase_vars(dict_basecase_vars_), solv1_Pg_was_enough(true),
 	num_K_done(num_K_done_), time_so_far(time_so_far_)
-    { };
+    { pen_threshold=1e+3; };
     virtual ~ContingencyProblemWithFixing();
+
+    double pen_threshold;
 
     virtual bool default_assembly(OptVariablesBlock* pg0, OptVariablesBlock* vn0);
     virtual bool default_assembly(OptVariablesBlock* vn0, OptVariablesBlock* thetan0, OptVariablesBlock* bs0, 
@@ -83,8 +85,9 @@ namespace gollnlp {
     std::vector<int> solv1_pg0_partic_idxs, solv1_pgK_partic_idxs, solv1_pgK_nonpartic_idxs, solv1_pg0_nonpartic_idxs;
     double solv1_delta_out, solv1_delta_needed, solv1_delta_blocking, solv1_delta_lb, solv1_delta_ub, solv1_delta_optim;
     bool solv1_Pg_was_enough;
-
+  public:
     static double g_bounds_abuse;
+  protected:
     int num_K_done;
     double time_so_far;
 

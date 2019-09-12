@@ -25,14 +25,6 @@ namespace gollnlp {
     }
     virtual ~SCACOPFProblem();
 
-    //overwrites of OptProblem
-    virtual bool iterate_callback(int iter, const double& obj_value, const double* primals,
-				  const double& inf_pr, const double& inf_du, 
-				  const double& mu, 
-				  const double& alpha_du, const double& alpha_pr,
-				  int ls_trials) 
-    { return true; }
-
     //only base case case, no contingencies and no coupling
     virtual bool default_assembly();
     //base case + the variables and blocks needed by contingencies specified by 'K_idxs'
@@ -225,6 +217,29 @@ namespace gollnlp {
     void write_solution_basecase();
     void write_pridua_solution_basecase();
     void write_solution_extras_basecase();
+
+  public:
+    virtual bool iterate_callback(int iter, const double& obj_value,
+				  const double* primals,
+				  const double& inf_pr, const double& inf_du, 
+				  const double& mu, 
+				  const double& alpha_du, const double& alpha_pr,
+				  int ls_trials) 
+    {
+      return true; 
+    }
+    
+    struct ConvMonitor
+    {
+      ConvMonitor() : is_active(false), user_stopped(false), pen_threshold(0.), is_late(false) {};
+
+      bool is_active;
+      bool user_stopped;
+      double pen_threshold;
+      bool is_late;
+    };
+    ConvMonitor monitor;
+
   }; // end of SCACOPFProblem
 
 
