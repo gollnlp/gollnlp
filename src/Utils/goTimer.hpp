@@ -36,6 +36,8 @@ public:
     return tm;
   }
 
+  inline void restart() { tmElapsed=0.; start(); }
+
   inline void start() 
   {
 #ifdef GOLLNLP_USE_MPI 
