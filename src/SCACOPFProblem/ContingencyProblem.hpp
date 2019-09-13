@@ -86,40 +86,50 @@ namespace gollnlp {
   public:
     virtual bool iterate_callback(int iter, const double& obj_value,
 				  const double* primals,
-				  const double& inf_pr, const double& inf_du, 
+				  const double& inf_pr, const double& inf_pr_orig_pr, 
+				  const double& inf_du, 
 				  const double& mu, 
 				  const double& alpha_du, const double& alpha_pr,
 				  int ls_trials) 
     {
       if(monitor.is_active) {
+	//printf("[stop]????   K_idx=%d iter %d : obj=%12.5e inf_pr_o=%12.5e mu=%12.5e inf_du=%12.5e a_du=%12.5e a_pr=%12.5e rank=%d time=%g\n",
+	//       K_idx, iter, obj_value, inf_pr_orig_pr, mu, inf_du,  alpha_du, alpha_pr, my_rank, monitor.timer.measureElapsedTime());
 	if(monitor.is_late) {
-	  if(obj_value<2*monitor.pen_threshold && inf_pr<5e-6 && mu<=5e-6) {
+	  if(obj_value<2*monitor.pen_threshold && inf_pr_orig_pr<2e-6 && mu<=1e-5) {
 	    monitor.user_stopped=true;
-	    printf("[stop]late   K_idx=%d iter %d : obj=%12.5e inf_pr=%12.5e mu=%12.5e inf_du=%12.5e a_du=%12.5e a_pr=%12.5e rank=%d\n",
-		   K_idx, iter, obj_value, inf_pr, mu, inf_du,  alpha_du, alpha_pr, my_rank);
+	    printf("[stop]late   K_idx=%d iter %d : obj=%12.5e inf_pr_o=%12.5e mu=%12.5e inf_du=%12.5e a_du=%12.5e a_pr=%12.5e rank=%d\n",
+		   K_idx, iter, obj_value, inf_pr_orig_pr, mu, inf_du,  alpha_du, alpha_pr, my_rank);
 	    return false;
 	  } 
 	} else {
-	  if(obj_value<monitor.pen_threshold && inf_pr<1e-6 && mu<=1e-6) {
+	  if(obj_value<monitor.pen_threshold && inf_pr_orig_pr<1e-6 && mu<=5e-6) {
 	    monitor.user_stopped=true;
-	    printf("[stop]norm   K_idx=%d iter %d : obj=%12.5e inf_pr=%12.5e mu=%12.5e inf_du=%12.5e a_du=%12.5e a_pr=%12.5e rank=%d\n",
-		   K_idx, iter, obj_value, inf_pr, mu, inf_du,  alpha_du, alpha_pr, my_rank);
+	    printf("[stop]norm   K_idx=%d iter %d : obj=%12.5e inf_pr_o=%12.5e mu=%12.5e inf_du=%12.5e a_du=%12.5e a_pr=%12.5e rank=%d\n",
+		   K_idx, iter, obj_value, inf_pr_orig_pr, mu, inf_du,  alpha_du, alpha_pr, my_rank);
 	    return false;
 	  }
 	}
-      }
+      
 
-      if(!monitor.safe_mode) {
-	if(monitor.timer.getElapsedTime() > 500.) {
-	  printf("[stop]time   K_idx=%d iter %d : obj=%12.5e inf_pr=%12.5e mu=%12.5e inf_du=%12.5e a_du=%12.5e a_pr=%12.5e rank=%d\n",
-		 K_idx, iter, obj_value, inf_pr, mu, inf_du,  alpha_du, alpha_pr, my_rank);
+	if(!monitor.safe_mode) {
+	  if(monitor.timer.measureElapsedTime() > 350.) {
+	    printf("[stop]time   K_idx=%d iter %d : obj=%12.5e inf_pr_o=%12.5e mu=%12.5e inf_du=%12.5e a_du=%12.5e a_pr=%12.5e rank=%d\n",
+		   K_idx, iter, obj_value, inf_pr_orig_pr, mu, inf_du,  alpha_du, alpha_pr, my_rank);
+	    
+	    // do not set monitor.user_stopped=true;
+	    
+	    return false;
+	  }
 
-	  // do not set monitor.user_stopped=true;
-
-	  return false;
+	} else { //this is in safe_mode
+	  if(obj_value<20*monitor.pen_threshold && inf_pr_orig_pr<2e-6 && mu<=1e-5) {
+	    printf("[stop]safe   K_idx=%d iter %d : obj=%12.5e inf_pr_o=%12.5e mu=%12.5e inf_du=%12.5e a_du=%12.5e a_pr=%12.5e rank=%d\n",
+		   K_idx, iter, obj_value, inf_pr_orig_pr, mu, inf_du,  alpha_du, alpha_pr, my_rank);
+	    monitor.user_stopped=true;
+	    return false;
+	  }
 	}
-      } else { //this is in safe_mode
-	
       }
 
       return true; 

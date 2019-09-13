@@ -101,6 +101,12 @@ int MyCode2::initialize(int argc, char *argv[])
   //!
   //K_Contingency = {1936, 913, 792};
   //net15 
+  
+
+  //K_Contingency = {0, 529, 4588};
+//K_Contingency = {4588};
+
+
   //K_Contingency = {1894};//, 2164, 6841};
   //K_Contingency = {2488,1572, 1057}; //net83
  

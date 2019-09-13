@@ -181,13 +181,14 @@ namespace gollnlp {
     //if(data_sc.N_Bus.size()>17000) pen_threshold=500.;
     //if(data_sc.N_Bus.size()>29000) pen_threshold=1000.;
 
-    bool bFirstSolveOK=true;
+    bool bFirstSolveOK=true; 
 
     vector<int> hist_iter, hist_obj;
 
     double mu_init; bool opt_ok=false;
 
-    monitor.safe_mode=false;
+    monitor.safe_mode=false; 
+    monitor.timer.restart();
     set_solver_option("max_iter", 250);
 
     if(data_sc.N_Bus.size()>8999) {
@@ -202,13 +203,14 @@ namespace gollnlp {
       if(!monitor.user_stopped) {
 	monitor.user_stopped=false;
 	monitor.safe_mode=true;
+	monitor.timer.reset();
 	printf("[warning] ContProbWithFixing K_idx=%d opt1 failed\n", K_idx); 
 	bFirstSolveOK=false;
 	hist_iter.push_back(number_of_iterations());
 	hist_obj.push_back(this->obj_value);
 	
 	set_solver_option("mu_init", 1e-1);
-	set_solver_option("max_iter", 400);
+	set_solver_option("max_iter", 300);
 
 	set_solver_option("bound_relax_factor", 1e-8);
 	set_solver_option("bound_push", 0.01);
@@ -219,12 +221,15 @@ namespace gollnlp {
 
 	if(!OptProblem::reoptimize(OptProblem::primalRestart)) {
 	  printf("[warning] ContProbWithFixing K_idx=%d opt11 failed user[stop]=%d\n", K_idx, monitor.user_stopped);
-	  default_primal_start();
+	  //default_primal_start();
 	  
 	  //get a solution even if it failed
 	  get_solution_simplicial_vectorized(sln);
-	  
-	  bFirstSolveOK=false;
+	  if(!monitor.user_stopped)
+	    bFirstSolveOK=false;
+	  else 
+	    bFirstSolveOK=true;
+	  monitor.user_stopped=false;
 	} else {
 	  bFirstSolveOK=true;
 	}
@@ -282,6 +287,12 @@ namespace gollnlp {
 
     if(!bFirstSolveOK) skip_2nd_solve=false;
     //skip_2nd_solve=false;
+
+    if(bFirstSolveOK && tmrec.measureElapsedTime()>800.) {
+      skip_2nd_solve=true;
+      printf("ContProbWithFixing K_idx=%d will exit prematuraly b/c first solves took long %g sec on rank=%d\n", 
+	     K_idx, tmrec.measureElapsedTime(), my_rank);
+    }
 
     if(this->obj_value>pen_threshold && !skip_2nd_solve) {
 
@@ -412,9 +423,10 @@ namespace gollnlp {
 
       //second solve
       monitor.safe_mode = false;
+      monitor.timer.restart();
       this->set_solver_option("max_iter", 250);
       if(data_sc.N_Bus.size()>8999) {
-	set_solver_option("mu_init", 1e-2);
+	set_solver_option("mu_init", 1e-1);
       }
       bool opt2_ok = false;
       if(bFirstSolveOK) {
@@ -427,6 +439,7 @@ namespace gollnlp {
 	if(!monitor.user_stopped) {
 	  monitor.user_stopped=false;
 	  monitor.safe_mode = true;
+	  monitor.timer.restart();
 	  printf("[warning] ContProbWithFixing K_idx=%d opt2 failed\n", K_idx); 
 	  
 	  hist_iter.push_back(number_of_iterations());
