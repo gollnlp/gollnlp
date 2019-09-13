@@ -1,4 +1,7 @@
 cmake_minimum_required (VERSION 2.8)
+SET(CMAKE_C_COMPILER icc)
+SET(CMAKE_CXX_COMPILER icpc)
+SET(CMAKE_Fortran_COMPILER ifort)
 project (goSpecCpp)
 # enable Fortran for Fortran name mangling
 enable_language(Fortran)
@@ -34,7 +37,7 @@ if(GOLLNLP_USE_MPI)
   endif(NOT DEFINED MPI_CXX_COMPILER)
 endif(GOLLNLP_USE_MPI)
 
-find_package(OpenMP)
+#find_package(OpenMP)
 
 if(NOT DEFINED LAPACK_LIBRARIES)
   # in case the toolchain defines them
@@ -82,10 +85,10 @@ add_library(gollnlp STATIC $<TARGET_OBJECTS:goSCACOPF> $<TARGET_OBJECTS:goUtils>
 # competition executables
 #
 add_executable(MyExe1 MyCpp1.cpp)
-target_link_libraries(MyExe1 gollnlp "-lgfortran" ipopt coinhsl coinmetis ${LAPACK_LIBRARIES})
+target_link_libraries(MyExe1 gollnlp "-lifcore" ipopt coinhsl coinmetis ${LAPACK_LIBRARIES})
 
 add_executable(MyExe2 MyCpp2.cpp)
-target_link_libraries(MyExe2 gollnlp "-lgfortran" ipopt coinhsl coinmetis ${LAPACK_LIBRARIES})
+target_link_libraries(MyExe2 gollnlp "-lifcore" ipopt coinhsl coinmetis ${LAPACK_LIBRARIES})
 
 
 ##########################################################
