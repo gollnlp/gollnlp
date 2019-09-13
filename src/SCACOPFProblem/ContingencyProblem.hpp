@@ -3,6 +3,7 @@
 
 #include "SCACOPFProblem.hpp"
 #include <vector>
+#include "goUtils.hpp"
 
 namespace gollnlp {
 
@@ -93,8 +94,20 @@ namespace gollnlp {
 				  int ls_trials) 
     {
       if(monitor.is_active) {
-	//printf("[stop]????   K_idx=%d iter %d : obj=%12.5e inf_pr_o=%12.5e mu=%12.5e inf_du=%12.5e a_du=%12.5e a_pr=%12.5e rank=%d time=%g\n",
-	//       K_idx, iter, obj_value, inf_pr_orig_pr, mu, inf_du,  alpha_du, alpha_pr, my_rank, monitor.timer.measureElapsedTime());
+	monitor.hist_tm.push_back(monitor.timer.measureElapsedTime());
+
+	const double tmavg =  monitor.hist_tm.back() / monitor.hist_tm.size();
+
+	const int over_n_last = 3; double tmavg_over_last = tmavg;
+	if(monitor.hist_tm.size() > over_n_last) {
+	  const int idx_ref = monitor.hist_tm.size()-over_n_last-1;
+	  tmavg_over_last = (monitor.hist_tm.back()-monitor.hist_tm[idx_ref])/over_n_last;
+	}
+
+	//printf("[stop]????   K_idx=%d iter %d : obj=%12.5e inf_pr_o=%12.5e mu=%12.5e inf_du=%12.5e a_du=%12.5e a_pr=%12.5e "
+	//     "rank=%d time=%g avg=[%.2f %.2f(%d)]\n",
+	//       K_idx, iter, obj_value, inf_pr_orig_pr, mu, inf_du,  alpha_du, alpha_pr, my_rank, monitor.timer.measureElapsedTime(),
+	//       tmavg, tmavg_over_last,over_n_last);
 	if(monitor.is_late) {
 	  if(obj_value<2*monitor.pen_threshold && inf_pr_orig_pr<2e-6 && mu<=1e-5) {
 	    monitor.user_stopped=true;
@@ -111,17 +124,67 @@ namespace gollnlp {
 	  }
 	}
       
+	if(tmavg_over_last>5.*tmavg && obj_value<20*monitor.pen_threshold && inf_pr_orig_pr<1e-6 && mu<=5e-6) {
+	  monitor.user_stopped=true;
+	  printf("[stop]slo1   K_idx=%d iter %d : obj=%12.5e inf_pr_o=%12.5e mu=%12.5e inf_du=%12.5e a_du=%12.5e a_pr=%12.5e rank=%d\n",
+		 K_idx, iter, obj_value, inf_pr_orig_pr, mu, inf_du,  alpha_du, alpha_pr, my_rank);
+	  return false;	 
+	}
+	if(tmavg_over_last>3.*tmavg && obj_value<10*monitor.pen_threshold && inf_pr_orig_pr<1e-6 && mu<=5e-6) {
+	  monitor.user_stopped=true;
+	  printf("[stop]slo2   K_idx=%d iter %d : obj=%12.5e inf_pr_o=%12.5e mu=%12.5e inf_du=%12.5e a_du=%12.5e a_pr=%12.5e rank=%d\n",
+		 K_idx, iter, obj_value, inf_pr_orig_pr, mu, inf_du,  alpha_du, alpha_pr, my_rank);
+	  return false;	 
+	}
+	
+	if(tmavg_over_last>2.*tmavg && obj_value< 2.*monitor.pen_threshold && inf_pr_orig_pr<1e-6 && mu<=5e-6) {
+	  monitor.user_stopped=true;
+	  printf("[stop]slo3   K_idx=%d iter %d : obj=%12.5e inf_pr_o=%12.5e mu=%12.5e inf_du=%12.5e a_du=%12.5e a_pr=%12.5e rank=%d\n",
+		 K_idx, iter, obj_value, inf_pr_orig_pr, mu, inf_du,  alpha_du, alpha_pr, my_rank);
+	  return false;	 
+	}
+
+	if(tmavg_over_last>1.5*tmavg && obj_value<10.*monitor.pen_threshold && inf_pr_orig_pr<1e-7 && inf_du <1e-6 && mu<=1e-6) {
+	  monitor.user_stopped=true;
+	  printf("[stop]slo4   K_idx=%d iter %d : obj=%12.5e inf_pr_o=%12.5e mu=%12.5e inf_du=%12.5e a_du=%12.5e a_pr=%12.5e rank=%d\n",
+		 K_idx, iter, obj_value, inf_pr_orig_pr, mu, inf_du,  alpha_du, alpha_pr, my_rank);
+	  return false;	 
+	}
+
+	if(true==monitor.bailout_allowed) {
+	  // do not set monitor.user_stopped=true;
+
+	  bool bret = true;
+
+	  if(tmavg_over_last>30. && iter>3) 
+	    if(data_sc.N_Bus.size() <= 35000) bret = false;
+	  if(tmavg_over_last>40. && iter>3) 
+	    bret = false;
+
+	  if(tmavg>5. && iter>5)
+	    if(data_sc.N_Bus.size() <= 35000) bret = false;
+
+	  if(tmavg>9. && iter>4) bret = false;
+
+	  if(!bret) {
+	    printf("[stop]bail   K_idx=%d iter %d : obj=%12.5e inf_pr_o=%12.5e mu=%12.5e inf_du=%12.5e a_du=%12.5e a_pr=%12.5e rank=%d\n",
+		   K_idx, iter, obj_value, inf_pr_orig_pr, mu, inf_du,  alpha_du, alpha_pr, my_rank);
+	    return false;	 
+	  }
+	}
 
 	if(!monitor.safe_mode) {
 	  if(monitor.timer.measureElapsedTime() > 350.) {
-	    printf("[stop]time   K_idx=%d iter %d : obj=%12.5e inf_pr_o=%12.5e mu=%12.5e inf_du=%12.5e a_du=%12.5e a_pr=%12.5e rank=%d\n",
-		   K_idx, iter, obj_value, inf_pr_orig_pr, mu, inf_du,  alpha_du, alpha_pr, my_rank);
+	    printf("[stop]time   K_idx=%d iter %d : obj=%12.5e inf_pr_o=%12.5e mu=%12.5e inf_du=%12.5e a_du=%12.5e a_pr=%12.5e "
+		   "rank=%d avg=[%.2f %.2f(%d)]\n",
+		   K_idx, iter, obj_value, inf_pr_orig_pr, mu, inf_du,  alpha_du, alpha_pr, my_rank,
+		   tmavg, tmavg_over_last,over_n_last);
 	    
 	    // do not set monitor.user_stopped=true;
 	    
 	    return false;
 	  }
-
+	  
 	} else { //this is in safe_mode
 	  if(obj_value<20*monitor.pen_threshold && inf_pr_orig_pr<2e-6 && mu<=1e-5) {
 	    printf("[stop]safe   K_idx=%d iter %d : obj=%12.5e inf_pr_o=%12.5e mu=%12.5e inf_du=%12.5e a_du=%12.5e a_pr=%12.5e rank=%d\n",
@@ -129,6 +192,14 @@ namespace gollnlp {
 	    monitor.user_stopped=true;
 	    return false;
 	  }
+	  
+	  if(tmavg_over_last>3.*tmavg && obj_value<1e+6*monitor.pen_threshold && inf_pr_orig_pr<2e-6 && mu<=1e-5) {
+	    monitor.user_stopped=true;
+	    printf("[stop]slos   K_idx=%d iter %d : obj=%12.5e inf_pr_o=%12.5e mu=%12.5e inf_du=%12.5e a_du=%12.5e a_pr=%12.5e rank=%d\n",
+		   K_idx, iter, obj_value, inf_pr_orig_pr, mu, inf_du,  alpha_du, alpha_pr, my_rank);
+	  return false;	 
+	  }
+
 	}
       }
 

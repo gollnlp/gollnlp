@@ -103,8 +103,9 @@ int MyCode2::initialize(int argc, char *argv[])
   //net15 
   
 
-  //K_Contingency = {0, 529, 4588};
-//K_Contingency = {4588};
+  //K_Contingency = {529, 4588};
+  //K_Contingency = {4588};
+  //K_Contingency = {5550};
 
 
   //K_Contingency = {1894};//, 2164, 6841};
@@ -625,9 +626,9 @@ bool MyCode2::solve_contingency(int K_idx, std::vector<double>& sln)
   } else {
     //large run
     prob.set_solver_option("mu_target", 1e-8);
-    prob.set_solver_option("bound_relax_factor", 1e-8);
-    prob.set_solver_option("bound_push", 1e-8);
-    prob.set_solver_option("slack_bound_push", 1e-8);
+    //prob.set_solver_option("bound_relax_factor", 1e-8);
+    //prob.set_solver_option("bound_push", 1e-8);
+    //prob.set_solver_option("slack_bound_push", 1e-8);
 
     prob.set_solver_option("mu_linear_decrease_factor", 0.5);
     prob.set_solver_option("mu_superlinear_decrease_power", 1.2);

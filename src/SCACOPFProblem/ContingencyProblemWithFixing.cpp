@@ -189,9 +189,14 @@ namespace gollnlp {
 
     monitor.safe_mode=false; 
     monitor.timer.restart();
+    monitor.hist_tm.clear();
     set_solver_option("max_iter", 250);
 
+    //default_primal_start();
+    //print_summary();
+
     if(data_sc.N_Bus.size()>8999) {
+      monitor.bailout_allowed=true;
       set_solver_option("mu_init", 1e-1);
       opt_ok = OptProblem::optimize("ipopt");
     } else {
@@ -203,7 +208,9 @@ namespace gollnlp {
       if(!monitor.user_stopped) {
 	monitor.user_stopped=false;
 	monitor.safe_mode=true;
-	monitor.timer.reset();
+	monitor.bailout_allowed=false;
+	monitor.timer.restart();
+	monitor.hist_tm.clear();
 	printf("[warning] ContProbWithFixing K_idx=%d opt1 failed\n", K_idx); 
 	bFirstSolveOK=false;
 	hist_iter.push_back(number_of_iterations());
@@ -233,7 +240,9 @@ namespace gollnlp {
 	} else {
 	  bFirstSolveOK=true;
 	}
-      } // end of if(!monitor.user_stopped) {
+      } else { //if(!monitor.user_stopped) 
+	monitor.user_stopped=false;
+      }
     } 
     //else 
     {
@@ -287,6 +296,8 @@ namespace gollnlp {
 
     if(!bFirstSolveOK) skip_2nd_solve=false;
     //skip_2nd_solve=false;
+
+    if(bFirstSolveOK) monitor.bailout_allowed=true;
 
     if(bFirstSolveOK && tmrec.measureElapsedTime()>800.) {
       skip_2nd_solve=true;
@@ -423,7 +434,9 @@ namespace gollnlp {
 
       //second solve
       monitor.safe_mode = false;
+      monitor.user_stopped=false;
       monitor.timer.restart();
+      monitor.hist_tm.clear();
       this->set_solver_option("max_iter", 250);
       if(data_sc.N_Bus.size()>8999) {
 	set_solver_option("mu_init", 1e-1);
@@ -436,41 +449,48 @@ namespace gollnlp {
       }
 
       if(!opt2_ok) {
-	if(!monitor.user_stopped) {
-	  monitor.user_stopped=false;
-	  monitor.safe_mode = true;
-	  monitor.timer.restart();
-	  printf("[warning] ContProbWithFixing K_idx=%d opt2 failed\n", K_idx); 
-	  
-	  hist_iter.push_back(number_of_iterations());
-	  hist_obj.push_back(this->obj_value);
-	  
-	  set_solver_option("mu_init", 1e-1);
-	  set_solver_option("max_iter", 500);
-
-	  set_solver_option("bound_relax_factor", 1e-8);
-	  set_solver_option("bound_push", 0.01);
-	  set_solver_option("slack_bound_push", 0.01);
-	  set_solver_option("mu_linear_decrease_factor", 0.5);
-	  set_solver_option("mu_superlinear_decrease_power", 1.2);
-	  set_solver_option("tol", 1e-7);
-
-	  if(!OptProblem::reoptimize(OptProblem::primalRestart)) {
-	    printf("[warning] ContProbWithFixing K_idx=%d opt22 failed user[stop]=%d\n", K_idx, monitor.user_stopped); 
+	if(bFirstSolveOK && data_sc.N_Bus.size()>8999) {
+	  //good enough 
+	} else {
+	  if(!monitor.user_stopped) {
+	    hist_iter.push_back(number_of_iterations());
+	    hist_obj.push_back(this->obj_value);
+	    monitor.bailout_allowed=false;
+	    monitor.user_stopped=false;
+	    monitor.safe_mode = true;
+	    monitor.timer.restart();
+	    monitor.hist_tm.clear();
+	    printf("[warning] ContProbWithFixing K_idx=%d opt2 failed\n", K_idx); 
+	    
+	    set_solver_option("mu_init", 1e-1);
+	    set_solver_option("max_iter", 500);
+	    
+	    set_solver_option("bound_relax_factor", 1e-8);
+	    set_solver_option("bound_push", 0.01);
+	    set_solver_option("slack_bound_push", 0.01);
+	    set_solver_option("mu_linear_decrease_factor", 0.5);
+	    set_solver_option("mu_superlinear_decrease_power", 1.2);
+	    set_solver_option("tol", 1e-7);
+	    
+	    if(!OptProblem::reoptimize(OptProblem::primalRestart)) {
+	      printf("[warning] ContProbWithFixing K_idx=%d opt22 failed user[stop]=%d\n", K_idx, monitor.user_stopped); 
+	    }
+	    //get a solution even if it failed
+	    if(!bFirstSolveOK) get_solution_simplicial_vectorized(sln);
 	  }
-	  //get a solution even if it failed
+	}
+      } else {
+
+	f = this->obj_value;
+	hist_iter.push_back(number_of_iterations());
+	hist_obj.push_back(this->obj_value);
+	
+	assert(hist_iter.size()>=1);
+	assert(hist_obj.size()>=1);
+	if(hist_obj.back() < hist_obj[0]) {
 	  get_solution_simplicial_vectorized(sln);
 	}
-      }
-
-      f = this->obj_value;
-      hist_iter.push_back(number_of_iterations());
-      hist_obj.push_back(this->obj_value);
-      
-      assert(hist_iter.size()>=1);
-      assert(hist_obj.size()>=1);
-      if(hist_obj.back() < hist_obj[0]) {
-	get_solution_simplicial_vectorized(sln);
+	if(!bFirstSolveOK) get_solution_simplicial_vectorized(sln);
       }
       
       if(this->obj_value>100) {
@@ -500,24 +520,29 @@ namespace gollnlp {
 
   void ContingencyProblemWithFixing::default_primal_start()
   {
+    //for(auto b: vars_primal->vblocks) b->providesStartingPoint=false; 
+
     SCACOPFData& dK = *data_K[0]; //aaa
     auto v = variable("v_n", dK);
-    v->set_start_to(data_sc.N_v0.data());
+    //v->set_start_to(data_sc.N_v0.data());
+    v->set_start_to(*v_n0);
 
     v = variable("theta_n", dK);
-    v->set_start_to(data_sc.N_theta0.data());
+    //v->set_start_to(data_sc.N_theta0.data());
+    v->set_start_to(*theta_n0);
 
     v = variable("b_s", dK);
-    v->set_start_to(data_sc.SSh_B0.data());
+    //v->set_start_to(data_sc.SSh_B0.data());
+    v->set_start_to(*b_s0);
 
     v = variable("p_g", dK); assert(v->n == dK.G_p0.size());
-    v->set_start_to(dK.G_p0.data());
+    //v->set_start_to(dK.G_p0.data());
 
     v = variable("q_g", dK); 
-    v->set_start_to(dK.G_q0.data());
+    //v->set_start_to(dK.G_q0.data());
 
     //compute starting points: p_li1_powerflow, p_li2_powerflow
-    {
+    if(true){
       auto p_li1 = variable("p_li1",dK), p_li2 = variable("p_li2",dK);
       auto pf_cons1 = dynamic_cast<PFConRectangular*>(constraint("p_li1_powerflow", dK));
       auto pf_cons2 = dynamic_cast<PFConRectangular*>(constraint("p_li2_powerflow", dK));
@@ -526,7 +551,7 @@ namespace gollnlp {
     }
 
     //q_li1_powerflow, q_li2_powerflow
-    {
+    if(true){
       auto q_li1 = variable("q_li1",dK), q_li2 = variable("q_li2",dK);
       auto pf_cons1 = dynamic_cast<PFConRectangular*>(constraint("q_li1_powerflow", dK));
       auto pf_cons2 = dynamic_cast<PFConRectangular*>(constraint("q_li2_powerflow", dK));
@@ -536,7 +561,7 @@ namespace gollnlp {
 
 
     // // transformers
-    {
+    if(true){
       auto p_ti1 = variable("p_ti1",dK), p_ti2 = variable("p_ti2",dK);
       auto pf_cons1 = dynamic_cast<PFConRectangular*>(constraint("p_ti1_powerflow", dK));
       auto pf_cons2 = dynamic_cast<PFConRectangular*>(constraint("p_ti2_powerflow", dK));
@@ -545,7 +570,7 @@ namespace gollnlp {
     }
 
     //q_li1_powerflow, q_li2_powerflow
-    {
+    if(true){
       auto q_ti1 = variable("q_ti1",dK), q_ti2 = variable("q_ti2",dK);
       auto pf_cons1 = dynamic_cast<PFConRectangular*>(constraint("q_ti1_powerflow", dK));
       auto pf_cons2 = dynamic_cast<PFConRectangular*>(constraint("q_ti2_powerflow", dK));
@@ -554,17 +579,19 @@ namespace gollnlp {
     }
 
     //active balance slacks
-    auto pf_p_bal = dynamic_cast<PFActiveBalance*>(constraint("p_balance", dK));
-    OptVariablesBlock* pslacks_n = pf_p_bal->slacks();
-    pf_p_bal->compute_slacks(pslacks_n); pslacks_n->providesStartingPoint=true;
-
-    //reactive power balance slacks
-    auto pf_q_bal = dynamic_cast<PFReactiveBalance*>(constraint("q_balance", dK));
-    OptVariablesBlock* qslacks_n = pf_q_bal->slacks();
-    pf_q_bal->compute_slacks(qslacks_n); qslacks_n->providesStartingPoint=true;
+    if(false) {
+      auto pf_p_bal = dynamic_cast<PFActiveBalance*>(constraint("p_balance", dK));
+      OptVariablesBlock* pslacks_n = pf_p_bal->slacks();
+      pf_p_bal->compute_slacks(pslacks_n); pslacks_n->providesStartingPoint=true;
+      
+      //reactive power balance slacks
+      auto pf_q_bal = dynamic_cast<PFReactiveBalance*>(constraint("q_balance", dK));
+      OptVariablesBlock* qslacks_n = pf_q_bal->slacks();
+      pf_q_bal->compute_slacks(qslacks_n); qslacks_n->providesStartingPoint=true;
+    }
 
     //line limits
-    {
+    if(true){
       auto pf_line_lim1 = dynamic_cast<PFLineLimits*>(constraint("line_limits1", dK));
       OptVariablesBlock* sslack_li1 = pf_line_lim1->slacks();
       pf_line_lim1->compute_slacks(sslack_li1); sslack_li1->providesStartingPoint=true;
@@ -573,7 +600,21 @@ namespace gollnlp {
       pf_line_lim1->compute_slacks(sslack_li2); sslack_li2->providesStartingPoint=true;
 
     }
-  
+
+    //transformer limits
+    if(true){
+      auto pf_trans_lim1 = dynamic_cast<PFTransfLimits*>(constraint("trans_limits1", dK));
+      OptVariablesBlock* sslack_ti1 = pf_trans_lim1->slacks();
+      pf_trans_lim1->compute_slacks(sslack_ti1); sslack_ti1->providesStartingPoint=true;
+      auto pf_trans_lim2 = dynamic_cast<PFTransfLimits*>(constraint("trans_limits2", dK));
+      OptVariablesBlock* sslack_ti2 = pf_trans_lim2->slacks();
+      pf_trans_lim2->compute_slacks(sslack_ti2); sslack_ti2->providesStartingPoint=true;
+
+    }
+   auto deltav = variable("delta", dK);
+   //if(deltav) deltav->set_start_to(1.41203e-06);
+   //print_summary();
+   assert(vars_primal->provides_start());
   }
 
   bool ContingencyProblemWithFixing::warm_start_variable_from_basecase(OptVariables& v)
