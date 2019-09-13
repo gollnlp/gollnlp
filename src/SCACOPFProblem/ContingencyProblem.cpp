@@ -166,7 +166,7 @@ namespace gollnlp {
 	return false;
       }
     }
-
+    
     // objective value
     f = this->obj_value;
 

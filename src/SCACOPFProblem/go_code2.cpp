@@ -81,8 +81,6 @@ int MyCode2::initialize(int argc, char *argv[])
   //will populate 'dict_basecase_vars'
   read_solution1();
 
-
-
   if(iAmMaster) {
     for(int it=0; it<comm_size; it++)
       K_on_slave_ranks.push_back(vector<int>());

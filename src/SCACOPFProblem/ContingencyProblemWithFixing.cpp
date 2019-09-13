@@ -241,6 +241,9 @@ namespace gollnlp {
 	  bFirstSolveOK=true;
 	}
       } else { //if(!monitor.user_stopped) 
+
+	//solution OK
+
 	monitor.user_stopped=false;
       }
     } 
@@ -266,7 +269,6 @@ namespace gollnlp {
 #endif
     }
     f = this->obj_value;
-
     hist_iter.push_back(number_of_iterations());
     hist_obj.push_back(this->obj_value);
 
@@ -275,29 +277,18 @@ namespace gollnlp {
 
     if(num_K_done<comm_size-1) num_K_done=comm_size-1;
 
-    //double K_avg_time_so_far = (time_so_far+tmrec.measureElapsedTime()) / num_K_done;
     double K_avg_time_so_far = time_so_far  / num_K_done;
 
-    //bool skip_2nd_solve = (K_avg_time_so_far > 0.9*(comm_size-1)*2.);
-
-    if(K_avg_time_so_far > 0.9*2.) monitor.is_late=true;
+    if(K_avg_time_so_far > 0.91*2.) monitor.is_late=true;
 
     bool skip_2nd_solve = monitor.is_late;
 
-    if(time_so_far < 0.075*2.*data_sc.K_Contingency.size()) skip_2nd_solve=false;
+    if(time_so_far < 0.085*2.*data_sc.K_Contingency.size()) skip_2nd_solve=false;
 
-    //intf("K_avg_time_so_far=%g  num_K_done %d  time_so_far+elapsed %g\n", 
-    //	   K_avg_time_so_far, num_K_done, time_so_far+tmrec.measureElapsedTime());
-
-    //if(this->obj_value>=2e5 && K_avg_time_so_far < 0.950*(comm_size-1)*2.) skip_2nd_solve=false;
-    //if(this->obj_value>=1e6 && K_avg_time_so_far < 1.025*(comm_size-1)*2.) skip_2nd_solve=false;
-    if(this->obj_value>=2e5 && K_avg_time_so_far < 0.950*2.) skip_2nd_solve=false;
+    if(this->obj_value>=5e5 && K_avg_time_so_far < 0.950*2.) skip_2nd_solve=false;
     if(this->obj_value>=1e6 && K_avg_time_so_far < 1.025*2.) skip_2nd_solve=false;
 
     if(!bFirstSolveOK) skip_2nd_solve=false;
-    //skip_2nd_solve=false;
-
-    if(bFirstSolveOK) monitor.bailout_allowed=true;
 
     if(bFirstSolveOK && tmrec.measureElapsedTime()>800.) {
       skip_2nd_solve=true;
@@ -424,17 +415,16 @@ namespace gollnlp {
 #ifdef DEBUG
       if(bFirstSolveOK) {
 	if(!vars_duals_bounds_L->provides_start()) print_summary();
-	
-	assert(vars_duals_bounds_L->provides_start());
-	assert(vars_duals_bounds_U->provides_start());
+	assert(vars_duals_bounds_L->provides_start()); 	assert(vars_duals_bounds_U->provides_start()); 	
 	assert(vars_duals_cons->provides_start());
       }
 #endif
-      
 
       //second solve
       monitor.safe_mode = false;
       monitor.user_stopped=false;
+      if(bFirstSolveOK) monitor.bailout_allowed=true;
+      else              monitor.bailout_allowed=false;
       monitor.timer.restart();
       monitor.hist_tm.clear();
       this->set_solver_option("max_iter", 250);
@@ -449,9 +439,21 @@ namespace gollnlp {
       }
 
       if(!opt2_ok) {
-	if(bFirstSolveOK && data_sc.N_Bus.size()>8999) {
-	  //good enough 
-	} else {
+	if(bFirstSolveOK && data_sc.N_Bus.size()>9999) {
+	  //first solve is good enough 
+
+	  //some reporting 
+	  f = this->obj_value;
+	  hist_iter.push_back(number_of_iterations());
+	  hist_obj.push_back(this->obj_value);
+
+	  if(monitor.user_stopped) {
+	    //we can assume that solution is OK
+	    if(bFirstSolveOK) { if(hist_obj.back() < hist_obj[0]) get_solution_simplicial_vectorized(sln); }
+	    else get_solution_simplicial_vectorized(sln);
+	  }	  
+
+	} else { //first solves failed or the network is small 
 	  if(!monitor.user_stopped) {
 	    hist_iter.push_back(number_of_iterations());
 	    hist_obj.push_back(this->obj_value);
@@ -474,12 +476,27 @@ namespace gollnlp {
 	    
 	    if(!OptProblem::reoptimize(OptProblem::primalRestart)) {
 	      printf("[warning] ContProbWithFixing K_idx=%d opt22 failed user[stop]=%d\n", K_idx, monitor.user_stopped); 
+	      if(!bFirstSolveOK) get_solution_simplicial_vectorized(sln);
+	    } else {
+	      get_solution_simplicial_vectorized(sln);
 	    }
-	    //get a solution even if it failed
-	    if(!bFirstSolveOK) get_solution_simplicial_vectorized(sln);
-	  }
+	    f = this->obj_value;
+	    hist_iter.push_back(number_of_iterations());
+	    hist_obj.push_back(this->obj_value);
+
+
+	  } else { //true == monitor.user_stopped
+	    //we can assume that solution is OK
+
+	    f = this->obj_value;
+	    hist_iter.push_back(number_of_iterations());
+	    hist_obj.push_back(this->obj_value);
+
+	    if(bFirstSolveOK) { if(hist_obj.back() < hist_obj[0]) get_solution_simplicial_vectorized(sln); }
+	    else get_solution_simplicial_vectorized(sln);
+	  }	    
 	}
-      } else {
+      } else { //opt2_ok
 
 	f = this->obj_value;
 	hist_iter.push_back(number_of_iterations());
@@ -493,8 +510,9 @@ namespace gollnlp {
 	if(!bFirstSolveOK) get_solution_simplicial_vectorized(sln);
       }
       
-      if(this->obj_value>100) {
-	double delta_optim = variable("delta", d)->x[0];
+      if(this->obj_value>pen_threshold) {
+	double delta_optim = 0.;//
+	if(variable("delta", d)) delta_optim = variable("delta", d)->x[0];
 #ifdef BE_VERBOSE
 	print_objterms_evals();
 	//print_p_g_with_coupling_info(*data_K[0], pg0);
