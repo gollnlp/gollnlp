@@ -573,7 +573,7 @@ bool MyCode2::solve_contingency(int K_idx, std::vector<double>& sln)
   //prob.reg_qg = true;
 
   double   pen_threshold = 1*data.K_Contingency.size(); //dolars; violations of O(1) or less allowed per contingency
-  if(data.N_Bus.size()<20000) pen_threshold = 0.5*data.K_Contingency.size();
+  if(data.N_Bus.size()<20000) pen_threshold = 0.80*data.K_Contingency.size();
   if(data.N_Bus.size()<10000) pen_threshold = 0.25*data.K_Contingency.size();
   if(data.N_Bus.size()< 6000) pen_threshold = 100.;
 
@@ -584,7 +584,6 @@ bool MyCode2::solve_contingency(int K_idx, std::vector<double>& sln)
     prob.monitor.is_active = true;
     prob.monitor.pen_threshold = pen_threshold;
   }
-
 
   if(!prob.default_assembly(v_n0(), theta_n0(), b_s0(), p_g0(), q_g0())) {
     printf("Evaluator Rank %d failed in default_assembly for contingency K_idx=%d\n",

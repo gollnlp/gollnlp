@@ -79,6 +79,8 @@ namespace gollnlp {
     //also looks up 'dict_basecase_vars'
     bool warm_start_variable_from_basecase(OptVariables& v);
 
+    void default_primal_start();
+    
     void estimate_active_power_deficit(double& p_plus, double& p_minus, double& p_overall);
   protected:
     std::unordered_map<std::string, gollnlp::OptVariablesBlock*>& dict_basecase_vars;

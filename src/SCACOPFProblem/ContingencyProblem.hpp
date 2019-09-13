@@ -118,6 +118,8 @@ namespace gollnlp {
 
 	  return false;
 	}
+      } else { //this is in safe_mode
+	
       }
 
       return true; 

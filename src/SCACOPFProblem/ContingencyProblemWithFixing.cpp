@@ -218,7 +218,9 @@ namespace gollnlp {
 	set_solver_option("tol", 1e-7);
 
 	if(!OptProblem::reoptimize(OptProblem::primalRestart)) {
-	  printf("[warning] ContProbWithFixing K_idx=%d opt11 failed user[stop]=%d\n", K_idx, monitor.user_stopped); 
+	  printf("[warning] ContProbWithFixing K_idx=%d opt11 failed user[stop]=%d\n", K_idx, monitor.user_stopped);
+	  default_primal_start();
+	  
 	  //get a solution even if it failed
 	  get_solution_simplicial_vectorized(sln);
 	  
@@ -483,6 +485,83 @@ namespace gollnlp {
 
   }
 
+  void ContingencyProblemWithFixing::default_primal_start()
+  {
+    SCACOPFData& dK = *data_K[0]; //aaa
+    auto v = variable("v_n", dK);
+    v->set_start_to(data_sc.N_v0.data());
+
+    v = variable("theta_n", dK);
+    v->set_start_to(data_sc.N_theta0.data());
+
+    v = variable("b_s", dK);
+    v->set_start_to(data_sc.SSh_B0.data());
+
+    v = variable("p_g", dK); assert(v->n == dK.G_p0.size());
+    v->set_start_to(dK.G_p0.data());
+
+    v = variable("q_g", dK); 
+    v->set_start_to(dK.G_q0.data());
+
+    //compute starting points: p_li1_powerflow, p_li2_powerflow
+    {
+      auto p_li1 = variable("p_li1",dK), p_li2 = variable("p_li2",dK);
+      auto pf_cons1 = dynamic_cast<PFConRectangular*>(constraint("p_li1_powerflow", dK));
+      auto pf_cons2 = dynamic_cast<PFConRectangular*>(constraint("p_li2_powerflow", dK));
+      pf_cons1->compute_power(p_li1); p_li1->providesStartingPoint=true;
+      pf_cons2->compute_power(p_li2); p_li2->providesStartingPoint=true;
+    }
+
+    //q_li1_powerflow, q_li2_powerflow
+    {
+      auto q_li1 = variable("q_li1",dK), q_li2 = variable("q_li2",dK);
+      auto pf_cons1 = dynamic_cast<PFConRectangular*>(constraint("q_li1_powerflow", dK));
+      auto pf_cons2 = dynamic_cast<PFConRectangular*>(constraint("q_li2_powerflow", dK));
+      pf_cons1->compute_power(q_li1); q_li1->providesStartingPoint=true;
+      pf_cons2->compute_power(q_li2); q_li2->providesStartingPoint=true;
+    }
+
+
+    // // transformers
+    {
+      auto p_ti1 = variable("p_ti1",dK), p_ti2 = variable("p_ti2",dK);
+      auto pf_cons1 = dynamic_cast<PFConRectangular*>(constraint("p_ti1_powerflow", dK));
+      auto pf_cons2 = dynamic_cast<PFConRectangular*>(constraint("p_ti2_powerflow", dK));
+      pf_cons1->compute_power(p_ti1); p_ti1->providesStartingPoint=true;
+      pf_cons2->compute_power(p_ti2); p_ti2->providesStartingPoint=true;
+    }
+
+    //q_li1_powerflow, q_li2_powerflow
+    {
+      auto q_ti1 = variable("q_ti1",dK), q_ti2 = variable("q_ti2",dK);
+      auto pf_cons1 = dynamic_cast<PFConRectangular*>(constraint("q_ti1_powerflow", dK));
+      auto pf_cons2 = dynamic_cast<PFConRectangular*>(constraint("q_ti2_powerflow", dK));
+      pf_cons1->compute_power(q_ti1); q_ti1->providesStartingPoint=true;
+      pf_cons2->compute_power(q_ti2); q_ti2->providesStartingPoint=true;
+    }
+
+    //active balance slacks
+    auto pf_p_bal = dynamic_cast<PFActiveBalance*>(constraint("p_balance", dK));
+    OptVariablesBlock* pslacks_n = pf_p_bal->slacks();
+    pf_p_bal->compute_slacks(pslacks_n); pslacks_n->providesStartingPoint=true;
+
+    //reactive power balance slacks
+    auto pf_q_bal = dynamic_cast<PFReactiveBalance*>(constraint("q_balance", dK));
+    OptVariablesBlock* qslacks_n = pf_q_bal->slacks();
+    pf_q_bal->compute_slacks(qslacks_n); qslacks_n->providesStartingPoint=true;
+
+    //line limits
+    {
+      auto pf_line_lim1 = dynamic_cast<PFLineLimits*>(constraint("line_limits1", dK));
+      OptVariablesBlock* sslack_li1 = pf_line_lim1->slacks();
+      pf_line_lim1->compute_slacks(sslack_li1); sslack_li1->providesStartingPoint=true;
+      auto pf_line_lim2 = dynamic_cast<PFLineLimits*>(constraint("line_limits2", dK));
+      OptVariablesBlock* sslack_li2 = pf_line_lim2->slacks();
+      pf_line_lim1->compute_slacks(sslack_li2); sslack_li2->providesStartingPoint=true;
+
+    }
+  
+  }
 
   bool ContingencyProblemWithFixing::warm_start_variable_from_basecase(OptVariables& v)
   {
