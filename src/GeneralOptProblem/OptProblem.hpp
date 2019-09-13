@@ -427,7 +427,8 @@ public:
   // Derive a class from OptProblem to hook your code
   virtual bool iterate_callback(int iter, const double& obj_value,
 				const double* primals,
-				const double& inf_pr, const double& inf_du, 
+				const double& inf_pr, const double& inf_pr_orig_problem, 
+				const double& inf_du, 
 				const double& mu, 
 				const double& alpha_du, const double& alpha_pr,
 				int ls_trials) 

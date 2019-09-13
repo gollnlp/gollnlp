@@ -182,8 +182,15 @@ public:
     // 	//Ipopt in restauration -> call with primals = NULL
     //   }
     // } 
+    double inf_pr_orig_problem = inf_pr;
+    if(NULL!=ip_cq) {
+      inf_pr_orig_problem = ip_cq->curr_nlp_constraint_violation(Ipopt::NORM_MAX);
+    }
+
+    //printf("aaa %g %g %g\n", ip_cq->curr_nlp_constraint_violation(Ipopt::NORM_MAX), ip_cq->curr_constraint_violation(), inf_pr);
+
     // restoration or some other abnormal situation -> primals=NULL
-    return prob->iterate_callback(iter, obj_value, NULL, inf_pr, inf_du, mu, 
+    return prob->iterate_callback(iter, obj_value, NULL, inf_pr, inf_pr_orig_problem, inf_du, mu, 
 				    alpha_du, alpha_pr, ls_trials);
   }
 

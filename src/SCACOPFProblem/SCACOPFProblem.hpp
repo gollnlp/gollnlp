@@ -9,7 +9,7 @@
 #include "blasdefs.hpp"
 #include "goTimer.hpp"
 //this class is for ACOPF base case and is inherited by ACOPFContingencyProblem
-
+#include <unistd.h>
 namespace gollnlp {
   
   class SCACOPFProblem : public OptProblem
@@ -222,7 +222,8 @@ namespace gollnlp {
   public:
     virtual bool iterate_callback(int iter, const double& obj_value,
 				  const double* primals,
-				  const double& inf_pr, const double& inf_du, 
+				  const double& inf_pr, const double& inf_pr_orig_pr, 
+				  const double& inf_du, 
 				  const double& mu, 
 				  const double& alpha_du, const double& alpha_pr,
 				  int ls_trials) 
@@ -234,7 +235,9 @@ namespace gollnlp {
     {
       ConvMonitor() : is_active(false), user_stopped(false), pen_threshold(0.), is_late(false), safe_mode(false) 
       {
+	
 	timer.start();
+	
       };
 
       bool is_active;
