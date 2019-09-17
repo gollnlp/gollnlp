@@ -618,6 +618,7 @@ bool MyCode2::solve_contingency(int K_idx, std::vector<double>& sln)
   prob.set_solver_option("bound_push", 1e-16);
   prob.set_solver_option("slack_bound_push", 1e-16);
 
+  prob.set_solver_option("expect_infeasible_problem_ytol", 1e+15);
 
   if(data.N_Bus.size()<=20000) {
 
