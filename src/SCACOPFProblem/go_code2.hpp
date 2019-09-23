@@ -121,5 +121,7 @@ private:
   std::list<int> K_local;
 
   std::unordered_map<std::string, gollnlp::OptVariablesBlock*> dict_basecase_vars;
+
+  bool _guts_of_solve_contingency(gollnlp::ContingencyProblemWithFixing& prob, int Kidx);
 };
 #endif

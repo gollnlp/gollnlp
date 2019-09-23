@@ -5,6 +5,7 @@
 
 #include "SCACOPFIO.hpp"
 #include "goUtils.hpp"
+#include "goSignalHandling.hpp"
 
 using namespace std;
 using namespace gollnlp;
@@ -561,22 +562,10 @@ void MyCode2::initial_K_distribution()
   }
 }
 
-bool MyCode2::solve_contingency(int K_idx, std::vector<double>& sln)
+#include "goSignalHandling.hpp"
+
+bool MyCode2::_guts_of_solve_contingency(ContingencyProblemWithFixing& prob, int K_idx)
 {
-  goTimer t; t.start();
-
-  int status;
-  ContingencyProblemWithFixing prob(data, K_idx, my_rank, comm_size, dict_basecase_vars, num_K_done, 
-				    glob_timer.measureElapsedTime());
-
-  //prob.update_AGC_smoothing_param(1e-4);
-  //prob.update_PVPQ_smoothing_param(1e-4);
-  //prob.reg_vn = true;
-  //prob.reg_thetan = true;
-  //prob.reg_bs = true;
-  //prob.reg_pg = true;
-  //prob.reg_qg = true;
-
   double   pen_threshold = 1*data.K_Contingency.size(); //dolars; violations of O(1) or less allowed per contingency
   if(data.N_Bus.size()<20000) pen_threshold = 0.80*data.K_Contingency.size();
   if(data.N_Bus.size()<10000) pen_threshold = 0.25*data.K_Contingency.size();
@@ -593,7 +582,7 @@ bool MyCode2::solve_contingency(int K_idx, std::vector<double>& sln)
   if(!prob.default_assembly(v_n0(), theta_n0(), b_s0(), p_g0(), q_g0())) {
     printf("Evaluator Rank %d failed in default_assembly for contingency K_idx=%d\n",
 	   my_rank, K_idx);
-    status = -1;
+    //status = -1;
     return false;
   }
 
@@ -631,16 +620,51 @@ bool MyCode2::solve_contingency(int K_idx, std::vector<double>& sln)
 
     prob.set_solver_option("mu_linear_decrease_factor", 0.5);
     prob.set_solver_option("mu_superlinear_decrease_power", 1.2);
-
   }
+  return true;
+}
 
+bool MyCode2::solve_contingency(int K_idx, std::vector<double>& sln)
+{
+  goTimer t; t.start();
 
+#ifdef GOLLNLP_FAULT_HANDLING
+  string msg = "[timer] timeout on rank=" + std::to_string(my_rank) +" occured!\n";
+  set_timer_message(msg.c_str());
+  assert(my_rank>=1);
+  
+  enable_timer_handling(5, gollnlp_timer_handler);
+#endif
 
-  double penalty;
-  if(!prob.optimize(p_g0(), v_n0(), penalty, sln)) {
+  int status; double penalty;
+  ContingencyProblemWithFixing* prob = 
+    new ContingencyProblemWithFixing(data, K_idx, 
+				     my_rank, comm_size, 
+				     dict_basecase_vars, 
+				     num_K_done, 
+				     glob_timer.measureElapsedTime());
+  
+  _guts_of_solve_contingency(*prob, K_idx);
+
+#ifdef GOLLNLP_FAULT_HANDLING
+  if(setjmp(jmpbuf_K_solve)>0) {
+    printf("[timer] timeout on Evaluator Rank=%d K_idx=%d\n", my_rank, K_idx);
+    delete prob;
+
+    prob = new ContingencyProblemWithFixing(data, K_idx, 
+					    my_rank, comm_size, 
+					    dict_basecase_vars, 
+					    num_K_done, 
+					    glob_timer.measureElapsedTime());
+    _guts_of_solve_contingency(*prob, K_idx);
+  }
+#endif
+
+  if(!prob->optimize(p_g0(), v_n0(), penalty, sln)) {
     printf("Evaluator Rank %d failed in the evaluation of contingency K_idx=%d\n",
 	   my_rank, K_idx);
     status = -3;
+    delete prob;
     return false;
   }
 
@@ -660,7 +684,7 @@ bool MyCode2::solve_contingency(int K_idx, std::vector<double>& sln)
   printf("Evaluator Rank %3d K_idx=%d finished with penalty %12.3f "
   	 "in %5.3f sec global time %g \n",
   	 my_rank, K_idx, penalty, t.stop(), glob_timer.measureElapsedTime());
-
+  delete prob;
   return true;
 }
 
