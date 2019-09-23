@@ -4,6 +4,10 @@
 
 #include "goTimer.hpp"
 
+#ifdef GOLLNLP_FAULT_HANDLING
+#include "goSignalHandling.hpp"
+#endif
+
 int main(int argc, char *argv[])
 {
   int ret;
@@ -15,9 +19,18 @@ int main(int argc, char *argv[])
   int retcode=0;
   gollnlp::goTimer ttot; ttot.start();
 
-  std::cout << "MyExe2 - v. Sept 13, 2019 - 02:52pm" << std::endl;
+  std::cout << "MyExe2 - v. Sept 23, 2019 - 10:30am" << std::endl;
 #ifdef DEBUG
   std::cout << "DEBUG build !!!!" << std::endl;
+#endif
+
+#ifdef GOLLNLP_FAULT_HANDLING
+  int rank; MPI_Comm_rank(MPI_COMM_WORLD, &rank);
+  if(rank>=1) {
+    std::string msg = "[warning] fault on rank=" + std::to_string(rank) + " occured!\n";
+    set_fault_signal_message(msg.c_str());
+    enable_fault_signal_handling(gollnlp_fault_handler);
+  }
 #endif
 
   if(argc==8) {
@@ -33,7 +46,6 @@ int main(int argc, char *argv[])
       std::cout << "invalid scoring method? > " << argv[6] << std::endl;
     }
 
-    //MyCode1 code1(argv[1], argv[2], argv[3], argv[4], 
     MyCode2 code2(argv[3], argv[4], argv[2], argv[1], 
 		  timeLimit, scoringMethod, argv[7]);
 
@@ -43,17 +55,20 @@ int main(int argc, char *argv[])
       retcode = code2.go();
     }
     if(0!=retcode) {
-      printf("Something went wrong with code1: return code %d; it took %g seconds\n",
+      printf("Something went wrong with code2: return code %d; it took %g seconds\n",
            retcode, ttot.stop());
     }
     MPI_Finalize();
     return retcode;
     
   } else {
-    MPI_Finalize();
+
     std::cout << argv[0] << " did not receive the correct number of parameters. Will exit.\n";
+    MPI_Finalize();
     return -1;
   }
+  
 
   return 0;
 }
+

@@ -3,6 +3,9 @@
 #include <iostream>
 
 #include "goTimer.hpp"
+#ifdef GOLLNLP_FAULT_HANDLING
+#include "goSignalHandling.hpp"
+#endif
 
 // just for testing
 // to be removed
@@ -34,9 +37,18 @@ int main(int argc, char *argv[])
   int retcode=0;
   gollnlp::goTimer ttot; ttot.start();
 
-  std::cout << "MyExe1 - v. Sept 13, 2019 - 02:51pm" << std::endl;
+  std::cout << "MyExe1 - v. Sept 23, 2019 - 10:21am" << std::endl;
 #ifdef DEBUG
   std::cout << "DEBUG build !!!!" << std::endl;
+#endif
+
+#ifdef GOLLNLP_FAULT_HANDLING
+  int rank; MPI_Comm_rank(MPI_COMM_WORLD, &rank);
+  if(rank>=2) {
+    std::string msg = "[warning] fault on rank=" + std::to_string(rank) + " occured!\n";
+    set_fault_signal_message(msg.c_str());
+    enable_fault_signal_handling(gollnlp_fault_handler);
+  }
 #endif
 
   if(argc==8) {
