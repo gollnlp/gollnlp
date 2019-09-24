@@ -29,7 +29,7 @@ int main(int argc, char *argv[])
   if(rank>=1) {
     std::string msg = "[warning] fault on rank=" + std::to_string(rank) + " occured!\n";
     set_fault_signal_message(msg.c_str());
-    enable_fault_signal_handling(gollnlp_fault_handler);
+    //enable_fault_signal_handling(gollnlp_fault_handler);
   }
 #endif
 

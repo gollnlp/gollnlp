@@ -14,6 +14,7 @@ static int sz_msg_fault = 0;
 static char msg_timer[MSG_MAX_SZ];
 static int  sz_msg_timer = 0;
 
+//bool volatile jmp_was_set = false;
 jmp_buf jmpbuf_K_solve;
 
 // handler function for selected faults
@@ -36,7 +37,6 @@ void set_fault_signal_message(const char * msg)
 void enable_fault_signal_handling(void (*handler)(int))
 {
   //doc on sigaction 
-  //https://www.ibm.com/support/knowledgecenter/en/SSLTBW_2.1.0/com.ibm.zos.v2r1.bpxbd00/rtsigac.htm
   //https://www.ibm.com/support/knowledgecenter/en/SSLTBW_2.1.0/com.ibm.zos.v2r1.bpxbd00/rtsigac.htm
   struct sigaction new_action, old_action;
 
@@ -99,8 +99,10 @@ void enable_fault_signal_handling(void (*handler)(int))
 extern "C" void gollnlp_timer_handler(int nsignum)
 { 
   write(2, msg_timer, sz_msg_timer);
+  alarm(1);
   //second parameter is the "return code"
-  longjmp(jmpbuf_K_solve,1);
+  if(jmp_was_set)
+    longjmp(jmpbuf_K_solve,1);
 }
 
 void set_timer_message(const char* msg)
@@ -119,8 +121,6 @@ void enable_timer_handling(int sec, void (*handler)(int))
   sact.sa_flags = 0;
   sact.sa_handler = handler;
   sigaction(SIGALRM, &sact, NULL);
-
-  alarm(sec);
 }
 
 #endif

@@ -98,22 +98,9 @@ int MyCode2::initialize(int argc, char *argv[])
 
   K_Contingency = data.K_Contingency;
   //!
-  //K_Contingency = {1936, 913, 792};
-  //net15 
+  K_Contingency = {1,0};//{1936, 913, 792};
+  //344
   
-
-  //K_Contingency = {529, 4588};
-  //K_Contingency = {4588};
-  //K_Contingency = {5550};
-
-
-  //K_Contingency = {1894};//, 2164, 6841};
-  //K_Contingency = {2488,1572, 1057}; //net83
- 
-  //K_Contingency = {530, 110, 702, 863, 106, 101};//208, 154, 415, 461, 789, 368, 494, 748, 57, 1000, 817, 626, 576, 324, 913, 959, 248, 289, 209, 495, 416, 790, 155, 19, 749};//494, 495, 702, 749};
-  //K_Contingency = {106, 101,  102,  110,  249,  344,  394,  816,  817, 55, 497, 0, 1, 2, 3, 4, 5, 6,7,8,9,10, 15,16,17,18,19};
-//{1,2, 101, 106, 497, 816, 817};
-
 
   K_left = vector<int>(K_Contingency.size());
   iota(K_left.begin(), K_left.end(), 0);
@@ -590,7 +577,7 @@ bool MyCode2::_guts_of_solve_contingency(ContingencyProblemWithFixing& prob, int
   prob.set_solver_option("sb","yes");
   prob.set_solver_option("print_frequency_iter", 5);
   prob.set_solver_option("linear_solver", "ma57"); 
-  prob.set_solver_option("print_level", 2);
+  prob.set_solver_option("print_level", 5);
 
 
   //return if it takes too long in phase2
@@ -633,7 +620,7 @@ bool MyCode2::solve_contingency(int K_idx, std::vector<double>& sln)
   set_timer_message(msg.c_str());
   assert(my_rank>=1);
   
-  enable_timer_handling(5, gollnlp_timer_handler);
+  //enable_timer_handling(10, gollnlp_timer_handler);
 #endif
 
   int status; double penalty;
@@ -646,19 +633,19 @@ bool MyCode2::solve_contingency(int K_idx, std::vector<double>& sln)
   
   _guts_of_solve_contingency(*prob, K_idx);
 
-#ifdef GOLLNLP_FAULT_HANDLING
-  if(setjmp(jmpbuf_K_solve)>0) {
-    printf("[timer] timeout on Evaluator Rank=%d K_idx=%d\n", my_rank, K_idx);
-    delete prob;
+// #ifdef GOLLNLP_FAULT_HANDLING
+//   if(setjmp(jmpbuf_K_solve)>0) {
+//     printf("[timer] timeout on Evaluator Rank=%d K_idx=%d\n", my_rank, K_idx);
+//     delete prob;
 
-    prob = new ContingencyProblemWithFixing(data, K_idx, 
-					    my_rank, comm_size, 
-					    dict_basecase_vars, 
-					    num_K_done, 
-					    glob_timer.measureElapsedTime());
-    _guts_of_solve_contingency(*prob, K_idx);
-  }
-#endif
+//     prob = new ContingencyProblemWithFixing(data, K_idx, 
+// 					    my_rank, comm_size, 
+// 					    dict_basecase_vars, 
+// 					    num_K_done, 
+// 					    glob_timer.measureElapsedTime());
+//     _guts_of_solve_contingency(*prob, K_idx);
+//   }
+// #endif
 
   if(!prob->optimize(p_g0(), v_n0(), penalty, sln)) {
     printf("Evaluator Rank %d failed in the evaluation of contingency K_idx=%d\n",
