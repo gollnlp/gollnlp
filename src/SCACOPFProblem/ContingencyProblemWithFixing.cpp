@@ -175,23 +175,21 @@ namespace gollnlp {
 extern "C" void gollnlp_timer_handler2(int nsignum)
 { 
   write(2, "aaaaa\n", 6);
-  alarm(1);
+  //alarm(1);
   //second parameter is the "return code"
   if(jmp_was_set)
-    if(jmpbuf)
-      longjmp(jmpbuf,1);
+    longjmp(jmpbuf,1);
 }
 
   bool ContingencyProblemWithFixing::do_solve1()
   {
     goTimer tmrec; tmrec.start();
     vector<int> hist_iter, hist_obj;
-    bool bret = true, done = false, timed_out=false; int n_solves=0; 
-    //while(!done) {
+    bool bret = true, done = false, timed_out=false; int volatile n_solves=0; 
+    while(!done) {
 
-      alarm(5);
-      
-
+      if(n_solves==0) alarm(1);
+      else alarm(6);
       double mu_init; bool opt_ok=false;
 
       if(n_solves>2) safe_mode = true;
@@ -211,10 +209,8 @@ extern "C" void gollnlp_timer_handler2(int nsignum)
 	else 
 	  monitor.bailout_allowed=false;
 	set_solver_option("mu_init", 1e-1);
-	//opt_ok = OptProblem::optimize("ipopt");
       } else {
 	set_solver_option("mu_init", 1e-4);
-	//opt_ok = OptProblem::reoptimize(OptProblem::primalDualRestart);
       }
       double relax_factor = std::min(1e-8, pow(10., 2*n_solves-16));
       set_solver_option("bound_relax_factor", relax_factor);
@@ -278,21 +274,21 @@ extern "C" void gollnlp_timer_handler2(int nsignum)
 	break;
       }
 
-      alarm(0);
+      alarm(0);printf("aaaalarm off\n");
 
       if(n_solves>9) done = true;
-      if(tmrec.getElapsedTime()>1200) {
-	printf("[warning] ContProbWithFixing K_idx=%d opt1 taking too long tries %d time %g\n", K_idx, n_solves, tmrec.getElapsedTime()>1200);
+      if(tmrec.measureElapsedTime()>1200) {
+	printf("[warning] ContProbWithFixing K_idx=%d opt1 taking too long tries %d time %g\n", K_idx, n_solves, tmrec.measureElapsedTime());
 	done = true;
 	bret = false;
       }
 
-      //} //end of outer while
+    } //end of outer while
 #ifdef BE_VERBOSE
     string sit = "["; for(auto iter:  hist_iter) sit += to_string(iter)+'/'; sit[sit.size()-1] = ']';
     string sobj="["; for(auto obj: hist_obj) sobj += to_string(obj)+'/'; sobj[sobj.size()-1]=']';
     printf("ContProbWithFixing K_idx=%d opt1 took %g sec - iters %s objs %s tries %d on rank=%d\n", 
-	   K_idx, tmrec.getElapsedTime(), sit.c_str(), sobj.c_str(), n_solves, my_rank);
+	   K_idx, tmrec.measureElapsedTime(), sit.c_str(), sobj.c_str(), n_solves, my_rank);
     fflush(stdout);
 #endif
     get_solution_simplicial_vectorized(sln_solve1);
@@ -389,8 +385,8 @@ extern "C" void gollnlp_timer_handler2(int nsignum)
       }
 
       if(n_solves>9) done = true;
-      if(tmrec.getElapsedTime()>1200) {
-	printf("[warning] ContProbWithFixing K_idx=%d opt2 taking too long tries %d time %g\n", K_idx, n_solves, tmrec.getElapsedTime()>1200);
+      if(tmrec.measureElapsedTime()>1200) {
+	printf("[warning] ContProbWithFixing K_idx=%d opt2 taking too long tries %d time %g\n", K_idx, n_solves, tmrec.measureElapsedTime());
 	done = true;
 	bret = false;
       }
@@ -399,8 +395,8 @@ extern "C" void gollnlp_timer_handler2(int nsignum)
 #ifdef BE_VERBOSE
     string sit = "["; for(auto iter:  hist_iter) sit += to_string(iter)+'/'; sit[sit.size()-1] = ']';
     string sobj="["; for(auto obj: hist_obj) sobj += to_string(obj)+'/'; sobj[sobj.size()-1]=']';
-    printf("ContProbWithFixing K_idx=%d opt1 took %g sec - iters %s objs %s tries %d on rank=%d\n", 
-	   K_idx, tmrec.getElapsedTime(), sit.c_str(), sobj.c_str(), n_solves, my_rank);
+    printf("ContProbWithFixing K_idx=%d opt2 took %g sec - iters %s objs %s tries %d on rank=%d\n", 
+	   K_idx, tmrec.measureElapsedTime(), sit.c_str(), sobj.c_str(), n_solves, my_rank);
     fflush(stdout);
 #endif
     get_solution_simplicial_vectorized(sln_solve2);
@@ -416,9 +412,8 @@ extern "C" void gollnlp_timer_handler2(int nsignum)
     assert(p_g0 == pg0); assert(v_n0 == vn0);
     p_g0 = pg0; v_n0=vn0;
 
-enable_timer_handling(1., gollnlp_timer_handler2);
+    enable_timer_handling(1., gollnlp_timer_handler2);
     bool bFirstSolveOK = do_solve1();
-do_solve1();
 
 #ifdef DEBUG
     if(bFirstSolveOK) {
@@ -622,7 +617,7 @@ do_solve1();
 #ifdef BE_VERBOSE
     //string sit = "["; for(auto iter:  hist_iter) sit += to_string(iter)+'/'; sit[sit.size()-1] = ']';
     //string sobj="["; for(auto obj: hist_obj) sobj += to_string(obj)+'/'; sobj[sobj.size()-1]=']';
-    printf("ContProbWithFixing K_idx=%d optimize took %g sec rank=%d\n", K_idx, tmrec.getElapsedTime());
+    printf("ContProbWithFixing K_idx=%d optimize took %g sec rank=%d\n", K_idx, tmrec.getElapsedTime(), my_rank);
     fflush(stdout);
 #endif
     return true;

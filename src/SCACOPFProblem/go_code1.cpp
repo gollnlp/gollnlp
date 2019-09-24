@@ -453,7 +453,7 @@ bool MyCode1::do_phase1()
     vector<int> Kgens_highp, Ktransm_highp;
     get_high_priority_Kgens(1024, Kgens_highp, scacopf_prob);
     get_high_priority_Ktransm(2048, Ktransm_highp, scacopf_prob);
-    sprintf(msg, "Kscreen: %d gens %d transm ", Kgens_highp.size(), Ktransm_highp.size()); str += msg;
+    sprintf(msg, "Kscreen: %lu gens %lu transm ", Kgens_highp.size(), Ktransm_highp.size()); str += msg;
 
     auto itg = Kgens_highp.begin(), itt=Ktransm_highp.begin();
     while(itg!=Kgens_highp.end() || itt!=Ktransm_highp.end()) {

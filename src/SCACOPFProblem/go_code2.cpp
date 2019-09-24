@@ -98,7 +98,7 @@ int MyCode2::initialize(int argc, char *argv[])
 
   K_Contingency = data.K_Contingency;
   //!
-  K_Contingency = {1,0};//{1936, 913, 792};
+  K_Contingency = {0,1,2};//{1936, 913, 792};
   //344
   
 

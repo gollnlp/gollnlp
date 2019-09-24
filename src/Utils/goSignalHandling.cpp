@@ -2,6 +2,7 @@
 
 #include <string.h>
 #include <string>
+#include <assert.h>
 #include <unistd.h>
 
 #ifdef GOLLNLP_FAULT_HANDLING
@@ -97,12 +98,13 @@ void enable_fault_signal_handling(void (*handler)(int))
 // handler function for timer
 // !!! use only "safe" functions in this function
 extern "C" void gollnlp_timer_handler(int nsignum)
-{ 
+{
+  assert(false);
   write(2, msg_timer, sz_msg_timer);
   alarm(1);
   //second parameter is the "return code"
-  if(jmp_was_set)
-    longjmp(jmpbuf_K_solve,1);
+  //if(jmp_was_set)
+  //  longjmp(jmpbuf_K_solve,1);
 }
 
 void set_timer_message(const char* msg)
