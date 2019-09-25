@@ -12,12 +12,6 @@
 static char msg_fault[MSG_MAX_SZ];
 static int sz_msg_fault = 0;
 
-static char msg_timer[MSG_MAX_SZ];
-static int  sz_msg_timer = 0;
-
-//bool volatile jmp_was_set = false;
-jmp_buf jmpbuf_K_solve;
-
 // handler function for selected faults
 // !!! use only "safe" functions in this function
 extern "C" void gollnlp_fault_handler(int nsignum)
@@ -95,34 +89,22 @@ void enable_fault_signal_handling(void (*handler)(int))
 //
 // timer - alarm signals
 //
-// handler function for timer
-// !!! use only "safe" functions in this function
-extern "C" void gollnlp_timer_handler(int nsignum)
-{
-  assert(false);
-  write(2, msg_timer, sz_msg_timer);
-  alarm(1);
-  //second parameter is the "return code"
-  //if(jmp_was_set)
-  //  longjmp(jmpbuf_K_solve,1);
-}
+// handler defined in "locally" in the cpp file(s)
+// set_timer_message also defined locally
 
-void set_timer_message(const char* msg)
+void enable_timer_handling(void (*handler)(int))
 {
-  strncpy(msg_timer, msg,  MSG_MAX_SZ-2);
-  msg_timer[MSG_MAX_SZ-2] = '\n';
-  msg_timer[MSG_MAX_SZ-1] = '\0';
-  sz_msg_timer = strlen(msg_timer);
-}
+  struct sigaction new_action, old_action;
+  int signal = SIGALRM;
+  sigemptyset (&new_action.sa_mask);
+  new_action.sa_handler = handler;
+  new_action.sa_flags = 0;
 
-void enable_timer_handling(int sec, void (*handler)(int))
-{
-  struct sigaction sact;
-
-  sigemptyset(&sact.sa_mask);
-  sact.sa_flags = 0;
-  sact.sa_handler = handler;
-  sigaction(SIGALRM, &sact, NULL);
+  sigaction(signal, NULL, &old_action);
+  if(old_action.sa_handler != SIG_IGN)
+    sigaction(SIGALRM, &new_action, NULL);
+  else
+    printf("[warning] SIGALRM is set to ignore -- alarm handler was not set for it\n");
 }
 
 #endif

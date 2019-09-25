@@ -5,7 +5,6 @@
 
 #include "SCACOPFIO.hpp"
 #include "goUtils.hpp"
-#include "goSignalHandling.hpp"
 
 using namespace std;
 using namespace gollnlp;
@@ -577,7 +576,7 @@ bool MyCode2::_guts_of_solve_contingency(ContingencyProblemWithFixing& prob, int
   prob.set_solver_option("sb","yes");
   prob.set_solver_option("print_frequency_iter", 5);
   prob.set_solver_option("linear_solver", "ma57"); 
-  prob.set_solver_option("print_level", 5);
+  prob.set_solver_option("print_level", 2);
 
 
   //return if it takes too long in phase2
@@ -614,14 +613,6 @@ bool MyCode2::_guts_of_solve_contingency(ContingencyProblemWithFixing& prob, int
 bool MyCode2::solve_contingency(int K_idx, std::vector<double>& sln)
 {
   goTimer t; t.start();
-
-#ifdef GOLLNLP_FAULT_HANDLING
-  string msg = "[timer] timeout on rank=" + std::to_string(my_rank) +" occured!\n";
-  set_timer_message(msg.c_str());
-  assert(my_rank>=1);
-  
-  //enable_timer_handling(10, gollnlp_timer_handler);
-#endif
 
   int status; double penalty;
   ContingencyProblemWithFixing* prob = 

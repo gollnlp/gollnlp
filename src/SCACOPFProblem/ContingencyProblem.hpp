@@ -5,6 +5,10 @@
 #include <vector>
 #include "goUtils.hpp"
 
+#ifdef GOLLNLP_FAULT_HANDLING
+extern bool volatile solve_is_alive;
+#endif
+
 namespace gollnlp {
 
   class ContingencyProblem : public SCACOPFProblem
@@ -91,8 +95,11 @@ namespace gollnlp {
 				  const double& inf_du, 
 				  const double& mu, 
 				  const double& alpha_du, const double& alpha_pr,
-				  int ls_trials) 
+				  int ls_trials)
     {
+#ifdef GOLLNLP_FAULT_HANDLING
+      solve_is_alive = true;
+#endif
       if(monitor.is_active) {
 	monitor.hist_tm.push_back(monitor.timer.measureElapsedTime());
 

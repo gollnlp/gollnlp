@@ -8,14 +8,56 @@
 #include <string>
 
 #include "goUtils.hpp"
+
+#ifdef GOLLNLP_FAULT_HANDLING
 #include "goSignalHandling.hpp"
+#endif
+
 #include "goTimer.hpp"
 #include "unistd.h"
 using namespace std;
 
 #define BE_VERBOSE
 
-extern bool volatile jmp_was_set;
+#ifdef GOLLNLP_FAULT_HANDLING
+#define MSG_MAX_SZ 128
+static char msg_timer[MSG_MAX_SZ];
+static int sz_msg_timer = 0;
+
+static bool volatile solve_watch=false;
+static int volatile alarm_duration=6; //seconds
+
+//this is used by the optimiz solver's callback
+bool volatile solve_is_alive=false;
+
+static jmp_buf jump_env;
+
+//only use approved/safe functions
+extern "C" void solve_timer_handler(int nsignum)
+{
+  //second parameter for longjmp is the "return code", should be nonzer0
+  if(solve_watch) {
+    //write(2, "watch\n", 6);
+    if(!solve_is_alive) {
+      //write(2, "notalive\n", 9);
+      write(2, msg_timer, sz_msg_timer);
+      longjmp(jump_env,1);
+    } else {
+      //write(2, "alive\n", 6);
+      solve_is_alive=false;
+      alarm(alarm_duration);
+    }
+  }
+};
+
+static void set_timer_message(const char* msg)
+{
+  strncpy(msg_timer, msg,  MSG_MAX_SZ-2);
+  msg_timer[MSG_MAX_SZ-2] = '\n';
+  msg_timer[MSG_MAX_SZ-1] = '\0';
+  sz_msg_timer = strlen(msg_timer);
+};
+#endif
 
 namespace gollnlp {
 
@@ -25,8 +67,18 @@ namespace gollnlp {
   {
   }
 
+  
   bool ContingencyProblemWithFixing::default_assembly(OptVariablesBlock* pg0, OptVariablesBlock* vn0) 
   {
+#ifdef GOLLNLP_FAULT_HANDLING
+    string msg = "[timer] timeout on rank=" + std::to_string(my_rank) +" for K_idx=" + std::to_string(K_idx) + " occured!\n";
+    set_timer_message(msg.c_str());
+    assert(my_rank>=1);
+
+    enable_timer_handling(solve_timer_handler);
+#endif
+
+
     double K_avg_time_so_far = time_so_far / std::max(num_K_done,1);
     printf("ContProbWithFixing K_idx=%d IDOut=%d outidx=%d Type=%s avgtm=%.2f rank=%d\n",
 	   K_idx, data_sc.K_IDout[K_idx], data_sc.K_outidx[K_idx],
@@ -170,26 +222,14 @@ namespace gollnlp {
     return true;
   }
 
-  jmp_buf jmpbuf;
-  bool volatile jmp_was_set = false;
-extern "C" void gollnlp_timer_handler2(int nsignum)
-{ 
-  write(2, "aaaaa\n", 6);
-  //alarm(1);
-  //second parameter is the "return code"
-  if(jmp_was_set)
-    longjmp(jmpbuf,1);
-}
 
   bool ContingencyProblemWithFixing::do_solve1()
   {
     goTimer tmrec; tmrec.start();
     vector<int> hist_iter, hist_obj;
-    bool bret = true, done = false, timed_out=false; int volatile n_solves=0; 
+    bool bret = true, done = false; bool volatile timed_out=false; int volatile n_solves=0; 
     while(!done) {
 
-      if(n_solves==0) alarm(1);
-      else alarm(6);
       double mu_init; bool opt_ok=false;
 
       if(n_solves>2) safe_mode = true;
@@ -231,12 +271,20 @@ extern "C" void gollnlp_timer_handler2(int nsignum)
       if(n_solves>1) 
 	set_solver_option("tol", 1e-7);
 
-      switch(setjmp(jmpbuf)) {
+#ifdef GOLLNLP_FAULT_HANDLING
+      if(data_sc.N_Bus.size()>=35000) alarm_duration=10;
+      
+      switch(setjmp(jump_env)) {
+#else
+      int code=0;
+      switch(code) {
+#endif
       case 0: //first time going through
 	{
-
-	  jmp_was_set=true;
-
+#ifdef GOLLNLP_FAULT_HANDLING
+	  solve_watch=true;
+	  alarm(alarm_duration);
+#endif
 	  n_solves++;
 	  if(data_sc.N_Bus.size()<8999 && !timed_out) {
 	    //medium and small problems default primal-dual restart
@@ -263,7 +311,9 @@ extern "C" void gollnlp_timer_handler2(int nsignum)
 	break;
       case 1: //timeout
 	{
-	  jmp_was_set=false;
+#ifdef GOLLNLP_FAULT_HANDLING
+	  solve_watch=false; //will be reactivated later if applicable
+#endif
 	  timed_out=true;
 	  printf("[warning] ContProbWithFixing K_idx=%d opt1 timed out at try %d\n", K_idx, n_solves); 
 	  //opt_ok = OptProblem::optimize("ipopt");
@@ -273,12 +323,13 @@ extern "C" void gollnlp_timer_handler2(int nsignum)
 	assert(false);
 	break;
       }
-
-      alarm(0);printf("aaaalarm off\n");
-
+#ifdef GOLLNLP_FAULT_HANDLING
+      alarm(0);
+#endif
+      
       if(n_solves>9) done = true;
       if(tmrec.measureElapsedTime()>1200) {
-	printf("[warning] ContProbWithFixing K_idx=%d opt1 taking too long tries %d time %g\n", K_idx, n_solves, tmrec.measureElapsedTime());
+	printf("[warning] ContProbWithFixing K_idx=%d opt1 taking too long; tries %d time %g\n", K_idx, n_solves, tmrec.measureElapsedTime());
 	done = true;
 	bret = false;
       }
@@ -347,7 +398,7 @@ extern "C" void gollnlp_timer_handler2(int nsignum)
       if(n_solves>1) 
 	set_solver_option("tol", 1e-7);
 
-      switch(setjmp(jmpbuf_K_solve)) {
+      switch(setjmp(jump_env)) {
       case 0: //first time going through
 	{
 	  n_solves++;
@@ -412,9 +463,8 @@ extern "C" void gollnlp_timer_handler2(int nsignum)
     assert(p_g0 == pg0); assert(v_n0 == vn0);
     p_g0 = pg0; v_n0=vn0;
 
-    enable_timer_handling(1., gollnlp_timer_handler2);
     bool bFirstSolveOK = do_solve1();
-
+    f = this->obj_value;
 #ifdef DEBUG
     if(bFirstSolveOK) {
       auto pgK = variable("p_g", d); assert(pgK!=NULL); 
@@ -431,7 +481,7 @@ extern "C" void gollnlp_timer_handler2(int nsignum)
     }
 #endif
 
-    //f = this->obj_value;
+    
     if(variable("delta", d)) solv1_delta_optim = variable("delta", d)->x[0];
     else                     solv1_delta_optim = 0.;
 
@@ -461,7 +511,7 @@ extern "C" void gollnlp_timer_handler2(int nsignum)
  #ifdef BE_VERBOSE
       print_objterms_evals();
       //print_p_g_with_coupling_info(*data_K[0], pg0);
-      printf("ContProbWithFixing K_idx=%d first pass resulted in high pen delta=%g\n", K_idx, solv1_delta_optim);
+      printf("ContProbWithFixing K_idx=%d first pass resulted in high pen; delta=%g\n", K_idx, solv1_delta_optim);
 #endif
 
       double pplus, pminus, poverall;
@@ -578,21 +628,25 @@ extern "C" void gollnlp_timer_handler2(int nsignum)
       // --- SOLVE 2 --- 
       //
       bool opt2_ok = do_solve2(bFirstSolveOK);
-
+      f = this->obj_value;
       if(!opt2_ok) {
 	if(bFirstSolveOK) {
 	  sln = sln_solve1;
+	  f = obj_solve1;
 	} else {
 	  printf("[warning][panic] ContProbWithFixing K_idx=%d opt1 and opt2 both failed on rank=%d\n", K_idx, my_rank);
 	  sln = sln_solve1;
+	  f = obj_solve1;
 	}
       } else { //opt2_ok
 
 	obj_solve2 = this->obj_value;
 	if(obj_solve1<obj_solve2) {
 	  sln = sln_solve1;
+	  f = obj_solve1;
 	} else {
 	  sln = sln_solve2;
+	  f = obj_solve2;
 	}
 	if(!bFirstSolveOK) sln = sln_solve2;
       }
@@ -608,7 +662,7 @@ extern "C" void gollnlp_timer_handler2(int nsignum)
       }  
     } else {
       sln = sln_solve1;
-
+      f = obj_solve1;
       if(this->obj_value>pen_threshold && skip_2nd_solve) 
 	printf("ContProbWithFixing K_idx=%d pass2 needed but not done - time restrictions\n", K_idx);
     }
