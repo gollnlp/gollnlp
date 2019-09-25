@@ -4,6 +4,7 @@
 #include "ContingencyProblem.hpp"
 #include <vector>
 #include <unordered_map>
+#include "goTimer.hpp"
 
 namespace gollnlp {
 
@@ -14,11 +15,7 @@ namespace gollnlp {
 				 int my_rank, int comm_size_,
 				 std::unordered_map<std::string, 
 				 gollnlp::OptVariablesBlock*>& dict_basecase_vars_,
-				 const int& num_K_done_, const double& time_so_far_)
-      : ContingencyProblem(d_in, K_idx_, my_rank),  comm_size(comm_size_),
-	dict_basecase_vars(dict_basecase_vars_), solv1_Pg_was_enough(true),
-	num_K_done(num_K_done_), time_so_far(time_so_far_), safe_mode(false)
-    { pen_threshold=1e+3; obj_solve1 = obj_solve2 = 1e+20; };
+				 const int& num_K_done_, const double& time_so_far_);
     virtual ~ContingencyProblemWithFixing();
 
     double pen_threshold;
@@ -100,6 +97,38 @@ namespace gollnlp {
     double time_so_far;
 
     int comm_size;
+    
+  public:
+#ifdef GOLLNLP_FAULT_HANDLING
+    virtual bool iterate_callback(int iter, const double& obj_value,
+				  const double* primals,
+				  const double& inf_pr, const double& inf_pr_orig_pr, 
+				  const double& inf_du, 
+				  const double& mu, 
+				  const double& alpha_du, const double& alpha_pr,
+				  int ls_trials)
+    {
+      if(primals && vars_last)
+	vars_last->copy_from(primals);
+
+      // if(iter==15) {
+      // 	goTimer timer; timer.start();
+      // 	printf("doing it\n");
+      // 	const int nn=15000; double sum2=0.;
+      // 	for(int j=0; j<nn; j++) {
+      // 	  double sum=0.;
+      // 	  for(int i=0; i<nn; i++) sum += (cos(2.*i)/nn + sin(3.*i)/nn);
+      // 	  sum2 += sum/nn;
+      // 	}
+      // 	printf("done it %g -> in %g seconds\n", sum2, timer.measureElapsedTime());
+      // }
+
+      return ContingencyProblem::iterate_callback(iter, obj_value, primals, inf_pr, inf_pr_orig_pr, inf_du,
+						  mu, alpha_du, alpha_pr, ls_trials);
+    }
+  protected:
+    OptVariables *vars_ini, *vars_last; 
+#endif
   };
 
 } //end namespace

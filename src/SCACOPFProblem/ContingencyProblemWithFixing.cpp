@@ -24,24 +24,33 @@ using namespace std;
 static char msg_timer[MSG_MAX_SZ];
 static int sz_msg_timer = 0;
 
-static bool volatile solve_watch=false;
-static int volatile alarm_duration=6; //seconds
+static volatile sig_atomic_t solve_watch=false;
+static volatile sig_atomic_t alarm_duration=3; //seconds
 
 //this is used by the optimiz solver's callback
-bool volatile solve_is_alive=false;
+volatile sig_atomic_t solve_is_alive=false;
 
-static jmp_buf jump_env;
+static sigjmp_buf jump_env;
 
 //only use approved/safe functions
 extern "C" void solve_timer_handler(int nsignum)
 {
   //second parameter for longjmp is the "return code", should be nonzer0
+  // write(2, "timer\n", sizeof "timer\n");
+  // alarm(alarm_duration);
+
+  // if(!solve_is_alive) {
+  //   write(2, "dead\n", sizeof "dead\n");
+  //   siglongjmp(jump_env,1);
+  // }
+  // solve_is_alive=false;
+  //return;
   if(solve_watch) {
     //write(2, "watch\n", 6);
     if(!solve_is_alive) {
       //write(2, "notalive\n", 9);
       write(2, msg_timer, sz_msg_timer);
-      longjmp(jump_env,1);
+      siglongjmp(jump_env,1);
     } else {
       //write(2, "alive\n", 6);
       solve_is_alive=false;
@@ -63,22 +72,33 @@ namespace gollnlp {
 
   double ContingencyProblemWithFixing::g_bounds_abuse=9e-5;
 
+  ContingencyProblemWithFixing::ContingencyProblemWithFixing(SCACOPFData& d_in, int K_idx_, 
+							     int my_rank, int comm_size_,
+							     std::unordered_map<std::string, 
+							     gollnlp::OptVariablesBlock*>& dict_basecase_vars_,
+							     const int& num_K_done_, const double& time_so_far_)
+    : ContingencyProblem(d_in, K_idx_, my_rank),  comm_size(comm_size_),
+      dict_basecase_vars(dict_basecase_vars_), solv1_Pg_was_enough(true),
+      num_K_done(num_K_done_), time_so_far(time_so_far_), safe_mode(false)
+    { 
+      pen_threshold=1e+3; 
+      obj_solve1 = obj_solve2 = 1e+20; 
+#ifdef GOLLNLP_FAULT_HANDLING
+      vars_ini = vars_last = NULL;
+#endif
+    };
+
   ContingencyProblemWithFixing::~ContingencyProblemWithFixing()
   {
+#ifdef GOLLNLP_FAULT_HANDLING
+    delete vars_ini;
+    delete vars_last;
+#endif
   }
 
   
   bool ContingencyProblemWithFixing::default_assembly(OptVariablesBlock* pg0, OptVariablesBlock* vn0) 
   {
-#ifdef GOLLNLP_FAULT_HANDLING
-    string msg = "[timer] timeout on rank=" + std::to_string(my_rank) +" for K_idx=" + std::to_string(K_idx) + " occured!\n";
-    set_timer_message(msg.c_str());
-    assert(my_rank>=1);
-
-    enable_timer_handling(solve_timer_handler);
-#endif
-
-
     double K_avg_time_so_far = time_so_far / std::max(num_K_done,1);
     printf("ContProbWithFixing K_idx=%d IDOut=%d outidx=%d Type=%s avgtm=%.2f rank=%d\n",
 	   K_idx, data_sc.K_IDout[K_idx], data_sc.K_outidx[K_idx],
@@ -219,6 +239,20 @@ namespace gollnlp {
       variable_duals_cons("duals_AGC_simple_fixedpg0", dK)->set_start_to(0.0);
     assert(vars_duals_cons->provides_start());
 
+
+#ifdef GOLLNLP_FAULT_HANDLING
+    string msg = "[timer] timeout on rank=" + std::to_string(my_rank) +" for K_idx=" + std::to_string(K_idx) + " occured!\n";
+    set_timer_message(msg.c_str());
+    assert(my_rank>=1);
+
+    printf("setting up timer handling --------------\n");
+    enable_timer_handling(solve_timer_handler);
+
+    vars_last = vars_primal->new_copy();
+    vars_ini  = vars_primal->new_copy();
+
+#endif
+
     return true;
   }
 
@@ -273,8 +307,10 @@ namespace gollnlp {
 
 #ifdef GOLLNLP_FAULT_HANDLING
       if(data_sc.N_Bus.size()>=35000) alarm_duration=10;
+
+      alarm(alarm_duration);
       
-      switch(setjmp(jump_env)) {
+      switch(sigsetjmp(jump_env,1)) {
 #else
       int code=0;
       switch(code) {
@@ -283,7 +319,6 @@ namespace gollnlp {
 	{
 #ifdef GOLLNLP_FAULT_HANDLING
 	  solve_watch=true;
-	  alarm(alarm_duration);
 #endif
 	  n_solves++;
 	  if(data_sc.N_Bus.size()<8999 && !timed_out) {
@@ -291,6 +326,10 @@ namespace gollnlp {
 	    opt_ok = OptProblem::reoptimize(OptProblem::primalDualRestart);
 	  } else {
 	    //primal start only
+#ifdef GOLLNLP_FAULT_HANDLING
+	    if(timed_out)
+	      vars_primal->set_start_to(*vars_last);
+#endif
 	    opt_ok = OptProblem::optimize("ipopt");
 	  }
 	  printf("[success] ContProbWithFixing K_idx=%d opt1 at try %d\n", K_idx, n_solves); 
@@ -298,13 +337,16 @@ namespace gollnlp {
 	  hist_obj.push_back(this->obj_value);
 
 	  if(opt_ok) {
-	    done = true;
+	    done = true;  timed_out=false;
 	  } else {
 	    if(monitor.user_stopped) {
-	      done = true;
+	      done = true; timed_out=false;
 	    } else {
 	      //something bad happened, will resolve
 	      printf("[warning] ContProbWithFixing K_idx=%d opt1 failed at try %d\n", K_idx, n_solves); 
+#ifdef GOLLNLP_FAULT_HANDLING
+	      vars_primal->set_start_to(*vars_ini);
+#endif
 	    }
 	  }
 	}
@@ -352,8 +394,14 @@ namespace gollnlp {
   bool ContingencyProblemWithFixing::do_solve2(bool bFirstSolveOK)
   {
     goTimer tmrec; tmrec.start();
+
+#ifdef GOLLNLP_FAULT_HANDLING
+    if(bFirstSolveOK)
+      vars_ini->set_start_to(*vars_primal);
+#endif
+
     vector<int> hist_iter, hist_obj;
-    bool bret = true, done = false, timed_out=false; int n_solves=0; 
+    bool bret = true, done = false; bool volatile timed_out=false; int volatile n_solves=0; 
     while(!done) {
       double mu_init; bool opt_ok=false;
 
@@ -398,14 +446,29 @@ namespace gollnlp {
       if(n_solves>1) 
 	set_solver_option("tol", 1e-7);
 
-      switch(setjmp(jump_env)) {
+#ifdef GOLLNLP_FAULT_HANDLING
+      if(data_sc.N_Bus.size()>=35000) alarm_duration=10;
+      alarm(alarm_duration);
+
+      switch(sigsetjmp(jump_env,1)) {
+#else
+      int code=0;
+      switch(code) {
+#endif
       case 0: //first time going through
 	{
+#ifdef GOLLNLP_FAULT_HANDLING
+	  solve_watch=true;
+#endif
 	  n_solves++;
 	  if(data_sc.N_Bus.size()<=8999 && !timed_out && bFirstSolveOK) {
 	    //medium and small problems default primal-dual restart
 	    opt_ok = OptProblem::reoptimize(OptProblem::primalDualRestart);
 	  } else {
+#ifdef GOLLNLP_FAULT_HANDLING
+	    if(timed_out)
+	      vars_primal->set_start_to(*vars_last);
+#endif
 	    //primal start only
 	    opt_ok = OptProblem::reoptimize(OptProblem::primalRestart);
 	  }
@@ -413,19 +476,23 @@ namespace gollnlp {
 	  hist_obj.push_back(this->obj_value);
 
 	  if(opt_ok) {
-	    done = true;
+	    done = true; timed_out=false;
 	  } else {
 	    if(monitor.user_stopped) {
-	      done = true;
+	      done = true; timed_out=false;
 	    } else {
 	      //something bad happened, will resolve
 	      printf("[warning] ContProbWithFixing K_idx=%d opt2 failed at try %d\n", K_idx, n_solves); 
+	      vars_primal->set_start_to(*vars_ini);
 	    }
 	  }
 	}
 	break;
       case 1: //timeout
 	{
+#ifdef GOLLNLP_FAULT_HANDLING
+	  solve_watch=false; //will be reactivated later if applicable
+#endif
 	  timed_out=true;
 	  printf("[warning] ContProbWithFixing K_idx=%d opt2 timed out at try %d\n", K_idx, n_solves); 
 	}
@@ -434,10 +501,12 @@ namespace gollnlp {
 	assert(false);
 	break;
       }
-
+#ifdef GOLLNLP_FAULT_HANDLING
+      alarm(0);
+#endif
       if(n_solves>9) done = true;
       if(tmrec.measureElapsedTime()>1200) {
-	printf("[warning] ContProbWithFixing K_idx=%d opt2 taking too long tries %d time %g\n", K_idx, n_solves, tmrec.measureElapsedTime());
+	printf("[warning] ContProbWithFixing K_idx=%d opt2 taking too long; tries %d time %g\n", K_idx, n_solves, tmrec.measureElapsedTime());
 	done = true;
 	bret = false;
       }
@@ -465,6 +534,7 @@ namespace gollnlp {
 
     bool bFirstSolveOK = do_solve1();
     f = this->obj_value;
+
 #ifdef DEBUG
     if(bFirstSolveOK) {
       auto pgK = variable("p_g", d); assert(pgK!=NULL); 
@@ -622,6 +692,7 @@ namespace gollnlp {
 	assert(vars_duals_bounds_L->provides_start()); 	assert(vars_duals_bounds_U->provides_start()); 	
 	assert(vars_duals_cons->provides_start());
       }
+      assert(vars_primal->n() == vars_last->n());
 #endif
 
       //
@@ -679,104 +750,7 @@ namespace gollnlp {
   }
 
 
-  void ContingencyProblemWithFixing::default_primal_start()
-  {
-    //for(auto b: vars_primal->vblocks) b->providesStartingPoint=false; 
 
-    SCACOPFData& dK = *data_K[0]; //aaa
-    auto v = variable("v_n", dK);
-    //v->set_start_to(data_sc.N_v0.data());
-    v->set_start_to(*v_n0);
-
-    v = variable("theta_n", dK);
-    //v->set_start_to(data_sc.N_theta0.data());
-    v->set_start_to(*theta_n0);
-
-    v = variable("b_s", dK);
-    //v->set_start_to(data_sc.SSh_B0.data());
-    v->set_start_to(*b_s0);
-
-    v = variable("p_g", dK); assert(v->n == dK.G_p0.size());
-    //v->set_start_to(dK.G_p0.data());
-
-    v = variable("q_g", dK); 
-    //v->set_start_to(dK.G_q0.data());
-
-    //compute starting points: p_li1_powerflow, p_li2_powerflow
-    if(true){
-      auto p_li1 = variable("p_li1",dK), p_li2 = variable("p_li2",dK);
-      auto pf_cons1 = dynamic_cast<PFConRectangular*>(constraint("p_li1_powerflow", dK));
-      auto pf_cons2 = dynamic_cast<PFConRectangular*>(constraint("p_li2_powerflow", dK));
-      pf_cons1->compute_power(p_li1); p_li1->providesStartingPoint=true;
-      pf_cons2->compute_power(p_li2); p_li2->providesStartingPoint=true;
-    }
-
-    //q_li1_powerflow, q_li2_powerflow
-    if(true){
-      auto q_li1 = variable("q_li1",dK), q_li2 = variable("q_li2",dK);
-      auto pf_cons1 = dynamic_cast<PFConRectangular*>(constraint("q_li1_powerflow", dK));
-      auto pf_cons2 = dynamic_cast<PFConRectangular*>(constraint("q_li2_powerflow", dK));
-      pf_cons1->compute_power(q_li1); q_li1->providesStartingPoint=true;
-      pf_cons2->compute_power(q_li2); q_li2->providesStartingPoint=true;
-    }
-
-
-    // // transformers
-    if(true){
-      auto p_ti1 = variable("p_ti1",dK), p_ti2 = variable("p_ti2",dK);
-      auto pf_cons1 = dynamic_cast<PFConRectangular*>(constraint("p_ti1_powerflow", dK));
-      auto pf_cons2 = dynamic_cast<PFConRectangular*>(constraint("p_ti2_powerflow", dK));
-      pf_cons1->compute_power(p_ti1); p_ti1->providesStartingPoint=true;
-      pf_cons2->compute_power(p_ti2); p_ti2->providesStartingPoint=true;
-    }
-
-    //q_li1_powerflow, q_li2_powerflow
-    if(true){
-      auto q_ti1 = variable("q_ti1",dK), q_ti2 = variable("q_ti2",dK);
-      auto pf_cons1 = dynamic_cast<PFConRectangular*>(constraint("q_ti1_powerflow", dK));
-      auto pf_cons2 = dynamic_cast<PFConRectangular*>(constraint("q_ti2_powerflow", dK));
-      pf_cons1->compute_power(q_ti1); q_ti1->providesStartingPoint=true;
-      pf_cons2->compute_power(q_ti2); q_ti2->providesStartingPoint=true;
-    }
-
-    //active balance slacks
-    if(false) {
-      auto pf_p_bal = dynamic_cast<PFActiveBalance*>(constraint("p_balance", dK));
-      OptVariablesBlock* pslacks_n = pf_p_bal->slacks();
-      pf_p_bal->compute_slacks(pslacks_n); pslacks_n->providesStartingPoint=true;
-      
-      //reactive power balance slacks
-      auto pf_q_bal = dynamic_cast<PFReactiveBalance*>(constraint("q_balance", dK));
-      OptVariablesBlock* qslacks_n = pf_q_bal->slacks();
-      pf_q_bal->compute_slacks(qslacks_n); qslacks_n->providesStartingPoint=true;
-    }
-
-    //line limits
-    if(true){
-      auto pf_line_lim1 = dynamic_cast<PFLineLimits*>(constraint("line_limits1", dK));
-      OptVariablesBlock* sslack_li1 = pf_line_lim1->slacks();
-      pf_line_lim1->compute_slacks(sslack_li1); sslack_li1->providesStartingPoint=true;
-      auto pf_line_lim2 = dynamic_cast<PFLineLimits*>(constraint("line_limits2", dK));
-      OptVariablesBlock* sslack_li2 = pf_line_lim2->slacks();
-      pf_line_lim1->compute_slacks(sslack_li2); sslack_li2->providesStartingPoint=true;
-
-    }
-
-    //transformer limits
-    if(true){
-      auto pf_trans_lim1 = dynamic_cast<PFTransfLimits*>(constraint("trans_limits1", dK));
-      OptVariablesBlock* sslack_ti1 = pf_trans_lim1->slacks();
-      pf_trans_lim1->compute_slacks(sslack_ti1); sslack_ti1->providesStartingPoint=true;
-      auto pf_trans_lim2 = dynamic_cast<PFTransfLimits*>(constraint("trans_limits2", dK));
-      OptVariablesBlock* sslack_ti2 = pf_trans_lim2->slacks();
-      pf_trans_lim2->compute_slacks(sslack_ti2); sslack_ti2->providesStartingPoint=true;
-
-    }
-   auto deltav = variable("delta", dK);
-   //if(deltav) deltav->set_start_to(1.41203e-06);
-   //print_summary();
-   assert(vars_primal->provides_start());
-  }
 
   bool ContingencyProblemWithFixing::warm_start_variable_from_basecase(OptVariables& v)
   {
@@ -1894,5 +1868,104 @@ namespace gollnlp {
 
 //   }
 
+  // void ContingencyProblemWithFixing::default_primal_start()
+  // {
+  //   assert(false);
+  //   //for(auto b: vars_primal->vblocks) b->providesStartingPoint=false; 
+
+  //   SCACOPFData& dK = *data_K[0]; //aaa
+  //   auto v = variable("v_n", dK);
+  //   //v->set_start_to(data_sc.N_v0.data());
+  //   v->set_start_to(*v_n0);
+
+  //   v = variable("theta_n", dK);
+  //   //v->set_start_to(data_sc.N_theta0.data());
+  //   v->set_start_to(*theta_n0);
+
+  //   v = variable("b_s", dK);
+  //   //v->set_start_to(data_sc.SSh_B0.data());
+  //   v->set_start_to(*b_s0);
+
+  //   v = variable("p_g", dK); assert(v->n == dK.G_p0.size());
+  //   //v->set_start_to(dK.G_p0.data());
+
+  //   v = variable("q_g", dK); 
+  //   //v->set_start_to(dK.G_q0.data());
+
+  //   //compute starting points: p_li1_powerflow, p_li2_powerflow
+  //   if(true){
+  //     auto p_li1 = variable("p_li1",dK), p_li2 = variable("p_li2",dK);
+  //     auto pf_cons1 = dynamic_cast<PFConRectangular*>(constraint("p_li1_powerflow", dK));
+  //     auto pf_cons2 = dynamic_cast<PFConRectangular*>(constraint("p_li2_powerflow", dK));
+  //     pf_cons1->compute_power(p_li1); p_li1->providesStartingPoint=true;
+  //     pf_cons2->compute_power(p_li2); p_li2->providesStartingPoint=true;
+  //   }
+
+  //   //q_li1_powerflow, q_li2_powerflow
+  //   if(true){
+  //     auto q_li1 = variable("q_li1",dK), q_li2 = variable("q_li2",dK);
+  //     auto pf_cons1 = dynamic_cast<PFConRectangular*>(constraint("q_li1_powerflow", dK));
+  //     auto pf_cons2 = dynamic_cast<PFConRectangular*>(constraint("q_li2_powerflow", dK));
+  //     pf_cons1->compute_power(q_li1); q_li1->providesStartingPoint=true;
+  //     pf_cons2->compute_power(q_li2); q_li2->providesStartingPoint=true;
+  //   }
+
+
+  //   // // transformers
+  //   if(true){
+  //     auto p_ti1 = variable("p_ti1",dK), p_ti2 = variable("p_ti2",dK);
+  //     auto pf_cons1 = dynamic_cast<PFConRectangular*>(constraint("p_ti1_powerflow", dK));
+  //     auto pf_cons2 = dynamic_cast<PFConRectangular*>(constraint("p_ti2_powerflow", dK));
+  //     pf_cons1->compute_power(p_ti1); p_ti1->providesStartingPoint=true;
+  //     pf_cons2->compute_power(p_ti2); p_ti2->providesStartingPoint=true;
+  //   }
+
+  //   //q_li1_powerflow, q_li2_powerflow
+  //   if(true){
+  //     auto q_ti1 = variable("q_ti1",dK), q_ti2 = variable("q_ti2",dK);
+  //     auto pf_cons1 = dynamic_cast<PFConRectangular*>(constraint("q_ti1_powerflow", dK));
+  //     auto pf_cons2 = dynamic_cast<PFConRectangular*>(constraint("q_ti2_powerflow", dK));
+  //     pf_cons1->compute_power(q_ti1); q_ti1->providesStartingPoint=true;
+  //     pf_cons2->compute_power(q_ti2); q_ti2->providesStartingPoint=true;
+  //   }
+
+  //   //active balance slacks
+  //   if(true) {
+  //     auto pf_p_bal = dynamic_cast<PFActiveBalance*>(constraint("p_balance", dK));
+  //     OptVariablesBlock* pslacks_n = pf_p_bal->slacks();
+  //     pf_p_bal->compute_slacks(pslacks_n); pslacks_n->providesStartingPoint=true;
+      
+  //     //reactive power balance slacks
+  //     auto pf_q_bal = dynamic_cast<PFReactiveBalance*>(constraint("q_balance", dK));
+  //     OptVariablesBlock* qslacks_n = pf_q_bal->slacks();
+  //     pf_q_bal->compute_slacks(qslacks_n); qslacks_n->providesStartingPoint=true;
+  //   }
+
+  //   //line limits
+  //   if(true){
+  //     auto pf_line_lim1 = dynamic_cast<PFLineLimits*>(constraint("line_limits1", dK));
+  //     OptVariablesBlock* sslack_li1 = pf_line_lim1->slacks();
+  //     pf_line_lim1->compute_slacks(sslack_li1); sslack_li1->providesStartingPoint=true;
+  //     auto pf_line_lim2 = dynamic_cast<PFLineLimits*>(constraint("line_limits2", dK));
+  //     OptVariablesBlock* sslack_li2 = pf_line_lim2->slacks();
+  //     pf_line_lim1->compute_slacks(sslack_li2); sslack_li2->providesStartingPoint=true;
+
+  //   }
+
+  //   //transformer limits
+  //   if(true){
+  //     auto pf_trans_lim1 = dynamic_cast<PFTransfLimits*>(constraint("trans_limits1", dK));
+  //     OptVariablesBlock* sslack_ti1 = pf_trans_lim1->slacks();
+  //     pf_trans_lim1->compute_slacks(sslack_ti1); sslack_ti1->providesStartingPoint=true;
+  //     auto pf_trans_lim2 = dynamic_cast<PFTransfLimits*>(constraint("trans_limits2", dK));
+  //     OptVariablesBlock* sslack_ti2 = pf_trans_lim2->slacks();
+  //     pf_trans_lim2->compute_slacks(sslack_ti2); sslack_ti2->providesStartingPoint=true;
+
+  //   }
+  //  auto deltav = variable("delta", dK);
+  //  //if(deltav) deltav->set_start_to(1.41203e-06);
+  //  //print_summary();
+  //  assert(vars_primal->provides_start());
+  // }
 
 } //end of namespace

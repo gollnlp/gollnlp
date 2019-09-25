@@ -6,7 +6,8 @@
 #include "goUtils.hpp"
 
 #ifdef GOLLNLP_FAULT_HANDLING
-extern bool volatile solve_is_alive;
+#include "goSignalHandling.hpp"
+extern volatile sig_atomic_t solve_is_alive;
 #endif
 
 namespace gollnlp {

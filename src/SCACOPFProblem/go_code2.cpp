@@ -97,9 +97,8 @@ int MyCode2::initialize(int argc, char *argv[])
 
   K_Contingency = data.K_Contingency;
   //!
-  K_Contingency = {0,1,2};//{1936, 913, 792};
+  //K_Contingency = {0,1,1936};//{1936, 913, 792};
   //344
-  
 
   K_left = vector<int>(K_Contingency.size());
   iota(K_left.begin(), K_left.end(), 0);
@@ -558,7 +557,7 @@ bool MyCode2::_guts_of_solve_contingency(ContingencyProblemWithFixing& prob, int
   if(data.N_Bus.size()< 6000) pen_threshold = 100.;
 
   prob.pen_threshold = pen_threshold;
-
+  
   if(data.N_Bus.size()>8999) {
     ContingencyProblemWithFixing::g_bounds_abuse = 5e-5;
     prob.monitor.is_active = true;
