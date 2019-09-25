@@ -92,6 +92,11 @@ void enable_fault_signal_handling(void (*handler)(int))
 // handler defined in "locally" in the cpp file(s)
 // set_timer_message also defined locally
 
+//docs on setjmp/longjmp
+// https://pubs.opengroup.org/onlinepubs/9699919799/functions/longjmp.html#
+// https://stackoverflow.com/questions/38842951/why-is-sigalrm-not-working-second-time/38843103#38843103
+// https://stackoverflow.com/questions/20647808/c-unix-siglongjmp-and-sigsetjmp
+
 void enable_timer_handling(void (*handler)(int))
 {
   struct sigaction new_action, old_action;
@@ -102,7 +107,7 @@ void enable_timer_handling(void (*handler)(int))
 
   sigaction(signal, NULL, &old_action);
   if(old_action.sa_handler != SIG_IGN)
-    sigaction(SIGALRM, &new_action, NULL);
+    sigaction(signal, &new_action, NULL);
   else
     printf("[warning] SIGALRM is set to ignore -- alarm handler was not set for it\n");
 }
