@@ -23,12 +23,20 @@ class IpoptNlp : public Ipopt::TNLP
 {
 public:
   /**constructor */
-  IpoptNlp(OptProblem* p) : prob(p), have_adv_pd_restart(false) 
-  { assert(prob); } 
+  IpoptNlp(OptProblem* p) : prob(p), have_adv_pd_restart(false)
+  { 
+    assert(prob); 
+#ifdef GOLLNLP_FAULT_HANDLING
+    _primals=NULL;
+#endif
+  } 
 
   /** default destructor */
   virtual ~IpoptNlp()
   {
+#ifdef GOLLNLP_FAULT_HANDLING
+    delete[] _primals;
+#endif
   }
 
   /**@name Overloaded from TNLP */
@@ -185,11 +193,25 @@ public:
     double inf_pr_orig_problem = inf_pr;
     if(NULL!=ip_cq) {
       inf_pr_orig_problem = ip_cq->curr_nlp_constraint_violation(Ipopt::NORM_MAX);
+
+#ifdef GOLLNLP_FAULT_HANDLING
+      //get primal variables
+      Ipopt::OrigIpoptNLP* orignlp = dynamic_cast<OrigIpoptNLP*>(GetRawPtr(ip_cq->GetIpoptNLP()));
+      if( orignlp != NULL ) {
+     	Ipopt::TNLPAdapter* tnlp_adapter = dynamic_cast<TNLPAdapter*>(GetRawPtr(orignlp->nlp()));
+	if(tnlp_adapter) {
+	  if(NULL == _primals) _primals = new double[prob->get_num_variables()];
+	  tnlp_adapter->ResortX(*ip_data->curr()->x(), _primals);
+	  return prob->iterate_callback(iter, obj_value, _primals, inf_pr, inf_pr_orig_problem, inf_du, mu, 
+					alpha_du, alpha_pr, ls_trials);
+	  
+	}
+      }
+#endif
     }
 
-    //printf("aaa %g %g %g\n", ip_cq->curr_nlp_constraint_violation(Ipopt::NORM_MAX), ip_cq->curr_constraint_violation(), inf_pr);
-
-    // restoration or some other abnormal situation -> primals=NULL
+    // algorithm in restoration or some other abnormal Ipopt situation -> primals=NULL
+    // Also, passing primals=NULL under most normal/common circumstances since there is no need for them
     return prob->iterate_callback(iter, obj_value, NULL, inf_pr, inf_pr_orig_problem, inf_du, mu, 
 				    alpha_du, alpha_pr, ls_trials);
   }
@@ -218,6 +240,10 @@ private:
   OptProblem* prob;
   SmartPtr< const IteratesVector > iter_vector;
   bool have_adv_pd_restart;
+
+#ifdef GOLLNLP_FAULT_HANDLING
+  double* _primals;
+#endif
   /**@name Methods to block default compiler methods.
    */
   //@{
@@ -270,13 +296,13 @@ public:
     // Ask Ipopt to solve the problem
     ApplicationReturnStatus status = app->OptimizeTNLP(ipopt_nlp_spec);
 
-    if (status == Ipopt::Solve_Succeeded || status == Ipopt::Solved_To_Acceptable_Level) {
+    if (status == Ipopt::Solve_Succeeded || status == Ipopt::Solved_To_Acceptable_Level || status == Ipopt::User_Requested_Stop) {
       //printf("\n\n*** The problem solved!\n");
       return true;
     }
     else {
-      if(status != Ipopt::User_Requested_Stop)
-	printf("Ipopt solve FAILED with status %d!!!\n", status);
+      //if(status != Ipopt::User_Requested_Stop)
+      printf("Ipopt solve FAILED with status %d!!!\n", status);
       return false;
     }
   }

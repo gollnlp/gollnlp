@@ -735,13 +735,13 @@ void OptVariables::copy_to(std::vector<double>& v)
     v = vector<double>(this->n());
   this->copy_to(v.data());
 }
-void OptVariables::copy_from(const std::vector<double>& v)
+void OptVariables::copy_from(const double* v)
 {
   for(auto b: this->vblocks) {
-    assert(b->index+b->n < v.size());
-    b->set_start_to(v.data() + b->index);
+    b->set_start_to(v + b->index);
   }
 }
+
 void OptVariables::delete_block(const std::string& id)
 {
   OptVariablesBlock* block = NULL;

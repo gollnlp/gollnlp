@@ -38,7 +38,14 @@ public:
   //handled by attach_to
   const double* xref;
   bool providesStartingPoint;
-  
+
+  inline OptVariablesBlock* new_copy() 
+  {
+    auto b = new OptVariablesBlock(n, id, lb, ub);
+    b->set_start_to(*this);
+    return b;
+  }
+
   void print() const;
 };
   
@@ -95,8 +102,17 @@ public:
 
   void copy_to(double* a);
   void copy_to(std::vector<double>& v);
-  void copy_from(const std::vector<double>& v);
+  inline void copy_from(const std::vector<double>& v) { copy_from(v.data()); }
+  void copy_from(const double* v);
 
+  OptVariables* new_copy() 
+  {
+    OptVariables* new_vars = new OptVariables();
+    for(auto b : this->vblocks) {
+      new_vars->append_varsblock(b->new_copy());
+    }
+    return new_vars;
+  }
 
   void print_summary(const std::string var_name="") const;
   void print(const std::string var_name="") const;
