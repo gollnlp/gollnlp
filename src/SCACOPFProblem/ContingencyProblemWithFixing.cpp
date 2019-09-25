@@ -17,7 +17,7 @@
 #include "unistd.h"
 using namespace std;
 
-#define BE_VERBOSE
+//#define BE_VERBOSE
 
 #ifdef GOLLNLP_FAULT_HANDLING
 #define MSG_MAX_SZ 128
@@ -76,10 +76,11 @@ namespace gollnlp {
 							     int my_rank, int comm_size_,
 							     std::unordered_map<std::string, 
 							     gollnlp::OptVariablesBlock*>& dict_basecase_vars_,
-							     const int& num_K_done_, const double& time_so_far_)
+							     const int& num_K_done_, const double& time_so_far_,
+							     bool safe_mode_)
     : ContingencyProblem(d_in, K_idx_, my_rank),  comm_size(comm_size_),
       dict_basecase_vars(dict_basecase_vars_), solv1_Pg_was_enough(true),
-      num_K_done(num_K_done_), time_so_far(time_so_far_), safe_mode(false)
+      num_K_done(num_K_done_), time_so_far(time_so_far_), safe_mode(safe_mode_)
     { 
       pen_threshold=1e+3; 
       obj_solve1 = obj_solve2 = 1e+20; 
@@ -100,8 +101,10 @@ namespace gollnlp {
   bool ContingencyProblemWithFixing::default_assembly(OptVariablesBlock* pg0, OptVariablesBlock* vn0) 
   {
     double K_avg_time_so_far = time_so_far / std::max(num_K_done,1);
-    printf("ContProbWithFixing K_idx=%d IDOut=%d outidx=%d Type=%s avgtm=%.2f rank=%d\n",
-	   K_idx, data_sc.K_IDout[K_idx], data_sc.K_outidx[K_idx],
+    string ssfm=" ";
+    if(safe_mode) ssfm=" [safe mode] ";
+    printf("ContProbWithFixing K_idx=%d%sIDOut=%d outidx=%d Type=%s avgtm=%.2f rank=%d\n",
+	   K_idx, ssfm.c_str(), data_sc.K_IDout[K_idx], data_sc.K_outidx[K_idx],
 	   data_sc.cont_type_string(K_idx).c_str(), K_avg_time_so_far, my_rank); fflush(stdout);
 
     p_g0=pg0; v_n0=vn0;
@@ -245,7 +248,6 @@ namespace gollnlp {
     set_timer_message(msg.c_str());
     assert(my_rank>=1);
 
-    printf("setting up timer handling --------------\n");
     enable_timer_handling(solve_timer_handler);
 
     vars_last = vars_primal->new_copy();
@@ -259,6 +261,10 @@ namespace gollnlp {
 
   bool ContingencyProblemWithFixing::do_solve1()
   {
+
+    //if((K_idx-1)/10 * 10 == K_idx-1) if(!safe_mode) sleep(std::min(20, K_idx));
+    //if(K_idx==779) if(!safe_mode) {sleep(20000); sleep(20000);}
+
     goTimer tmrec; tmrec.start();
     vector<int> hist_iter, hist_obj;
     bool bret = true, done = false; bool volatile timed_out=false; int volatile n_solves=0; 
@@ -943,8 +949,9 @@ namespace gollnlp {
       return true;
     }
     
-
+#ifdef BE_VERBOSE
     printf("push_and_fix_AGCgen K_idx=%d P_in=%g delta_in=%g rank=%d\n", K_idx, P_in, delta_in, my_rank);
+#endif
     if(!Pispos && delta_in>0) printf("K_idx=%d !!!!!!!!\n", K_idx);
 
     if(Pispos) { delta_lb=0.;     delta_ub=1e+20; assert(delta_in>=0); }

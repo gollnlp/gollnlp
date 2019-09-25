@@ -3,6 +3,7 @@
 
 #include "mpi.h"
 #include <string>
+#include <iostream>
 #include <vector>
 #include <list>
 #include <unordered_map>
@@ -73,7 +74,7 @@ private:
   std::vector<int> num_req4Kidx_for_ranks;
 
   void initial_K_distribution();
-  bool solve_contingency(int K_idx, std::vector<double>& sln);
+  bool solve_contingency(int K_idx, bool safe_mode, std::vector<double>& sln);
 
   // 1. sweeps 'vvsols' and writes to 'solution2.txt' the solutions 
   // received on master; this is done in order of the Kidx;
@@ -85,6 +86,10 @@ private:
   int size_sol_block;
 
   void read_solution1();
+
+  int pick_new_contingency(int rank);
+  int pick_late_contingency(int rank);
+  bool all_contingencies_solved(); //on master
 
 private:
   std::string InFile1, InFile2, InFile3, InFile4;
@@ -113,15 +118,42 @@ private:
   //contingencies processed on each rank
   //outer size num_ranks, maintained only on master rank
   std::vector<std::vector<int> > K_on_slave_ranks;
-  
-  std::vector<int> K_Contingency;
-  std::vector<int> K_left;
 
+  struct Kinfo {
+    Kinfo(int id_) : id(id_), solve_done(false){};
+    int id;
+    bool solve_done;
+    std::vector<double> tmSent; //from MPI_Wtime
+  private: 
+    Kinfo() {};
+  };  
+
+  std::vector<Kinfo> K_Contingency;
+  std::vector<int> K_left;
+public:
+  struct Kinfo_worker {
+    Kinfo_worker(const int id_) 
+    {
+      if(id_>=1000000) {
+	id=id_-1000000;
+	safe_mode_solve=true;
+      } else {
+	id = id_;
+	safe_mode_solve=false;
+      }
+    }
+    int id;
+    bool safe_mode_solve;
+  private: 
+    Kinfo_worker() {}
+  };
+private:
   //contingencies on current rank
-  std::list<int> K_local;
+  std::list<Kinfo_worker> K_local;
 
   std::unordered_map<std::string, gollnlp::OptVariablesBlock*> dict_basecase_vars;
 
   bool _guts_of_solve_contingency(gollnlp::ContingencyProblemWithFixing& prob, int Kidx);
 };
+
 #endif

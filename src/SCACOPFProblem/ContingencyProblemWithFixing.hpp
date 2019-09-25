@@ -15,7 +15,8 @@ namespace gollnlp {
 				 int my_rank, int comm_size_,
 				 std::unordered_map<std::string, 
 				 gollnlp::OptVariablesBlock*>& dict_basecase_vars_,
-				 const int& num_K_done_, const double& time_so_far_);
+				 const int& num_K_done_, const double& time_so_far_,
+				 bool safe_mode=false);
     virtual ~ContingencyProblemWithFixing();
 
     double pen_threshold;
