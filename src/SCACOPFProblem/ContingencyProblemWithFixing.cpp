@@ -363,7 +363,7 @@ namespace gollnlp {
 	  solve_watch=false; //will be reactivated later if applicable
 #endif
 	  timed_out=true;
-	  printf("[warning] ContProbWithFixing K_idx=%d opt1 timed out at try %d after .2f sec\n", K_idx, n_solves, tmrec.measureElapsedTime()); 
+	  printf("[warning] ContProbWithFixing K_idx=%d opt1 timed out at try %d after %.2f sec\n", K_idx, n_solves, tmrec.measureElapsedTime()); 
 	  //opt_ok = OptProblem::optimize("ipopt");
 	}
 	break;
