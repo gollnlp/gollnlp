@@ -815,8 +815,8 @@ int MyCode2::pick_late_contingency(int rank)
   double tm = MPI_Wtime();
   for(auto & kinfo : K_Contingency) {
     if(kinfo.tmSent.size()>0 && !kinfo.solve_done) {
-      if(tm-kinfo.tmSent.back()>6 && kinfo.tmSent.size()==1) {
-	printf("rank=%d detected that K_idx=%d is late by %.2f sec\n", rank, kinfo.id, tm-kinfo.tmSent.back());
+      if(tm-kinfo.tmSent.back()>1400 && kinfo.tmSent.size()==1) {
+	printf("[warning] rank=%d detected that K_idx=%d is late by %.2f sec\n", rank, kinfo.id, tm-kinfo.tmSent.back());
 	return kinfo.id;
       }
     }

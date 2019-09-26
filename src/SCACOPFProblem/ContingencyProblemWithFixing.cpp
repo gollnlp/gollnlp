@@ -25,7 +25,7 @@ static char msg_timer[MSG_MAX_SZ];
 static int sz_msg_timer = 0;
 
 static volatile sig_atomic_t solve_watch=false;
-static volatile sig_atomic_t alarm_duration=3; //seconds
+static volatile sig_atomic_t alarm_duration=10; //seconds
 
 //this is used by the optimiz solver's callback
 volatile sig_atomic_t solve_is_alive=false;
@@ -312,7 +312,7 @@ namespace gollnlp {
 	set_solver_option("tol", 1e-7);
 
 #ifdef GOLLNLP_FAULT_HANDLING
-      if(data_sc.N_Bus.size()>=35000) alarm_duration=10;
+      if(data_sc.N_Bus.size()>=35000) alarm_duration=17;
 
       alarm(alarm_duration);
       
