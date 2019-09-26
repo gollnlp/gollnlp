@@ -602,7 +602,7 @@ bool MyCode2::_guts_of_solve_contingency(ContingencyProblemWithFixing& prob, int
   prob.set_solver_option("print_frequency_iter", 5);
   prob.set_solver_option("linear_solver", "ma57"); 
   prob.set_solver_option("print_level", 2);
-
+  if(K_idx==3249) prob.set_solver_option("print_level", 5);
 
   //return if it takes too long in phase2
   prob.set_solver_option("max_iter", 250);

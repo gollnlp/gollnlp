@@ -244,7 +244,7 @@ namespace gollnlp {
 
 
 #ifdef GOLLNLP_FAULT_HANDLING
-    string msg = "[timer] timeout on rank=" + std::to_string(my_rank) +" for K_idx=" + std::to_string(K_idx) + " occured!\n";
+    string msg = "[timer] timeout rank=" + std::to_string(my_rank) +" for K_idx=" + std::to_string(K_idx) + " occured!\n";
     set_timer_message(msg.c_str());
     assert(my_rank>=1);
 
@@ -363,7 +363,7 @@ namespace gollnlp {
 	  solve_watch=false; //will be reactivated later if applicable
 #endif
 	  timed_out=true;
-	  printf("[warning] ContProbWithFixing K_idx=%d opt1 timed out at try %d\n", K_idx, n_solves); 
+	  printf("[warning] ContProbWithFixing K_idx=%d opt1 timed out at try %d after .2f sec\n", K_idx, n_solves, tmrec.measureElapsedTime()); 
 	  //opt_ok = OptProblem::optimize("ipopt");
 	}
 	break;
