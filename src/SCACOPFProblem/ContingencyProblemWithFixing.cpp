@@ -17,7 +17,7 @@
 #include "unistd.h"
 using namespace std;
 
-//#define BE_VERBOSE
+#define BE_VERBOSE 1
 
 #ifdef GOLLNLP_FAULT_HANDLING
 #define MSG_MAX_SZ 128
@@ -338,7 +338,7 @@ namespace gollnlp {
 #endif
 	    opt_ok = OptProblem::optimize("ipopt");
 	  }
-	  printf("[success] ContProbWithFixing K_idx=%d opt1 at try %d\n", K_idx, n_solves); 
+	  //printf("[success] ContProbWithFixing K_idx=%d opt1 at try %d\n", K_idx, n_solves); 
 	  hist_iter.push_back(number_of_iterations());
 	  hist_obj.push_back(this->obj_value);
 
@@ -363,8 +363,10 @@ namespace gollnlp {
 	  solve_watch=false; //will be reactivated later if applicable
 #endif
 	  timed_out=true;
-	  printf("[warning] ContProbWithFixing K_idx=%d opt1 timed out at try %d after %.2f sec\n", K_idx, n_solves, tmrec.measureElapsedTime()); 
-	  //opt_ok = OptProblem::optimize("ipopt");
+	  printf("[warning] ContProbWithFixing K_idx=%d opt1 timed out at try %d after %.2f sec\n", K_idx, n_solves, tmrec.measureElapsedTime());
+	  hist_iter.push_back(0-n_solves);
+	  hist_obj.push_back(-1.0*n_solves);
+	    //opt_ok = OptProblem::optimize("ipopt");
 	}
 	break;
       default:
@@ -500,7 +502,10 @@ namespace gollnlp {
 	  solve_watch=false; //will be reactivated later if applicable
 #endif
 	  timed_out=true;
-	  printf("[warning] ContProbWithFixing K_idx=%d opt2 timed out at try %d\n", K_idx, n_solves); 
+	  hist_iter.push_back(0-n_solves);
+	  hist_obj.push_back(-1. * n_solves);
+	  printf("[warning] ContProbWithFixing K_idx=%d opt2 timed out at try %d after %.2f sec\n", K_idx, n_solves, tmrec.measureElapsedTime());
+	  //printf("[warning] ContProbWithFixing K_idx=%d opt2 timed out at try %d\n", K_idx, n_solves); 
 	}
 	break;
       default:

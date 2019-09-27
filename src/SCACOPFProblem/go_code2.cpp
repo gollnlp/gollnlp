@@ -591,7 +591,7 @@ bool MyCode2::_guts_of_solve_contingency(ContingencyProblemWithFixing& prob, int
   }
 
   if(!prob.default_assembly(v_n0(), theta_n0(), b_s0(), p_g0(), q_g0())) {
-    printf("Evaluator Rank %d failed in default_assembly for contingency K_idx=%d\n",
+    printf("rank=%d failed in default_assembly for contingency K_idx=%d\n",
 	   my_rank, K_idx);
     //status = -1;
     return false;
@@ -665,7 +665,7 @@ bool MyCode2::solve_contingency(int K_idx, bool safe_mode, std::vector<double>& 
 // #endif
 
   if(!prob->optimize(p_g0(), v_n0(), penalty, sln)) {
-    printf("Evaluator Rank %d failed in the evaluation of contingency K_idx=%d\n",
+    printf("rank=%d failed in the evaluation of contingency K_idx=%d\n",
 	   my_rank, K_idx);
     status = -3;
     delete prob;
@@ -685,8 +685,8 @@ bool MyCode2::solve_contingency(int K_idx, bool safe_mode, std::vector<double>& 
   //prob.print_p_g_with_coupling_info(*prob.data_K[0], p_g0);
   //prob.print_PVPQ_info(*prob.data_K[0], v_n0);
 
-  printf("Evaluator Rank %3d K_idx=%d finished with penalty %12.3f "
-  	 "in %5.3f sec global time %g \n",
+  printf("rank=%d K_idx=%d finished with penalty %12.3f "
+  	 "in %5.3f sec time %g \n",
   	 my_rank, K_idx, penalty, t.stop(), glob_timer.measureElapsedTime());
   delete prob;
   return true;

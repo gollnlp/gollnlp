@@ -112,8 +112,9 @@ namespace gollnlp {
 	  tmavg_over_last = (monitor.hist_tm.back()-monitor.hist_tm[idx_ref])/over_n_last;
 	}
 
-	if(K_idx==4023 || K_idx==3738) {
-	printf("[stop]????   K_idx=%d iter %d : obj=%12.5e inf_pr_o=%12.5e mu=%12.5e inf_du=%12.5e a_du=%12.5e a_pr=%12.5e "
+	//if(K_idx==4023 || K_idx==3738) {
+	if(K_idx==3197 || my_rank==54){
+	  printf("[stop]????   K_idx=%d iter %d : obj=%12.5e inf_pr_o=%12.5e mu=%12.5e inf_du=%12.5e a_du=%12.5e a_pr=%12.5e "
 	     "rank=%d time=%g avg=[%.2f %.2f(%d)] is_late=%d safe_mode=%d bailout_allowed=%d\n",
 	       K_idx, iter, obj_value, inf_pr_orig_pr, mu, inf_du,  alpha_du, alpha_pr, my_rank, monitor.timer.measureElapsedTime(),
 	       tmavg, tmavg_over_last, over_n_last, monitor.is_late, monitor.safe_mode, monitor.bailout_allowed);
