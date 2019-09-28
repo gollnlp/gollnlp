@@ -528,6 +528,8 @@ protected:
 
   NlpSolver* nlp_solver;
 
+  void reallocate_nlp_solver();
+
   //these two vectors have limited storage lifetime
   std::vector<OptSparseEntry> ij_Jac, ij_Hess;
 

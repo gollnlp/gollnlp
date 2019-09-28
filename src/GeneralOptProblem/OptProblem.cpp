@@ -511,9 +511,19 @@ void OptProblem::dual_problem_changed()
   vars_duals_cons = new_duals_cons();
 }
 
-
+void OptProblem::reallocate_nlp_solver()
+{
+  if(nlp_solver) {
+    nlp_solver->finalize();
+    delete nlp_solver;
+    printf("NLP_SOLVER deleted");
+    nlp_solver=NULL;
+  }
+  use_nlp_solver("ipopt");
+}
 bool OptProblem::optimize(const std::string& solver_name)
 {
+
   if(vars_duals_bounds_L) delete vars_duals_bounds_L;
   if(vars_duals_bounds_U) delete vars_duals_bounds_U;
   if(vars_duals_cons) delete vars_duals_cons;
@@ -543,7 +553,7 @@ bool OptProblem::reoptimize(RestartType t)
 
   nlp_solver->set_start_type(t);
 
-  if(true==nlp_solver->reoptimize()) {
+  if(true==nlp_solver->optimize()) {
     this->set_have_start();
   } else {
     return false;
