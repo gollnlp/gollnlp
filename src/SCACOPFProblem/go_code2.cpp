@@ -106,7 +106,8 @@ int MyCode2::initialize(int argc, char *argv[])
   //!
   //K_Cont = {0,1,1936};//{1936, 913, 792};
   //344
-  //K_Cont={}; for(int i=0; i<49; i++) K_Cont.push_back(i);
+  //K_Cont={3222};//, 3223, 3223, 3223, 3223, 3223, 3223, 3223, 3223, 3223, 3223, 3223, 3223, 3223, 3223, 3223, 3223, 3223, 3223, 3223, 3223, 3223, 3223, 3223, 3223, 3223, 3223, 3223, 3223}; 
+  //K_Cont={}; for(int i=0; i<49; i++) K_Cont.push_back(3180+i);
 
   for(auto& id : K_Cont) 
     K_Contingency.push_back(Kinfo(id));
@@ -577,13 +578,13 @@ void MyCode2::initial_K_distribution()
 
 bool MyCode2::_guts_of_solve_contingency(ContingencyProblemWithFixing& prob, int K_idx)
 {
-  double   pen_threshold = 1*data.K_Contingency.size(); //dolars; violations of O(1) or less allowed per contingency
+  double   pen_threshold = data.K_Contingency.size(); //dolars; violations of O(1) or less allowed per contingency
   if(data.N_Bus.size()<20000) pen_threshold = 0.80*data.K_Contingency.size();
   if(data.N_Bus.size()<10000) pen_threshold = 0.25*data.K_Contingency.size();
   if(data.N_Bus.size()< 6000) pen_threshold = 100.;
 
   prob.pen_threshold = pen_threshold;
-  
+
   if(data.N_Bus.size()>8999) {
     ContingencyProblemWithFixing::g_bounds_abuse = 5e-5;
     prob.monitor.is_active = true;
@@ -599,10 +600,21 @@ bool MyCode2::_guts_of_solve_contingency(ContingencyProblemWithFixing& prob, int
 
   prob.use_nlp_solver("ipopt");
   prob.set_solver_option("sb","yes");
-  prob.set_solver_option("print_frequency_iter", 5);
-  prob.set_solver_option("linear_solver", "ma57"); 
+  prob.set_solver_option("print_frequency_iter", 10);
   prob.set_solver_option("print_level", 2);
-  if(K_idx==3249) prob.set_solver_option("print_level", 5);
+
+  prob.set_solver_option("linear_solver", "ma57"); 
+  //prob.set_solver_option("ma57_block_size", 1);
+  //prob.set_solver_option("ma57_small_pivot_flag", 1);
+
+  //prob.set_solver_option("ma57_automatic_scaling", "yes");
+  //prob.set_solver_option("ma57_pivot_order", 4);
+
+  //prob.set_solver_option("ma57_pre_alloc", 1.05); //default 1.05
+  //prob.set_solver_option("ma57_automatic_scaling", "yes");
+
+  //prob.set_solver_option("print_user_options", "yes");
+  //prob.set_solver_option("print_options_documentation", "yes");
 
   //return if it takes too long in phase2
   prob.set_solver_option("max_iter", 250);
@@ -618,7 +630,7 @@ bool MyCode2::_guts_of_solve_contingency(ContingencyProblemWithFixing& prob, int
   prob.set_solver_option("bound_push", 1e-16);
   prob.set_solver_option("slack_bound_push", 1e-16);
 
-  prob.set_solver_option("expect_infeasible_problem_ytol", 1e+15);
+  //prob.set_solver_option("expect_infeasible_problem_ytol", 1e+15);
 
   if(data.N_Bus.size()<=20000) {
 
