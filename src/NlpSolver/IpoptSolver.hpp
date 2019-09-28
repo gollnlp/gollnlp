@@ -306,6 +306,22 @@ public:
       return false;
     }
   }
+
+  virtual int reoptimize() {
+    // Ask Ipopt to solve the problem
+    ApplicationReturnStatus status = app->ReOptimizeTNLP(ipopt_nlp_spec);
+
+    if (status == Ipopt::Solve_Succeeded || status == Ipopt::Solved_To_Acceptable_Level || status == Ipopt::User_Requested_Stop) {
+      //printf("\n\n*** The problem solved!\n");
+      return true;
+    }
+    else {
+      //if(status != Ipopt::User_Requested_Stop)
+      printf("Ipopt resolve FAILED with status %d!!!\n", status);
+      return false;
+    }
+  }
+
   virtual bool set_option(const std::string& name, int value)
   {
     app->Options()->SetIntegerValue(name, value);
