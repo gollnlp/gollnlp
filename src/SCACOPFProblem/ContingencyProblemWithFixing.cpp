@@ -17,6 +17,14 @@
 #include "unistd.h"
 using namespace std;
 
+extern volatile sig_atomic_t g_solve_watch_ma57;
+extern volatile sig_atomic_t g_alarm_duration_ma57;
+extern volatile sig_atomic_t g_max_memory_ma57;
+extern volatile int g_my_rank_ma57;
+extern volatile int g_my_K_idx_ma57;
+
+void set_timer_message_ma57(const char* msg);
+
 #define BE_VERBOSE 1
 
 #ifdef GOLLNLP_FAULT_HANDLING
@@ -25,7 +33,7 @@ static char msg_timer[MSG_MAX_SZ];
 static int sz_msg_timer = 0;
 
 static volatile sig_atomic_t solve_watch=false;
-static volatile sig_atomic_t alarm_duration=10; //seconds
+static volatile sig_atomic_t alarm_duration=15; //seconds
 
 //this is used by the optimiz solver's callback
 volatile sig_atomic_t solve_is_alive=false;
@@ -245,7 +253,7 @@ namespace gollnlp {
 
 #ifdef GOLLNLP_FAULT_HANDLING
     string msg = "[timer] timeout rank=" + std::to_string(my_rank) +" for K_idx=" + std::to_string(K_idx) + " occured!\n";
-    set_timer_message(msg.c_str());
+    set_timer_message_ma57(msg.c_str());
     assert(my_rank>=1);
 
     enable_timer_handling(solve_timer_handler);
@@ -261,13 +269,18 @@ namespace gollnlp {
 
   bool ContingencyProblemWithFixing::do_solve1()
   {
+    g_solve_watch_ma57=true;
+    g_alarm_duration_ma57=3;//seconds
+    g_max_memory_ma57=200;//Mbytes
+    g_my_rank_ma57=my_rank;
+    g_my_K_idx_ma57=K_idx;
 
-    //if((K_idx-1)/10 * 10 == K_idx-1) if(!safe_mode) sleep(std::min(20, K_idx));
-    //if(K_idx==779) if(!safe_mode) {sleep(20000); sleep(20000);}
+    //set_solver_option("print_user_options", "yes");
 
     goTimer tmrec; tmrec.start();
     vector<int> hist_iter, hist_obj;
-    bool bret = true, done = false; bool volatile timed_out=false; int volatile n_solves=0; 
+    bool bret = true, done = false; 
+    int n_solves=0; 
     while(!done) {
 
       double mu_init; bool opt_ok=false;
@@ -278,6 +291,34 @@ namespace gollnlp {
       monitor.timer.restart();
       monitor.hist_tm.clear();
       monitor.user_stopped = false;
+
+       if(n_solves==2) {
+	reallocate_nlp_solver();
+
+	vars_primal->set_start_to(*vars_last);
+
+	set_solver_option("linear_solver", "ma27"); 
+	printf("[warning] ContProbWithFixing K_idx=%d opt1 will use ma27 for try %d\n", K_idx, n_solves+1); 
+      } else {
+	set_solver_option("linear_solver", "ma57"); 
+      }
+
+     if(n_solves==1) {
+	set_solver_option("ma57_pivot_order", 4); //enforce metis
+      } else {
+	set_solver_option("ma57_pivot_order", 5); //automatic
+      }
+
+      if(n_solves>=3) {
+	set_solver_option("ma57_pivot_order", 4); 
+	set_solver_option("ma57_automatic_scaling", "yes");
+      } else {
+	set_solver_option("ma57_automatic_scaling", "no");
+      }
+
+
+      set_solver_option("sb","yes");
+      set_solver_option("print_level", 2);
       set_solver_option("max_iter", 300);
       set_solver_option("acceptable_tol", 1e-3);
       set_solver_option("acceptable_constr_viol_tol", 1e-6);
@@ -292,98 +333,66 @@ namespace gollnlp {
       } else {
 	set_solver_option("mu_init", 1e-4);
       }
-      double relax_factor = std::min(1e-8, pow(10., 2*n_solves-16));
+      double relax_factor = std::min(1e-8, pow(10., 3*n_solves-16));
       set_solver_option("bound_relax_factor", relax_factor);
       if(n_solves>0) 
 	set_solver_option("fixed_variable_treatment", "relax_bounds");
 
-      double bound_push = std::min(1e-2, pow(10., 2*n_solves-12));
+      double bound_push = std::min(1e-2, pow(10., 3*n_solves-12));
       set_solver_option("bound_push", bound_push);
       set_solver_option("slack_bound_push", bound_push);
 
-      double bound_frac = std::min(1e-2, pow(10., 2*n_solves-10));
+      double bound_frac = std::min(1e-2, pow(10., 3*n_solves-10));
       set_solver_option("bound_frac", bound_frac);
       set_solver_option("slack_bound_frac", bound_frac);
 
-      set_solver_option("mu_linear_decrease_factor", 0.5);
-      set_solver_option("mu_superlinear_decrease_power", 1.2);
-
-      if(n_solves>1) 
+      if(n_solves>=1) {
 	set_solver_option("tol", 1e-7);
-
-#ifdef GOLLNLP_FAULT_HANDLING
-      if(data_sc.N_Bus.size()>=35000) alarm_duration=17;
-
-      alarm(alarm_duration);
-      
-      switch(sigsetjmp(jump_env,1)) {
-#else
-      int code=0;
-      switch(code) {
-#endif
-      case 0: //first time going through
-	{
-#ifdef GOLLNLP_FAULT_HANDLING
-	  solve_watch=true;
-#endif
-	  n_solves++;
-	  if(data_sc.N_Bus.size()<8999 && !timed_out) {
-	    //medium and small problems default primal-dual restart
-	    opt_ok = OptProblem::reoptimize(OptProblem::primalDualRestart);
-	  } else {
-	    //primal start only
-#ifdef GOLLNLP_FAULT_HANDLING
-	    if(timed_out)
-	      vars_primal->set_start_to(*vars_last);
-#endif
-	    opt_ok = OptProblem::optimize("ipopt");
-	  }
-	  //printf("[success] ContProbWithFixing K_idx=%d opt1 at try %d\n", K_idx, n_solves); 
-	  hist_iter.push_back(number_of_iterations());
-	  hist_obj.push_back(this->obj_value);
-
-	  if(opt_ok) {
-	    done = true;  timed_out=false;
-	  } else {
-	    if(monitor.user_stopped) {
-	      done = true; timed_out=false;
-	    } else {
-	      //something bad happened, will resolve
-	      printf("[warning] ContProbWithFixing K_idx=%d opt1 failed at try %d\n", K_idx, n_solves); 
-#ifdef GOLLNLP_FAULT_HANDLING
-	      vars_primal->set_start_to(*vars_ini);
-#endif
-	    }
-	  }
-	}
-	break;
-      case 1: //timeout
-	{
-#ifdef GOLLNLP_FAULT_HANDLING
-	  solve_watch=false; //will be reactivated later if applicable
-#endif
-	  timed_out=true;
-	  printf("[warning] ContProbWithFixing K_idx=%d opt1 timed out at try %d after %.2f sec\n", K_idx, n_solves, tmrec.measureElapsedTime());
-	  hist_iter.push_back(0-n_solves);
-	  hist_obj.push_back(-1.0*n_solves);
-	    //opt_ok = OptProblem::optimize("ipopt");
-	}
-	break;
-      default:
-	assert(false);
-	break;
+	set_solver_option("mu_linear_decrease_factor", 0.4);
+	set_solver_option("mu_superlinear_decrease_power", 1.2);
       }
-#ifdef GOLLNLP_FAULT_HANDLING
-      alarm(0);
-#endif
+
+      //  opt_ok = OptProblem::optimize("ipopt");
+      if(n_solves==0) {
+       	//medium and small problems default primal-dual restart
+       	//if(data_sc.N_Bus.size()<9000)	  
+
+	opt_ok = OptProblem::reoptimize(OptProblem::primalDualRestart);
+
+	  //else 
+       	  //opt_ok = OptProblem::reoptimize(OptProblem::primalRestart);	
+      } else {
+       	if(n_solves<=2)
+	  vars_primal->set_start_to(*vars_last);
+       	else 
+       	  vars_primal->set_start_to(*vars_ini);
+
+       	opt_ok = OptProblem::reoptimize(OptProblem::primalRestart);
+      }
+
+      n_solves++;
+
+      hist_iter.push_back(number_of_iterations());
+      hist_obj.push_back(this->obj_value);
+
+      if(opt_ok) {
+	done = true;
+      } else {
+	if(monitor.user_stopped) {
+	  done = true;
+	} else {
+	  //something bad happened, will resolve
+	  printf("[warning] ContProbWithFixing K_idx=%d opt1 failed at try %d\n", K_idx, n_solves); 
+	}
+      }
       
       if(n_solves>9) done = true;
-      if(tmrec.measureElapsedTime()>1200) {
+      if(tmrec.measureElapsedTime()>800) {
 	printf("[warning] ContProbWithFixing K_idx=%d opt1 taking too long; tries %d time %g\n", K_idx, n_solves, tmrec.measureElapsedTime());
 	done = true;
 	bret = false;
       }
-
+      
     } //end of outer while
 #ifdef BE_VERBOSE
     string sit = "["; for(auto iter:  hist_iter) sit += to_string(iter)+'/'; sit[sit.size()-1] = ']';
@@ -409,7 +418,8 @@ namespace gollnlp {
 #endif
 
     vector<int> hist_iter, hist_obj;
-    bool bret = true, done = false; bool volatile timed_out=false; int volatile n_solves=0; 
+    bool bret = true, done = false; 
+    int volatile n_solves=0; 
     while(!done) {
       double mu_init; bool opt_ok=false;
 
@@ -419,11 +429,37 @@ namespace gollnlp {
       monitor.timer.restart();
       monitor.hist_tm.clear();
       monitor.user_stopped = false;
+
+      if(n_solves==2) {
+	reallocate_nlp_solver();
+	
+	vars_primal->set_start_to(*vars_last);
+	
+	set_solver_option("linear_solver", "ma27"); 
+	printf("[warning] ContProbWithFixing K_idx=%d opt1 will use ma27 for try %d\n", K_idx, n_solves+1); 
+      } else {
+	set_solver_option("linear_solver", "ma57"); 
+      }
+
+     if(n_solves==1) {
+	set_solver_option("ma57_pivot_order", 4); //enforce metis
+      } else {
+	set_solver_option("ma57_pivot_order", 5); //automatic
+      }
+
+      if(n_solves>=3) {
+	set_solver_option("ma57_pivot_order", 4); 
+	set_solver_option("ma57_automatic_scaling", "yes");
+      } else {
+	set_solver_option("ma57_automatic_scaling", "no");
+      }
+
       set_solver_option("max_iter", 500);
       set_solver_option("acceptable_tol", 1e-3);
       set_solver_option("acceptable_constr_viol_tol", 1e-6);
       set_solver_option("acceptable_iter", 5);
       
+
       if(data_sc.N_Bus.size()>8999) {
 	if(safe_mode)
 	  monitor.bailout_allowed=true;//! probably not needed when watching timeouts
@@ -435,88 +471,57 @@ namespace gollnlp {
 	set_solver_option("mu_init", 1e-4);
 	//opt_ok = OptProblem::reoptimize(OptProblem::primalDualRestart);
       }
-      double relax_factor = std::min(1e-8, pow(10., 2*n_solves-16));
+      double relax_factor = std::min(1e-8, pow(10., 3*n_solves-16));
       set_solver_option("bound_relax_factor", relax_factor);
       if(n_solves>0) 
 	set_solver_option("fixed_variable_treatment", "relax_bounds");
 
-      double bound_push = std::min(1e-2, pow(10., 2*n_solves-12));
+      double bound_push = std::min(1e-2, pow(10., 3*n_solves-12));
       set_solver_option("bound_push", bound_push);
       set_solver_option("slack_bound_push", bound_push);
 
-      double bound_frac = std::min(1e-2, pow(10., 2*n_solves-10));
+      double bound_frac = std::min(1e-2, pow(10., 3*n_solves-10));
       set_solver_option("bound_frac", bound_frac);
       set_solver_option("slack_bound_frac", bound_frac);
 
       set_solver_option("mu_linear_decrease_factor", 0.5);
       set_solver_option("mu_superlinear_decrease_power", 1.2);
 
-      if(n_solves>1) 
+      if(n_solves>=1) { 
 	set_solver_option("tol", 1e-7);
-
-#ifdef GOLLNLP_FAULT_HANDLING
-      if(data_sc.N_Bus.size()>=35000) alarm_duration=10;
-      alarm(alarm_duration);
-
-      switch(sigsetjmp(jump_env,1)) {
-#else
-      int code=0;
-      switch(code) {
-#endif
-      case 0: //first time going through
-	{
-#ifdef GOLLNLP_FAULT_HANDLING
-	  solve_watch=true;
-#endif
-	  n_solves++;
-	  if(data_sc.N_Bus.size()<=8999 && !timed_out && bFirstSolveOK) {
-	    //medium and small problems default primal-dual restart
-	    opt_ok = OptProblem::reoptimize(OptProblem::primalDualRestart);
-	  } else {
-#ifdef GOLLNLP_FAULT_HANDLING
-	    if(timed_out)
-	      vars_primal->set_start_to(*vars_last);
-#endif
-	    //primal start only
-	    opt_ok = OptProblem::reoptimize(OptProblem::primalRestart);
-	  }
-	  hist_iter.push_back(number_of_iterations());
-	  hist_obj.push_back(this->obj_value);
-
-	  if(opt_ok) {
-	    done = true; timed_out=false;
-	  } else {
-	    if(monitor.user_stopped) {
-	      done = true; timed_out=false;
-	    } else {
-	      //something bad happened, will resolve
-	      printf("[warning] ContProbWithFixing K_idx=%d opt2 failed at try %d\n", K_idx, n_solves); 
-	      vars_primal->set_start_to(*vars_ini);
-	    }
-	  }
-	}
-	break;
-      case 1: //timeout
-	{
-#ifdef GOLLNLP_FAULT_HANDLING
-	  solve_watch=false; //will be reactivated later if applicable
-#endif
-	  timed_out=true;
-	  hist_iter.push_back(0-n_solves);
-	  hist_obj.push_back(-1. * n_solves);
-	  printf("[warning] ContProbWithFixing K_idx=%d opt2 timed out at try %d after %.2f sec\n", K_idx, n_solves, tmrec.measureElapsedTime());
-	  //printf("[warning] ContProbWithFixing K_idx=%d opt2 timed out at try %d\n", K_idx, n_solves); 
-	}
-	break;
-      default:
-	assert(false);
-	break;
+	set_solver_option("mu_linear_decrease_factor", 0.4);
+	set_solver_option("mu_superlinear_decrease_power", 1.2);
       }
-#ifdef GOLLNLP_FAULT_HANDLING
-      alarm(0);
-#endif
+
+      if(bFirstSolveOK) {
+	//medium and small problems default primal-dual restart
+	opt_ok = OptProblem::reoptimize(OptProblem::primalDualRestart);
+      } else {
+	if(n_solves<=2)
+	  vars_primal->set_start_to(*vars_last);
+       	else 
+       	  vars_primal->set_start_to(*vars_ini);
+	
+	opt_ok = OptProblem::reoptimize(OptProblem::primalRestart);
+      }
+
+      n_solves++;
+      hist_iter.push_back(number_of_iterations());
+      hist_obj.push_back(this->obj_value);
+      
+      if(opt_ok) {
+	done = true; 
+      } else {
+	if(monitor.user_stopped) {
+	  done = true; 
+	} else {
+	  //something bad happened, will resolve
+	  printf("[warning] ContProbWithFixing K_idx=%d opt2 failed at try %d\n", K_idx, n_solves); 
+	}
+      }
+
       if(n_solves>9) done = true;
-      if(tmrec.measureElapsedTime()>1200) {
+      if(tmrec.measureElapsedTime()>800) {
 	printf("[warning] ContProbWithFixing K_idx=%d opt2 taking too long; tries %d time %g\n", K_idx, n_solves, tmrec.measureElapsedTime());
 	done = true;
 	bret = false;
