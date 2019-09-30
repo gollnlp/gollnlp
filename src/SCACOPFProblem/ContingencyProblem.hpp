@@ -155,12 +155,13 @@ namespace gollnlp {
 	  return false;	 
 	}
 
-	if(tmavg_over_last>1.5*tmavg && obj_value<10.*monitor.pen_threshold && inf_pr_orig_pr<1e-7 && inf_du <1e-6 && mu<=1e-6) {
-	  monitor.user_stopped=true;
-	  printf("[stop]slo4   K_idx=%d iter %d : obj=%12.5e inf_pr_o=%12.5e mu=%12.5e inf_du=%12.5e a_du=%12.5e a_pr=%12.5e rank=%d\n",
-		 K_idx, iter, obj_value, inf_pr_orig_pr, mu, inf_du,  alpha_du, alpha_pr, my_rank);
-	  return false;	 
-	}
+	//!commented because it was causing false termination
+	//if(tmavg_over_last>1.5*tmavg && obj_value<10.*monitor.pen_threshold && inf_pr_orig_pr<1e-7 && inf_du <1e-6 && mu<=1e-6) {
+	//  monitor.user_stopped=true;
+	//  printf("[stop]slo4   K_idx=%d iter %d : obj=%12.5e inf_pr_o=%12.5e mu=%12.5e inf_du=%12.5e a_du=%12.5e a_pr=%12.5e rank=%d\n",
+	//	 K_idx, iter, obj_value, inf_pr_orig_pr, mu, inf_du,  alpha_du, alpha_pr, my_rank);
+	//  return false;	 
+	//}
 
 	if(true==monitor.bailout_allowed) {
 	  // do not set monitor.user_stopped=true;
