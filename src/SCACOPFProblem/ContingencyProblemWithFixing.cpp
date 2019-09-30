@@ -22,59 +22,55 @@ extern volatile sig_atomic_t g_alarm_duration_ma57;
 extern volatile sig_atomic_t g_max_memory_ma57;
 extern volatile int g_my_rank_ma57;
 extern volatile int g_my_K_idx_ma57;
-
 void set_timer_message_ma57(const char* msg);
+
+extern volatile sig_atomic_t g_solve_watch_ma27;
+extern volatile sig_atomic_t g_alarm_duration_ma27;
+extern volatile sig_atomic_t g_max_memory_ma27;
+extern volatile int g_my_rank_ma27;
+extern volatile int g_my_K_idx_ma27;
+void set_timer_message_ma27(const char* msg);
 
 #define BE_VERBOSE 1
 
-#ifdef GOLLNLP_FAULT_HANDLING
-#define MSG_MAX_SZ 128
-static char msg_timer[MSG_MAX_SZ];
-static int sz_msg_timer = 0;
+// #ifdef GOLLNLP_FAULT_HANDLING
+// #define MSG_MAX_SZ 128
+// static char msg_timer[MSG_MAX_SZ];
+// static int sz_msg_timer = 0;
 
-static volatile sig_atomic_t solve_watch=false;
-static volatile sig_atomic_t alarm_duration=15; //seconds
+// static volatile sig_atomic_t solve_watch=false;
+// static volatile sig_atomic_t alarm_duration=15; //seconds
 
-//this is used by the optimiz solver's callback
-volatile sig_atomic_t solve_is_alive=false;
+// //this is used by the optimiz solver's callback
+// volatile sig_atomic_t solve_is_alive=false;
 
-static sigjmp_buf jump_env;
+// static sigjmp_buf jump_env;
 
-//only use approved/safe functions
-extern "C" void solve_timer_handler(int nsignum)
-{
-  //second parameter for longjmp is the "return code", should be nonzer0
-  // write(2, "timer\n", sizeof "timer\n");
-  // alarm(alarm_duration);
+// //only use approved/safe functions
+// extern "C" void solve_timer_handler(int nsignum)
+// {
+//   if(solve_watch) {
+//     //write(2, "watch\n", 6);
+//     if(!solve_is_alive) {
+//       //write(2, "notalive\n", 9);
+//       write(2, msg_timer, sz_msg_timer);
+//       siglongjmp(jump_env,1);
+//     } else {
+//       //write(2, "alive\n", 6);
+//       solve_is_alive=false;
+//       alarm(alarm_duration);
+//     }
+//   }
+// };
 
-  // if(!solve_is_alive) {
-  //   write(2, "dead\n", sizeof "dead\n");
-  //   siglongjmp(jump_env,1);
-  // }
-  // solve_is_alive=false;
-  //return;
-  if(solve_watch) {
-    //write(2, "watch\n", 6);
-    if(!solve_is_alive) {
-      //write(2, "notalive\n", 9);
-      write(2, msg_timer, sz_msg_timer);
-      siglongjmp(jump_env,1);
-    } else {
-      //write(2, "alive\n", 6);
-      solve_is_alive=false;
-      alarm(alarm_duration);
-    }
-  }
-};
-
-static void set_timer_message(const char* msg)
-{
-  strncpy(msg_timer, msg,  MSG_MAX_SZ-2);
-  msg_timer[MSG_MAX_SZ-2] = '\n';
-  msg_timer[MSG_MAX_SZ-1] = '\0';
-  sz_msg_timer = strlen(msg_timer);
-};
-#endif
+// static void set_timer_message(const char* msg)
+// {
+//   strncpy(msg_timer, msg,  MSG_MAX_SZ-2);
+//   msg_timer[MSG_MAX_SZ-2] = '\n';
+//   msg_timer[MSG_MAX_SZ-1] = '\0';
+//   sz_msg_timer = strlen(msg_timer);
+// };
+// #endif
 
 namespace gollnlp {
 
@@ -92,17 +88,13 @@ namespace gollnlp {
     { 
       pen_threshold=1e+3; 
       obj_solve1 = obj_solve2 = 1e+20; 
-#ifdef GOLLNLP_FAULT_HANDLING
       vars_ini = vars_last = NULL;
-#endif
     };
 
   ContingencyProblemWithFixing::~ContingencyProblemWithFixing()
   {
-#ifdef GOLLNLP_FAULT_HANDLING
     delete vars_ini;
     delete vars_last;
-#endif
   }
 
   
@@ -249,15 +241,16 @@ namespace gollnlp {
 
 
 #ifdef GOLLNLP_FAULT_HANDLING
-    string msg = "[timer] timeout rank=" + std::to_string(my_rank) +" for K_idx=" + std::to_string(K_idx) + " occured!\n";
+    string msg = "[timer] ma57 timeout rank=" + std::to_string(my_rank) +" for K_idx=" + std::to_string(K_idx) + " occured!\n";
     set_timer_message_ma57(msg.c_str());
-    assert(my_rank>=1);
 
-    enable_timer_handling(solve_timer_handler);
+    msg = "[timer] ma27 timeout rank=" + std::to_string(my_rank) +" for K_idx=" + std::to_string(K_idx) + " occured!\n";
+    set_timer_message_ma27(msg.c_str());
+    
+    assert(my_rank>=1);
 
     vars_last = vars_primal->new_copy();
     vars_ini  = vars_primal->new_copy();
-
 #endif
 
     return true;
@@ -266,11 +259,20 @@ namespace gollnlp {
 
   bool ContingencyProblemWithFixing::do_solve1()
   {
+    //! "ma27_ignore_singularity" 
+    //set_solver_option("ma27_meminc_factor", 1.1);
+
     g_solve_watch_ma57=true;
     g_alarm_duration_ma57=6;//seconds
     g_max_memory_ma57=300;//Mbytes
     g_my_rank_ma57=my_rank;
     g_my_K_idx_ma57=K_idx;
+
+    g_solve_watch_ma27=true;
+    g_alarm_duration_ma27=8;//seconds
+    g_max_memory_ma27=400;//Mbytes
+    g_my_rank_ma27=my_rank;
+    g_my_K_idx_ma27=K_idx;
 
     goTimer tmrec; tmrec.start();
     vector<int> hist_iter, hist_obj;
@@ -384,6 +386,8 @@ namespace gollnlp {
 	  const double gamma = 1e-2;
 	  update_regularizations(gamma);
 
+	  g_alarm_duration_ma27=15;//seconds
+	  g_max_memory_ma27=700;//Mbytes
 	}
 	break;
       case 4: 
@@ -435,8 +439,8 @@ namespace gollnlp {
 	  g_max_memory_ma57=600;//Mbytes
 	}
       }
-      set_solver_option("print_user_options", "yes");
-      set_solver_option("print_level", 5);
+      set_solver_option("print_user_options", "no");
+      set_solver_option("print_level", 2);
       set_solver_option("sb","yes");
 
       set_solver_option("max_iter", 300);
@@ -533,6 +537,12 @@ namespace gollnlp {
     g_my_rank_ma57=my_rank;
     g_my_K_idx_ma57=K_idx;
 
+    g_solve_watch_ma27=true;
+    g_alarm_duration_ma27=8;//seconds
+    g_max_memory_ma27=400;//Mbytes
+    g_my_rank_ma27=my_rank;
+    g_my_K_idx_ma27=K_idx;
+
     vector<int> hist_iter, hist_obj;
     bool bret = true, done = false; 
     OptimizationStatus last_opt_status = Solve_Succeeded; //be positive
@@ -540,7 +550,6 @@ namespace gollnlp {
     int n_solves=0; 
     while(!done) {
       bool opt_ok=false; bool PDRestart=true;
-
 
       switch(n_solves) {
       case 0: 
@@ -649,6 +658,9 @@ namespace gollnlp {
 
 	  const double gamma = 1e-2;
 	  update_regularizations(gamma);
+
+	  g_alarm_duration_ma27=15;//seconds
+	  g_max_memory_ma27=700;//Mbytes
 	}
 	break;
       case 4: 
@@ -723,8 +735,8 @@ namespace gollnlp {
 	  g_max_memory_ma57=600;//Mbytes
 	}
       }
-      set_solver_option("print_user_options", "yes");
-      set_solver_option("print_level", 5);
+      set_solver_option("print_user_options", "no");
+      set_solver_option("print_level", 2);
       set_solver_option("sb","yes");
 
       set_solver_option("max_iter", 500);

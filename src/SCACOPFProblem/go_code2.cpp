@@ -107,8 +107,8 @@ int MyCode2::initialize(int argc, char *argv[])
   //K_Cont = {0,1,1936};//{1936, 913, 792};
   //344
   //K_Cont={3222};//, 3223, 3223, 3223, 3223, 3223, 3223, 3223, 3223, 3223, 3223, 3223, 3223, 3223, 3223, 3223, 3223, 3223, 3223, 3223, 3223, 3223, 3223, 3223, 3223, 3223, 3223, 3223, 3223}; 
-  //K_Cont={}; for(int i=0; i<49; i++) K_Cont.push_back(3180+i);
-  K_Cont = {913, 4286};
+  
+  //K_Cont = {913, 4286}; for(int i=0; i<4900; i++) K_Cont.push_back(3180+i);
   for(auto& id : K_Cont) 
     K_Contingency.push_back(Kinfo(id));
 
@@ -583,6 +583,7 @@ bool MyCode2::_guts_of_solve_contingency(ContingencyProblemWithFixing& prob, int
   if(data.N_Bus.size()<10000) pen_threshold = 0.25*data.K_Contingency.size();
   if(data.N_Bus.size()< 6000) pen_threshold = 100.;
 
+  //pen_threshold = 100.;
   prob.pen_threshold = pen_threshold;
 
   if(data.N_Bus.size()>8999) {

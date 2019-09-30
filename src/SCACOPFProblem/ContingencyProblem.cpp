@@ -486,8 +486,6 @@ namespace gollnlp {
 #endif
   }
 
-
-
   void ContingencyProblem::regularize_vn(const double& gamma)
   {
     assert(data_K.size()==1);
@@ -528,7 +526,7 @@ namespace gollnlp {
 
     OptObjectiveTerm* ot = obj->objterm("regul_bs");
     if(NULL==ot) {
-      append_objterm(new QuadrRegularizationObjTerm("regul_vn", variable("b_s", dK),
+      append_objterm(new QuadrRegularizationObjTerm("regul_bs", variable("b_s", dK),
 						    gamma, v_n0->x));
       primal_problem_changed();
     } else {
@@ -544,7 +542,7 @@ namespace gollnlp {
 
     OptObjectiveTerm* ot = obj->objterm("regul_pg");
     if(NULL==ot) {
-      append_objterm(new QuadrRegularizationObjTerm("regul_vn", variable("p_g", dK),
+      append_objterm(new QuadrRegularizationObjTerm("regul_pg", variable("p_g", dK),
 						    gamma, v_n0->x));
       primal_problem_changed();
     } else {
@@ -560,7 +558,7 @@ namespace gollnlp {
 
     OptObjectiveTerm* ot = obj->objterm("regul_qg");
     if(NULL==ot) {
-      append_objterm(new QuadrRegularizationObjTerm("regul_vn", variable("q_g", dK),
+      append_objterm(new QuadrRegularizationObjTerm("regul_qg", variable("q_g", dK),
 						    gamma, v_n0->x));
       primal_problem_changed();
     } else {
