@@ -96,7 +96,7 @@ namespace gollnlp {
 				  const double& inf_du, 
 				  const double& mu, 
 				  const double& alpha_du, const double& alpha_pr,
-				  int ls_trials)
+				  int ls_trials, OptimizationMode mode)
     {
 #ifdef GOLLNLP_FAULT_HANDLING
       solve_is_alive = true;

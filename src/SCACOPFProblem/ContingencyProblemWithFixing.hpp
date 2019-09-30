@@ -107,9 +107,9 @@ namespace gollnlp {
 				  const double& inf_du, 
 				  const double& mu, 
 				  const double& alpha_du, const double& alpha_pr,
-				  int ls_trials)
+				  int ls_trials, OptimizationMode mode)
     {
-      if(primals && vars_last)
+      if(primals && vars_last && mode!=RestorationPhaseMode)
 	vars_last->copy_from(primals);
 
       // if(iter==15) {
@@ -125,7 +125,7 @@ namespace gollnlp {
       // }
 
       return ContingencyProblem::iterate_callback(iter, obj_value, primals, inf_pr, inf_pr_orig_pr, inf_du,
-						  mu, alpha_du, alpha_pr, ls_trials);
+						  mu, alpha_du, alpha_pr, ls_trials, mode);
     }
   protected:
     OptVariables *vars_ini, *vars_last; 

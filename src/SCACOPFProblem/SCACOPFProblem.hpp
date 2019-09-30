@@ -226,7 +226,7 @@ namespace gollnlp {
 				  const double& inf_du, 
 				  const double& mu, 
 				  const double& alpha_du, const double& alpha_pr,
-				  int ls_trials) 
+				  int ls_trials, OptimizationMode mode) 
     {
       return true; 
     }

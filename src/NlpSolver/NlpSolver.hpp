@@ -26,6 +26,8 @@ public:
   // solves the problem and return success (0) or error codes (tbd)
   virtual int optimize() = 0;
   virtual int reoptimize() = 0;
+
+  virtual OptimizationStatus return_code() const = 0;
 protected:
   //reference
   OptProblem* prob;

@@ -516,11 +516,19 @@ void OptProblem::reallocate_nlp_solver()
   if(nlp_solver) {
     nlp_solver->finalize();
     delete nlp_solver;
-    printf("NLP_SOLVER deleted");
     nlp_solver=NULL;
   }
   use_nlp_solver("ipopt");
 }
+
+OptimizationStatus OptProblem::optimization_status() const
+{
+  if(nlp_solver)
+    return nlp_solver->return_code();
+  else 
+    return Invalid_Option;
+}
+
 bool OptProblem::optimize(const std::string& solver_name)
 {
 

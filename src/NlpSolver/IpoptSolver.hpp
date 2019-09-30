@@ -203,7 +203,7 @@ public:
 	  if(NULL == _primals) _primals = new double[prob->get_num_variables()];
 	  tnlp_adapter->ResortX(*ip_data->curr()->x(), _primals);
 	  return prob->iterate_callback(iter, obj_value, _primals, inf_pr, inf_pr_orig_problem, inf_du, mu, 
-					alpha_du, alpha_pr, ls_trials);
+					alpha_du, alpha_pr, ls_trials, mode);
 	  
 	}
       }
@@ -213,7 +213,7 @@ public:
     // algorithm in restoration or some other abnormal Ipopt situation -> primals=NULL
     // Also, passing primals=NULL under most normal/common circumstances since there is no need for them
     return prob->iterate_callback(iter, obj_value, NULL, inf_pr, inf_pr_orig_problem, inf_du, mu, 
-				    alpha_du, alpha_pr, ls_trials);
+				  alpha_du, alpha_pr, ls_trials, mode);
   }
 
   virtual bool get_warm_start_iterate(IteratesVector& warm_start_iterate)
@@ -255,7 +255,7 @@ private:
 
 class IpoptSolver : public NlpSolver {
 public:
-  IpoptSolver(OptProblem* p_) : NlpSolver(p_) {}
+  IpoptSolver(OptProblem* p_) : NlpSolver(p_), app_status(Invalid_Option) {}
   virtual ~IpoptSolver() {}
 
   virtual bool set_start_type(OptProblem::RestartType t)
@@ -275,49 +275,52 @@ public:
     return true;
   }
 
+
   virtual bool initialize() {
 
-    //printf("*******************\n*******************\n Initialize\n");
     app = IpoptApplicationFactory();
     // Intialize the IpoptApplication and process the options
-    ApplicationReturnStatus status = app->Initialize();
-    if (status != Ipopt::Solve_Succeeded) {
+    app_status = app->Initialize();
+    if (app_status != Ipopt::Solve_Succeeded) {
       printf("\n\n*** Error during initialization!\n");
       return false;
     }
-
     ipopt_nlp_spec = new gollnlp::IpoptNlp(prob);
-
     return true;
+  }
+
+  OptimizationStatus return_code() const {
+    return app_status;
   }
 
   virtual int optimize() {
 
     // Ask Ipopt to solve the problem
-    ApplicationReturnStatus status = app->OptimizeTNLP(ipopt_nlp_spec);
+    app_status = app->OptimizeTNLP(ipopt_nlp_spec);
 
-    if (status == Ipopt::Solve_Succeeded || status == Ipopt::Solved_To_Acceptable_Level || status == Ipopt::User_Requested_Stop) {
-      //printf("\n\n*** The problem solved!\n");
+    if (app_status == Ipopt::Solve_Succeeded || 
+	app_status == Ipopt::Solved_To_Acceptable_Level || 
+	app_status == Ipopt::User_Requested_Stop) {
       return true;
     }
     else {
-      //if(status != Ipopt::User_Requested_Stop)
-      printf("Ipopt solve FAILED with status %d!!!\n", status);
+      printf("Ipopt solve FAILED with status %d!!!\n", app_status);
       return false;
     }
   }
 
   virtual int reoptimize() {
     // Ask Ipopt to solve the problem
-    ApplicationReturnStatus status = app->ReOptimizeTNLP(ipopt_nlp_spec);
+    app_status = app->ReOptimizeTNLP(ipopt_nlp_spec);
 
-    if (status == Ipopt::Solve_Succeeded || status == Ipopt::Solved_To_Acceptable_Level || status == Ipopt::User_Requested_Stop) {
-      //printf("\n\n*** The problem solved!\n");
+    if (app_status == Ipopt::Solve_Succeeded || 
+	app_status == Ipopt::Solved_To_Acceptable_Level || 
+	app_status == Ipopt::User_Requested_Stop) {
       return true;
     }
     else {
       //if(status != Ipopt::User_Requested_Stop)
-      printf("Ipopt resolve FAILED with status %d!!!\n", status);
+      printf("Ipopt resolve FAILED with status %d!!!\n", app_status);
       return false;
     }
   }
@@ -341,6 +344,7 @@ public:
 private:
   Ipopt::SmartPtr<Ipopt::IpoptApplication> app;
   Ipopt::SmartPtr<gollnlp::IpoptNlp> ipopt_nlp_spec;
+  OptimizationStatus app_status;
 };
 
 
