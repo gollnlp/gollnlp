@@ -270,107 +270,196 @@ namespace gollnlp {
   bool ContingencyProblemWithFixing::do_solve1()
   {
     g_solve_watch_ma57=true;
-    g_alarm_duration_ma57=3;//seconds
-    g_max_memory_ma57=200;//Mbytes
+    g_alarm_duration_ma57=6;//seconds
+    g_max_memory_ma57=300;//Mbytes
     g_my_rank_ma57=my_rank;
     g_my_K_idx_ma57=K_idx;
-
-    //set_solver_option("print_user_options", "yes");
 
     goTimer tmrec; tmrec.start();
     vector<int> hist_iter, hist_obj;
     bool bret = true, done = false; 
+    OptimizationStatus last_opt_status = Solve_Succeeded; //be positive
+    bool solve1_safe_mode=safe_mode;
     int n_solves=0; 
     while(!done) {
 
-      double mu_init; bool opt_ok=false;
+      bool opt_ok=false; bool PDRestart=true;
 
-      if(n_solves>2) safe_mode = true;
+      switch(n_solves) {
+      case 0: 
+	{ 
+	  PDRestart=true;
+	  //set_solver_option("mu_target", 1e-9);
+	  set_solver_option("mu_init", 1e-4);
+	  set_solver_option("tol", 1e-8);
+	  set_solver_option("linear_solver", "ma57"); 
+	  set_solver_option("linear_system_scaling", "mc19");
+	  set_solver_option("linear_scaling_on_demand", "yes");
+	}
+	break;
+      case 1: 
+	{
+	  PDRestart=false;
+	  set_solver_option("mu_target", 1e-8);
+	  if(last_opt_status!=User_Requested_Stop && 
+	     last_opt_status!=Unrecoverable_Exception && 
+	     last_opt_status!=Maximum_Iterations_Exceeded) {
+	    assert(last_opt_status!=Solve_Succeeded && last_opt_status!=Solved_To_Acceptable_Level);
+	    //restauration or something bad happened
+	    vars_primal->set_start_to(*vars_ini);
+	    set_solver_option("mu_init", 1.);
+	  } else {
+	    //we do a primal restart only since restarting duals didn't work (and tends to pose issues)
+	    vars_primal->set_start_to(*vars_last);
+	    set_solver_option("mu_init", 1e-4);
+	  }
 
-      monitor.safe_mode=safe_mode; 
-      monitor.timer.restart();
-      monitor.hist_tm.clear();
-      monitor.user_stopped = false;
+	  set_solver_option("ma57_small_pivot_flag", 1);
 
-       if(n_solves==2) {
-	reallocate_nlp_solver();
+	  set_solver_option("tol", 1e-7);
+	  set_solver_option("mu_linear_decrease_factor", 0.4);
+	  set_solver_option("mu_superlinear_decrease_power", 1.2);
 
-	vars_primal->set_start_to(*vars_last);
+	  g_alarm_duration_ma57=10;//seconds
+	  g_max_memory_ma57=500;//Mbytes
 
-	set_solver_option("linear_solver", "ma27"); 
-	printf("[warning] ContProbWithFixing K_idx=%d opt1 will use ma27 for try %d\n", K_idx, n_solves+1); 
-      } else {
-	set_solver_option("linear_solver", "ma57"); 
+	}
+	break;
+      case 2: //MA27
+	{
+	  PDRestart=false;
+	  reallocate_nlp_solver();
+	  printf("[warning] ContProbWithFixing K_idx=%d opt1 will switch to ma27 at try %d rank=%d\n", 
+		 K_idx, n_solves+1, my_rank); 
+	  set_solver_option("linear_solver", "ma27"); 
+
+	  if(last_opt_status!=User_Requested_Stop && last_opt_status!=Unrecoverable_Exception &&
+	     last_opt_status!=Maximum_Iterations_Exceeded) {
+	    assert(last_opt_status!=Solve_Succeeded && last_opt_status!=Solved_To_Acceptable_Level);
+	    //restauration or something bad happened
+	    vars_primal->set_start_to(*vars_ini);
+	  } else {
+	    //we do a primal restart only since restarting duals didn't work (and tends to pose issues)
+	    vars_primal->set_start_to(*vars_last);
+	  }
+
+	  set_solver_option("mu_init", 1e-4); 
+	  set_solver_option("mu_target", 1e-8);
+
+	  set_solver_option("linear_system_scaling", "mc19");
+	  set_solver_option("linear_scaling_on_demand", "yes");
+
+	  set_solver_option("tol", 1e-7);
+	  set_solver_option("mu_linear_decrease_factor", 0.4);
+	  set_solver_option("mu_superlinear_decrease_power", 1.2);
+	}
+	break;
+      case 3: //MA27
+	{
+	  PDRestart=false;
+	  solve1_safe_mode=true;
+	  if(last_opt_status!=User_Requested_Stop && last_opt_status!=Unrecoverable_Exception &&
+	     last_opt_status!=Maximum_Iterations_Exceeded) {
+	    assert(last_opt_status!=Solve_Succeeded && last_opt_status!=Solved_To_Acceptable_Level);
+	    //restauration or something bad happened
+	    vars_primal->set_start_to(*vars_ini);
+	    set_solver_option("mu_init", 1.);
+	  } else {
+	    //we do a primal restart only since restarting duals didn't work (and tends to pose issues)
+	    vars_primal->set_start_to(*vars_last);
+	    set_solver_option("mu_init", 1e-4);
+	  }
+	  set_solver_option("mu_target", 1e-8);
+	  set_solver_option("tol", 1e-7);
+	  set_solver_option("mu_linear_decrease_factor", 0.4);
+	  set_solver_option("mu_superlinear_decrease_power", 1.2);
+	}
+	break;
+      case 4: 
+	{
+	  PDRestart=false;
+	  solve1_safe_mode=true;
+	  reallocate_nlp_solver();
+
+	  vars_primal->set_start_to(*vars_ini);
+	  set_solver_option("mu_init", 1.);
+	  set_solver_option("mu_target", 1e-8);
+
+	  printf("[warning] ContProbWithFixing K_idx=%d opt1 will switch to ma57 at try %d rank=%d\n", 
+		 K_idx, n_solves+1, my_rank); 
+	  set_solver_option("linear_solver", "ma57"); 
+	  set_solver_option("ma57_automatic_scaling", "yes");
+	  set_solver_option("ma57_small_pivot_flag", 1);
+
+	  set_solver_option("linear_system_scaling", "mc19");
+	  set_solver_option("linear_scaling_on_demand", "yes");
+
+	  set_solver_option("tol", 1e-7);
+	  set_solver_option("mu_linear_decrease_factor", 0.4);
+	  set_solver_option("mu_superlinear_decrease_power", 1.2);
+
+	  g_alarm_duration_ma57=12;//seconds
+	  g_max_memory_ma57=600;//Mbytes
+	}
+	break;
+      default:
+	{
+	  PDRestart=false;
+	  solve1_safe_mode=true;
+	  set_solver_option("mu_init", 1.);
+	  set_solver_option("mu_target", 1e-8);
+	  set_solver_option("linear_solver", "ma57"); 
+	  set_solver_option("ma57_automatic_scaling", "yes");
+	  set_solver_option("tol", 1e-6);
+	  set_solver_option("mu_linear_decrease_factor", 0.4);
+	  set_solver_option("mu_superlinear_decrease_power", 1.2);
+	  g_alarm_duration_ma57=12;//seconds
+	  g_max_memory_ma57=600;//Mbytes
+	}
       }
-
-     if(n_solves==1) {
-	set_solver_option("ma57_pivot_order", 4); //enforce metis
-      } else {
-	set_solver_option("ma57_pivot_order", 5); //automatic
-      }
-
-      if(n_solves>=3) {
-	set_solver_option("ma57_pivot_order", 4); 
-	set_solver_option("ma57_automatic_scaling", "yes");
-      } else {
-	set_solver_option("ma57_automatic_scaling", "no");
-      }
-
-
+      set_solver_option("print_user_options", "yes");
+      set_solver_option("print_level", 5);
       set_solver_option("sb","yes");
-      set_solver_option("print_level", 2);
+
       set_solver_option("max_iter", 300);
       set_solver_option("acceptable_tol", 1e-3);
       set_solver_option("acceptable_constr_viol_tol", 1e-6);
       set_solver_option("acceptable_iter", 5);
-      
-      if(data_sc.N_Bus.size()>8999) {
-	if(safe_mode)
-	  monitor.bailout_allowed=true;//! probably not needed when watching timeouts
-	else 
-	  monitor.bailout_allowed=false;
-	set_solver_option("mu_init", 1e-1);
-      } else {
-	set_solver_option("mu_init", 1e-4);
-      }
+
+      set_solver_option("fixed_variable_treatment", "relax_bounds");
+      set_solver_option("honor_original_bounds", "yes");
       double relax_factor = std::min(1e-8, pow(10., 3*n_solves-16));
       set_solver_option("bound_relax_factor", relax_factor);
-      if(n_solves>0) 
-	set_solver_option("fixed_variable_treatment", "relax_bounds");
-
       double bound_push = std::min(1e-2, pow(10., 3*n_solves-12));
       set_solver_option("bound_push", bound_push);
-      set_solver_option("slack_bound_push", bound_push);
-
+      set_solver_option("slack_bound_push", bound_push); 
       double bound_frac = std::min(1e-2, pow(10., 3*n_solves-10));
       set_solver_option("bound_frac", bound_frac);
       set_solver_option("slack_bound_frac", bound_frac);
+      
+      set_solver_option("neg_curv_test_reg", "no"); //default yes ->ChiangZavala primal regularization
 
-      if(n_solves>=1) {
-	set_solver_option("tol", 1e-7);
-	set_solver_option("mu_linear_decrease_factor", 0.4);
-	set_solver_option("mu_superlinear_decrease_power", 1.2);
+
+      monitor.safe_mode=solve1_safe_mode; 
+      monitor.timer.restart();
+      monitor.hist_tm.clear();
+      monitor.user_stopped = false;
+      
+      if(data_sc.N_Bus.size()>8999) {
+	if(solve1_safe_mode)
+	  monitor.bailout_allowed=true;//! probably not needed when watching timeouts
+	else 
+	  monitor.bailout_allowed=false;
       }
 
-      //  opt_ok = OptProblem::optimize("ipopt");
-      if(n_solves==0) {
-       	//medium and small problems default primal-dual restart
-       	//if(data_sc.N_Bus.size()<9000)	  
-
+      if(PDRestart) {
 	opt_ok = OptProblem::reoptimize(OptProblem::primalDualRestart);
-
-	  //else 
-       	  //opt_ok = OptProblem::reoptimize(OptProblem::primalRestart);	
       } else {
-       	if(n_solves<=2)
-	  vars_primal->set_start_to(*vars_last);
-       	else 
-       	  vars_primal->set_start_to(*vars_ini);
-
-       	opt_ok = OptProblem::reoptimize(OptProblem::primalRestart);
+	opt_ok = OptProblem::reoptimize(OptProblem::primalRestart);
       }
 
       n_solves++;
+      last_opt_status = OptProblem::optimization_status();
 
       hist_iter.push_back(number_of_iterations());
       hist_obj.push_back(this->obj_value);
@@ -379,16 +468,19 @@ namespace gollnlp {
 	done = true;
       } else {
 	if(monitor.user_stopped) {
+	  assert(last_opt_status == User_Requested_Stop);
 	  done = true;
 	} else {
 	  //something bad happened, will resolve
-	  printf("[warning] ContProbWithFixing K_idx=%d opt1 failed at try %d\n", K_idx, n_solves); 
+	  printf("[warning] ContProbWithFixing K_idx=%d opt1 failed at try %d rank=%d time %g\n", 
+		 K_idx, n_solves, my_rank, tmrec.measureElapsedTime()); 
 	}
       }
       
       if(n_solves>9) done = true;
       if(tmrec.measureElapsedTime()>800) {
-	printf("[warning] ContProbWithFixing K_idx=%d opt1 taking too long; tries %d time %g\n", K_idx, n_solves, tmrec.measureElapsedTime());
+	printf("[warning] ContProbWithFixing K_idx=%d opt1 taking too long on rank=%d; tries %d time %g\n", 
+	       K_idx, my_rank, n_solves, tmrec.measureElapsedTime());
 	done = true;
 	bret = false;
       }
@@ -417,95 +509,225 @@ namespace gollnlp {
       vars_ini->set_start_to(*vars_primal);
 #endif
 
+    g_solve_watch_ma57=true;
+    g_alarm_duration_ma57=6;//seconds
+    g_max_memory_ma57=300;//Mbytes
+    g_my_rank_ma57=my_rank;
+    g_my_K_idx_ma57=K_idx;
+
     vector<int> hist_iter, hist_obj;
     bool bret = true, done = false; 
-    int volatile n_solves=0; 
+    OptimizationStatus last_opt_status = Solve_Succeeded; //be positive
+    bool solve2_safe_mode=safe_mode;
+    int n_solves=0; 
     while(!done) {
-      double mu_init; bool opt_ok=false;
+      bool opt_ok=false; bool PDRestart=true;
 
-      if(n_solves>2) safe_mode = true;
 
-      monitor.safe_mode=safe_mode; 
-      monitor.timer.restart();
-      monitor.hist_tm.clear();
-      monitor.user_stopped = false;
+      switch(n_solves) {
+      case 0: 
+	{ 
+	  if(bFirstSolveOK) {
+	    PDRestart=true;
+	    //set_solver_option("mu_target", 1e-9);
+	    set_solver_option("mu_init", 1e-4);
+	  } else {
+	    PDRestart=false;
+	    set_solver_option("mu_init", 1e-1);
+	  }
+	  set_solver_option("tol", 1e-8);
+	  set_solver_option("linear_solver", "ma57"); 
+	  set_solver_option("linear_system_scaling", "mc19");
+	  set_solver_option("linear_scaling_on_demand", "yes");
+	}
+	break;
+      case 1: 
+	{	  
+	  set_solver_option("mu_target", 1e-8);
+	  if(last_opt_status!=User_Requested_Stop && last_opt_status!=Unrecoverable_Exception &&
+	     last_opt_status!=Maximum_Iterations_Exceeded) {
+	    assert(last_opt_status!=Solve_Succeeded && last_opt_status!=Solved_To_Acceptable_Level);
+	    //restauration or something bad happened
+	    vars_primal->set_start_to(*vars_ini);
+	    set_solver_option("mu_init", 1.);
+	    PDRestart=false;
+	  } else {
+	    //we do a primal restart only since restarting duals didn't work (and tends to pose issues)
+	    vars_primal->set_start_to(*vars_last);
+	    set_solver_option("mu_init", 1e-4);
+	    PDRestart=true;
+	  }
 
-      if(n_solves==2) {
-	reallocate_nlp_solver();
-	
-	vars_primal->set_start_to(*vars_last);
-	
-	set_solver_option("linear_solver", "ma27"); 
-	printf("[warning] ContProbWithFixing K_idx=%d opt1 will use ma27 for try %d\n", K_idx, n_solves+1); 
-      } else {
-	set_solver_option("linear_solver", "ma57"); 
+	  set_solver_option("ma57_small_pivot_flag", 1);
+
+	  set_solver_option("tol", 1e-7);
+	  set_solver_option("mu_linear_decrease_factor", 0.4);
+	  set_solver_option("mu_superlinear_decrease_power", 1.2);
+
+	  g_alarm_duration_ma57=10;//seconds
+	  g_max_memory_ma57=500;//Mbytes
+
+	}
+	break;
+      case 2: //MA27
+	{
+	  PDRestart=false;
+	  reallocate_nlp_solver();
+	  printf("[warning] ContProbWithFixing K_idx=%d opt2 will switch to ma27 at try %d rank=%d\n", 
+		 K_idx, n_solves+1, my_rank); 
+	  set_solver_option("linear_solver", "ma27"); 
+
+	  if(last_opt_status!=User_Requested_Stop && last_opt_status!=Unrecoverable_Exception &&
+	    last_opt_status!=Maximum_Iterations_Exceeded) {
+	    assert(last_opt_status!=Solve_Succeeded && last_opt_status!=Solved_To_Acceptable_Level);
+	    //restauration or something bad happened
+	    vars_primal->set_start_to(*vars_ini);
+	  } else {
+	    //we do a primal restart only since restarting duals didn't work (and tends to pose issues)
+	    vars_primal->set_start_to(*vars_last);
+	  }
+
+	  set_solver_option("mu_init", 1e-4); 
+	  set_solver_option("mu_target", 1e-8);
+
+	  set_solver_option("linear_system_scaling", "mc19");
+	  set_solver_option("linear_scaling_on_demand", "yes");
+
+	  set_solver_option("tol", 1e-7);
+	  set_solver_option("mu_linear_decrease_factor", 0.4);
+	  set_solver_option("mu_superlinear_decrease_power", 1.2);
+	}
+	break;
+      case 3: //MA27
+	{	  
+	  solve2_safe_mode=true;
+	  if(last_opt_status!=User_Requested_Stop && last_opt_status!=Unrecoverable_Exception &&
+	    last_opt_status!=Maximum_Iterations_Exceeded) {
+	    assert(last_opt_status!=Solve_Succeeded && last_opt_status!=Solved_To_Acceptable_Level);
+	    //restauration or something bad happened
+	    vars_primal->set_start_to(*vars_ini);
+	    set_solver_option("mu_init", 1.);
+	    PDRestart=false;
+	  } else {
+	    //we do a primal restart only since restarting duals didn't work (and tends to pose issues)
+	    vars_primal->set_start_to(*vars_last);
+	    set_solver_option("mu_init", 1e-4);
+	    PDRestart=true;
+	  }
+	  set_solver_option("mu_target", 1e-8);
+	  set_solver_option("tol", 1e-7);
+	  set_solver_option("mu_linear_decrease_factor", 0.4);
+	  set_solver_option("mu_superlinear_decrease_power", 1.2);
+	}
+	break;
+      case 4: 
+	{
+	  PDRestart=false;
+	  solve2_safe_mode=true;
+	  reallocate_nlp_solver();
+
+	  if(last_opt_status!=User_Requested_Stop && last_opt_status!=Unrecoverable_Exception &&
+	    last_opt_status!=Maximum_Iterations_Exceeded) {
+	    assert(last_opt_status!=Solve_Succeeded && last_opt_status!=Solved_To_Acceptable_Level);
+	    //restauration or something bad happened
+	    vars_primal->set_start_to(*vars_ini);
+	    set_solver_option("mu_init", 1.);
+	  } else {
+	    //we do a primal restart only since restarting duals didn't work (and tends to pose issues)
+	    vars_primal->set_start_to(*vars_last);
+	    set_solver_option("mu_init", 1e-3);
+	  }
+
+	  set_solver_option("mu_target", 1e-8);
+
+	  printf("[warning] ContProbWithFixing K_idx=%d opt2 will switch to ma57 at try %d rank=%d\n", 
+		 K_idx, n_solves+1, my_rank); 
+	  set_solver_option("linear_solver", "ma57"); 
+	  set_solver_option("ma57_automatic_scaling", "yes");
+	  set_solver_option("ma57_small_pivot_flag", 1);
+
+	  set_solver_option("linear_system_scaling", "mc19");
+	  set_solver_option("linear_scaling_on_demand", "yes");
+
+	  set_solver_option("tol", 1e-7);
+	  set_solver_option("mu_linear_decrease_factor", 0.4);
+	  set_solver_option("mu_superlinear_decrease_power", 1.2);
+
+	  g_alarm_duration_ma57=12;//seconds
+	  g_max_memory_ma57=600;//Mbytes
+	}
+	break;
+      default:
+	{
+	  PDRestart=false;
+	  solve2_safe_mode=true;
+
+	  if(last_opt_status!=User_Requested_Stop && last_opt_status!=Unrecoverable_Exception &&
+	     last_opt_status!=Maximum_Iterations_Exceeded) {
+	    assert(last_opt_status!=Solve_Succeeded && last_opt_status!=Solved_To_Acceptable_Level);
+	    //restauration or something bad happened
+	    vars_primal->set_start_to(*vars_ini);
+	    set_solver_option("mu_init", 1.);
+	  } else {
+	    //we do a primal restart only since restarting duals didn't work (and tends to pose issues)
+	    vars_primal->set_start_to(*vars_last);
+	    set_solver_option("mu_init", 1e-3);
+	  }
+	  
+	  set_solver_option("mu_target", 1e-8);
+	  set_solver_option("linear_solver", "ma57"); 
+	  set_solver_option("ma57_automatic_scaling", "yes");
+	  set_solver_option("tol", 1e-6);
+	  set_solver_option("mu_linear_decrease_factor", 0.4);
+	  set_solver_option("mu_superlinear_decrease_power", 1.2);
+	  g_alarm_duration_ma57=12;//seconds
+	  g_max_memory_ma57=600;//Mbytes
+	}
       }
-
-     if(n_solves==1) {
-	set_solver_option("ma57_pivot_order", 4); //enforce metis
-      } else {
-	set_solver_option("ma57_pivot_order", 5); //automatic
-      }
-
-      if(n_solves>=3) {
-	set_solver_option("ma57_pivot_order", 4); 
-	set_solver_option("ma57_automatic_scaling", "yes");
-      } else {
-	set_solver_option("ma57_automatic_scaling", "no");
-      }
+      set_solver_option("print_user_options", "yes");
+      set_solver_option("print_level", 5);
+      set_solver_option("sb","yes");
 
       set_solver_option("max_iter", 500);
       set_solver_option("acceptable_tol", 1e-3);
       set_solver_option("acceptable_constr_viol_tol", 1e-6);
-      set_solver_option("acceptable_iter", 5);
-      
+      set_solver_option("acceptable_iter", 4);
 
-      if(data_sc.N_Bus.size()>8999) {
-	if(safe_mode)
-	  monitor.bailout_allowed=true;//! probably not needed when watching timeouts
-	else 
-	  monitor.bailout_allowed=false;
-	set_solver_option("mu_init", 1e-1);
-	//opt_ok = OptProblem::optimize("ipopt");
-      } else {
-	set_solver_option("mu_init", 1e-4);
-	//opt_ok = OptProblem::reoptimize(OptProblem::primalDualRestart);
-      }
+      set_solver_option("fixed_variable_treatment", "relax_bounds");
+      set_solver_option("honor_original_bounds", "yes");
       double relax_factor = std::min(1e-8, pow(10., 3*n_solves-16));
       set_solver_option("bound_relax_factor", relax_factor);
-      if(n_solves>0) 
-	set_solver_option("fixed_variable_treatment", "relax_bounds");
-
       double bound_push = std::min(1e-2, pow(10., 3*n_solves-12));
       set_solver_option("bound_push", bound_push);
-      set_solver_option("slack_bound_push", bound_push);
-
+      set_solver_option("slack_bound_push", bound_push); 
       double bound_frac = std::min(1e-2, pow(10., 3*n_solves-10));
       set_solver_option("bound_frac", bound_frac);
       set_solver_option("slack_bound_frac", bound_frac);
+      
+      set_solver_option("neg_curv_test_reg", "no"); //default yes ->ChiangZavala primal regularization
 
-      set_solver_option("mu_linear_decrease_factor", 0.5);
-      set_solver_option("mu_superlinear_decrease_power", 1.2);
 
-      if(n_solves>=1) { 
-	set_solver_option("tol", 1e-7);
-	set_solver_option("mu_linear_decrease_factor", 0.4);
-	set_solver_option("mu_superlinear_decrease_power", 1.2);
+      monitor.safe_mode=solve2_safe_mode; 
+      monitor.timer.restart();
+      monitor.hist_tm.clear();
+      monitor.user_stopped = false;
+      
+      if(data_sc.N_Bus.size()>8999) {
+	if(solve2_safe_mode)
+	  monitor.bailout_allowed=true;//! probably not needed when watching timeouts
+	else 
+	  monitor.bailout_allowed=false;
       }
 
-      if(bFirstSolveOK) {
-	//medium and small problems default primal-dual restart
+      if(PDRestart) {
 	opt_ok = OptProblem::reoptimize(OptProblem::primalDualRestart);
       } else {
-	if(n_solves<=2)
-	  vars_primal->set_start_to(*vars_last);
-       	else 
-       	  vars_primal->set_start_to(*vars_ini);
-	
 	opt_ok = OptProblem::reoptimize(OptProblem::primalRestart);
       }
 
       n_solves++;
+      last_opt_status = OptProblem::optimization_status();
+
       hist_iter.push_back(number_of_iterations());
       hist_obj.push_back(this->obj_value);
       
@@ -513,16 +735,19 @@ namespace gollnlp {
 	done = true; 
       } else {
 	if(monitor.user_stopped) {
+	  assert(last_opt_status == User_Requested_Stop);
 	  done = true; 
 	} else {
 	  //something bad happened, will resolve
-	  printf("[warning] ContProbWithFixing K_idx=%d opt2 failed at try %d\n", K_idx, n_solves); 
+	  printf("[warning] ContProbWithFixing K_idx=%d opt2 failed at try %d rank=%d time %g\n", 
+		 K_idx, n_solves, my_rank, tmrec.measureElapsedTime()); 
 	}
       }
 
       if(n_solves>9) done = true;
       if(tmrec.measureElapsedTime()>800) {
-	printf("[warning] ContProbWithFixing K_idx=%d opt2 taking too long; tries %d time %g\n", K_idx, n_solves, tmrec.measureElapsedTime());
+	printf("[warning] ContProbWithFixing K_idx=%d opt2 taking too long on rank=%d; tries %d time %g\n", 
+	       K_idx, my_rank, n_solves, tmrec.measureElapsedTime());
 	done = true;
 	bret = false;
       }
@@ -1300,6 +1525,294 @@ namespace gollnlp {
 
     return true;
   }
+
+//   bool ContingencyProblemWithFixing::do_solve1_old()
+//   {
+//     g_solve_watch_ma57=true;
+//     g_alarm_duration_ma57=3;//seconds
+//     g_max_memory_ma57=200;//Mbytes
+//     g_my_rank_ma57=my_rank;
+//     g_my_K_idx_ma57=K_idx;
+
+
+
+//     goTimer tmrec; tmrec.start();
+//     vector<int> hist_iter, hist_obj;
+//     bool bret = true, done = false; 
+//     int n_solves=0; 
+//     while(!done) {
+
+//       double mu_init; bool opt_ok=false;
+
+//       if(n_solves>2) safe_mode = true;
+
+//       monitor.safe_mode=safe_mode; 
+//       monitor.timer.restart();
+//       monitor.hist_tm.clear();
+//       monitor.user_stopped = false;
+
+//        if(n_solves==2) {
+// 	reallocate_nlp_solver();
+
+// 	vars_primal->set_start_to(*vars_last);
+
+// 	set_solver_option("linear_solver", "ma27"); 
+// 	printf("[warning] ContProbWithFixing K_idx=%d opt1 will use ma27 for try %d\n", K_idx, n_solves+1); 
+//       } else {
+// 	set_solver_option("linear_solver", "ma57"); 
+//       }
+
+//      if(n_solves==1) {
+// 	set_solver_option("ma57_pivot_order", 4); //enforce metis
+//       } else {
+// 	set_solver_option("ma57_pivot_order", 5); //automatic
+//       }
+
+//       if(n_solves>=3) {
+// 	set_solver_option("ma57_pivot_order", 4); 
+// 	set_solver_option("ma57_automatic_scaling", "yes");
+//       } else {
+// 	set_solver_option("ma57_automatic_scaling", "no");
+//       }
+
+//       set_solver_option("print_user_options", "yes");
+
+//       set_solver_option("sb","yes");
+//       set_solver_option("print_level", 5);
+//       set_solver_option("max_iter", 300);
+//       set_solver_option("acceptable_tol", 1e-3);
+//       set_solver_option("acceptable_constr_viol_tol", 1e-6);
+//       set_solver_option("acceptable_iter", 5);
+      
+
+//       set_solver_option("neg_curv_test_reg", "yes"); //default yes ->ChiangZavala primal regularization
+//       set_solver_option("linear_system_scaling", "mc19");
+//       set_solver_option("linear_scaling_on_demand", "yes");
+
+//       if(data_sc.N_Bus.size()>8999) {
+// 	if(safe_mode)
+// 	  monitor.bailout_allowed=true;//! probably not needed when watching timeouts
+// 	else 
+// 	  monitor.bailout_allowed=false;
+// 	set_solver_option("mu_init", 1e-1);
+//       } else {
+// 	set_solver_option("mu_init", 1e-4);
+//       }
+
+//       //if(n_solves>0) 
+// 	set_solver_option("fixed_variable_treatment", "relax_bounds");
+//       double relax_factor = std::min(1e-8, pow(10., 3*n_solves-16));
+//       set_solver_option("bound_relax_factor", relax_factor);
+ 
+
+//       double bound_push = std::min(1e-2, pow(10., 3*n_solves-12));
+//       set_solver_option("bound_push", bound_push);
+//       set_solver_option("slack_bound_push", bound_push);
+
+//       double bound_frac = std::min(1e-2, pow(10., 3*n_solves-10));
+//       set_solver_option("bound_frac", bound_frac);
+//       set_solver_option("slack_bound_frac", bound_frac);
+
+//       if(n_solves>=1) {
+// 	set_solver_option("tol", 1e-7);
+// 	set_solver_option("mu_linear_decrease_factor", 0.4);
+// 	set_solver_option("mu_superlinear_decrease_power", 1.2);
+//       }
+
+//       //  opt_ok = OptProblem::optimize("ipopt");
+//       if(n_solves==0) {
+//        	//medium and small problems default primal-dual restart
+//        	//if(data_sc.N_Bus.size()<9000)	  
+
+// 	opt_ok = OptProblem::reoptimize(OptProblem::primalDualRestart);
+
+// 	  //else 
+//        	  //opt_ok = OptProblem::reoptimize(OptProblem::primalRestart);	
+//       } else {
+//        	if(n_solves<=2)
+// 	  vars_primal->set_start_to(*vars_last);
+//        	else 
+//        	  vars_primal->set_start_to(*vars_ini);
+
+//        	opt_ok = OptProblem::reoptimize(OptProblem::primalRestart);
+//       }
+
+//       n_solves++;
+
+//       hist_iter.push_back(number_of_iterations());
+//       hist_obj.push_back(this->obj_value);
+
+//       if(opt_ok) {
+// 	done = true;
+//       } else {
+// 	if(monitor.user_stopped) {
+// 	  done = true;
+// 	} else {
+// 	  //something bad happened, will resolve
+// 	  printf("[warning] ContProbWithFixing K_idx=%d opt1 failed at try %d rank=%d time %g\n", 
+// 		 K_idx, n_solves, my_rank, tmrec.measureElapsedTime()); 
+// 	}
+//       }
+      
+//       if(n_solves>9) done = true;
+//       if(tmrec.measureElapsedTime()>800) {
+// 	printf("[warning] ContProbWithFixing K_idx=%d opt1 taking too long on rank=%d; tries %d time %g\n", 
+// 	       K_idx, my_rank, n_solves, tmrec.measureElapsedTime());
+// 	done = true;
+// 	bret = false;
+//       }
+      
+//     } //end of outer while
+// #ifdef BE_VERBOSE
+//     string sit = "["; for(auto iter:  hist_iter) sit += to_string(iter)+'/'; sit[sit.size()-1] = ']';
+//     string sobj="["; for(auto obj: hist_obj) sobj += to_string(obj)+'/'; sobj[sobj.size()-1]=']';
+//     printf("ContProbWithFixing K_idx=%d opt1 took %g sec - iters %s objs %s tries %d on rank=%d\n", 
+// 	   K_idx, tmrec.measureElapsedTime(), sit.c_str(), sobj.c_str(), n_solves, my_rank);
+//     fflush(stdout);
+// #endif
+//     get_solution_simplicial_vectorized(sln_solve1);
+//     obj_solve1 = this->obj_value;
+//     return bret;
+//   }
+//   //
+//   // solve2
+//   //
+//   bool ContingencyProblemWithFixing::do_solve2_old(bool bFirstSolveOK)
+//   {
+//     goTimer tmrec; tmrec.start();
+
+// #ifdef GOLLNLP_FAULT_HANDLING
+//     if(bFirstSolveOK)
+//       vars_ini->set_start_to(*vars_primal);
+// #endif
+
+//     vector<int> hist_iter, hist_obj;
+//     bool bret = true, done = false; 
+//     int volatile n_solves=0; 
+//     while(!done) {
+//       double mu_init; bool opt_ok=false;
+
+//       if(n_solves>2) safe_mode = true;
+
+//       monitor.safe_mode=safe_mode; 
+//       monitor.timer.restart();
+//       monitor.hist_tm.clear();
+//       monitor.user_stopped = false;
+
+//       if(n_solves==2) {
+// 	reallocate_nlp_solver();
+	
+// 	vars_primal->set_start_to(*vars_last);
+	
+// 	set_solver_option("linear_solver", "ma27"); 
+// 	printf("[warning] ContProbWithFixing K_idx=%d opt1 will use ma27 for try %d\n", K_idx, n_solves+1); 
+//       } else {
+// 	set_solver_option("linear_solver", "ma57"); 
+//       }
+
+//      if(n_solves==1) {
+// 	set_solver_option("ma57_pivot_order", 4); //enforce metis
+//       } else {
+// 	set_solver_option("ma57_pivot_order", 5); //automatic
+//       }
+
+//       if(n_solves>=3) {
+// 	set_solver_option("ma57_pivot_order", 4); 
+// 	set_solver_option("ma57_automatic_scaling", "yes");
+//       } else {
+// 	set_solver_option("ma57_automatic_scaling", "no");
+//       }
+
+//       set_solver_option("max_iter", 500);
+//       set_solver_option("acceptable_tol", 1e-3);
+//       set_solver_option("acceptable_constr_viol_tol", 1e-6);
+//       set_solver_option("acceptable_iter", 5);
+      
+
+//       if(data_sc.N_Bus.size()>8999) {
+// 	if(safe_mode)
+// 	  monitor.bailout_allowed=true;//! probably not needed when watching timeouts
+// 	else 
+// 	  monitor.bailout_allowed=false;
+// 	set_solver_option("mu_init", 1e-1);
+// 	//opt_ok = OptProblem::optimize("ipopt");
+//       } else {
+// 	set_solver_option("mu_init", 1e-4);
+// 	//opt_ok = OptProblem::reoptimize(OptProblem::primalDualRestart);
+//       }
+//       double relax_factor = std::min(1e-8, pow(10., 3*n_solves-16));
+//       set_solver_option("bound_relax_factor", relax_factor);
+//       if(n_solves>0) 
+// 	set_solver_option("fixed_variable_treatment", "relax_bounds");
+
+//       double bound_push = std::min(1e-2, pow(10., 3*n_solves-12));
+//       set_solver_option("bound_push", bound_push);
+//       set_solver_option("slack_bound_push", bound_push);
+
+//       double bound_frac = std::min(1e-2, pow(10., 3*n_solves-10));
+//       set_solver_option("bound_frac", bound_frac);
+//       set_solver_option("slack_bound_frac", bound_frac);
+
+//       set_solver_option("mu_linear_decrease_factor", 0.5);
+//       set_solver_option("mu_superlinear_decrease_power", 1.2);
+
+//       if(n_solves>=1) { 
+// 	set_solver_option("tol", 1e-7);
+// 	set_solver_option("mu_linear_decrease_factor", 0.4);
+// 	set_solver_option("mu_superlinear_decrease_power", 1.2);
+//       }
+
+//       if(bFirstSolveOK) {
+// 	//medium and small problems default primal-dual restart
+// 	opt_ok = OptProblem::reoptimize(OptProblem::primalDualRestart);
+//       } else {
+// 	if(n_solves<=2)
+// 	  vars_primal->set_start_to(*vars_last);
+//        	else 
+//        	  vars_primal->set_start_to(*vars_ini);
+	
+// 	opt_ok = OptProblem::reoptimize(OptProblem::primalRestart);
+//       }
+
+//       n_solves++;
+//       hist_iter.push_back(number_of_iterations());
+//       hist_obj.push_back(this->obj_value);
+      
+//       if(opt_ok) {
+// 	done = true; 
+//       } else {
+// 	if(monitor.user_stopped) {
+// 	  done = true; 
+// 	} else {
+// 	  //something bad happened, will resolve
+// 	  printf("[warning] ContProbWithFixing K_idx=%d opt2 failed at try %d rank=%d time %g\n", 
+// 		 K_idx, n_solves, my_rank, tmrec.measureElapsedTime()); 
+// 	}
+//       }
+
+//       if(n_solves>9) done = true;
+//       if(tmrec.measureElapsedTime()>800) {
+// 	printf("[warning] ContProbWithFixing K_idx=%d opt2 taking too long on rank=%d; tries %d time %g\n", 
+// 	       K_idx, my_rank, n_solves, tmrec.measureElapsedTime());
+// 	done = true;
+// 	bret = false;
+//       }
+
+//     } //end of outer while
+// #ifdef BE_VERBOSE
+//     string sit = "["; for(auto iter:  hist_iter) sit += to_string(iter)+'/'; sit[sit.size()-1] = ']';
+//     string sobj="["; for(auto obj: hist_obj) sobj += to_string(obj)+'/'; sobj[sobj.size()-1]=']';
+//     printf("ContProbWithFixing K_idx=%d opt2 took %g sec - iters %s objs %s tries %d on rank=%d\n", 
+// 	   K_idx, tmrec.measureElapsedTime(), sit.c_str(), sobj.c_str(), n_solves, my_rank);
+//     fflush(stdout);
+// #endif
+//     get_solution_simplicial_vectorized(sln_solve2);
+//     obj_solve2 = this->obj_value;
+//     return bret;
+//   }
+
+
+
 
   // bool ContingencyProblemWithFixing::do_fixing_for_PVPQ(const double& smoothing, bool fixVoltage,
   // 							OptVariablesBlock* vnk, OptVariablesBlock* qgk)

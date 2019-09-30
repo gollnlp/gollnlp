@@ -108,7 +108,7 @@ int MyCode2::initialize(int argc, char *argv[])
   //344
   //K_Cont={3222};//, 3223, 3223, 3223, 3223, 3223, 3223, 3223, 3223, 3223, 3223, 3223, 3223, 3223, 3223, 3223, 3223, 3223, 3223, 3223, 3223, 3223, 3223, 3223, 3223, 3223, 3223, 3223, 3223}; 
   //K_Cont={}; for(int i=0; i<49; i++) K_Cont.push_back(3180+i);
-
+  K_Cont = {913, 4286};
   for(auto& id : K_Cont) 
     K_Contingency.push_back(Kinfo(id));
 
@@ -585,6 +585,13 @@ bool MyCode2::_guts_of_solve_contingency(ContingencyProblemWithFixing& prob, int
 
   prob.pen_threshold = pen_threshold;
 
+  if(false) {
+  prob.reg_vn=true;
+  prob.reg_thetan=true;
+  prob.reg_bs=true;
+  prob.reg_pg=true;
+  prob.reg_qg=true;
+  }
   if(data.N_Bus.size()>8999) {
     ContingencyProblemWithFixing::g_bounds_abuse = 5e-5;
     prob.monitor.is_active = true;
@@ -599,51 +606,6 @@ bool MyCode2::_guts_of_solve_contingency(ContingencyProblemWithFixing& prob, int
   }
 
   prob.use_nlp_solver("ipopt");
-  prob.set_solver_option("sb","yes");
-  prob.set_solver_option("print_frequency_iter", 10);
-  prob.set_solver_option("print_level", 2);
-
-  prob.set_solver_option("linear_solver", "ma57"); 
-  //prob.set_solver_option("ma57_block_size", 1);
-  //prob.set_solver_option("ma57_small_pivot_flag", 1);
-
-  //prob.set_solver_option("ma57_automatic_scaling", "yes");
-  //prob.set_solver_option("ma57_pivot_order", 4);
-
-  //prob.set_solver_option("ma57_pre_alloc", 1.05); //default 1.05
-  //prob.set_solver_option("ma57_automatic_scaling", "yes");
-
-  //prob.set_solver_option("print_user_options", "yes");
-  //prob.set_solver_option("print_options_documentation", "yes");
-
-  //return if it takes too long in phase2
-  prob.set_solver_option("max_iter", 250);
-  prob.set_solver_option("acceptable_tol", 1e-3);
-  prob.set_solver_option("acceptable_constr_viol_tol", 1e-6);
-  prob.set_solver_option("acceptable_iter", 5);
-
-  prob.set_solver_option("tol", 1e-8);
-  prob.set_solver_option("mu_linear_decrease_factor", 0.3);
-  prob.set_solver_option("mu_superlinear_decrease_power", 1.4);
-
-  prob.set_solver_option("bound_relax_factor", 0.);
-  prob.set_solver_option("bound_push", 1e-16);
-  prob.set_solver_option("slack_bound_push", 1e-16);
-
-  //prob.set_solver_option("expect_infeasible_problem_ytol", 1e+15);
-
-  if(data.N_Bus.size()<=20000) {
-
-  } else {
-    //large run
-    prob.set_solver_option("mu_target", 1e-8);
-    prob.set_solver_option("bound_relax_factor", 1e-8);
-    prob.set_solver_option("bound_push", 1e-8);
-    prob.set_solver_option("slack_bound_push", 1e-8);
-
-    prob.set_solver_option("mu_linear_decrease_factor", 0.5);
-    prob.set_solver_option("mu_superlinear_decrease_power", 1.2);
-  }
   return true;
 }
 
@@ -661,20 +623,6 @@ bool MyCode2::solve_contingency(int K_idx, bool safe_mode, std::vector<double>& 
 				     safe_mode);
   
   _guts_of_solve_contingency(*prob, K_idx);
-
-// #ifdef GOLLNLP_FAULT_HANDLING
-//   if(setjmp(jmpbuf_K_solve)>0) {
-//     printf("[timer] timeout on Evaluator Rank=%d K_idx=%d\n", my_rank, K_idx);
-//     delete prob;
-
-//     prob = new ContingencyProblemWithFixing(data, K_idx, 
-// 					    my_rank, comm_size, 
-// 					    dict_basecase_vars, 
-// 					    num_K_done, 
-// 					    glob_timer.measureElapsedTime());
-//     _guts_of_solve_contingency(*prob, K_idx);
-//   }
-// #endif
 
   if(!prob->optimize(p_g0(), v_n0(), penalty, sln)) {
     printf("rank=%d failed in the evaluation of contingency K_idx=%d\n",
