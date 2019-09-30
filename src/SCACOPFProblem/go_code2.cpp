@@ -585,13 +585,6 @@ bool MyCode2::_guts_of_solve_contingency(ContingencyProblemWithFixing& prob, int
 
   prob.pen_threshold = pen_threshold;
 
-  if(false) {
-  prob.reg_vn=true;
-  prob.reg_thetan=true;
-  prob.reg_bs=true;
-  prob.reg_pg=true;
-  prob.reg_qg=true;
-  }
   if(data.N_Bus.size()>8999) {
     ContingencyProblemWithFixing::g_bounds_abuse = 5e-5;
     prob.monitor.is_active = true;

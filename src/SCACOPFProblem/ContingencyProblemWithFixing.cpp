@@ -224,9 +224,6 @@ namespace gollnlp {
     add_const_nonanticip_v_n_using(vn0, Gk);
     //add_cons_PVPQ_using(vn0, Gk);
 
-    //depending on reg_vn, reg_thetan, reg_bs, reg_pg, and reg_qg
-    add_regularizations();
-
     assert(vars_primal->provides_start());
 
     if(NULL==vars_duals_bounds_L || NULL==vars_duals_bounds_U || NULL==vars_duals_cons) {
@@ -318,7 +315,14 @@ namespace gollnlp {
 
 	  set_solver_option("tol", 1e-7);
 	  set_solver_option("mu_linear_decrease_factor", 0.4);
-	  set_solver_option("mu_superlinear_decrease_power", 1.2);
+	  set_solver_option("mu_superlinear_decrease_power", 1.25);
+	  
+	  const double gamma = 1e-3;
+	  regularize_vn(gamma);
+	  regularize_thetan(gamma);
+	  regularize_bs(gamma);
+	  regularize_pg(gamma);
+	  regularize_qg(gamma);
 
 	  g_alarm_duration_ma57=10;//seconds
 	  g_max_memory_ma57=500;//Mbytes
@@ -352,6 +356,9 @@ namespace gollnlp {
 	  set_solver_option("tol", 1e-7);
 	  set_solver_option("mu_linear_decrease_factor", 0.4);
 	  set_solver_option("mu_superlinear_decrease_power", 1.2);
+
+	  const double gamma = 5e-3;
+	  update_regularizations(gamma);
 	}
 	break;
       case 3: //MA27
@@ -373,6 +380,10 @@ namespace gollnlp {
 	  set_solver_option("tol", 1e-7);
 	  set_solver_option("mu_linear_decrease_factor", 0.4);
 	  set_solver_option("mu_superlinear_decrease_power", 1.2);
+
+	  const double gamma = 1e-2;
+	  update_regularizations(gamma);
+
 	}
 	break;
       case 4: 
@@ -398,6 +409,9 @@ namespace gollnlp {
 	  set_solver_option("mu_linear_decrease_factor", 0.4);
 	  set_solver_option("mu_superlinear_decrease_power", 1.2);
 
+	  const double gamma = 1e-2;
+	  update_regularizations(gamma);
+
 	  g_alarm_duration_ma57=12;//seconds
 	  g_max_memory_ma57=600;//Mbytes
 	}
@@ -413,6 +427,10 @@ namespace gollnlp {
 	  set_solver_option("tol", 1e-6);
 	  set_solver_option("mu_linear_decrease_factor", 0.4);
 	  set_solver_option("mu_superlinear_decrease_power", 1.2);
+
+	  const double gamma = 5e-2 + 0.1*n_solves;
+	  update_regularizations(gamma);
+
 	  g_alarm_duration_ma57=12;//seconds
 	  g_max_memory_ma57=600;//Mbytes
 	}
@@ -562,7 +580,14 @@ namespace gollnlp {
 
 	  set_solver_option("tol", 1e-7);
 	  set_solver_option("mu_linear_decrease_factor", 0.4);
-	  set_solver_option("mu_superlinear_decrease_power", 1.2);
+	  set_solver_option("mu_superlinear_decrease_power", 1.25);
+
+	  const double gamma = 1e-3;
+	  regularize_vn(gamma);
+	  regularize_thetan(gamma);
+	  regularize_bs(gamma);
+	  regularize_pg(gamma);
+	  regularize_qg(gamma);
 
 	  g_alarm_duration_ma57=10;//seconds
 	  g_max_memory_ma57=500;//Mbytes
@@ -596,6 +621,9 @@ namespace gollnlp {
 	  set_solver_option("tol", 1e-7);
 	  set_solver_option("mu_linear_decrease_factor", 0.4);
 	  set_solver_option("mu_superlinear_decrease_power", 1.2);
+
+	  const double gamma = 5e-3;
+	  update_regularizations(gamma);
 	}
 	break;
       case 3: //MA27
@@ -618,6 +646,9 @@ namespace gollnlp {
 	  set_solver_option("tol", 1e-7);
 	  set_solver_option("mu_linear_decrease_factor", 0.4);
 	  set_solver_option("mu_superlinear_decrease_power", 1.2);
+
+	  const double gamma = 1e-2;
+	  update_regularizations(gamma);
 	}
 	break;
       case 4: 
@@ -652,6 +683,9 @@ namespace gollnlp {
 	  set_solver_option("tol", 1e-7);
 	  set_solver_option("mu_linear_decrease_factor", 0.4);
 	  set_solver_option("mu_superlinear_decrease_power", 1.2);
+	  
+	  const double gamma = 1e-2;
+	  update_regularizations(gamma);
 
 	  g_alarm_duration_ma57=12;//seconds
 	  g_max_memory_ma57=600;//Mbytes
@@ -680,6 +714,11 @@ namespace gollnlp {
 	  set_solver_option("tol", 1e-6);
 	  set_solver_option("mu_linear_decrease_factor", 0.4);
 	  set_solver_option("mu_superlinear_decrease_power", 1.2);
+
+	  const double gamma = 5e-2 + 0.1*n_solves;
+	  update_regularizations(gamma);
+
+
 	  g_alarm_duration_ma57=12;//seconds
 	  g_max_memory_ma57=600;//Mbytes
 	}

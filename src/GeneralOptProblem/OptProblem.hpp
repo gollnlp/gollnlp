@@ -275,6 +275,7 @@ public:
 // This class needs NOT be specialized/derived.
 //////////////////////////////////////////////////////
 class OptObjective {
+public:
   OptObjective() {};
   virtual ~OptObjective();
 

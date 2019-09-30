@@ -26,7 +26,6 @@ namespace gollnlp {
     //data_K[0].PenaltyWeight = (1-d.DELTA);
 
     v_n0=NULL; theta_n0=NULL; b_s0=NULL; p_g0=NULL; q_g0=NULL;
-    reg_vn = reg_thetan = reg_bs = reg_pg = reg_qg = false;
   }
 
   ContingencyProblem::~ContingencyProblem()
@@ -113,9 +112,6 @@ namespace gollnlp {
     //PVPQSmoothing  = 1e-2;
     //coupling AGC and PVPQ; also creates delta_k
     //add_cons_coupling(dK);
-
-    //depending on reg_vn, reg_thetan, reg_bs, reg_pg, and reg_qg
-    add_regularizations();
 
     return true;
   }
@@ -492,48 +488,125 @@ namespace gollnlp {
 
 
 
-  void ContingencyProblem::add_regularizations()
+  void ContingencyProblem::regularize_vn(const double& gamma)
   {
     assert(data_K.size()==1);
     SCACOPFData& dK = *data_K[0]; assert(dK.id==K_idx+1);
+    assert(variable("v_n", dK)->n == v_n0->n);
 
-    if(reg_vn) {
-      assert(variable("v_n", dK)->n == v_n0->n);
+    OptObjectiveTerm* ot = obj->objterm("regul_vn");
+    if(NULL==ot) {
       append_objterm(new QuadrRegularizationObjTerm("regul_vn", variable("v_n", dK),
-						    1e-4, v_n0->x));
-      //printf("added regularization term for v_n\n");
+						    gamma, v_n0->x));
+      primal_problem_changed();
+    } else {
+      QuadrRegularizationObjTerm* rot = dynamic_cast<QuadrRegularizationObjTerm*>(ot);
+      rot->gamma = gamma;
     }
-
-    if(reg_thetan) {
-      append_objterm(new QuadrRegularizationObjTerm("regul_thetan", variable("theta_n", dK),
-						    1e-4, theta_n0->x));
-      //printf("added regularization term for theta_n\n");
-
-    }
-    if(reg_bs) {
-      append_objterm(new QuadrRegularizationObjTerm("regul_bs", variable("b_s", dK),
-						    1e-4, b_s0->x));
-      //printf("added regularization term for b_s\n");
-
-    }
-    if(reg_pg) {
-      assert(Gk.size() == variable("p_g", dK)->n);
-      assert(Gk.size() == p_g0->n || Gk.size() == p_g0->n-1);
-      auto pg0_vec = selectfrom(p_g0->x, p_g0->n, Gk);
-      append_objterm(new QuadrRegularizationObjTerm("regul_pg", variable("p_g", dK),
-						    1e-4, pg0_vec.data()));
-      //printf("added regularization term for p_g\n");
-    }
-    if(reg_qg) {
-      assert(Gk.size() == variable("q_g", dK)->n);
-      assert(Gk.size() == q_g0->n || Gk.size() == q_g0->n-1);
-      auto qg0_vec = selectfrom(q_g0->x, q_g0->n, Gk);
-      append_objterm(new QuadrRegularizationObjTerm("regul_qg", variable("q_g", dK),
-						    1e-4, qg0_vec.data()));
-      //printf("added regularization term for q_g\n");
-    }
-
   }
+  void ContingencyProblem::regularize_thetan(const double& gamma)
+  {
+    assert(data_K.size()==1);
+    SCACOPFData& dK = *data_K[0]; assert(dK.id==K_idx+1);
+    assert(variable("theta_n", dK)->n == v_n0->n);
+
+    OptObjectiveTerm* ot = obj->objterm("regul_thetan");
+    if(NULL==ot) {
+      append_objterm(new QuadrRegularizationObjTerm("regul_thetan", variable("theta_n", dK),
+						    gamma, v_n0->x));
+      primal_problem_changed();
+    } else {
+      QuadrRegularizationObjTerm* rot = dynamic_cast<QuadrRegularizationObjTerm*>(ot);
+      rot->gamma = gamma;
+    }
+  }
+  void ContingencyProblem::regularize_bs(const double& gamma)
+  {
+    assert(data_K.size()==1);
+    SCACOPFData& dK = *data_K[0]; assert(dK.id==K_idx+1);
+    assert(variable("b_s", dK)->n == v_n0->n);
+
+    OptObjectiveTerm* ot = obj->objterm("regul_bs");
+    if(NULL==ot) {
+      append_objterm(new QuadrRegularizationObjTerm("regul_vn", variable("b_s", dK),
+						    gamma, v_n0->x));
+      primal_problem_changed();
+    } else {
+      QuadrRegularizationObjTerm* rot = dynamic_cast<QuadrRegularizationObjTerm*>(ot);
+      rot->gamma = gamma;
+    }
+  }
+  void ContingencyProblem::regularize_pg(const double& gamma)
+  {
+    assert(data_K.size()==1);
+    SCACOPFData& dK = *data_K[0]; assert(dK.id==K_idx+1);
+    assert(variable("p_g", dK)->n == v_n0->n);
+
+    OptObjectiveTerm* ot = obj->objterm("regul_pg");
+    if(NULL==ot) {
+      append_objterm(new QuadrRegularizationObjTerm("regul_vn", variable("p_g", dK),
+						    gamma, v_n0->x));
+      primal_problem_changed();
+    } else {
+      QuadrRegularizationObjTerm* rot = dynamic_cast<QuadrRegularizationObjTerm*>(ot);
+      rot->gamma = gamma;
+    }
+  }
+  void ContingencyProblem::regularize_qg(const double& gamma)
+  {
+    assert(data_K.size()==1);
+    SCACOPFData& dK = *data_K[0]; assert(dK.id==K_idx+1);
+    assert(variable("q_g", dK)->n == v_n0->n);
+
+    OptObjectiveTerm* ot = obj->objterm("regul_qg");
+    if(NULL==ot) {
+      append_objterm(new QuadrRegularizationObjTerm("regul_vn", variable("q_g", dK),
+						    gamma, v_n0->x));
+      primal_problem_changed();
+    } else {
+      QuadrRegularizationObjTerm* rot = dynamic_cast<QuadrRegularizationObjTerm*>(ot);
+      rot->gamma = gamma;
+    }
+  }
+
+  void ContingencyProblem::update_regularizations(const double& gamma)
+  {
+    regularize_vn(gamma);
+    regularize_thetan(gamma);
+    regularize_bs(gamma);
+    regularize_pg(gamma);
+    regularize_qg(gamma);
+  }
+  //   if(reg_thetan) {
+  //     append_objterm(new QuadrRegularizationObjTerm("regul_thetan", variable("theta_n", dK),
+  // 						    1e-4, theta_n0->x));
+  //     //printf("added regularization term for theta_n\n");
+
+  //   }
+  //   if(reg_bs) {
+  //     append_objterm(new QuadrRegularizationObjTerm("regul_bs", variable("b_s", dK),
+  // 						    1e-4, b_s0->x));
+  //     //printf("added regularization term for b_s\n");
+
+  //   }
+  //   if(reg_pg) {
+  //     assert(Gk.size() == variable("p_g", dK)->n);
+  //     assert(Gk.size() == p_g0->n || Gk.size() == p_g0->n-1);
+  //     auto pg0_vec = selectfrom(p_g0->x, p_g0->n, Gk);
+  //     append_objterm(new QuadrRegularizationObjTerm("regul_pg", variable("p_g", dK),
+  // 						    1e-4, pg0_vec.data()));
+  //     //printf("added regularization term for p_g\n");
+  //   }
+  //   if(reg_qg) {
+  //     assert(Gk.size() == variable("q_g", dK)->n);
+  //     assert(Gk.size() == q_g0->n || Gk.size() == q_g0->n-1);
+  //     auto qg0_vec = selectfrom(q_g0->x, q_g0->n, Gk);
+  //     append_objterm(new QuadrRegularizationObjTerm("regul_qg", variable("q_g", dK),
+  // 						    1e-4, qg0_vec.data()));
+  //     //printf("added regularization term for q_g\n");
+  //   }
+  // }
+
 
 #define SIGNED_DUALS_VAL 0.
 

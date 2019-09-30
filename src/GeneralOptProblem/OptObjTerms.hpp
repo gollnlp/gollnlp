@@ -50,9 +50,12 @@ namespace gollnlp {
     virtual int get_HessLagr_nnz();
     // (i,j) entries in the HessLagr to which this term contributes to
     virtual bool get_HessLagr_ij(std::vector<OptSparseEntry>& vij);
+
   protected:
     OptVariablesBlock* x;
-    double gamma;
+  public:
+    double gamma;//    inline double& gamma() { return gamma; }
+  protected:
     double *x0, *a;
     //keep the index for each nonzero elem in the Hessian that this constraints block contributes to
     int *H_nz_idxs;

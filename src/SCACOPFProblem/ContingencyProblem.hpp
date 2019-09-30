@@ -79,14 +79,22 @@ namespace gollnlp {
     void add_const_nonanticip_v_n_using(OptVariablesBlock* vn0, const std::vector<int>& Gk);
     void add_cons_PVPQ_using(OptVariablesBlock* vn0, const std::vector<int>& Gk);
     void update_cons_PVPQ_using(OptVariablesBlock* vn0, const std::vector<int>& Gk);
-
-    void add_regularizations();
+  public:
+    //if no regularization term exists in the problem, one is added and 'primal_problem_changed' is called; 
+    //otherwise the term is updated
+    void regularize_vn(const double& gamma=1e-4);    
+    void regularize_thetan(const double& gamma=1e-4);    
+    void regularize_bs(const double& gamma=1e-4);    
+    void regularize_pg(const double& gamma=1e-4);    
+    void regularize_qg(const double& gamma=1e-4);    
+  protected:
+    //update gamma for all the above regularizations
+    //internal "helper" function
+    void update_regularizations(const double& gamma=1e-4);
   public:
     int K_idx;
     int my_rank;
 
-    //regularizations: gamma* || x - xbasecase]]^2
-    bool reg_vn, reg_thetan, reg_bs, reg_pg, reg_qg;
   protected:
     OptVariablesBlock *v_n0, *theta_n0, *b_s0, *p_g0, *q_g0;
   public:
@@ -98,9 +106,6 @@ namespace gollnlp {
 				  const double& alpha_du, const double& alpha_pr,
 				  int ls_trials, OptimizationMode mode)
     {
-#ifdef GOLLNLP_FAULT_HANDLING
-      solve_is_alive = true;
-#endif
       if(monitor.is_active) {
 	monitor.hist_tm.push_back(monitor.timer.measureElapsedTime());
 
