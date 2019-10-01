@@ -109,16 +109,11 @@ int MyCode1::initialize(int argc, char *argv[])
   }
 
 
-  for(int i=0; i<data.N_Vlb.size(); i++) {
-    data.N_Vlb[i] *= 1.02;
-    data.N_Vub[i] *= 0.98;
+  //for(int i=0; i<data.N_Vlb.size(); i++) {
+  //  data.N_Vlb[i] *= 1.02;
+  //  data.N_Vub[i] *= 0.98;
     //printf("%5d %8.3f %8.3f %8.3f %8.3f\n", i, data.N_Vlb[i], data.N_Vub[i], data.N_EVlb[i], data.N_EVub[i]);
-  }
-
-
-
-
-
+  //}
 
   phase3_initial_num_K_in_scacopf = (ScoringMethod==1 || ScoringMethod==3) ? 2 : 2;
   phase3_max_K_evals_to_wait_for = 1;//2*phase3_initial_num_K_in_scacopf;
