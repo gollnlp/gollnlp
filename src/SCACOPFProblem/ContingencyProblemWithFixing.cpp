@@ -180,7 +180,7 @@ namespace gollnlp {
 	pgK->x[solv1_pgK_partic_idxs[it]] = pg0->x[i0]+data_sc.G_alpha[i0] * solv1_delta_out;
       }
 #ifdef BE_VERBOSE
-      printf("ContProbWithFixing K_idx=%d (gener) %g gen missing; fixed %lu gens; deltas out=%g needed=%g blocking=%g "
+      printf("ContProbWithFixing K_idx=%d (gener) %.2f gen missing; fixed %lu gens; deltas out=%g needed=%g blocking=%g "
 	     "residualPg=%g feasib=%d\n",
 	     K_idx, gen_K_diff, pg0_partic_idxs.size()-solv1_pg0_partic_idxs.size(),
 	     solv1_delta_out, solv1_delta_needed, solv1_delta_blocking, residual_Pg, solv1_Pg_was_enough);
@@ -214,6 +214,7 @@ namespace gollnlp {
     }
     
     add_const_nonanticip_v_n_using(vn0, Gk);
+    //PVPQSmoothing=1e-8;
     //add_cons_PVPQ_using(vn0, Gk);
 
     assert(vars_primal->provides_start());
@@ -253,6 +254,7 @@ namespace gollnlp {
     vars_ini  = vars_primal->new_copy();
 #endif
 
+
     return true;
   }
 
@@ -275,7 +277,8 @@ namespace gollnlp {
     g_my_K_idx_ma27=K_idx;
 
     goTimer tmrec; tmrec.start();
-    vector<int> hist_iter, hist_obj;
+    vector<int> hist_iter, hist_obj; 
+    obj_value = -1.;
     bool bret = true, done = false; 
     OptimizationStatus last_opt_status = Solve_Succeeded; //be positive
     bool solve1_safe_mode=safe_mode;
@@ -508,6 +511,10 @@ namespace gollnlp {
       }
       
     } //end of outer while
+
+    //print_active_power_balance_info(*data_K[0]);
+    //print_reactive_power_balance_info(*data_K[0]);
+
 #ifdef BE_VERBOSE
     string sit = "["; for(auto iter:  hist_iter) sit += to_string(iter)+'/'; sit[sit.size()-1] = ']';
     string sobj="["; for(auto obj: hist_obj) sobj += to_string(obj)+'/'; sobj[sobj.size()-1]=']';
@@ -544,6 +551,7 @@ namespace gollnlp {
     g_my_K_idx_ma27=K_idx;
 
     vector<int> hist_iter, hist_obj;
+    obj_value = -1.;
     bool bret = true, done = false; 
     OptimizationStatus last_opt_status = Solve_Succeeded; //be positive
     bool solve2_safe_mode=safe_mode;
@@ -804,6 +812,9 @@ namespace gollnlp {
       }
 
     } //end of outer while
+
+    //print_active_power_balance_info(*data_K[0]);
+    //print_reactive_power_balance_info(*data_K[0]);
 #ifdef BE_VERBOSE
     string sit = "["; for(auto iter:  hist_iter) sit += to_string(iter)+'/'; sit[sit.size()-1] = ']';
     string sobj="["; for(auto obj: hist_obj) sobj += to_string(obj)+'/'; sobj[sobj.size()-1]=']';
@@ -887,7 +898,7 @@ namespace gollnlp {
       if(fabs(solv1_delta_optim-solv1_delta_blocking)<1e-2 && 
 	 d.K_ConType[0]==SCACOPFData::kGenerator && solv1_Pg_was_enough) {
 	one_more_push_and_fix = true;
-	if(pg0->x[data_sc.K_outidx[K_idx]]>1e-6 )  gen_K_diff = std::max(0., 1.1*poverall);
+	if(pg0->x[data_sc.K_outidx[K_idx]]>1e-6 )  gen_K_diff = std::max(0., 1.2*poverall);
 	else if(pg0->x[data_sc.K_outidx[K_idx]]<-1e-6)  gen_K_diff = std::min(0., poverall);
 	else one_more_push_and_fix = false;
       }
@@ -898,13 +909,32 @@ namespace gollnlp {
 
 	//solv1_delta_optim=0.;//!
 
-	if( (rpa>0.85 && rpa<1.15) || (rma>0.85 && rma <1.15) ) {	  
+	if( (rpa>0.85 && rpa<1.15) || (rma>0.85 && rma <1.15) ) {
 	  one_more_push_and_fix = true;
 	  gen_K_diff = poverall;
 
 	  //ignore small delta for transmission contingencies since they're really optimization noise
 	  if(d.K_ConType[0]!=SCACOPFData::kGenerator && fabs(solv1_delta_optim)<1e-6) {
 	    solv1_delta_optim=0.;
+	  }
+
+	  //if our first attempt to ramp up resulted in a active power balance deficit, then be more agressive this time
+	  if(d.K_ConType[0]==SCACOPFData::kGenerator) {
+	    double pen_p_balance, pen_q_balance, pen_line_limits, pen_trans_limits;
+	    get_objective_penalties(pen_p_balance, pen_q_balance, pen_line_limits, pen_trans_limits);
+	    
+	    if(pen_p_balance > 500.*pen_q_balance && 
+	       pen_p_balance > 500.*pen_line_limits && 
+	       pen_p_balance > 500.*pen_trans_limits) {
+
+	      //double gen_deficit = pg0->x[data_sc.K_outidx[K_idx]];
+	      if(pen_p_balance > 2e5)
+		gen_K_diff = 8*poverall;
+	      else if(pen_p_balance > 5e4)
+		gen_K_diff = 4*poverall;
+	      else 
+		gen_K_diff = 2*poverall;
+	    }
 	  }
 	}
       }
@@ -962,17 +992,23 @@ namespace gollnlp {
       {
 	auto v = variable("v_n", d);
 	for(int i=0; i<v->n; i++) {
-	  v->lb[i] = v->lb[i] - g_bounds_abuse; v->ub[i] = v->ub[i] + g_bounds_abuse;
+	  v->lb[i] = v->lb[i] - g_bounds_abuse;
+	  v->ub[i] = v->ub[i] + g_bounds_abuse;
 	}
-      }{
+      }
+      {
 	auto v = variable("q_g", d);
 	for(int i=0; i<v->n; i++) {
-	  v->lb[i] = v->lb[i] - g_bounds_abuse; v->ub[i] = v->ub[i] + g_bounds_abuse;
+	  v->lb[i] = v->lb[i] - g_bounds_abuse;
+	  v->ub[i] = v->ub[i] + g_bounds_abuse;
 	}
-      }{
+      }
+
+      {
 	auto v = variable("p_g", d);
 	for(int i=0; i<v->n; i++) {
-	  v->lb[i] = v->lb[i] - g_bounds_abuse; v->ub[i] = v->ub[i] + g_bounds_abuse;
+	  v->lb[i] = v->lb[i] - g_bounds_abuse;
+	  v->ub[i] = v->ub[i] + g_bounds_abuse;
 	}
       }
 
@@ -1393,7 +1429,38 @@ namespace gollnlp {
     int n = data_sc.N_Bus.size(); assert(pslacks_n->n == 2*n);
     for(int i=n; i<2*n; i++) { p_plus  += pslacks_n->x[i]; p_overall += pslacks_n->x[i]; }
     for(int i=0; i<n; i++)   { p_minus -= pslacks_n->x[i]; p_overall -= pslacks_n->x[i]; }
+  }
+  void ContingencyProblemWithFixing::get_objective_penalties(double& pen_p_balance, double& pen_q_balance, 
+							     double& pen_line_limits, double& pen_trans_limits)
+  {
+    pen_p_balance = pen_q_balance = pen_line_limits = pen_trans_limits = 0;
+    double pen; SCACOPFData& d = *data_K[0]; bool new_x = false;
+    {
+      auto ot = obj->objterm(objterm_name("quadr_pen_pslack_n_p_balance", d));
+      if(NULL==ot || !ot->eval_f(*vars_primal, new_x, pen_p_balance))
+	pen_p_balance = 0.;
+    }
+    {
+      auto ot = obj->objterm(objterm_name("quadr_pen_qslack_n_p_balance", d));
+      if(NULL==ot || !ot->eval_f(*vars_primal, new_x, pen_q_balance))
+	pen_q_balance = 0.;
+    }
+    {
+      pen_line_limits = 0.;
+      auto ot1 = obj->objterm(objterm_name("quadr_pen_sslack_li_line_limits1", d));
+      if(ot1) ot1->eval_f(*vars_primal, new_x, pen_line_limits);
 
+      auto ot2 = obj->objterm(objterm_name("quadr_pen_sslack_li_line_limits2", d));
+      if(ot2) ot2->eval_f(*vars_primal, new_x, pen_line_limits);
+    }
+    {
+      pen_trans_limits = 0.;
+      auto ot1 = obj->objterm(objterm_name("quadr_pen_sslack_ti_trans_limits1", d));
+      if(ot1) ot1->eval_f(*vars_primal, new_x, pen_trans_limits);
+      
+      auto ot2 = obj->objterm(objterm_name("quadr_pen_sslack_ti_trans_limits2", d));
+      if(ot2) ot2->eval_f(*vars_primal, new_x, pen_trans_limits);
+    }
   }
 
   // bool ContingencyProblemWithFixing::do_fixing_for_AGC(const double& smoothing, bool fixVoltage, 

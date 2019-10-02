@@ -173,6 +173,10 @@ namespace gollnlp {
     inline static std::string con_name(const std::string& prefix, const SCACOPFData& d) { 
       return con_name(prefix, d.id);
     }
+    inline static std::string objterm_name(const std::string& prefix, const SCACOPFData& d) { 
+      return prefix+"_"+std::to_string(d.id); 
+    }
+
     inline OptConstraintsBlock* constraint(const std::string& prefix, const SCACOPFData& d) { 
       return constraints_block(con_name(prefix, d));
     }

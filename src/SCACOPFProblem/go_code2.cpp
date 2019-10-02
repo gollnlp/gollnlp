@@ -109,6 +109,8 @@ int MyCode2::initialize(int argc, char *argv[])
   //K_Cont={3222};//, 3223, 3223, 3223, 3223, 3223, 3223, 3223, 3223, 3223, 3223, 3223, 3223, 3223, 3223, 3223, 3223, 3223, 3223, 3223, 3223, 3223, 3223, 3223, 3223, 3223, 3223, 3223, 3223}; 
   
   //K_Cont = {913, 4286}; for(int i=0; i<4900; i++) K_Cont.push_back(3180+i);
+  //K_Cont = {11971};//, 776}; //for(int i=0; i<4900; i++) K_Cont.push_back(3180+i);
+  //K_Cont = {776};
   for(auto& id : K_Cont) 
     K_Contingency.push_back(Kinfo(id));
 
@@ -583,7 +585,7 @@ bool MyCode2::_guts_of_solve_contingency(ContingencyProblemWithFixing& prob, int
   if(data.N_Bus.size()<10000) pen_threshold = 0.25*data.K_Contingency.size();
   if(data.N_Bus.size()< 6000) pen_threshold = 100.;
 
-  //pen_threshold = 100.;
+  pen_threshold = 1.;
   prob.pen_threshold = pen_threshold;
 
   if(data.N_Bus.size()>8999) {
@@ -603,8 +605,143 @@ bool MyCode2::_guts_of_solve_contingency(ContingencyProblemWithFixing& prob, int
   return true;
 }
 
+extern int g_max_memory_ma57;
+
 bool MyCode2::solve_contingency(int K_idx, bool safe_mode, std::vector<double>& sln)
 {
+  if(false) {
+  g_max_memory_ma57=900;//Mbytes
+
+  ///////////////////////////////////////
+  //
+  // solver scacopf problem on solver rank(s) xxxbase1
+  //
+  SCACOPFProblem* scacopf_prob = new SCACOPFProblem(data);
+
+  scacopf_prob->my_rank = my_rank;
+
+  scacopf_prob->update_AGC_smoothing_param(1e-4);
+  scacopf_prob->update_PVPQ_smoothing_param(1e-2);
+  //scacopf_prob->set_AGC_as_nonanticip(true);
+  //scacopf_prob->set_AGC_simplified(true);
+  //scacopf_prob->set_PVPQ_as_nonanticip(true);
+
+  //reduce T and L rates to min(RateBase, TL_rate_reduction*RateEmer)
+  double TL_rate_reduction = 0.85;
+  //if((ScoringMethod==1 || ScoringMethod==3))
+  //  TL_rate_reduction = 0.85;
+
+  scacopf_prob->set_basecase_L_rate_reduction(TL_rate_reduction);
+  scacopf_prob->set_basecase_T_rate_reduction(TL_rate_reduction);
+
+  //scacopf_prob->set_quadr_penalty_qg0(true);
+
+  scacopf_prob->assembly({});
+
+  
+  scacopf_prob->use_nlp_solver("ipopt"); 
+  scacopf_prob->set_solver_option("sb","yes");
+  scacopf_prob->set_solver_option("linear_solver", "ma57"); 
+
+  scacopf_prob->set_solver_option("print_frequency_iter", 5);
+  scacopf_prob->set_solver_option("max_iter", 2000);    
+  scacopf_prob->set_solver_option("acceptable_tol", 1e-3);
+  scacopf_prob->set_solver_option("acceptable_constr_viol_tol", 1e-6);
+  scacopf_prob->set_solver_option("acceptable_iter", 7);
+
+  scacopf_prob->set_solver_option("mu_init", 0.1);
+  scacopf_prob->set_solver_option("tol", 1e-8);
+  scacopf_prob->set_solver_option("mu_target", 1e-9);
+  
+  //scacopf_prob->set_solver_option("bound_relax_factor", 0.);
+  //scacopf_prob->set_solver_option("bound_push", 1e-16);
+  //scacopf_prob->set_solver_option("slack_bound_push", 1e-16);
+  scacopf_prob->set_solver_option("mu_linear_decrease_factor", 0.5);
+  scacopf_prob->set_solver_option("mu_superlinear_decrease_power", 1.2);
+
+
+  scacopf_prob->set_solver_option("print_level", 5);
+
+  printf("[ph1] rank %d  starts scacopf solve phase 1 global time %g\n", 
+	   my_rank, glob_timer.measureElapsedTime());
+
+  
+  bool bret = scacopf_prob->optimize("ipopt");
+
+  auto p_g0_ = scacopf_prob->variable("p_g", data); 
+  auto v_n0_ = scacopf_prob->variable("v_n", data);
+
+  ///////////////////////////////////////////////////////////////////////////////
+  {
+  int status = 0; //be positive
+
+
+  
+  
+  ContingencyProblem prob(data, K_idx, my_rank);
+
+  if(data.N_Bus.size()>8999) {
+    //prob.monitor.is_active = true;
+    //prob.monitor.pen_threshold = pen_threshold;
+  }
+
+  prob.update_AGC_smoothing_param(1e-4);
+  prob.update_PVPQ_smoothing_param(1e-4);
+
+  //xxxcont
+
+  if(!prob.default_assembly(p_g0_, v_n0_)) {
+    printf("Evaluator Rank %d failed in default_assembly for contingency K_idx=%d\n",
+	   my_rank, K_idx);
+    status = -1;
+    return 1e+20;
+  }
+
+  if(!prob.set_warm_start_from_base_of(*scacopf_prob)) {
+    status = -2;
+    return 1e+20;
+  }
+
+  prob.use_nlp_solver("ipopt");
+  prob.set_solver_option("sb","yes");
+  prob.set_solver_option("print_frequency_iter", 10);
+  prob.set_solver_option("linear_solver", "ma57"); 
+  prob.set_solver_option("print_level", 5);
+  prob.set_solver_option("mu_init", 1e-4);
+  prob.set_solver_option("mu_target", 1e-9);//!
+
+  //return if it takes too long in phase2
+  prob.set_solver_option("max_iter", 1700);
+  prob.set_solver_option("acceptable_tol", 1e-3);
+  prob.set_solver_option("acceptable_constr_viol_tol", 1e-5);
+  prob.set_solver_option("acceptable_iter", 5);
+
+  //if(data.N_Bus.size()<10000) 
+  {
+    prob.set_solver_option("bound_relax_factor", 0.);
+    prob.set_solver_option("bound_push", 1e-16);
+    prob.set_solver_option("slack_bound_push", 1e-16);
+  }
+  prob.set_solver_option("mu_linear_decrease_factor", 0.4);
+  prob.set_solver_option("mu_superlinear_decrease_power", 1.25);
+
+  double penalty; 
+  if(!prob.eval_obj(p_g0_, v_n0_, penalty)) {
+    printf("Evaluator Rank %d failed in the eval_obj of contingency K_idx=%d\n",
+	   my_rank, K_idx);
+    status = -3;
+    penalty=1e+6;
+  }
+  int num_iter = prob.number_of_iterations();
+
+  printf("Evaluator Rank %3d K_idx=%d finished with penalty %12.3f "
+	 "in %5.3f sec and %3d iterations  sol_from_scacopf_pass %d  global time %g\n",
+	 my_rank, K_idx, penalty, -117., 
+	 num_iter, -117, glob_timer.measureElapsedTime());
+  }
+
+  ////////////////////////////////////////////////////////////////////////////////////
+  }
   goTimer t; t.start();
 
   int status; double penalty;
@@ -638,11 +775,13 @@ bool MyCode2::solve_contingency(int K_idx, bool safe_mode, std::vector<double>& 
 
   //prob.print_p_g_with_coupling_info(*prob.data_K[0], p_g0);
   //prob.print_PVPQ_info(*prob.data_K[0], v_n0);
+  //prob->print_reactive_power_balance_info(*prob->data_K[0]);
 
   printf("rank=%d K_idx=%d finished with penalty %12.3f "
   	 "in %5.3f sec time %g \n",
   	 my_rank, K_idx, penalty, t.stop(), glob_timer.measureElapsedTime());
   delete prob;
+  //delete scacopf_prob;
   return true;
 }
 
