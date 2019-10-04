@@ -522,7 +522,6 @@ namespace gollnlp {
   {
     assert(data_K.size()==1);
     SCACOPFData& dK = *data_K[0]; assert(dK.id==K_idx+1);
-    assert(variable("b_s", dK)->n == v_n0->n);
 
     OptObjectiveTerm* ot = obj->objterm("regul_bs");
     if(NULL==ot) {
@@ -538,7 +537,6 @@ namespace gollnlp {
   {
     assert(data_K.size()==1);
     SCACOPFData& dK = *data_K[0]; assert(dK.id==K_idx+1);
-    assert(variable("p_g", dK)->n == v_n0->n);
 
     OptObjectiveTerm* ot = obj->objterm("regul_pg");
     if(NULL==ot) {
@@ -554,7 +552,6 @@ namespace gollnlp {
   {
     assert(data_K.size()==1);
     SCACOPFData& dK = *data_K[0]; assert(dK.id==K_idx+1);
-    assert(variable("q_g", dK)->n == v_n0->n);
 
     OptObjectiveTerm* ot = obj->objterm("regul_qg");
     if(NULL==ot) {

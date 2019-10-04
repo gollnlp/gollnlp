@@ -110,7 +110,7 @@ int MyCode2::initialize(int argc, char *argv[])
   
   //K_Cont = {913, 4286}; for(int i=0; i<4900; i++) K_Cont.push_back(3180+i);
   //K_Cont = {11971};//, 776}; //for(int i=0; i<4900; i++) K_Cont.push_back(3180+i);
-  //K_Cont = {776};
+  //K_Cont = {2223, 136, 10112, 482,0 };
   for(auto& id : K_Cont) 
     K_Contingency.push_back(Kinfo(id));
 
@@ -589,7 +589,7 @@ bool MyCode2::_guts_of_solve_contingency(ContingencyProblemWithFixing& prob, int
   prob.pen_threshold = pen_threshold;
 
   if(data.N_Bus.size()>8999) {
-    ContingencyProblemWithFixing::g_bounds_abuse = 5e-5;
+    ContingencyProblemWithFixing::g_bounds_abuse = 0.00009999;
     prob.monitor.is_active = true;
     prob.monitor.pen_threshold = pen_threshold;
   }
@@ -703,27 +703,27 @@ bool MyCode2::solve_contingency(int K_idx, bool safe_mode, std::vector<double>& 
   }
 
   prob.use_nlp_solver("ipopt");
-  prob.set_solver_option("sb","yes");
-  prob.set_solver_option("print_frequency_iter", 10);
-  prob.set_solver_option("linear_solver", "ma57"); 
-  prob.set_solver_option("print_level", 5);
-  prob.set_solver_option("mu_init", 1e-4);
-  prob.set_solver_option("mu_target", 1e-9);//!
+  // prob.set_solver_option("sb","yes");
+  // prob.set_solver_option("print_frequency_iter", 10);
+  // prob.set_solver_option("linear_solver", "ma57"); 
+  // prob.set_solver_option("print_level", 5);
+  // prob.set_solver_option("mu_init", 1e-4);
+  // prob.set_solver_option("mu_target", 5e-9);
 
-  //return if it takes too long in phase2
-  prob.set_solver_option("max_iter", 1700);
-  prob.set_solver_option("acceptable_tol", 1e-3);
-  prob.set_solver_option("acceptable_constr_viol_tol", 1e-5);
-  prob.set_solver_option("acceptable_iter", 5);
+  // //return if it takes too long in phase2
+  // prob.set_solver_option("max_iter", 1700);
+  // prob.set_solver_option("acceptable_tol", 1e-3);
+  // prob.set_solver_option("acceptable_constr_viol_tol", 1e-6);
+  // prob.set_solver_option("acceptable_iter", 5);
 
-  //if(data.N_Bus.size()<10000) 
-  {
-    prob.set_solver_option("bound_relax_factor", 0.);
-    prob.set_solver_option("bound_push", 1e-16);
-    prob.set_solver_option("slack_bound_push", 1e-16);
-  }
-  prob.set_solver_option("mu_linear_decrease_factor", 0.4);
-  prob.set_solver_option("mu_superlinear_decrease_power", 1.25);
+  // //if(data.N_Bus.size()<10000) 
+  // {
+  //   prob.set_solver_option("bound_relax_factor", 0.);
+  //   prob.set_solver_option("bound_push", 1e-16);
+  //   prob.set_solver_option("slack_bound_push", 1e-16);
+  // }
+  // prob.set_solver_option("mu_linear_decrease_factor", 0.4);
+  // prob.set_solver_option("mu_superlinear_decrease_power", 1.25);
 
   double penalty; 
   if(!prob.eval_obj(p_g0_, v_n0_, penalty)) {

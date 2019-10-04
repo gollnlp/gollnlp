@@ -17,6 +17,16 @@
 #include "unistd.h"
 using namespace std;
 
+static const int max_mem_ma57_normal = 1000; //MB
+static const int max_mem_ma57_safem = 1500; //MB
+static const int alarm_ma57_normal = 20; //seconds
+static const int alarm_ma57_safem = 30; //M
+static const int max_mem_ma27_normal = 1000; //MB
+static const int max_mem_ma27_safem = 1500; //MB
+static const int alarm_ma27_normal = 20; //seconds
+static const int alarm_ma27_safem = 30; //MB
+
+
 extern volatile sig_atomic_t g_solve_watch_ma57;
 extern volatile sig_atomic_t g_alarm_duration_ma57;
 extern volatile sig_atomic_t g_max_memory_ma57;
@@ -265,14 +275,14 @@ namespace gollnlp {
     //set_solver_option("ma27_meminc_factor", 1.1);
 
     g_solve_watch_ma57=true;
-    g_alarm_duration_ma57=6;//seconds
-    g_max_memory_ma57=300;//Mbytes
+    g_alarm_duration_ma57=alarm_ma57_normal;
+    g_max_memory_ma57=max_mem_ma57_normal;
     g_my_rank_ma57=my_rank;
     g_my_K_idx_ma57=K_idx;
 
     g_solve_watch_ma27=true;
-    g_alarm_duration_ma27=8;//seconds
-    g_max_memory_ma27=400;//Mbytes
+    g_alarm_duration_ma27=alarm_ma27_normal;
+    g_max_memory_ma27=max_mem_ma27_normal;
     g_my_rank_ma27=my_rank;
     g_my_K_idx_ma27=K_idx;
 
@@ -290,19 +300,26 @@ namespace gollnlp {
       switch(n_solves) {
       case 0: 
 	{ 
-	  PDRestart=true;
-	  //set_solver_option("mu_target", 1e-9);
-	  set_solver_option("mu_init", 1e-4);
-	  set_solver_option("tol", 1e-8);
+	  PDRestart=false;
+	  set_solver_option("mu_target", 5e-9);
+	  set_solver_option("mu_init", 1e-1);
+	  set_solver_option("tol", 5e-8);
 	  set_solver_option("linear_solver", "ma57"); 
 	  set_solver_option("linear_system_scaling", "mc19");
 	  set_solver_option("linear_scaling_on_demand", "yes");
+
+	  const double gamma = 1e-3;
+	  regularize_vn(gamma);
+	  regularize_thetan(gamma);
+	  regularize_bs(gamma);
+	  regularize_pg(gamma);
+	  regularize_qg(gamma);
 	}
 	break;
       case 1: 
 	{
 	  PDRestart=false;
-	  set_solver_option("mu_target", 1e-8);
+	 
 	  if(last_opt_status!=User_Requested_Stop && 
 	     last_opt_status!=Unrecoverable_Exception && 
 	     last_opt_status!=Maximum_Iterations_Exceeded) {
@@ -313,12 +330,13 @@ namespace gollnlp {
 	  } else {
 	    //we do a primal restart only since restarting duals didn't work (and tends to pose issues)
 	    vars_primal->set_start_to(*vars_last);
-	    set_solver_option("mu_init", 1e-4);
+	    set_solver_option("mu_init", 1e-2);
 	  }
 
 	  set_solver_option("ma57_small_pivot_flag", 1);
 
-	  set_solver_option("tol", 1e-7);
+	   set_solver_option("mu_target", 5e-8);
+	  set_solver_option("tol", 5e-7);
 	  set_solver_option("mu_linear_decrease_factor", 0.4);
 	  set_solver_option("mu_superlinear_decrease_power", 1.25);
 	  
@@ -329,8 +347,8 @@ namespace gollnlp {
 	  regularize_pg(gamma);
 	  regularize_qg(gamma);
 
-	  g_alarm_duration_ma57=10;//seconds
-	  g_max_memory_ma57=500;//Mbytes
+	  g_alarm_duration_ma57=alarm_ma57_safem;
+	  g_max_memory_ma57=max_mem_ma57_safem;
 
 	}
 	break;
@@ -352,13 +370,13 @@ namespace gollnlp {
 	    vars_primal->set_start_to(*vars_last);
 	  }
 
-	  set_solver_option("mu_init", 1e-4); 
-	  set_solver_option("mu_target", 1e-8);
+	  set_solver_option("mu_init", 1e-2); 
+	  set_solver_option("mu_target", 5e-8);
 
 	  set_solver_option("linear_system_scaling", "mc19");
 	  set_solver_option("linear_scaling_on_demand", "yes");
 
-	  set_solver_option("tol", 1e-7);
+	  set_solver_option("tol", 5e-7);
 	  set_solver_option("mu_linear_decrease_factor", 0.4);
 	  set_solver_option("mu_superlinear_decrease_power", 1.2);
 
@@ -379,18 +397,18 @@ namespace gollnlp {
 	  } else {
 	    //we do a primal restart only since restarting duals didn't work (and tends to pose issues)
 	    vars_primal->set_start_to(*vars_last);
-	    set_solver_option("mu_init", 1e-4);
+	    set_solver_option("mu_init", 1e-2);
 	  }
-	  set_solver_option("mu_target", 1e-8);
-	  set_solver_option("tol", 1e-7);
+	  set_solver_option("mu_target", 5e-8);
+	  set_solver_option("tol", 5e-7);
 	  set_solver_option("mu_linear_decrease_factor", 0.4);
 	  set_solver_option("mu_superlinear_decrease_power", 1.2);
 
 	  const double gamma = 1e-2;
 	  update_regularizations(gamma);
 
-	  g_alarm_duration_ma27=15;//seconds
-	  g_max_memory_ma27=700;//Mbytes
+	  g_alarm_duration_ma27=alarm_ma27_safem;
+	  g_max_memory_ma27=max_mem_ma27_safem;
 	}
 	break;
       case 4: 
@@ -401,7 +419,7 @@ namespace gollnlp {
 
 	  vars_primal->set_start_to(*vars_ini);
 	  set_solver_option("mu_init", 1.);
-	  set_solver_option("mu_target", 1e-8);
+	  set_solver_option("mu_target", 5e-8);
 
 	  printf("[warning] ContProbWithFixing K_idx=%d opt1 will switch to ma57 at try %d rank=%d\n", 
 		 K_idx, n_solves+1, my_rank); 
@@ -412,15 +430,15 @@ namespace gollnlp {
 	  set_solver_option("linear_system_scaling", "mc19");
 	  set_solver_option("linear_scaling_on_demand", "yes");
 
-	  set_solver_option("tol", 1e-7);
+	  set_solver_option("tol", 1e-6);
 	  set_solver_option("mu_linear_decrease_factor", 0.4);
 	  set_solver_option("mu_superlinear_decrease_power", 1.2);
 
 	  const double gamma = 1e-2;
 	  update_regularizations(gamma);
 
-	  g_alarm_duration_ma57=12;//seconds
-	  g_max_memory_ma57=600;//Mbytes
+	  g_alarm_duration_ma57=alarm_ma57_safem;
+	  g_max_memory_ma57=max_mem_ma57_safem;
 	}
 	break;
       default:
@@ -428,22 +446,22 @@ namespace gollnlp {
 	  PDRestart=false;
 	  solve1_safe_mode=true;
 	  set_solver_option("mu_init", 1.);
-	  set_solver_option("mu_target", 1e-8);
+	  set_solver_option("mu_target", 1e-7);
 	  set_solver_option("linear_solver", "ma57"); 
 	  set_solver_option("ma57_automatic_scaling", "yes");
-	  set_solver_option("tol", 1e-6);
+	  set_solver_option("tol", 5e-6);
 	  set_solver_option("mu_linear_decrease_factor", 0.4);
 	  set_solver_option("mu_superlinear_decrease_power", 1.2);
 
 	  const double gamma = 5e-2 + 0.1*n_solves;
 	  update_regularizations(gamma);
 
-	  g_alarm_duration_ma57=12;//seconds
-	  g_max_memory_ma57=600;//Mbytes
+	  g_alarm_duration_ma57=alarm_ma57_safem;
+	  g_max_memory_ma57=max_mem_ma57_safem;
 	}
       }
-      set_solver_option("print_user_options", "no");
-      set_solver_option("print_level", 2);
+      set_solver_option("print_user_options", "yes");
+      set_solver_option("print_level", 5);
       set_solver_option("sb","yes");
 
       set_solver_option("max_iter", 300);
@@ -453,12 +471,12 @@ namespace gollnlp {
 
       set_solver_option("fixed_variable_treatment", "relax_bounds");
       set_solver_option("honor_original_bounds", "yes");
-      double relax_factor = std::min(1e-8, pow(10., 3*n_solves-16));
+      double relax_factor = 1e-8;//std::min(1e-8, pow(10., 3*n_solves-16));
       set_solver_option("bound_relax_factor", relax_factor);
-      double bound_push = std::min(1e-2, pow(10., 3*n_solves-12));
+      double bound_push = 1e-2;//std::min(1e-2, pow(10., 3*n_solves-12));
       set_solver_option("bound_push", bound_push);
       set_solver_option("slack_bound_push", bound_push); 
-      double bound_frac = std::min(1e-2, pow(10., 3*n_solves-10));
+      double bound_frac = 1e-2;//std::min(1e-2, pow(10., 3*n_solves-10));
       set_solver_option("bound_frac", bound_frac);
       set_solver_option("slack_bound_frac", bound_frac);
       
@@ -539,14 +557,14 @@ namespace gollnlp {
 #endif
 
     g_solve_watch_ma57=true;
-    g_alarm_duration_ma57=6;//seconds
-    g_max_memory_ma57=300;//Mbytes
+    g_alarm_duration_ma57=alarm_ma57_normal;
+    g_max_memory_ma57=max_mem_ma57_normal;
     g_my_rank_ma57=my_rank;
     g_my_K_idx_ma57=K_idx;
 
     g_solve_watch_ma27=true;
-    g_alarm_duration_ma27=8;//seconds
-    g_max_memory_ma27=400;//Mbytes
+    g_alarm_duration_ma27=alarm_ma27_normal;
+    g_max_memory_ma27=max_mem_ma27_normal;//Mbytes
     g_my_rank_ma27=my_rank;
     g_my_K_idx_ma27=K_idx;
 
@@ -563,22 +581,29 @@ namespace gollnlp {
       case 0: 
 	{ 
 	  if(bFirstSolveOK) {
-	    PDRestart=true;
-	    //set_solver_option("mu_target", 1e-9);
-	    set_solver_option("mu_init", 1e-4);
+	    PDRestart=false;
+	    set_solver_option("mu_target", 5e-9);
+	    set_solver_option("mu_init", 1e-2);
 	  } else {
 	    PDRestart=false;
 	    set_solver_option("mu_init", 1e-1);
 	  }
-	  set_solver_option("tol", 1e-8);
+	  set_solver_option("tol", 5e-8);
 	  set_solver_option("linear_solver", "ma57"); 
 	  set_solver_option("linear_system_scaling", "mc19");
 	  set_solver_option("linear_scaling_on_demand", "yes");
+
+	  const double gamma = 1e-3;
+	  regularize_vn(gamma);
+	  regularize_thetan(gamma);
+	  regularize_bs(gamma);
+	  regularize_pg(gamma);
+	  regularize_qg(gamma);
 	}
 	break;
       case 1: 
 	{	  
-	  set_solver_option("mu_target", 1e-8);
+	  set_solver_option("mu_target", 5e-8);
 	  if(last_opt_status!=User_Requested_Stop && last_opt_status!=Unrecoverable_Exception &&
 	     last_opt_status!=Maximum_Iterations_Exceeded) {
 	    assert(last_opt_status!=Solve_Succeeded && last_opt_status!=Solved_To_Acceptable_Level);
@@ -589,13 +614,13 @@ namespace gollnlp {
 	  } else {
 	    //we do a primal restart only since restarting duals didn't work (and tends to pose issues)
 	    vars_primal->set_start_to(*vars_last);
-	    set_solver_option("mu_init", 1e-4);
-	    PDRestart=true;
+	    set_solver_option("mu_init", 1e-2);
+	    PDRestart=false;
 	  }
 
 	  set_solver_option("ma57_small_pivot_flag", 1);
 
-	  set_solver_option("tol", 1e-7);
+	  set_solver_option("tol", 5e-7);
 	  set_solver_option("mu_linear_decrease_factor", 0.4);
 	  set_solver_option("mu_superlinear_decrease_power", 1.25);
 
@@ -606,9 +631,8 @@ namespace gollnlp {
 	  regularize_pg(gamma);
 	  regularize_qg(gamma);
 
-	  g_alarm_duration_ma57=10;//seconds
-	  g_max_memory_ma57=500;//Mbytes
-
+	  g_alarm_duration_ma57=alarm_ma57_safem;
+	  g_max_memory_ma57=max_mem_ma57_safem;
 	}
 	break;
       case 2: //MA27
@@ -629,13 +653,13 @@ namespace gollnlp {
 	    vars_primal->set_start_to(*vars_last);
 	  }
 
-	  set_solver_option("mu_init", 1e-4); 
-	  set_solver_option("mu_target", 1e-8);
+	  set_solver_option("mu_init", 1e-2); 
+	  set_solver_option("mu_target", 5e-8);
 
 	  set_solver_option("linear_system_scaling", "mc19");
 	  set_solver_option("linear_scaling_on_demand", "yes");
 
-	  set_solver_option("tol", 1e-7);
+	  set_solver_option("tol", 5e-7);
 	  set_solver_option("mu_linear_decrease_factor", 0.4);
 	  set_solver_option("mu_superlinear_decrease_power", 1.2);
 
@@ -656,19 +680,19 @@ namespace gollnlp {
 	  } else {
 	    //we do a primal restart only since restarting duals didn't work (and tends to pose issues)
 	    vars_primal->set_start_to(*vars_last);
-	    set_solver_option("mu_init", 1e-4);
-	    PDRestart=true;
+	    set_solver_option("mu_init", 1e-2);
+	    PDRestart=false;
 	  }
-	  set_solver_option("mu_target", 1e-8);
-	  set_solver_option("tol", 1e-7);
+	  set_solver_option("mu_target", 5e-8);
+	  set_solver_option("tol", 5e-7);
 	  set_solver_option("mu_linear_decrease_factor", 0.4);
 	  set_solver_option("mu_superlinear_decrease_power", 1.2);
 
 	  const double gamma = 1e-2;
 	  update_regularizations(gamma);
 
-	  g_alarm_duration_ma27=15;//seconds
-	  g_max_memory_ma27=700;//Mbytes
+	  g_alarm_duration_ma27=alarm_ma27_safem;
+	  g_max_memory_ma27=max_mem_ma27_safem;
 	}
 	break;
       case 4: 
@@ -686,10 +710,10 @@ namespace gollnlp {
 	  } else {
 	    //we do a primal restart only since restarting duals didn't work (and tends to pose issues)
 	    vars_primal->set_start_to(*vars_last);
-	    set_solver_option("mu_init", 1e-3);
+	    set_solver_option("mu_init", 1e-2);
 	  }
 
-	  set_solver_option("mu_target", 1e-8);
+	  set_solver_option("mu_target", 5e-8);
 
 	  printf("[warning] ContProbWithFixing K_idx=%d opt2 will switch to ma57 at try %d rank=%d\n", 
 		 K_idx, n_solves+1, my_rank); 
@@ -700,15 +724,15 @@ namespace gollnlp {
 	  set_solver_option("linear_system_scaling", "mc19");
 	  set_solver_option("linear_scaling_on_demand", "yes");
 
-	  set_solver_option("tol", 1e-7);
+	  set_solver_option("tol", 5e-7);
 	  set_solver_option("mu_linear_decrease_factor", 0.4);
 	  set_solver_option("mu_superlinear_decrease_power", 1.2);
 	  
 	  const double gamma = 1e-2;
 	  update_regularizations(gamma);
 
-	  g_alarm_duration_ma57=12;//seconds
-	  g_max_memory_ma57=600;//Mbytes
+	  g_alarm_duration_ma57=alarm_ma57_safem;
+	  g_max_memory_ma57=max_mem_ma57_safem;
 	}
 	break;
       default:
@@ -725,13 +749,13 @@ namespace gollnlp {
 	  } else {
 	    //we do a primal restart only since restarting duals didn't work (and tends to pose issues)
 	    vars_primal->set_start_to(*vars_last);
-	    set_solver_option("mu_init", 1e-3);
+	    set_solver_option("mu_init", 1e-2);
 	  }
 	  
-	  set_solver_option("mu_target", 1e-8);
+	  set_solver_option("mu_target", 1e-7);
 	  set_solver_option("linear_solver", "ma57"); 
 	  set_solver_option("ma57_automatic_scaling", "yes");
-	  set_solver_option("tol", 1e-6);
+	  set_solver_option("tol", 5e-6);
 	  set_solver_option("mu_linear_decrease_factor", 0.4);
 	  set_solver_option("mu_superlinear_decrease_power", 1.2);
 
@@ -739,27 +763,27 @@ namespace gollnlp {
 	  update_regularizations(gamma);
 
 
-	  g_alarm_duration_ma57=12;//seconds
-	  g_max_memory_ma57=600;//Mbytes
+	  g_alarm_duration_ma57=alarm_ma57_safem;
+	  g_max_memory_ma57=max_mem_ma57_safem;
 	}
       }
-      set_solver_option("print_user_options", "no");
-      set_solver_option("print_level", 2);
+      set_solver_option("print_user_options", "yes");
+      set_solver_option("print_level", 5);
       set_solver_option("sb","yes");
 
       set_solver_option("max_iter", 500);
       set_solver_option("acceptable_tol", 1e-3);
       set_solver_option("acceptable_constr_viol_tol", 1e-6);
-      set_solver_option("acceptable_iter", 4);
+      set_solver_option("acceptable_iter", 2);
 
       set_solver_option("fixed_variable_treatment", "relax_bounds");
       set_solver_option("honor_original_bounds", "yes");
-      double relax_factor = std::min(1e-8, pow(10., 3*n_solves-16));
+      double relax_factor = 1e-8;//std::min(1e-8, pow(10., 3*n_solves-16));
       set_solver_option("bound_relax_factor", relax_factor);
-      double bound_push = std::min(1e-2, pow(10., 3*n_solves-12));
+      double bound_push = 1e-2;//std::min(1e-2, pow(10., 3*n_solves-12));
       set_solver_option("bound_push", bound_push);
       set_solver_option("slack_bound_push", bound_push); 
-      double bound_frac = std::min(1e-2, pow(10., 3*n_solves-10));
+      double bound_frac = 1e-2;//std::min(1e-2, pow(10., 3*n_solves-10));
       set_solver_option("bound_frac", bound_frac);
       set_solver_option("slack_bound_frac", bound_frac);
       
@@ -911,7 +935,7 @@ namespace gollnlp {
 
 	if( (rpa>0.85 && rpa<1.15) || (rma>0.85 && rma <1.15) ) {
 	  one_more_push_and_fix = true;
-	  gen_K_diff = poverall;
+	  gen_K_diff = 1.5*poverall;
 
 	  //ignore small delta for transmission contingencies since they're really optimization noise
 	  if(d.K_ConType[0]!=SCACOPFData::kGenerator && fabs(solv1_delta_optim)<1e-6) {
@@ -922,7 +946,6 @@ namespace gollnlp {
 	  if(d.K_ConType[0]==SCACOPFData::kGenerator) {
 	    double pen_p_balance, pen_q_balance, pen_line_limits, pen_trans_limits;
 	    get_objective_penalties(pen_p_balance, pen_q_balance, pen_line_limits, pen_trans_limits);
-	    
 	    if(pen_p_balance > 500.*pen_q_balance && 
 	       pen_p_balance > 500.*pen_line_limits && 
 	       pen_p_balance > 500.*pen_trans_limits) {
@@ -1443,7 +1466,7 @@ namespace gollnlp {
 	pen_p_balance = 0.;
     }
     {
-      auto ot = obj->objterm(objterm_name("quadr_pen_qslack_n_p_balance", d));
+      auto ot = obj->objterm(objterm_name("quadr_pen_qslack_n_q_balance", d));
       if(NULL==ot || !ot->eval_f(*vars_primal, new_x, pen_q_balance))
 	pen_q_balance = 0.;
     }
@@ -1454,6 +1477,7 @@ namespace gollnlp {
 
       auto ot2 = obj->objterm(objterm_name("quadr_pen_sslack_li_line_limits2", d));
       if(ot2) ot2->eval_f(*vars_primal, new_x, pen_line_limits);
+      pen_line_limits /= 2.;
     }
     {
       pen_trans_limits = 0.;
@@ -1462,6 +1486,7 @@ namespace gollnlp {
       
       auto ot2 = obj->objterm(objterm_name("quadr_pen_sslack_ti_trans_limits2", d));
       if(ot2) ot2->eval_f(*vars_primal, new_x, pen_trans_limits);
+      pen_trans_limits /= 2.;
     }
   }
 
