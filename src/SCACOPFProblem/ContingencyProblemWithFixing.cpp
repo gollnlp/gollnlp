@@ -460,8 +460,8 @@ namespace gollnlp {
 	  g_max_memory_ma57=max_mem_ma57_safem;
 	}
       }
-      set_solver_option("print_user_options", "yes");
-      set_solver_option("print_level", 5);
+      set_solver_option("print_user_options", "no");
+      set_solver_option("print_level", 2);
       set_solver_option("sb","yes");
 
       set_solver_option("max_iter", 300);
@@ -767,8 +767,8 @@ namespace gollnlp {
 	  g_max_memory_ma57=max_mem_ma57_safem;
 	}
       }
-      set_solver_option("print_user_options", "yes");
-      set_solver_option("print_level", 5);
+      set_solver_option("print_user_options", "no");
+      set_solver_option("print_level", 2);
       set_solver_option("sb","yes");
 
       set_solver_option("max_iter", 500);
