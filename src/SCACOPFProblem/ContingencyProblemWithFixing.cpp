@@ -263,14 +263,14 @@ namespace gollnlp {
     //set_solver_option("ma27_meminc_factor", 1.1);
 
     g_solve_watch_ma57=true;
-    g_alarm_duration_ma57=6;//seconds
-    g_max_memory_ma57=300;//Mbytes
+    g_alarm_duration_ma57=30;//seconds
+    g_max_memory_ma57=1500;//Mbytes
     g_my_rank_ma57=my_rank;
     g_my_K_idx_ma57=K_idx;
 
     g_solve_watch_ma27=true;
-    g_alarm_duration_ma27=8;//seconds
-    g_max_memory_ma27=400;//Mbytes
+    g_alarm_duration_ma27=40;//seconds
+    g_max_memory_ma27=1700;//Mbytes
     g_my_rank_ma27=my_rank;
     g_my_K_idx_ma27=K_idx;
 
@@ -326,8 +326,8 @@ namespace gollnlp {
 	  regularize_pg(gamma);
 	  regularize_qg(gamma);
 
-	  g_alarm_duration_ma57=10;//seconds
-	  g_max_memory_ma57=500;//Mbytes
+	  g_alarm_duration_ma57=40;//seconds
+	  g_max_memory_ma57=2000;//Mbytes
 
 	}
 	break;
@@ -386,8 +386,8 @@ namespace gollnlp {
 	  const double gamma = 1e-2;
 	  update_regularizations(gamma);
 
-	  g_alarm_duration_ma27=15;//seconds
-	  g_max_memory_ma27=700;//Mbytes
+	  g_alarm_duration_ma27=50;//seconds
+	  g_max_memory_ma27=2000;//Mbytes
 	}
 	break;
       case 4: 
@@ -416,8 +416,8 @@ namespace gollnlp {
 	  const double gamma = 1e-2;
 	  update_regularizations(gamma);
 
-	  g_alarm_duration_ma57=12;//seconds
-	  g_max_memory_ma57=600;//Mbytes
+	  g_alarm_duration_ma57=40;//seconds
+	  g_max_memory_ma57=2000;//Mbytes
 	}
 	break;
       default:
@@ -435,8 +435,8 @@ namespace gollnlp {
 	  const double gamma = 5e-2 + 0.1*n_solves;
 	  update_regularizations(gamma);
 
-	  g_alarm_duration_ma57=12;//seconds
-	  g_max_memory_ma57=600;//Mbytes
+	  g_alarm_duration_ma57=40;//seconds
+	  g_max_memory_ma57=2000;//Mbytes
 	}
       }
       set_solver_option("print_user_options", "no");
@@ -532,14 +532,14 @@ namespace gollnlp {
 #endif
 
     g_solve_watch_ma57=true;
-    g_alarm_duration_ma57=6;//seconds
-    g_max_memory_ma57=300;//Mbytes
+    g_alarm_duration_ma57=30;//seconds
+    g_max_memory_ma57=1500;//Mbytes
     g_my_rank_ma57=my_rank;
     g_my_K_idx_ma57=K_idx;
 
     g_solve_watch_ma27=true;
-    g_alarm_duration_ma27=8;//seconds
-    g_max_memory_ma27=400;//Mbytes
+    g_alarm_duration_ma27=40;//seconds
+    g_max_memory_ma27=1700;//Mbytes
     g_my_rank_ma27=my_rank;
     g_my_K_idx_ma27=K_idx;
 
@@ -598,8 +598,8 @@ namespace gollnlp {
 	  regularize_pg(gamma);
 	  regularize_qg(gamma);
 
-	  g_alarm_duration_ma57=10;//seconds
-	  g_max_memory_ma57=500;//Mbytes
+	  g_alarm_duration_ma57=40;//seconds
+	  g_max_memory_ma57=2000;//Mbytes
 
 	}
 	break;
@@ -659,8 +659,8 @@ namespace gollnlp {
 	  const double gamma = 1e-2;
 	  update_regularizations(gamma);
 
-	  g_alarm_duration_ma27=15;//seconds
-	  g_max_memory_ma27=700;//Mbytes
+	  g_alarm_duration_ma27=50;//seconds
+	  g_max_memory_ma27=2000;//Mbytes
 	}
 	break;
       case 4: 
@@ -699,8 +699,8 @@ namespace gollnlp {
 	  const double gamma = 1e-2;
 	  update_regularizations(gamma);
 
-	  g_alarm_duration_ma57=12;//seconds
-	  g_max_memory_ma57=600;//Mbytes
+	  g_alarm_duration_ma57=40;//seconds
+	  g_max_memory_ma57=2000;//Mbytes
 	}
 	break;
       default:
@@ -731,8 +731,8 @@ namespace gollnlp {
 	  update_regularizations(gamma);
 
 
-	  g_alarm_duration_ma57=12;//seconds
-	  g_max_memory_ma57=600;//Mbytes
+	  g_alarm_duration_ma57=40;//seconds
+	  g_max_memory_ma57=2000;//Mbytes
 	}
       }
       set_solver_option("print_user_options", "no");
