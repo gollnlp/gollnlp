@@ -2,6 +2,7 @@
 #define SC_CONTINGENCY_PROBLEM_WITH_FIXING
 
 #include "ContingencyProblem.hpp"
+
 #include <vector>
 #include <unordered_map>
 #include "goTimer.hpp"
@@ -19,8 +20,13 @@ namespace gollnlp {
 				 bool safe_mode=false);
     virtual ~ContingencyProblemWithFixing();
 
-    double pen_threshold;
-
+    //see go_code2.cpp, 'solve_contingency' method for explanations
+    double pen_accept, pen_accept_initpt, pen_accept_solve1;
+    double pen_accept_emer, pen_accept_safemode;
+    double timeout; //of the entire 2-step, possibly multi-solve solve of this class
+  protected:
+    double m_pen_accept; //either pen_accept_solve1 or pen_accept (in solve2)
+  public:
     virtual bool default_assembly(OptVariablesBlock* pg0, OptVariablesBlock* vn0);
     virtual bool default_assembly(OptVariablesBlock* vn0, OptVariablesBlock* thetan0, OptVariablesBlock* bs0, 
 				  OptVariablesBlock* pg0, OptVariablesBlock* qg0)
@@ -100,7 +106,7 @@ namespace gollnlp {
     double time_so_far;
 
     int comm_size;
-    
+    goTimer tmTotal;
   public:
 #ifdef GOLLNLP_FAULT_HANDLING
     virtual bool iterate_callback(int iter, const double& obj_value,
@@ -114,20 +120,60 @@ namespace gollnlp {
       if(primals && vars_last && mode!=RestorationPhaseMode)
 	vars_last->copy_from(primals);
 
-      // if(iter==15) {
-      // 	goTimer timer; timer.start();
-      // 	printf("doing it\n");
-      // 	const int nn=15000; double sum2=0.;
-      // 	for(int j=0; j<nn; j++) {
-      // 	  double sum=0.;
-      // 	  for(int i=0; i<nn; i++) sum += (cos(2.*i)/nn + sin(3.*i)/nn);
-      // 	  sum2 += sum/nn;
-      // 	}
-      // 	printf("done it %g -> in %g seconds\n", sum2, timer.measureElapsedTime());
-      // }
+      if(monitor.is_active) {
+	monitor.hist_tm.push_back(monitor.timer.measureElapsedTime());
+	
+	const double tmavg =  monitor.hist_tm.back() / monitor.hist_tm.size();
+	
+	const int over_n_last = 3; double tmavg_over_last = tmavg;
+	if(monitor.hist_tm.size() > over_n_last) {
+	  const int idx_ref = monitor.hist_tm.size()-over_n_last-1;
+	  tmavg_over_last = (monitor.hist_tm.back()-monitor.hist_tm[idx_ref])/over_n_last;
+	}
+	
+	if(obj_value<monitor.pen_accept && inf_pr_orig_pr<1e-6) {
+	  monitor.user_stopped=true;
+	  printf("[stop]acpt   K_idx=%d iter %d : obj=%12.5e inf_pr_o=%12.5e mu=%12.5e "
+		 "inf_du=%12.5e a_du=%12.5e a_pr=%12.5e rank=%d\n",
+		 K_idx, iter, obj_value, inf_pr_orig_pr, mu, inf_du,  alpha_du, alpha_pr, my_rank);
+	  return false;
+	}
 
-      return ContingencyProblem::iterate_callback(iter, obj_value, primals, inf_pr, inf_pr_orig_pr, inf_du,
-						  mu, alpha_du, alpha_pr, ls_trials, mode);
+	if(tmavg_over_last>3.*tmavg) {
+	  monitor.emergency = true;
+	  if(obj_value<pen_accept_emer && inf_pr_orig_pr<1e-6) {
+	    monitor.user_stopped=true;
+	    printf("[stop]slo1   K_idx=%d iter %d : obj=%12.5e inf_pr_o=%12.5e mu=%12.5e "
+		   "inf_du=%12.5e a_du=%12.5e a_pr=%12.5e rank=%d\n",
+		   K_idx, iter, obj_value, inf_pr_orig_pr, mu, inf_du,  alpha_du, alpha_pr, my_rank);
+	    return false;	 
+	  }
+	}
+
+	if(monitor.timer.measureElapsedTime() > monitor.timeout) {
+	  monitor.emergency = true;
+	  if(obj_value<pen_accept_emer && inf_pr_orig_pr<1e-6) {
+	    monitor.user_stopped=true;
+	    printf("[stop]time   K_idx=%d iter %d : obj=%12.5e inf_pr_o=%12.5e mu=%12.5e "
+		   "inf_du=%12.5e a_du=%12.5e a_pr=%12.5e rank=%d\n",
+		   K_idx, iter, obj_value, inf_pr_orig_pr, mu, inf_du,  alpha_du, alpha_pr, my_rank);
+	    return false;	 
+	  }
+	}
+
+	if(monitor.emergency) {
+	  if(obj_value<pen_accept_emer && inf_pr_orig_pr<1e-6) {
+	    monitor.user_stopped=true;
+	    printf("[stop]emer   K_idx=%d iter %d : obj=%12.5e inf_pr_o=%12.5e mu=%12.5e "
+		   "inf_du=%12.5e a_du=%12.5e a_pr=%12.5e rank=%d\n",
+		   K_idx, iter, obj_value, inf_pr_orig_pr, mu, inf_du,  alpha_du, alpha_pr, my_rank);
+	    return false;	 
+	  }
+	}
+      }
+      return true;
+      //ContingencyProblem::iterate_callback(iter, obj_value, primals, inf_pr, inf_pr_orig_pr, inf_du,
+      //					  mu, alpha_du, alpha_pr, ls_trials, mode);
     }
   protected:
     OptVariables *vars_ini, *vars_last; 

@@ -86,19 +86,25 @@ namespace gollnlp {
 
   double ContingencyProblemWithFixing::g_bounds_abuse=9e-5;
 
-  ContingencyProblemWithFixing::ContingencyProblemWithFixing(SCACOPFData& d_in, int K_idx_, 
-							     int my_rank, int comm_size_,
-							     std::unordered_map<std::string, 
-							     gollnlp::OptVariablesBlock*>& dict_basecase_vars_,
-							     const int& num_K_done_, const double& time_so_far_,
-							     bool safe_mode_)
+  ContingencyProblemWithFixing::
+  ContingencyProblemWithFixing(SCACOPFData& d_in, int K_idx_, 
+			       int my_rank, int comm_size_,
+			       std::unordered_map<std::string, 
+			       gollnlp::OptVariablesBlock*>& dict_basecase_vars_,
+			       const int& num_K_done_, const double& time_so_far_,
+			       bool safe_mode_)
     : ContingencyProblem(d_in, K_idx_, my_rank),  comm_size(comm_size_),
       dict_basecase_vars(dict_basecase_vars_), solv1_Pg_was_enough(true),
       num_K_done(num_K_done_), time_so_far(time_so_far_), safe_mode(safe_mode_)
     { 
-      pen_threshold=1e+3; 
       obj_solve1 = obj_solve2 = 1e+20; 
       vars_ini = vars_last = NULL;
+
+      pen_accept = pen_accept_initpt = pen_accept_solve1 = m_pen_accept = 1.;
+      pen_accept_emer = 500.;
+      pen_accept_safemode = 1000.;
+      timeout = 2000;
+      tmTotal.start();
     };
 
   ContingencyProblemWithFixing::~ContingencyProblemWithFixing()
@@ -271,6 +277,7 @@ namespace gollnlp {
 
   bool ContingencyProblemWithFixing::do_solve1()
   {
+    goTimer tmrec; tmrec.start();
     //! "ma27_ignore_singularity" 
     //set_solver_option("ma27_meminc_factor", 1.1);
 
@@ -286,17 +293,18 @@ namespace gollnlp {
     g_my_rank_ma27=my_rank;
     g_my_K_idx_ma27=K_idx;
 
-    goTimer tmrec; tmrec.start();
     vector<int> hist_iter, hist_obj; 
     obj_value = -1.;
     bool bret = true, done = false; 
     OptimizationStatus last_opt_status = Solve_Succeeded; //be positive
-    bool solve1_safe_mode=safe_mode;
+    bool solve1_emer_mode=false;
     int n_solves=0; 
     while(!done) {
 
       bool opt_ok=false; bool PDRestart=true;
 
+      solve1_emer_mode=false;
+      
       switch(n_solves) {
       case 0: 
 	{ 
@@ -319,7 +327,7 @@ namespace gollnlp {
       case 1: 
 	{
 	  PDRestart=false;
-	 
+	  solve1_emer_mode=false; //keep emergency mode off
 	  if(last_opt_status!=User_Requested_Stop && 
 	     last_opt_status!=Unrecoverable_Exception && 
 	     last_opt_status!=Maximum_Iterations_Exceeded) {
@@ -355,6 +363,7 @@ namespace gollnlp {
       case 2: //MA27
 	{
 	  PDRestart=false;
+	  solve1_emer_mode=true;
 	  reallocate_nlp_solver();
 	  printf("[warning] ContProbWithFixing K_idx=%d opt1 will switch to ma27 at try %d rank=%d\n", 
 		 K_idx, n_solves+1, my_rank); 
@@ -387,7 +396,7 @@ namespace gollnlp {
       case 3: //MA27
 	{
 	  PDRestart=false;
-	  solve1_safe_mode=true;
+	  solve1_emer_mode=true;
 	  if(last_opt_status!=User_Requested_Stop && last_opt_status!=Unrecoverable_Exception &&
 	     last_opt_status!=Maximum_Iterations_Exceeded) {
 	    assert(last_opt_status!=Solve_Succeeded && last_opt_status!=Solved_To_Acceptable_Level);
@@ -414,7 +423,7 @@ namespace gollnlp {
       case 4: 
 	{
 	  PDRestart=false;
-	  solve1_safe_mode=true;
+	  solve1_emer_mode=true;
 	  reallocate_nlp_solver();
 
 	  vars_primal->set_start_to(*vars_ini);
@@ -444,7 +453,7 @@ namespace gollnlp {
       default:
 	{
 	  PDRestart=false;
-	  solve1_safe_mode=true;
+	  solve1_emer_mode=true;
 	  set_solver_option("mu_init", 1.);
 	  set_solver_option("mu_target", 1e-7);
 	  set_solver_option("linear_solver", "ma57"); 
@@ -482,19 +491,21 @@ namespace gollnlp {
       
       set_solver_option("neg_curv_test_reg", "no"); //default yes ->ChiangZavala primal regularization
 
-
-      monitor.safe_mode=solve1_safe_mode; 
       monitor.timer.restart();
       monitor.hist_tm.clear();
       monitor.user_stopped = false;
+      monitor.timeout = std::max(1., timeout - tmTotal.measureElapsedTime());
       
-      if(data_sc.N_Bus.size()>8999) {
-	if(solve1_safe_mode)
-	  monitor.bailout_allowed=true;//! probably not needed when watching timeouts
-	else 
-	  monitor.bailout_allowed=false;
+      if(safe_mode) {
+	monitor.emergency=true;
+	monitor.pen_accept = pen_accept_safemode;
+	monitor.pen_accept_emer = pen_accept_safemode;
+      } else {
+	monitor.pen_accept = pen_accept_solve1;
+	monitor.pen_accept_emer = pen_accept_emer;
+	monitor.emergency = solve1_emer_mode;
       }
-
+      
       if(PDRestart) {
 	opt_ok = OptProblem::reoptimize(OptProblem::primalDualRestart);
       } else {
@@ -515,15 +526,15 @@ namespace gollnlp {
 	  done = true;
 	} else {
 	  //something bad happened, will resolve
-	  printf("[warning] ContProbWithFixing K_idx=%d opt1 failed at try %d rank=%d time %g\n", 
+	  printf("[warning] ContProbWithFixing K_idx=%d opt1 failed at try %d rank=%d  %g sec\n", 
 		 K_idx, n_solves, my_rank, tmrec.measureElapsedTime()); 
 	}
       }
       
       if(n_solves>9) done = true;
-      if(tmrec.measureElapsedTime()>800) {
-	printf("[warning] ContProbWithFixing K_idx=%d opt1 taking too long on rank=%d; tries %d time %g\n", 
-	       K_idx, my_rank, n_solves, tmrec.measureElapsedTime());
+      if(tmTotal.measureElapsedTime() > timeout) {
+	printf("[warning] ContProbWithFixing K_idx=%d opt1 timeout  %g sec; rank=%d; tries %d\n", 
+	       K_idx, tmTotal.measureElapsedTime(), my_rank, n_solves);
 	done = true;
 	bret = false;
       }
@@ -572,11 +583,11 @@ namespace gollnlp {
     obj_value = -1.;
     bool bret = true, done = false; 
     OptimizationStatus last_opt_status = Solve_Succeeded; //be positive
-    bool solve2_safe_mode=safe_mode;
+    bool solve2_emer_mode=false;
     int n_solves=0; 
     while(!done) {
       bool opt_ok=false; bool PDRestart=true;
-
+      solve2_emer_mode=false;
       switch(n_solves) {
       case 0: 
 	{ 
@@ -602,7 +613,8 @@ namespace gollnlp {
 	}
 	break;
       case 1: 
-	{	  
+	{
+	  solve2_emer_mode=false; //keep it off at the second solve
 	  set_solver_option("mu_target", 5e-8);
 	  if(last_opt_status!=User_Requested_Stop && last_opt_status!=Unrecoverable_Exception &&
 	     last_opt_status!=Maximum_Iterations_Exceeded) {
@@ -638,6 +650,7 @@ namespace gollnlp {
       case 2: //MA27
 	{
 	  PDRestart=false;
+	  solve2_emer_mode=true;
 	  reallocate_nlp_solver();
 	  printf("[warning] ContProbWithFixing K_idx=%d opt2 will switch to ma27 at try %d rank=%d\n", 
 		 K_idx, n_solves+1, my_rank); 
@@ -669,7 +682,7 @@ namespace gollnlp {
 	break;
       case 3: //MA27
 	{	  
-	  solve2_safe_mode=true;
+	  solve2_emer_mode=true;
 	  if(last_opt_status!=User_Requested_Stop && last_opt_status!=Unrecoverable_Exception &&
 	    last_opt_status!=Maximum_Iterations_Exceeded) {
 	    assert(last_opt_status!=Solve_Succeeded && last_opt_status!=Solved_To_Acceptable_Level);
@@ -698,7 +711,7 @@ namespace gollnlp {
       case 4: 
 	{
 	  PDRestart=false;
-	  solve2_safe_mode=true;
+	  solve2_emer_mode=true;
 	  reallocate_nlp_solver();
 
 	  if(last_opt_status!=User_Requested_Stop && last_opt_status!=Unrecoverable_Exception &&
@@ -738,7 +751,7 @@ namespace gollnlp {
       default:
 	{
 	  PDRestart=false;
-	  solve2_safe_mode=true;
+	  solve2_emer_mode=true;
 
 	  if(last_opt_status!=User_Requested_Stop && last_opt_status!=Unrecoverable_Exception &&
 	     last_opt_status!=Maximum_Iterations_Exceeded) {
@@ -790,16 +803,19 @@ namespace gollnlp {
       set_solver_option("neg_curv_test_reg", "no"); //default yes ->ChiangZavala primal regularization
 
 
-      monitor.safe_mode=solve2_safe_mode; 
       monitor.timer.restart();
       monitor.hist_tm.clear();
       monitor.user_stopped = false;
+      monitor.timeout = std::max(1., timeout - tmTotal.measureElapsedTime());
       
-      if(data_sc.N_Bus.size()>8999) {
-	if(solve2_safe_mode)
-	  monitor.bailout_allowed=true;//! probably not needed when watching timeouts
-	else 
-	  monitor.bailout_allowed=false;
+      if(safe_mode) {
+	monitor.emergency = true;
+	monitor.pen_accept = pen_accept_safemode;
+	monitor.pen_accept_emer = pen_accept_safemode;
+      } else {
+	monitor.emergency = solve2_emer_mode;
+	monitor.pen_accept = pen_accept;
+	monitor.pen_accept_emer = pen_accept_emer;
       }
 
       if(PDRestart) {
@@ -828,9 +844,9 @@ namespace gollnlp {
       }
 
       if(n_solves>9) done = true;
-      if(tmrec.measureElapsedTime()>800) {
-	printf("[warning] ContProbWithFixing K_idx=%d opt2 taking too long on rank=%d; tries %d time %g\n", 
-	       K_idx, my_rank, n_solves, tmrec.measureElapsedTime());
+      if(tmTotal.measureElapsedTime() > timeout) {
+	printf("[warning] ContProbWithFixing K_idx=%d opt2 timeout  rank=%d; tries %d took %g sec\n", 
+	       K_idx, my_rank, n_solves, tmTotal.measureElapsedTime());
 	done = true;
 	bret = false;
       }
@@ -882,28 +898,25 @@ namespace gollnlp {
     if(variable("delta", d)) solv1_delta_optim = variable("delta", d)->x[0];
     else                     solv1_delta_optim = 0.;
 
-    if(num_K_done<comm_size-1) num_K_done=comm_size-1;
-
-    double K_avg_time_so_far = time_so_far  / num_K_done;
-
-    if(K_avg_time_so_far > 0.91*2.) monitor.is_late=true;
-
-    bool skip_2nd_solve = monitor.is_late;
-
-    if(time_so_far < 0.085*2.*data_sc.K_Contingency.size()) skip_2nd_solve=false;
-
-    if(this->obj_value>=5e5 && K_avg_time_so_far < 0.950*2.) skip_2nd_solve=false;
-    if(this->obj_value>=1e6 && K_avg_time_so_far < 1.025*2.) skip_2nd_solve=false;
-
+    bool skip_2nd_solve = false;
+    
     if(!bFirstSolveOK) skip_2nd_solve=false;
-
-    if(bFirstSolveOK && tmrec.measureElapsedTime()>800.) {
-      skip_2nd_solve=true;
-      printf("ContProbWithFixing K_idx=%d will exit prematuraly b/c first solves took long %g sec on rank=%d\n", 
-	     K_idx, tmrec.measureElapsedTime(), my_rank);
+    
+    if(tmTotal.measureElapsedTime() > 0.95*timeout) {
+      if(bFirstSolveOK) {
+	printf("ContProbWithFixing K_idx=%d will exit prematuraly b/c first solves "
+	       "took long %g sec on rank=%d\n", 
+	       K_idx, tmrec.measureElapsedTime(), my_rank);
+	skip_2nd_solve = true;
+      } else {
+	//! aaa return ini point to make sure we stay feasible
+      }
     }
 
-    if(this->obj_value>pen_threshold && !skip_2nd_solve) {
+    double acceptable_penalty = safe_mode ?  pen_accept_safemode : pen_accept_solve1;
+    if(monitor.emergency) acceptable_penalty = std::max(acceptable_penalty, pen_accept_emer);
+    
+    if( this->obj_value>acceptable_penalty && !skip_2nd_solve) {
 
  #ifdef BE_VERBOSE
       print_objterms_evals();
@@ -1075,7 +1088,7 @@ namespace gollnlp {
 	if(!bFirstSolveOK) sln = sln_solve2;
       }
       
-      if(obj_solve2>pen_threshold) {
+      if(obj_solve2>m_pen_accept) {
 	double delta_optim = 0.;//
 	if(variable("delta", d)) delta_optim = variable("delta", d)->x[0];
 #ifdef BE_VERBOSE
@@ -1087,7 +1100,7 @@ namespace gollnlp {
     } else {
       sln = sln_solve1;
       f = obj_solve1;
-      if(this->obj_value>pen_threshold && skip_2nd_solve) 
+      if(this->obj_value>pen_accept_solve1 && skip_2nd_solve) 
 	printf("ContProbWithFixing K_idx=%d pass2 needed but not done - time restrictions\n", K_idx);
     }
       

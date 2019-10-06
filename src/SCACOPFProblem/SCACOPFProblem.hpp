@@ -237,18 +237,18 @@ namespace gollnlp {
     
     struct ConvMonitor
     {
-      ConvMonitor() : is_active(false), user_stopped(false), pen_threshold(0.), is_late(false), safe_mode(false), bailout_allowed(false)
+      ConvMonitor() : is_active(false), user_stopped(false), emergency(false),
+		      pen_accept(1.), pen_accept_emer(1000.), timeout(500)
       {
 	timer.start();
       };
 
       bool is_active;
       bool user_stopped;
-      double pen_threshold;
-      bool is_late;
+      bool emergency;
+      double pen_accept, pen_accept_emer; //under normal and emergency
+      double timeout; //max time spent 
       goTimer timer;
-      bool safe_mode;
-      bool bailout_allowed;
       std::vector<double> hist_tm;
     };
     ConvMonitor monitor;
