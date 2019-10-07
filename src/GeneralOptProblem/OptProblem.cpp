@@ -27,8 +27,8 @@ OptProblem::OptProblem()
   vars_primal = new OptVariables();
   cons = new OptConstraints();
   obj = new OptObjective();
-  obj_value   = -1e+20;
-  obj_barrier = -1e+20;
+  obj_value   = +1e+20;
+  obj_barrier = +1e+20;
   num_iter = -1;
   
   vars_duals_bounds_L = vars_duals_bounds_U = NULL;
