@@ -335,7 +335,7 @@ namespace gollnlp {
       case 1: 
 	{
 	  PDRestart=false;
-	  solve1_emer_mode=false; //keep emergency mode off
+	  solve1_emer_mode=true; //keep emergency mode off
 	  if(last_opt_status!=User_Requested_Stop && 
 	     last_opt_status!=Unrecoverable_Exception && 
 	     last_opt_status!=Maximum_Iterations_Exceeded) {
@@ -514,7 +514,23 @@ namespace gollnlp {
 	monitor.emergency = solve1_emer_mode;
       }
 
+      bool ok_to_exit = false;
       if(best_known_iter.obj_value <= monitor.pen_accept) {
+	ok_to_exit = true;
+	this->obj_value = best_known_iter.obj_value;
+	vars_primal->set_start_to(*best_known_iter.vars_primal);
+	printf("[warning] ContProbWithFixing K_idx=%d opt1 exit best_known < pen_accept(%g) rank=%d  %g sec\n", 
+	       K_idx,  monitor.pen_accept, my_rank, tmrec.measureElapsedTime()); 
+      }
+      if(monitor.emergency && best_known_iter.obj_value <= monitor.pen_accept_emer) {
+	ok_to_exit = true;
+	this->obj_value = best_known_iter.obj_value;
+	vars_primal->set_start_to(*best_known_iter.vars_primal);
+	printf("[warning] ContProbWithFixing K_idx=%d opt1 exit best_known < pen_accept_emer(%g) rank=%d  %g sec\n", 
+	       K_idx,  monitor.pen_accept_emer, my_rank, tmrec.measureElapsedTime()); 
+      }
+	
+      if(ok_to_exit) {
 	done = true;
 	bret = true;
       } else {
@@ -634,7 +650,7 @@ namespace gollnlp {
 	break;
       case 1: 
 	{
-	  solve2_emer_mode=false; //keep it off at the second solve
+	  solve2_emer_mode=true; //keep it off at the second solve
 	  set_solver_option("mu_target", 5e-8);
 	  if(last_opt_status!=User_Requested_Stop && last_opt_status!=Unrecoverable_Exception &&
 	     last_opt_status!=Maximum_Iterations_Exceeded) {
@@ -837,7 +853,25 @@ namespace gollnlp {
 	monitor.pen_accept = pen_accept;
 	monitor.pen_accept_emer = pen_accept_emer;
       }
+
+      bool ok_to_exit = false;
       if(best_known_iter.obj_value <= monitor.pen_accept) {
+	ok_to_exit = true;
+	this->obj_value = best_known_iter.obj_value;
+	vars_primal->set_start_to(*best_known_iter.vars_primal);
+	printf("[warning] ContProbWithFixing K_idx=%d opt2 exit best_known < pen_accept(%g) rank=%d  %g sec\n", 
+	       K_idx,  monitor.pen_accept, my_rank, tmrec.measureElapsedTime()); 
+      }
+
+      if(monitor.emergency && best_known_iter.obj_value <= monitor.pen_accept_emer) {
+	ok_to_exit = true;
+	this->obj_value = best_known_iter.obj_value;
+	vars_primal->set_start_to(*best_known_iter.vars_primal);
+	printf("[warning] ContProbWithFixing K_idx=%d opt2 exit best_known < pen_accept_emer(%g) rank=%d  %g sec\n", 
+	       K_idx,  monitor.pen_accept_emer, my_rank, tmrec.measureElapsedTime()); 
+      }
+
+      if(ok_to_exit) {
 	done = true;
 	bret = true;
       } else {
@@ -1138,7 +1172,7 @@ namespace gollnlp {
 	if(!bFirstSolveOK) sln = sln_solve2;
       }
       
-      if(obj_solve2>pen_accept) { //aaa
+      if(obj_solve2>pen_accept) { 
 	double delta_optim = 0.;//
 	if(variable("delta", d)) delta_optim = variable("delta", d)->x[0];
 #ifdef BE_VERBOSE
@@ -1386,7 +1420,8 @@ namespace gollnlp {
 	delta2 = 1e+20;
 	for(int it=0; it<idxs0_AGCparticip.size(); it++) {
 	  const int &i0=idxs0_AGCparticip[it], &iK = idxsK_AGCparticip[it];
-	  const double r = (Pub[i0]-pgK->x[iK])/alpha[i0]; 
+	  const double r = std::max(0., (Pub[i0]-pgK->x[iK])/alpha[i0]); 
+
 	  if(r<delta2) delta2=r; 
 	}
 	assert(delta>=0);
@@ -1394,13 +1429,13 @@ namespace gollnlp {
 	delta2 = -1e+20;
 	for(int it=0; it<idxs0_AGCparticip.size(); it++) {
 	  const int &i0=idxs0_AGCparticip[it], &iK = idxsK_AGCparticip[it];
-	  const double r = (Plb[i0]-pgK->x[iK])/alpha[i0]; 
+	  const double r = std::min(0., (Plb[i0]-pgK->x[iK])/alpha[i0]); 
 	  if(r>delta2) delta2=r; 
 	}
 	assert(delta<=0);
       }
 
-      //printf("aaaaaa delta2=%g delta1=%g P=%g\n", delta2, delta1, P_out); fflush(stdout);
+      //printf("aaaaaa delta2=%g delta1=%g P=%g\n", delta2, delta1, P_out); 
 
       //if( (Pispos && (delta1 < delta2 + 1e-6)) || (!Pispos && (delta1 > delta2 - 1e-6)))  {
       if( (Pispos && (delta1 < delta2 )) || (!Pispos && (delta1 > delta2 )))  {
@@ -1412,6 +1447,7 @@ namespace gollnlp {
 	return true;
 
       } else {
+
 	assert(delta2 > -1e+20 && delta2 < +1e+20);
 	assert(idxs0_AGCparticip.size()==idxsK_AGCparticip.size());
 	assert(idxs0_nonparticip.size()==idxsK_nonparticip.size());
@@ -1422,23 +1458,24 @@ namespace gollnlp {
 	//find blocking G indexes
 	vector<int> idxs0_to_remove, idxsK_to_remove; //participating idxs to remove
 	if(Pispos) { assert(delta2>=0);
+
 	  for(int it=0; it<idxs0_AGCparticip.size(); it++) {
 	    const int &i0=idxs0_AGCparticip[it], &iK = idxsK_AGCparticip[it];
-	    dist = Pub[i0] - pgK->x[iK]; assert(dist>=0);
+	    dist = std::max(0., Pub[i0] - pgK->x[iK]); assert(dist>=0);
 
-	    assert(dist>=alpha[i0]*delta2- 1e-6);
+	    assert(dist>=alpha[i0]*delta2 - 1e-6);
 	    if( fabs(dist - alpha[i0]*delta2) < 1e-5 ) { 
 	      idxs0_to_remove.push_back(i0); idxsK_to_remove.push_back(iK); 
 	      assert(pgK->ub[iK]==Pub[i0]); assert(pgK->lb[iK]==Plb[i0]);
 	      pgK->x[iK]  = Pub[i0];
-	      pgK->lb[iK] = Pub[i0]-1e-6;
-	      pgK->ub[iK] = Pub[i0]+1e-6;
+	      pgK->lb[iK] = Pub[i0];//-1e-6;
+	      pgK->ub[iK] = Pub[i0];//+1e-6;
 	    }
 	  }
 	} else { assert(P_out<0); assert(delta2<=0);
 	  for(int it=0; it<idxs0_AGCparticip.size(); it++) {
 	    const int &i0=idxs0_AGCparticip[it], &iK = idxsK_AGCparticip[it];
-	    dist = pgK->x[i0] - Plb[i0]; assert(dist>=0);
+	    dist = std::max(0., pgK->x[i0] - Plb[i0]); assert(dist>=0);
 	    //if(dist < 0-alpha[i0]*delta) 
 	    if(dist < 0-alpha[i0]*delta2 - 1e-6)
 	      printf("---- dist=%g alpha[i0=%d]=%g delta2=%g [%12.5e] \n", dist, i0, alpha[i0], delta2, dist + alpha[i0]*delta2);
@@ -1448,8 +1485,8 @@ namespace gollnlp {
 	      idxs0_to_remove.push_back(i0); idxsK_to_remove.push_back(iK); 
 	      assert(pgK->ub[iK]==Pub[i0]); assert(pgK->lb[iK]==Plb[i0]);
 	      pgK->x[iK]  = Plb[i0];
-	      pgK->lb[iK] = Plb[i0]-1e-6;
-	      pgK->ub[iK] = Plb[i0]+1e-6;
+	      pgK->lb[iK] = Plb[i0];//-1e-6;
+	      pgK->ub[iK] = Plb[i0];//+1e-6;
 	    }
 	  }
 	} // end of if / else Pispos 
@@ -1658,8 +1695,10 @@ namespace gollnlp {
 
       //if(dist_lower<=0 || dist_upper<=0 || gen_band<1e-6)
       //printf("busidx=%d %g %g %g qlb[%g %g] qub[%g %g]\n", 
-      //       busidx, gen_band, dist_lower,  dist_upper,
-      //       Qlbn, Qlb[itpvpq], Qubn, Qub[itpvpq]);
+      //     busidx, gen_band, dist_lower,  dist_upper,
+      //     Qlbn, Qlb[itpvpq], Qubn, Qub[itpvpq]);
+      dist_lower = std::max(dist_lower, 0.);
+      dist_upper = std::max(dist_upper, 0.);
 
       assert(dist_lower>=0); assert(dist_upper>=0); assert(gen_band>=0);
       assert(fabs(Qlbn-Qlb[itpvpq])<1e-10);  assert(fabs(Qubn-Qub[itpvpq])<1e-10);
@@ -2611,7 +2650,7 @@ namespace gollnlp {
   //   assert(false);
   //   //for(auto b: vars_primal->vblocks) b->providesStartingPoint=false; 
 
-  //   SCACOPFData& dK = *data_K[0]; //aaa
+  //   SCACOPFData& dK = *data_K[0]; 
   //   auto v = variable("v_n", dK);
   //   //v->set_start_to(data_sc.N_v0.data());
   //   v->set_start_to(*v_n0);
