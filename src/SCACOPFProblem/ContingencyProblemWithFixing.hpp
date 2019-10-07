@@ -24,8 +24,6 @@ namespace gollnlp {
     double pen_accept, pen_accept_initpt, pen_accept_solve1;
     double pen_accept_emer, pen_accept_safemode;
     double timeout; //of the entire 2-step, possibly multi-solve solve of this class
-  protected:
-    double m_pen_accept; //either pen_accept_solve1 or pen_accept (in solve2)
   public:
     virtual bool default_assembly(OptVariablesBlock* pg0, OptVariablesBlock* vn0);
     virtual bool default_assembly(OptVariablesBlock* vn0, OptVariablesBlock* thetan0, OptVariablesBlock* bs0, 
@@ -120,6 +118,11 @@ namespace gollnlp {
       if(primals && vars_last && mode!=RestorationPhaseMode)
 	vars_last->copy_from(primals);
 
+      if(inf_pr_orig_pr<=1e-6 && best_known_iter.obj_value>=obj_value) {
+	best_known_iter.copy_primal_vars_from(primals, vars_primal);
+	best_known_iter.set_iter_stats( iter, obj_value, inf_pr, inf_pr_orig_pr, inf_du, mu, mode);
+      }
+
       if(monitor.is_active) {
 	monitor.hist_tm.push_back(monitor.timer.measureElapsedTime());
 	
@@ -175,8 +178,59 @@ namespace gollnlp {
       //ContingencyProblem::iterate_callback(iter, obj_value, primals, inf_pr, inf_pr_orig_pr, inf_du,
       //					  mu, alpha_du, alpha_pr, ls_trials, mode);
     }
+  public:
+    struct IterInfo
+    {
+      IterInfo() 
+	: obj_value(1e+20), vars_primal(NULL), inf_pr(1e+20), inf_pr_orig_pr(1e+20), inf_du(1e+20), mu(1000.), iter(-1)
+      { }
+      virtual ~IterInfo()
+      {
+	delete vars_primal;
+      }
+      
+      inline void initialize( OptVariables* primal_vars_template ) {
+	if(NULL==vars_primal)
+	  vars_primal = primal_vars_template->new_copy();
+	else if(vars_primal->n() != primal_vars_template->n()) {
+	  assert(false);
+	  delete vars_primal;
+	  vars_primal = NULL;
+	  vars_primal = primal_vars_template->new_copy();
+	}
+      }
+
+      inline void set_objective(const double& obj) { obj_value = obj; }
+      
+      inline void copy_primal_vars_from(const double* opt_vars_values, OptVariables* primal_vars_template) {
+	if(NULL!=vars_primal) 
+	  vars_primal->copy_from(opt_vars_values);
+	else 
+	  assert(false);
+      }
+      
+      inline void set_iter_stats(int iter_, const double& obj_value_,
+				 const double& inf_pr_, const double& inf_pr_orig_pr_, 
+				 const double& inf_du_, 
+				 const double& mu_, OptimizationMode mode_)
+      {
+	iter=iter_;
+	obj_value=obj_value_;
+	inf_pr=inf_pr_;
+	inf_pr_orig_pr=inf_pr_orig_pr_;
+	inf_du=inf_du_;
+	mu=mu_;
+	mode=mode_;
+      }
+      
+      OptVariables* vars_primal;
+      double obj_value, inf_pr, inf_pr_orig_pr, inf_du, mu;
+      int iter;
+      OptimizationMode mode;
+    };
   protected:
-    OptVariables *vars_ini, *vars_last; 
+    OptVariables *vars_ini, *vars_last;
+    IterInfo best_known_iter;
 #endif
   };
 

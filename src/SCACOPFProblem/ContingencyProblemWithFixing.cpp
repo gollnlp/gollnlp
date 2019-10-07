@@ -100,7 +100,7 @@ namespace gollnlp {
       obj_solve1 = obj_solve2 = 1e+20; 
       vars_ini = vars_last = NULL;
 
-      pen_accept = pen_accept_initpt = pen_accept_solve1 = m_pen_accept = 1.;
+      pen_accept = pen_accept_initpt = pen_accept_solve1 = 1.;
       pen_accept_emer = 500.;
       pen_accept_safemode = 1000.;
       timeout = 2000;
@@ -265,12 +265,19 @@ namespace gollnlp {
     set_timer_message_ma27(msg.c_str());
     
     assert(my_rank>=1);
-
+#endif
     vars_last = vars_primal->new_copy();
     vars_ini  = vars_primal->new_copy();
-#endif
-
-
+    
+    double* x = new double[vars_primal->n()];
+    double obj;
+    vars_primal->copy_to(x);
+    //will copy the values
+    best_known_iter.initialize(vars_primal);
+    if(OptProblem::eval_obj(x, true, obj)) {
+      best_known_iter.set_objective(obj);
+    }
+    delete [] x;
     return true;
   }
 
@@ -278,15 +285,30 @@ namespace gollnlp {
   bool ContingencyProblemWithFixing::do_solve1()
   {
     goTimer tmrec; tmrec.start();
+
+    if(best_known_iter.obj_value <= pen_accept_initpt) {
+      assert(vars_primal->n() == best_known_iter.vars_primal->n());
+      vars_primal->set_start_to(*best_known_iter.vars_primal);
+      obj_value = best_known_iter.obj_value;
+
+#ifdef BE_VERBOSE
+      printf("ContProbWithFixing K_idx=%d opt1 ini point is acceptable on rank=%d\n", K_idx, my_rank);
+      fflush(stdout);
+#endif
+      get_solution_simplicial_vectorized(sln_solve1);
+      obj_solve1 = this->obj_value;
+      return true;
+    }
+    
     //! "ma27_ignore_singularity" 
     //set_solver_option("ma27_meminc_factor", 1.1);
-
+    
     g_solve_watch_ma57=true;
     g_alarm_duration_ma57=alarm_ma57_normal;
     g_max_memory_ma57=max_mem_ma57_normal;
     g_my_rank_ma57=my_rank;
     g_my_K_idx_ma57=K_idx;
-
+    
     g_solve_watch_ma27=true;
     g_alarm_duration_ma27=alarm_ma27_normal;
     g_max_memory_ma27=max_mem_ma27_normal;
@@ -294,8 +316,8 @@ namespace gollnlp {
     g_my_K_idx_ma27=K_idx;
 
     vector<int> hist_iter, hist_obj; 
-    obj_value = -1.;
-    bool bret = true, done = false; 
+    obj_value = 1e+20;
+    bool done = false; bool bret = true;
     OptimizationStatus last_opt_status = Solve_Succeeded; //be positive
     bool solve1_emer_mode=false;
     int n_solves=0; 
@@ -505,42 +527,57 @@ namespace gollnlp {
 	monitor.pen_accept_emer = pen_accept_emer;
 	monitor.emergency = solve1_emer_mode;
       }
-      
-      if(PDRestart) {
-	opt_ok = OptProblem::reoptimize(OptProblem::primalDualRestart);
-      } else {
-	opt_ok = OptProblem::reoptimize(OptProblem::primalRestart);
-      }
 
-      n_solves++;
-      last_opt_status = OptProblem::optimization_status();
-
-      hist_iter.push_back(number_of_iterations());
-      hist_obj.push_back(this->obj_value);
-
-      if(opt_ok) {
+      if(best_known_iter.obj_value <= monitor.pen_accept) {
 	done = true;
+	bret = true;
       } else {
-	if(monitor.user_stopped) {
-	  assert(last_opt_status == User_Requested_Stop);
+
+	this->obj_value = 1e+20;
+	if(PDRestart) {
+	  opt_ok = OptProblem::reoptimize(OptProblem::primalDualRestart);
+	} else {
+	  opt_ok = OptProblem::reoptimize(OptProblem::primalRestart);
+	}
+	
+	n_solves++;
+	last_opt_status = OptProblem::optimization_status();
+
+	hist_iter.push_back(number_of_iterations());
+	hist_obj.push_back(this->obj_value);
+
+	if(opt_ok) {
 	  done = true;
 	} else {
-	  //something bad happened, will resolve
-	  printf("[warning] ContProbWithFixing K_idx=%d opt1 failed at try %d rank=%d  %g sec\n", 
-		 K_idx, n_solves, my_rank, tmrec.measureElapsedTime()); 
+	  if(monitor.user_stopped) {
+	    assert(last_opt_status == User_Requested_Stop);
+	    done = true;
+	  } else {
+	    //something bad happened, will resolve
+	    printf("[warning] ContProbWithFixing K_idx=%d opt1 failed at try %d rank=%d  %g sec\n", 
+		   K_idx, n_solves, my_rank, tmrec.measureElapsedTime()); 
+	  }
 	}
-      }
       
-      if(n_solves>9) done = true;
-      if(tmTotal.measureElapsedTime() > timeout) {
-	printf("[warning] ContProbWithFixing K_idx=%d opt1 timeout  %g sec; rank=%d; tries %d\n", 
-	       K_idx, tmTotal.measureElapsedTime(), my_rank, n_solves);
-	done = true;
-	bret = false;
-      }
-      
+	if(n_solves>9) done = true;
+	if(tmTotal.measureElapsedTime() > timeout) {
+	  printf("[warning] ContProbWithFixing K_idx=%d opt1 timeout  %g sec; rank=%d; tries %d\n", 
+		 K_idx, tmTotal.measureElapsedTime(), my_rank, n_solves);
+	  done = true;
+	  bret = false;
+	}
+      } //end of else best_know_iter<monitor.pen_accept
     } //end of outer while
 
+    if(this->obj_value > best_known_iter.obj_value) {
+      this->obj_value = best_known_iter.obj_value;
+      vars_primal->set_start_to(*best_known_iter.vars_primal);
+      printf("ContProbWithFixing K_idx=%d opt1 return best_known obj=%g on rank=%d\n", 
+	     K_idx, this->obj_value, my_rank);
+    }
+    get_solution_simplicial_vectorized(sln_solve1);
+    obj_solve1 = this->obj_value;
+    
     //print_active_power_balance_info(*data_K[0]);
     //print_reactive_power_balance_info(*data_K[0]);
 
@@ -551,8 +588,7 @@ namespace gollnlp {
 	   K_idx, tmrec.measureElapsedTime(), sit.c_str(), sobj.c_str(), n_solves, my_rank);
     fflush(stdout);
 #endif
-    get_solution_simplicial_vectorized(sln_solve1);
-    obj_solve1 = this->obj_value;
+
     return bret;
   }
   //
@@ -562,10 +598,8 @@ namespace gollnlp {
   {
     goTimer tmrec; tmrec.start();
 
-#ifdef GOLLNLP_FAULT_HANDLING
     if(bFirstSolveOK)
       vars_ini->set_start_to(*vars_primal);
-#endif
 
     g_solve_watch_ma57=true;
     g_alarm_duration_ma57=alarm_ma57_normal;
@@ -580,7 +614,7 @@ namespace gollnlp {
     g_my_K_idx_ma27=K_idx;
 
     vector<int> hist_iter, hist_obj;
-    obj_value = -1.;
+    obj_value = 1e+20;
     bool bret = true, done = false; 
     OptimizationStatus last_opt_status = Solve_Succeeded; //be positive
     bool solve2_emer_mode=false;
@@ -817,42 +851,56 @@ namespace gollnlp {
 	monitor.pen_accept = pen_accept;
 	monitor.pen_accept_emer = pen_accept_emer;
       }
-
-      if(PDRestart) {
-	opt_ok = OptProblem::reoptimize(OptProblem::primalDualRestart);
+      if(best_known_iter.obj_value <= monitor.pen_accept) {
+	done = true;
+	bret = true;
       } else {
-	opt_ok = OptProblem::reoptimize(OptProblem::primalRestart);
-      }
 
-      n_solves++;
-      last_opt_status = OptProblem::optimization_status();
-
-      hist_iter.push_back(number_of_iterations());
-      hist_obj.push_back(this->obj_value);
+	this->obj_value = 1e+20;	
+	if(PDRestart) {
+	  opt_ok = OptProblem::reoptimize(OptProblem::primalDualRestart);
+	} else {
+	  opt_ok = OptProblem::reoptimize(OptProblem::primalRestart);
+	}
+	
+	n_solves++;
+	last_opt_status = OptProblem::optimization_status();
+	
+	hist_iter.push_back(number_of_iterations());
+	hist_obj.push_back(this->obj_value);
       
-      if(opt_ok) {
-	done = true; 
-      } else {
-	if(monitor.user_stopped) {
-	  assert(last_opt_status == User_Requested_Stop);
+	if(opt_ok) {
 	  done = true; 
 	} else {
-	  //something bad happened, will resolve
-	  printf("[warning] ContProbWithFixing K_idx=%d opt2 failed at try %d rank=%d time %g\n", 
-		 K_idx, n_solves, my_rank, tmrec.measureElapsedTime()); 
+	  if(monitor.user_stopped) {
+	    assert(last_opt_status == User_Requested_Stop);
+	    done = true; 
+	  } else {
+	    //something bad happened, will resolve
+	    printf("[warning] ContProbWithFixing K_idx=%d opt2 failed at try %d rank=%d time %g\n", 
+		   K_idx, n_solves, my_rank, tmrec.measureElapsedTime()); 
+	  }
 	}
-      }
-
-      if(n_solves>9) done = true;
-      if(tmTotal.measureElapsedTime() > timeout) {
-	printf("[warning] ContProbWithFixing K_idx=%d opt2 timeout  rank=%d; tries %d took %g sec\n", 
-	       K_idx, my_rank, n_solves, tmTotal.measureElapsedTime());
-	done = true;
-	bret = false;
-      }
-
+	
+	if(n_solves>9) done = true;
+	if(tmTotal.measureElapsedTime() > timeout) {
+	  printf("[warning] ContProbWithFixing K_idx=%d opt2 timeout  rank=%d; tries %d took %g sec\n", 
+		 K_idx, my_rank, n_solves, tmTotal.measureElapsedTime());
+	  done = true;
+	  bret = false;
+	}
+      } //end of else 
     } //end of outer while
 
+    if(this->obj_value > best_known_iter.obj_value) {
+      this->obj_value = best_known_iter.obj_value;
+      vars_primal->set_start_to(*best_known_iter.vars_primal);
+      printf("ContProbWithFixing K_idx=%d opt2 return best_known obj=%g on rank=%d\n", 
+	     K_idx, this->obj_value, my_rank);
+    }
+    get_solution_simplicial_vectorized(sln_solve2);
+    obj_solve2 = this->obj_value;
+    
     //print_active_power_balance_info(*data_K[0]);
     //print_reactive_power_balance_info(*data_K[0]);
 #ifdef BE_VERBOSE
@@ -862,8 +910,6 @@ namespace gollnlp {
 	   K_idx, tmrec.measureElapsedTime(), sit.c_str(), sobj.c_str(), n_solves, my_rank);
     fflush(stdout);
 #endif
-    get_solution_simplicial_vectorized(sln_solve2);
-    obj_solve2 = this->obj_value;
     return bret;
   }
 
@@ -903,20 +949,22 @@ namespace gollnlp {
     if(!bFirstSolveOK) skip_2nd_solve=false;
     
     if(tmTotal.measureElapsedTime() > 0.95*timeout) {
+      	skip_2nd_solve = true;
       if(bFirstSolveOK) {
-	printf("ContProbWithFixing K_idx=%d will exit prematuraly b/c first solves "
-	       "took long %g sec on rank=%d\n", 
+	printf("ContProbWithFixing K_idx=%d premature exit opt1 too long %g sec on rank=%d\n", 
 	       K_idx, tmrec.measureElapsedTime(), my_rank);
-	skip_2nd_solve = true;
       } else {
-	//! aaa return ini point to make sure we stay feasible
+	printf("ContProbWithFixing K_idx=%d premature exit inipt returned opt1 took too long %g sec on rank=%d\n", 
+	       K_idx, tmrec.measureElapsedTime(), my_rank);
+	//return ini point to make sure we stay feasible
+	vars_primal->set_start_to(*vars_ini);
       }
     }
 
     double acceptable_penalty = safe_mode ?  pen_accept_safemode : pen_accept_solve1;
     if(monitor.emergency) acceptable_penalty = std::max(acceptable_penalty, pen_accept_emer);
     
-    if( this->obj_value>acceptable_penalty && !skip_2nd_solve) {
+    if(this->obj_value>acceptable_penalty && !skip_2nd_solve) {
 
  #ifdef BE_VERBOSE
       print_objterms_evals();
@@ -948,7 +996,7 @@ namespace gollnlp {
 
 	if( (rpa>0.85 && rpa<1.15) || (rma>0.85 && rma <1.15) ) {
 	  one_more_push_and_fix = true;
-	  gen_K_diff = 1.5*poverall;
+	  gen_K_diff = 1.2*poverall;
 
 	  //ignore small delta for transmission contingencies since they're really optimization noise
 	  if(d.K_ConType[0]!=SCACOPFData::kGenerator && fabs(solv1_delta_optim)<1e-6) {
@@ -1071,9 +1119,11 @@ namespace gollnlp {
 	  sln = sln_solve1;
 	  f = obj_solve1;
 	} else {
-	  printf("[warning][panic] ContProbWithFixing K_idx=%d opt1 and opt2 both failed on rank=%d\n", K_idx, my_rank);
+	  printf("[warning][panic] ContProbWithFixing K_idx=%d return bestknown; opt1 and opt2 failed on rank=%d\n", K_idx, my_rank);
+	  vars_primal->set_start_to(*best_known_iter.vars_primal);
+	  get_solution_simplicial_vectorized(sln_solve1);
 	  sln = sln_solve1;
-	  f = obj_solve1;
+	  f = best_known_iter.obj_value;
 	}
       } else { //opt2_ok
 
@@ -1088,20 +1138,20 @@ namespace gollnlp {
 	if(!bFirstSolveOK) sln = sln_solve2;
       }
       
-      if(obj_solve2>m_pen_accept) {
+      if(obj_solve2>pen_accept) { //aaa
 	double delta_optim = 0.;//
 	if(variable("delta", d)) delta_optim = variable("delta", d)->x[0];
 #ifdef BE_VERBOSE
 	print_objterms_evals();
 	//print_p_g_with_coupling_info(*data_K[0], pg0);
-	printf("ContProbWithFixing K_idx=%d  pass 1-2 resulted in high pen delta=%g\n", K_idx, delta_optim);
+	printf("ContProbWithFixing K_idx=%d opt1 opt2 resulted in high pen delta=%g\n", K_idx, delta_optim);
 #endif
       }  
     } else {
       sln = sln_solve1;
       f = obj_solve1;
-      if(this->obj_value>pen_accept_solve1 && skip_2nd_solve) 
-	printf("ContProbWithFixing K_idx=%d pass2 needed but not done - time restrictions\n", K_idx);
+      if(this->obj_value>acceptable_penalty && skip_2nd_solve)
+	printf("ContProbWithFixing K_idx=%d opt2 needed but not done insufic time rank=%d\n", K_idx, my_rank);
     }
       
     tmrec.stop();
