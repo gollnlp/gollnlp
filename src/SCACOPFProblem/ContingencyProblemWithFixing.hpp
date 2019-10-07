@@ -115,12 +115,23 @@ namespace gollnlp {
 				  const double& alpha_du, const double& alpha_pr,
 				  int ls_trials, OptimizationMode mode)
     {
-      if(primals && vars_last && mode!=RestorationPhaseMode) {
-	vars_last->copy_from(primals);
+      if(primals && mode!=RestorationPhaseMode) {
+	if(vars_last) vars_last->copy_from(primals);
 
 	if(inf_pr_orig_pr<=1e-6 && best_known_iter.obj_value>=obj_value) {
 	  best_known_iter.copy_primal_vars_from(primals, vars_primal);
 	  best_known_iter.set_iter_stats( iter, obj_value, inf_pr, inf_pr_orig_pr, inf_du, mu, mode);
+	}
+      } else {
+	if(mode==RestorationPhaseMode) {
+	  monitor.emergency = true;
+	  //do not set monitor.user_stopped=true; since doing so will look like the last solution is ok
+	  if(best_known_iter.obj_value<=pen_accept_emer) {
+	    printf("[stop]rest   K_idx=%d iter %d : obj=%12.5e inf_pr_o=%12.5e mu=%12.5e "
+		   "inf_du=%12.5e a_du=%12.5e a_pr=%12.5e rank=%d\n",
+		   K_idx, iter, obj_value, inf_pr_orig_pr, mu, inf_du,  alpha_du, alpha_pr, my_rank);
+	  }
+	  return false;
 	}
       }
 
