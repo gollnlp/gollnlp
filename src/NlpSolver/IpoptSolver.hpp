@@ -299,8 +299,8 @@ public:
     app_status = app->OptimizeTNLP(ipopt_nlp_spec);
 
     if (app_status == Ipopt::Solve_Succeeded || 
-	app_status == Ipopt::Solved_To_Acceptable_Level || 
-	app_status == Ipopt::User_Requested_Stop) {
+	app_status == Ipopt::Solved_To_Acceptable_Level) {
+      //|| app_status == Ipopt::User_Requested_Stop) {
       return true;
     }
     else {
@@ -314,8 +314,8 @@ public:
     app_status = app->ReOptimizeTNLP(ipopt_nlp_spec);
 
     if (app_status == Ipopt::Solve_Succeeded || 
-	app_status == Ipopt::Solved_To_Acceptable_Level || 
-	app_status == Ipopt::User_Requested_Stop) {
+	app_status == Ipopt::Solved_To_Acceptable_Level) {
+      //|| app_status == Ipopt::User_Requested_Stop) {
       return true;
     }
     else {
