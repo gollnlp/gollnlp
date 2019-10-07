@@ -62,15 +62,8 @@ bool OptProblem::eval_obj(const double* x, bool new_x, double& obj_val)
     if(new_x_fgradf) { new_x=true; new_x_fgradf=false; }
   }
   for(auto& ot: obj->vterms) {
-#ifdef DEBUG
-    double obj_val_before=obj_val;
-#endif
     if (!ot->eval_f(*vars_primal, new_x, obj_val) )
        return false;
-#ifdef DEBUG
-    //printf("obj_term '%s' returned %12.5e total %12.5e\n", ot->id.c_str(), obj_val-obj_val_before, obj_val);
-#endif
-    
   }
   return true;
 }
@@ -82,7 +75,7 @@ void OptProblem::print_objterms_evals()
   for(auto& ot: obj->vterms) {
     objterm = 0.;
     if (!ot->eval_f(*vars_primal, new_x, objterm) )
-      printf("  tobjterm '%s' -> error evaluating\n", ot->id.c_str());
+      printf("  objterm '%s' -> error evaluating\n", ot->id.c_str());
     else 
       printf("  objterm '%s' -> %15.8e\n", ot->id.c_str(), objterm);
     total += objterm;
