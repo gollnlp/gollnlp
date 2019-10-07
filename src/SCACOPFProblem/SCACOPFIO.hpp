@@ -28,22 +28,12 @@ namespace gollnlp {
 			       const double* v_n, const double* theta_n, const double* b_s,
 			       const double* p_g, const double* q_g, const double& delta,
 			       SCACOPFData& data,
-			       const std::string& filename="solution2.txt", 
-			       bool open_file=true, bool close_file=true)
+			       const std::string& filename="solution2.txt")
     {
       std::string fileopenflags = sol2_write_1st_call==true ? "w" : "a+";
       sol2_write_1st_call=false;
 
-      FILE* file;
-      if(open_file) {
-	assert(sol2_file==NULL);
-	file=fopen(filename.c_str(), fileopenflags.c_str());
-      }
-      else {
-	assert(sol2_file!=NULL);
-	file=sol2_file;
-      }
-      
+      FILE* file=fopen(filename.c_str(), fileopenflags.c_str());
       if(NULL==file) {
 	printf("[warning] could not open [%s] file for writing (flags '%s')\n", 
 	       filename.c_str(), fileopenflags.c_str());
@@ -55,13 +45,8 @@ namespace gollnlp {
       write_append_solution_block(v_n, theta_n, b_s, p_g, q_g, data, filename, fileopenflags, file);
 
       fprintf(file, "--delta section\ndelta(MW)\n%g\n", data.MVAbase*delta);
-      if(close_file) {
-	fclose(file);
-	sol2_file = NULL;
-      } else {
-	sol2_file = file;
-      }
-      printf("sol2--\n");
+      fclose(file);
+      file = NULL;
     }
 
     static
@@ -72,17 +57,6 @@ namespace gollnlp {
     static
     void read_variables_blocks(SCACOPFData& data, 
 			       std::unordered_map<std::string, OptVariablesBlock*>& map_basecase_vars);
-    // static 
-    // void write_append_solution_block(OptVariablesBlock* v_n, OptVariablesBlock* theta_n, 
-    // 				     OptVariablesBlock* b_s,
-    // 				     OptVariablesBlock* p_g, OptVariablesBlock* q_g,
-    // 				     SCACOPFData& data,
-    // 				     const std::string& filename="solution2.txt",
-    // 				     const std::string& fileopenflags="a+")
-    // {
-    //   write_append_solution_block(v_n->x, theta_n->x, b_s->x, p_g->x, q_g->x,
-    // 				  data, filename, fileopenflags);
-    // }
 
     static
     void read_solution1(OptVariablesBlock** v_n, OptVariablesBlock** theta_n, OptVariablesBlock** b_s,
@@ -108,7 +82,6 @@ namespace gollnlp {
     static std::vector<int> gmap;
     static std::vector<double> bcsn;
     static bool sol2_write_1st_call;
-    static FILE* sol2_file;
   }; // end of SCACOPFIO
 
 } //end namespace

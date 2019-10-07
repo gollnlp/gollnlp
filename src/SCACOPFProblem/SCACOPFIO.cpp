@@ -19,7 +19,6 @@ namespace gollnlp {
   vector<int> SCACOPFIO::gmap={};
   vector<double> SCACOPFIO::bcsn={};
   bool SCACOPFIO::sol2_write_1st_call=true;
-  FILE* SCACOPFIO::sol2_file=NULL;
   //
   // methods
   //
