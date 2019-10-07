@@ -285,20 +285,6 @@ namespace gollnlp {
   bool ContingencyProblemWithFixing::do_solve1()
   {
     goTimer tmrec; tmrec.start();
-
-    if(best_known_iter.obj_value <= pen_accept_initpt) {
-      assert(vars_primal->n() == best_known_iter.vars_primal->n());
-      vars_primal->set_start_to(*best_known_iter.vars_primal);
-      obj_value = best_known_iter.obj_value;
-
-#ifdef BE_VERBOSE
-      printf("ContProbWithFixing K_idx=%d opt1 ini point is acceptable on rank=%d\n", K_idx, my_rank);
-      fflush(stdout);
-#endif
-      get_solution_simplicial_vectorized(sln_solve1);
-      obj_solve1 = this->obj_value;
-      return true;
-    }
     
     //! "ma27_ignore_singularity" 
     //set_solver_option("ma27_meminc_factor", 1.1);
@@ -921,6 +907,20 @@ namespace gollnlp {
     assert(p_g0 == pg0); assert(v_n0 == vn0);
     p_g0 = pg0; v_n0=vn0;
 
+    if(best_known_iter.obj_value <= pen_accept_initpt) {
+      assert(vars_primal->n() == best_known_iter.vars_primal->n());
+      vars_primal->set_start_to(*best_known_iter.vars_primal);
+      this->obj_value = best_known_iter.obj_value;
+
+#ifdef BE_VERBOSE
+      printf("ContProbWithFixing K_idx=%d opt1 ini point is acceptable on rank=%d\n", K_idx, my_rank);
+      fflush(stdout);
+#endif
+      get_solution_simplicial_vectorized(sln);
+      f = this->obj_value;
+      return true;
+    }
+    
     bool bFirstSolveOK = do_solve1();
     f = this->obj_value;
 
