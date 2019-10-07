@@ -110,7 +110,7 @@ int MyCode2::initialize(int argc, char *argv[])
   
   //K_Cont = {913, 4286}; for(int i=0; i<4900; i++) K_Cont.push_back(3180+i);
   //K_Cont = {11971};//, 776}; //for(int i=0; i<4900; i++) K_Cont.push_back(3180+i);
-  //K_Cont = {2223, 136, 10112, 482,0 };
+  //K_Cont = {220};//2223, 136, 10112, 482,0 };
   for(auto& id : K_Cont) 
     K_Contingency.push_back(Kinfo(id));
 
@@ -667,7 +667,7 @@ bool MyCode2::_guts_of_solve_contingency(ContingencyProblemWithFixing& prob, int
   }
 
   prob.pen_accept = pen_accept;
-  prob.pen_accept_initpt=1e+10;//pen_accept_inipt;
+  prob.pen_accept_initpt=pen_accept_inipt;
   prob.pen_accept_solve1=pen_accept_solve1;
   prob.pen_accept_emer=pen_accept_emer;
   prob.pen_accept_safemode;
@@ -976,7 +976,7 @@ int MyCode2::pick_new_contingency(int rank)
   //pick new contingency 
   int perRank = K_Contingency.size()/(comm_size-1);
   int Kstart = perRank*(rank-1);
-  if(rank<=20) Kstart=0;
+  if(rank<=120) Kstart=0;
   auto Kidxs = findall(K_left, [Kstart](int val) {return val>=Kstart;});
   if(Kidxs.empty()) 
     Kidxs = findall(K_left, [](int val) {return val>=0;});

@@ -19,8 +19,9 @@ using namespace std;
 
 static const int max_mem_ma57_normal = 1000; //MB
 static const int max_mem_ma57_safem = 1500; //MB
-static const int alarm_ma57_normal = 20; //seconds
+static const int alarm_ma57_normal = 2; //seconds
 static const int alarm_ma57_safem = 30; //M
+
 static const int max_mem_ma27_normal = 1000; //MB
 static const int max_mem_ma27_safem = 1500; //MB
 static const int alarm_ma27_normal = 20; //seconds
@@ -196,7 +197,7 @@ namespace gollnlp {
 	pgK->x[solv1_pgK_partic_idxs[it]] = pg0->x[i0]+data_sc.G_alpha[i0] * solv1_delta_out;
       }
 #ifdef BE_VERBOSE
-      printf("ContProbWithFixing K_idx=%d (gener) %.2f gen missing; fixed %lu gens; deltas out=%g needed=%g blocking=%g "
+      printf("ContProbWithFixing K_idx=%d (gener) %.8f gen missing; fixed %lu gens; deltas out=%g needed=%g blocking=%g "
 	     "residualPg=%g feasib=%d\n",
 	     K_idx, gen_K_diff, pg0_partic_idxs.size()-solv1_pg0_partic_idxs.size(),
 	     solv1_delta_out, solv1_delta_needed, solv1_delta_blocking, residual_Pg, solv1_Pg_was_enough);
@@ -263,7 +264,7 @@ namespace gollnlp {
 
     msg = "[timer] ma27 timeout rank=" + std::to_string(my_rank) +" for K_idx=" + std::to_string(K_idx) + " occured!\n";
     set_timer_message_ma27(msg.c_str());
-    
+
     assert(my_rank>=1);
 #endif
     vars_last = vars_primal->new_copy();
@@ -285,7 +286,6 @@ namespace gollnlp {
   bool ContingencyProblemWithFixing::do_solve1()
   {
     goTimer tmrec; tmrec.start();
-    
     //! "ma27_ignore_singularity" 
     //set_solver_option("ma27_meminc_factor", 1.1);
     

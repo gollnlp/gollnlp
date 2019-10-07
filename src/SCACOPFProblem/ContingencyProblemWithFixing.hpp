@@ -115,12 +115,13 @@ namespace gollnlp {
 				  const double& alpha_du, const double& alpha_pr,
 				  int ls_trials, OptimizationMode mode)
     {
-      if(primals && vars_last && mode!=RestorationPhaseMode)
+      if(primals && vars_last && mode!=RestorationPhaseMode) {
 	vars_last->copy_from(primals);
 
-      if(inf_pr_orig_pr<=1e-6 && best_known_iter.obj_value>=obj_value) {
-	best_known_iter.copy_primal_vars_from(primals, vars_primal);
-	best_known_iter.set_iter_stats( iter, obj_value, inf_pr, inf_pr_orig_pr, inf_du, mu, mode);
+	if(inf_pr_orig_pr<=1e-6 && best_known_iter.obj_value>=obj_value) {
+	  best_known_iter.copy_primal_vars_from(primals, vars_primal);
+	  best_known_iter.set_iter_stats( iter, obj_value, inf_pr, inf_pr_orig_pr, inf_du, mu, mode);
+	}
       }
 
       if(monitor.is_active) {
@@ -142,7 +143,7 @@ namespace gollnlp {
 	  return false;
 	}
 
-	if(tmavg_over_last>3.*tmavg) {
+	if(tmavg_over_last>4.*tmavg) {
 	  monitor.emergency = true;
 	  if(obj_value<pen_accept_emer && inf_pr_orig_pr<1e-6) {
 	    monitor.user_stopped=true;
