@@ -28,12 +28,22 @@ namespace gollnlp {
 			       const double* v_n, const double* theta_n, const double* b_s,
 			       const double* p_g, const double* q_g, const double& delta,
 			       SCACOPFData& data,
-			       const std::string& filename="solution2.txt")
+			       const std::string& filename="solution2.txt", 
+			       bool open_file=true, bool close_file=true)
     {
       std::string fileopenflags = sol2_write_1st_call==true ? "w" : "a+";
       sol2_write_1st_call=false;
+
+      FILE* file;
+      if(open_file) {
+	assert(sol2_file==NULL);
+	file=fopen(filename.c_str(), fileopenflags.c_str());
+      }
+      else {
+	assert(sol2_file!=NULL);
+	file=sol2_file;
+      }
       
-      FILE* file = fopen(filename.c_str(), fileopenflags.c_str());
       if(NULL==file) {
 	printf("[warning] could not open [%s] file for writing (flags '%s')\n", 
 	       filename.c_str(), fileopenflags.c_str());
@@ -45,7 +55,13 @@ namespace gollnlp {
       write_append_solution_block(v_n, theta_n, b_s, p_g, q_g, data, filename, fileopenflags, file);
 
       fprintf(file, "--delta section\ndelta(MW)\n%g\n", data.MVAbase*delta);
-      fclose(file);
+      if(close_file) {
+	fclose(file);
+	sol2_file = NULL;
+      } else {
+	sol2_file = file;
+      }
+      printf("sol2--\n");
     }
 
     static
@@ -92,6 +108,7 @@ namespace gollnlp {
     static std::vector<int> gmap;
     static std::vector<double> bcsn;
     static bool sol2_write_1st_call;
+    static FILE* sol2_file;
   }; // end of SCACOPFIO
 
 } //end namespace

@@ -13,7 +13,7 @@ using namespace gollnlp;
 #include <chrono>
 #include <thread>
 
-//#define DEBUG_COMM 1
+#define DEBUG_COMM 1
 //#define MAX_NUM_Kidxs_SCACOPF 512
 
 std::ostream& operator<<(std::ostream& os, const MyCode2::Kinfo_worker& o)
@@ -583,7 +583,7 @@ bool MyCode2::_guts_of_solve_contingency(ContingencyProblemWithFixing& prob, int
   double pen_accept=1., pen_accept_inipt=1., pen_accept_solve1=1.,
     pen_accept_emer=1000., pen_accept_safemode=10000.;
   double timeout = 1200; // contingency solves will switch to emergency mode after this limit is reached
-  
+
   double tm_percentage = glob_timer.measureElapsedTime()/(2.0*data.K_Contingency.size());
   double avgtm = 1.5; //average time per contingency in seconds
   if(tm_percentage<0.075) {
@@ -667,7 +667,7 @@ bool MyCode2::_guts_of_solve_contingency(ContingencyProblemWithFixing& prob, int
   }
 
   prob.pen_accept = pen_accept;
-  prob.pen_accept_initpt=pen_accept_inipt;
+  prob.pen_accept_initpt=1e+10;//pen_accept_inipt;
   prob.pen_accept_solve1=pen_accept_solve1;
   prob.pen_accept_emer=pen_accept_emer;
   prob.pen_accept_safemode;
@@ -934,13 +934,19 @@ void MyCode2::display_instance_info()
 // return true when all solutions are written; false otherwise
 bool MyCode2::attempt_write_solution2(std::vector<std::vector<double> >& vvsols)
 {
+  int howmany=0; goTimer tm; tm.start();
+  
+  bool open_file = true, close_file=true;
   while(true) {
     int Kidx = last_Kidx_written+1; assert(Kidx>=0);
 
     if(Kidx==K_Contingency.size()) return true;
     assert(Kidx<K_Contingency.size());
 
-    if(vvsols[Kidx].size()==1) return false; //solution has not arrived
+    if(vvsols[Kidx].size()==1) {
+      //if(howmany>0) printf("!!!! written %d : avg time %.3f\n", howmany, tm.measureElapsedTime()/howmany);
+      return false; //solution has not arrived
+    }
 
     assert(size_sol_block>=2);
     assert(vvsols[Kidx].size()==size_sol_block+1);
@@ -949,7 +955,12 @@ bool MyCode2::attempt_write_solution2(std::vector<std::vector<double> >& vvsols)
     if(Kidx>=1) assert(vvsols[Kidx-1].size() == 0); //should have been written already
     assert(size_sol_block == v_n0()->n + theta_n0()->n + b_s0()->n + p_g0()->n + q_g0()->n + 1);
 #endif
-    
+    if(Kidx+1 < vvsols.size() && vvsols[Kidx+1].size() == vvsols[Kidx].size()) {
+      //close_file = false;
+      //printf("!!!!!not closing file\n");
+    } else {
+      //close_file = true;
+    }
     const double 
       *v_n     = vvsols[Kidx].data(), 
       *theta_n = vvsols[Kidx].data() + v_n0()->n, 
@@ -959,12 +970,18 @@ bool MyCode2::attempt_write_solution2(std::vector<std::vector<double> >& vvsols)
       delta    = vvsols[Kidx][v_n0()->n + theta_n0()->n + b_s0()->n + p_g0()->n + q_g0()->n];
 
     SCACOPFIO::write_solution2_block(Kidx, v_n, theta_n, b_s, p_g, q_g, delta,
-				     data, "solution2.txt");
+				     data, "solution2.txt", open_file, close_file);
     printf("[rank 0] wrote solution2 block for contingency %d [%d] label '%s'\n", 
 	   Kidx, K_Contingency[Kidx].id, data.K_Label[Kidx].c_str());
 
+    //if(close_file)
+    //  open_file = true;
+    //else
+    //  open_file = false;
+    
     hardclear(vvsols[Kidx]);
     last_Kidx_written++;
+    howmany++;
   }
 
   return false;
@@ -1020,6 +1037,9 @@ void MyCode2::attempt_cleanup_req_send_Ksln()
       const int ierr = MPI_Test(&(req_sln->request), &mpi_test_flag, &mpi_status);
       if(mpi_test_flag != 0) {
 	//completed
+
+	printf("[rank %d]  clean up send req for K_idx=%d\n", my_rank, (int) req_sln->buffer[req_sln->buffer.size()-1]);
+	
 	delete req_sln;
 	req_send_Ksln.erase(it);
 	break;
