@@ -110,7 +110,7 @@ int MyCode2::initialize(int argc, char *argv[])
   
   //K_Cont = {913, 4286}; for(int i=0; i<4900; i++) K_Cont.push_back(3180+i);
   //K_Cont = {11971};//, 776}; //for(int i=0; i<4900; i++) K_Cont.push_back(3180+i);
-  //K_Cont = {220};//2223, 136, 10112, 482,0 };
+  //K_Cont = {5085, 0};//2223, 136, 10112, 482,0 };
   for(auto& id : K_Cont) 
     K_Contingency.push_back(Kinfo(id));
 
@@ -620,7 +620,7 @@ bool MyCode2::_guts_of_solve_contingency(ContingencyProblemWithFixing& prob, int
     if(avgtm<2.0) {
       pen_accept = pen_accept_inipt = pen_accept_solve1 = 1.;
       pen_accept_emer = 1000.;
-      pen_accept_safemode=10000.;
+      pen_accept_safemode=10000.; 
     } else if(avgtm<2.5) { //avgtm in [2, 2.5]
       pen_accept = 1000.; pen_accept_inipt = 2000.; pen_accept_solve1 = 2000.;
       pen_accept_emer = 10000.;
@@ -636,8 +636,8 @@ bool MyCode2::_guts_of_solve_contingency(ContingencyProblemWithFixing& prob, int
     }
   } else if(tm_percentage<0.85) {//tm_percentage in [70%,85%]
     if(avgtm<1.9) {
-      pen_accept = pen_accept_inipt = pen_accept_solve1 = 1.;
-      pen_accept_emer = 1000.;
+      pen_accept = pen_accept_inipt = 100.; pen_accept_solve1 = 1000;
+      pen_accept_emer = 2000.;
       pen_accept_safemode=50000.;
     } else if(avgtm<2.25) { //avgtm in [1.9, 2.25]
       pen_accept = 1000.; pen_accept_inipt = 4000.; pen_accept_solve1 = 2000.;
@@ -646,21 +646,21 @@ bool MyCode2::_guts_of_solve_contingency(ContingencyProblemWithFixing& prob, int
     } else { //avgtm >2.25
       pen_accept = 20000.; pen_accept_inipt = 50000.; pen_accept_solve1 = 30000.;
       pen_accept_emer = 100000.;
-      pen_accept_safemode=1000000.;//1M
-    } 
-  } else if(tm_percentage<0.95) { //tm_percentage in [85%,95%]
-    if(avgtm<1.90) {
-      pen_accept = 5000.; pen_accept_inipt = 10000.; pen_accept_solve1 = 10000.;
-      pen_accept_emer = 50000.;
       pen_accept_safemode=2000000.;//2M
+    } 
+  } else if(tm_percentage<0.93) { //tm_percentage in [85%,93%]
+    if(avgtm<1.90) {
+      pen_accept = 5000.; pen_accept_inipt = 20000.; pen_accept_solve1 = 20000.;
+      pen_accept_emer = 50000.; //50K
+      pen_accept_safemode=10000000.;//10M
       timeout = 400;
     } else  { //avgtm > 1.9
       pen_accept = 50000.; pen_accept_inipt = 100000.; pen_accept_solve1 = 100000.;
-      pen_accept_emer = 1000000.; //2M
+      pen_accept_emer = 1000000.; //1M
       pen_accept_safemode=1e+20;//infinity
       timeout = 200;
     } 
-  } else {//tm_percentage > 95%
+  } else {//tm_percentage > 93%
     timeout = 0. - glob_timer.measureElapsedTime() + 2.0*data.K_Contingency.size();
     timeout *= 0.6;
     pen_accept = pen_accept_inipt = pen_accept_solve1 = pen_accept_emer = pen_accept_safemode=1e+20;
@@ -670,7 +670,7 @@ bool MyCode2::_guts_of_solve_contingency(ContingencyProblemWithFixing& prob, int
   prob.pen_accept_initpt=pen_accept_inipt;
   prob.pen_accept_solve1=pen_accept_solve1;
   prob.pen_accept_emer=pen_accept_emer;
-  prob.pen_accept_safemode;
+  prob.pen_accept_safemode=pen_accept_safemode;
 
   //if(data.N_Bus.size()>8999)
   {
@@ -693,139 +693,6 @@ extern int g_max_memory_ma57;
 
 bool MyCode2::solve_contingency(int K_idx, bool safe_mode, std::vector<double>& sln)
 {
-  if(false) {
-  g_max_memory_ma57=900;//Mbytes
-
-  ///////////////////////////////////////
-  //
-  // solver scacopf problem on solver rank(s) xxxbase1
-  //
-  SCACOPFProblem* scacopf_prob = new SCACOPFProblem(data);
-
-  scacopf_prob->my_rank = my_rank;
-
-  scacopf_prob->update_AGC_smoothing_param(1e-4);
-  scacopf_prob->update_PVPQ_smoothing_param(1e-2);
-  //scacopf_prob->set_AGC_as_nonanticip(true);
-  //scacopf_prob->set_AGC_simplified(true);
-  //scacopf_prob->set_PVPQ_as_nonanticip(true);
-
-  //reduce T and L rates to min(RateBase, TL_rate_reduction*RateEmer)
-  double TL_rate_reduction = 0.85;
-  //if((ScoringMethod==1 || ScoringMethod==3))
-  //  TL_rate_reduction = 0.85;
-
-  scacopf_prob->set_basecase_L_rate_reduction(TL_rate_reduction);
-  scacopf_prob->set_basecase_T_rate_reduction(TL_rate_reduction);
-
-  //scacopf_prob->set_quadr_penalty_qg0(true);
-
-  scacopf_prob->assembly({});
-
-  
-  scacopf_prob->use_nlp_solver("ipopt"); 
-  scacopf_prob->set_solver_option("sb","yes");
-  scacopf_prob->set_solver_option("linear_solver", "ma57"); 
-
-  scacopf_prob->set_solver_option("print_frequency_iter", 5);
-  scacopf_prob->set_solver_option("max_iter", 2000);    
-  scacopf_prob->set_solver_option("acceptable_tol", 1e-3);
-  scacopf_prob->set_solver_option("acceptable_constr_viol_tol", 1e-6);
-  scacopf_prob->set_solver_option("acceptable_iter", 7);
-
-  scacopf_prob->set_solver_option("mu_init", 0.1);
-  scacopf_prob->set_solver_option("tol", 1e-8);
-  scacopf_prob->set_solver_option("mu_target", 1e-9);
-  
-  //scacopf_prob->set_solver_option("bound_relax_factor", 0.);
-  //scacopf_prob->set_solver_option("bound_push", 1e-16);
-  //scacopf_prob->set_solver_option("slack_bound_push", 1e-16);
-  scacopf_prob->set_solver_option("mu_linear_decrease_factor", 0.5);
-  scacopf_prob->set_solver_option("mu_superlinear_decrease_power", 1.2);
-
-
-  scacopf_prob->set_solver_option("print_level", 5);
-
-  printf("[ph1] rank %d  starts scacopf solve phase 1 global time %g\n", 
-	   my_rank, glob_timer.measureElapsedTime());
-
-  
-  bool bret = scacopf_prob->optimize("ipopt");
-
-  auto p_g0_ = scacopf_prob->variable("p_g", data); 
-  auto v_n0_ = scacopf_prob->variable("v_n", data);
-
-  ///////////////////////////////////////////////////////////////////////////////
-  {
-  int status = 0; //be positive
-
-
-  
-  
-  ContingencyProblem prob(data, K_idx, my_rank);
-
-  if(data.N_Bus.size()>8999) {
-    //prob.monitor.is_active = true;
-    //prob.monitor.pen_threshold = pen_threshold;
-  }
-
-  prob.update_AGC_smoothing_param(1e-4);
-  prob.update_PVPQ_smoothing_param(1e-4);
-
-  //xxxcont
-
-  if(!prob.default_assembly(p_g0_, v_n0_)) {
-    printf("Evaluator Rank %d failed in default_assembly for contingency K_idx=%d\n",
-	   my_rank, K_idx);
-    status = -1;
-    return false;
-  }
-
-  if(!prob.set_warm_start_from_base_of(*scacopf_prob)) {
-    status = -2;
-    return false;
-  }
-
-  prob.use_nlp_solver("ipopt");
-  // prob.set_solver_option("sb","yes");
-  // prob.set_solver_option("print_frequency_iter", 10);
-  // prob.set_solver_option("linear_solver", "ma57"); 
-  // prob.set_solver_option("print_level", 5);
-  // prob.set_solver_option("mu_init", 1e-4);
-  // prob.set_solver_option("mu_target", 5e-9);
-
-  // //return if it takes too long in phase2
-  // prob.set_solver_option("max_iter", 1700);
-  // prob.set_solver_option("acceptable_tol", 1e-3);
-  // prob.set_solver_option("acceptable_constr_viol_tol", 1e-6);
-  // prob.set_solver_option("acceptable_iter", 5);
-
-  // //if(data.N_Bus.size()<10000) 
-  // {
-  //   prob.set_solver_option("bound_relax_factor", 0.);
-  //   prob.set_solver_option("bound_push", 1e-16);
-  //   prob.set_solver_option("slack_bound_push", 1e-16);
-  // }
-  // prob.set_solver_option("mu_linear_decrease_factor", 0.4);
-  // prob.set_solver_option("mu_superlinear_decrease_power", 1.25);
-
-  double penalty; 
-  if(!prob.eval_obj(p_g0_, v_n0_, penalty)) {
-    printf("Evaluator Rank %d failed in the eval_obj of contingency K_idx=%d\n",
-	   my_rank, K_idx);
-    status = -3;
-    penalty=1e+6;
-  }
-  int num_iter = prob.number_of_iterations();
-
-  printf("Evaluator Rank %3d K_idx=%d finished with penalty %12.3f "
-	 "in %5.3f sec and %3d iterations  sol_from_scacopf_pass %d  global time %g\n",
-	 my_rank, K_idx, penalty, -117., 
-	 num_iter, -117, glob_timer.measureElapsedTime());
-  }
-
-  ////////////////////////////////////////////////////////////////////////////////////
-  }
   goTimer t; t.start();
 
   int status; double penalty;
