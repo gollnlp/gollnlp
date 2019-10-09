@@ -674,7 +674,7 @@ bool MyCode2::_guts_of_solve_contingency(ContingencyProblemWithFixing& prob, int
 
   //if(data.N_Bus.size()>8999)
   {
-    ContingencyProblemWithFixing::g_bounds_abuse = 0.00009999;
+    ContingencyProblemWithFixing::g_bounds_abuse = 0.000095;
     prob.monitor.is_active = true;
   }
 

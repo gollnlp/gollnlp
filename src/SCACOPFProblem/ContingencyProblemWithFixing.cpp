@@ -19,13 +19,13 @@ using namespace std;
 
 static const int max_mem_ma57_normal = 1000; //MB
 static const int max_mem_ma57_safem = 1500; //MB
-static const int alarm_ma57_normal = 2; //seconds
+static const int alarm_ma57_normal = 30; //seconds
 static const int alarm_ma57_safem = 30; //M
 
 static const int max_mem_ma27_normal = 1000; //MB
 static const int max_mem_ma27_safem = 1500; //MB
-static const int alarm_ma27_normal = 20; //seconds
-static const int alarm_ma27_safem = 30; //MB
+static const int alarm_ma27_normal = 45; //seconds
+static const int alarm_ma27_safem = 45; //MB
 
 
 extern volatile sig_atomic_t g_solve_watch_ma57;
