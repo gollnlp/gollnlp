@@ -7,7 +7,18 @@
 #include <map>
 
 #include "mpi.h"
+
+//this should not be included here -> instead OptProblem should have its own error structures
+//quick hack - will be revisited
+#include "IpIpoptApplication.hpp"
+
 namespace gollnlp {
+
+  //quick hack to avoid poluting gollnlp code with Ipopt::
+typedef Ipopt::ApplicationReturnStatus OptimizationStatus;
+typedef Ipopt::AlgorithmMode OptimizationMode;
+
+
 
 class NlpSolver;
 
@@ -38,7 +49,14 @@ public:
   //handled by attach_to
   const double* xref;
   bool providesStartingPoint;
-  
+
+  inline OptVariablesBlock* new_copy() 
+  {
+    auto b = new OptVariablesBlock(n, id, lb, ub);
+    b->set_start_to(*this);
+    return b;
+  }
+
   void print() const;
 };
   
@@ -95,8 +113,17 @@ public:
 
   void copy_to(double* a);
   void copy_to(std::vector<double>& v);
-  void copy_from(const std::vector<double>& v);
+  inline void copy_from(const std::vector<double>& v) { copy_from(v.data()); }
+  void copy_from(const double* v);
 
+  OptVariables* new_copy() 
+  {
+    OptVariables* new_vars = new OptVariables();
+    for(auto b : this->vblocks) {
+      new_vars->append_varsblock(b->new_copy());
+    }
+    return new_vars;
+  }
 
   void print_summary(const std::string var_name="") const;
   void print(const std::string var_name="") const;
@@ -248,6 +275,7 @@ public:
 // This class needs NOT be specialized/derived.
 //////////////////////////////////////////////////////
 class OptObjective {
+public:
   OptObjective() {};
   virtual ~OptObjective();
 
@@ -309,7 +337,6 @@ public:
 
   inline int get_num_constraints() const { return cons->m(); }
   inline int get_num_variables() const { return vars_primal->n(); }
-
 public:
   inline OptVariables* primal_variables() { return vars_primal; }
   inline OptVariables* duals_bounds_lower() { return vars_duals_bounds_L; }
@@ -417,6 +444,8 @@ public:
   virtual bool optimize(const std::string& nlpsolver);
   virtual bool reoptimize(RestartType t=primalRestart);
 
+  virtual OptimizationStatus optimization_status() const;
+
   inline double objective_value() const { return obj_value; }
   inline double objective_value_barrier() const { return obj_barrier; }
   inline int number_of_iterations() const { return num_iter; }
@@ -431,7 +460,7 @@ public:
 				const double& inf_du, 
 				const double& mu, 
 				const double& alpha_du, const double& alpha_pr,
-				int ls_trials) 
+				int ls_trials, OptimizationMode mode) 
   { return true; }
 
   virtual bool iterate_finalize()
@@ -512,10 +541,37 @@ protected:
 
   NlpSolver* nlp_solver;
 
+  void reallocate_nlp_solver();
+
   //these two vectors have limited storage lifetime
   std::vector<OptSparseEntry> ij_Jac, ij_Hess;
 
   bool new_x_fgradf;
+public:
+  //quick hack - will be revisited
+  static const OptimizationStatus Solve_Succeeded = Ipopt::Solve_Succeeded;
+  static const OptimizationStatus Solved_To_Acceptable_Level=Ipopt::Solved_To_Acceptable_Level;
+  static const OptimizationStatus Infeasible_Problem_Detected=Ipopt::Infeasible_Problem_Detected;
+  static const OptimizationStatus Search_Direction_Becomes_Too_Small=Ipopt::Search_Direction_Becomes_Too_Small;
+  static const OptimizationStatus Diverging_Iterates=Ipopt::Diverging_Iterates;
+  static const OptimizationStatus User_Requested_Stop=Ipopt::User_Requested_Stop;
+  static const OptimizationStatus Feasible_Point_Found=Ipopt::Feasible_Point_Found;
+  static const OptimizationStatus Maximum_Iterations_Exceeded=Ipopt::Maximum_Iterations_Exceeded;
+  static const OptimizationStatus Restoration_Failed=Ipopt::Restoration_Failed;
+  static const OptimizationStatus Error_In_Step_Computation=Ipopt::Error_In_Step_Computation;
+  static const OptimizationStatus Maximum_CpuTime_Exceeded=Ipopt::Maximum_CpuTime_Exceeded;
+  static const OptimizationStatus Not_Enough_Degrees_Of_Freedom=Ipopt::Not_Enough_Degrees_Of_Freedom;
+  static const OptimizationStatus Invalid_Problem_Definition=Ipopt::Invalid_Problem_Definition;
+  static const OptimizationStatus Invalid_Option=Ipopt::Invalid_Option;
+  static const OptimizationStatus Invalid_Number_Detected=Ipopt::Invalid_Number_Detected;
+  static const OptimizationStatus Unrecoverable_Exception=Ipopt::Unrecoverable_Exception;
+  static const OptimizationStatus NonIpopt_Exception_Thrown=Ipopt::NonIpopt_Exception_Thrown;
+  static const OptimizationStatus Insufficient_Memory=Ipopt::Insufficient_Memory;
+  static const OptimizationStatus Internal_Error=Ipopt::Internal_Error;
+  
+  static const OptimizationMode RegularMode = Ipopt::RegularMode;
+  static const OptimizationMode RestorationPhaseMode = Ipopt::RestorationPhaseMode;
+
 };
   
 } //end namespace

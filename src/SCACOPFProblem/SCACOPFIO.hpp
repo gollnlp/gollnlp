@@ -32,8 +32,8 @@ namespace gollnlp {
     {
       std::string fileopenflags = sol2_write_1st_call==true ? "w" : "a+";
       sol2_write_1st_call=false;
-      
-      FILE* file = fopen(filename.c_str(), fileopenflags.c_str());
+
+      FILE* file=fopen(filename.c_str(), fileopenflags.c_str());
       if(NULL==file) {
 	printf("[warning] could not open [%s] file for writing (flags '%s')\n", 
 	       filename.c_str(), fileopenflags.c_str());
@@ -46,6 +46,7 @@ namespace gollnlp {
 
       fprintf(file, "--delta section\ndelta(MW)\n%g\n", data.MVAbase*delta);
       fclose(file);
+      file = NULL;
     }
 
     static
@@ -56,17 +57,6 @@ namespace gollnlp {
     static
     void read_variables_blocks(SCACOPFData& data, 
 			       std::unordered_map<std::string, OptVariablesBlock*>& map_basecase_vars);
-    // static 
-    // void write_append_solution_block(OptVariablesBlock* v_n, OptVariablesBlock* theta_n, 
-    // 				     OptVariablesBlock* b_s,
-    // 				     OptVariablesBlock* p_g, OptVariablesBlock* q_g,
-    // 				     SCACOPFData& data,
-    // 				     const std::string& filename="solution2.txt",
-    // 				     const std::string& fileopenflags="a+")
-    // {
-    //   write_append_solution_block(v_n->x, theta_n->x, b_s->x, p_g->x, q_g->x,
-    // 				  data, filename, fileopenflags);
-    // }
 
     static
     void read_solution1(OptVariablesBlock** v_n, OptVariablesBlock** theta_n, OptVariablesBlock** b_s,

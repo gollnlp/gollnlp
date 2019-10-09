@@ -173,6 +173,10 @@ namespace gollnlp {
     inline static std::string con_name(const std::string& prefix, const SCACOPFData& d) { 
       return con_name(prefix, d.id);
     }
+    inline static std::string objterm_name(const std::string& prefix, const SCACOPFData& d) { 
+      return prefix+"_"+std::to_string(d.id); 
+    }
+
     inline OptConstraintsBlock* constraint(const std::string& prefix, const SCACOPFData& d) { 
       return constraints_block(con_name(prefix, d));
     }
@@ -226,25 +230,25 @@ namespace gollnlp {
 				  const double& inf_du, 
 				  const double& mu, 
 				  const double& alpha_du, const double& alpha_pr,
-				  int ls_trials) 
+				  int ls_trials, OptimizationMode mode) 
     {
       return true; 
     }
     
     struct ConvMonitor
     {
-      ConvMonitor() : is_active(false), user_stopped(false), pen_threshold(0.), is_late(false), safe_mode(false), bailout_allowed(false)
+      ConvMonitor() : is_active(false), user_stopped(false), emergency(false),
+		      pen_accept(1.), pen_accept_emer(1000.), timeout(500)
       {
 	timer.start();
       };
 
       bool is_active;
       bool user_stopped;
-      double pen_threshold;
-      bool is_late;
+      bool emergency;
+      double pen_accept, pen_accept_emer; //under normal and emergency
+      double timeout; //max time spent 
       goTimer timer;
-      bool safe_mode;
-      bool bailout_allowed;
       std::vector<double> hist_tm;
     };
     ConvMonitor monitor;

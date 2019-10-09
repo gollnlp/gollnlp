@@ -5,6 +5,11 @@
 #include <vector>
 #include "goUtils.hpp"
 
+#ifdef GOLLNLP_FAULT_HANDLING
+#include "goSignalHandling.hpp"
+extern volatile sig_atomic_t solve_is_alive;
+#endif
+
 namespace gollnlp {
 
   class ContingencyProblem : public SCACOPFProblem
@@ -74,14 +79,22 @@ namespace gollnlp {
     void add_const_nonanticip_v_n_using(OptVariablesBlock* vn0, const std::vector<int>& Gk);
     void add_cons_PVPQ_using(OptVariablesBlock* vn0, const std::vector<int>& Gk);
     void update_cons_PVPQ_using(OptVariablesBlock* vn0, const std::vector<int>& Gk);
-
-    void add_regularizations();
+  public:
+    //if no regularization term exists in the problem, one is added and 'primal_problem_changed' is called; 
+    //otherwise the term is updated
+    void regularize_vn(const double& gamma=1e-4);    
+    void regularize_thetan(const double& gamma=1e-4);    
+    void regularize_bs(const double& gamma=1e-4);    
+    void regularize_pg(const double& gamma=1e-4);    
+    void regularize_qg(const double& gamma=1e-4);    
+  protected:
+    //update gamma for all the above regularizations
+    //internal "helper" function
+    void update_regularizations(const double& gamma=1e-4);
   public:
     int K_idx;
     int my_rank;
 
-    //regularizations: gamma* || x - xbasecase]]^2
-    bool reg_vn, reg_thetan, reg_bs, reg_pg, reg_qg;
   protected:
     OptVariablesBlock *v_n0, *theta_n0, *b_s0, *p_g0, *q_g0;
   public:
@@ -91,117 +104,114 @@ namespace gollnlp {
 				  const double& inf_du, 
 				  const double& mu, 
 				  const double& alpha_du, const double& alpha_pr,
-				  int ls_trials) 
+				  int ls_trials, OptimizationMode mode)
     {
-      if(monitor.is_active) {
-	monitor.hist_tm.push_back(monitor.timer.measureElapsedTime());
+      // if(monitor.is_active) {
+      // 	monitor.hist_tm.push_back(monitor.timer.measureElapsedTime());
 
-	const double tmavg =  monitor.hist_tm.back() / monitor.hist_tm.size();
+      // 	const double tmavg =  monitor.hist_tm.back() / monitor.hist_tm.size();
 
-	const int over_n_last = 3; double tmavg_over_last = tmavg;
-	if(monitor.hist_tm.size() > over_n_last) {
-	  const int idx_ref = monitor.hist_tm.size()-over_n_last-1;
-	  tmavg_over_last = (monitor.hist_tm.back()-monitor.hist_tm[idx_ref])/over_n_last;
-	}
+      // 	const int over_n_last = 3; double tmavg_over_last = tmavg;
+      // 	if(monitor.hist_tm.size() > over_n_last) {
+      // 	  const int idx_ref = monitor.hist_tm.size()-over_n_last-1;
+      // 	  tmavg_over_last = (monitor.hist_tm.back()-monitor.hist_tm[idx_ref])/over_n_last;
+      // 	}
 
-	//printf("[stop]????   K_idx=%d iter %d : obj=%12.5e inf_pr_o=%12.5e mu=%12.5e inf_du=%12.5e a_du=%12.5e a_pr=%12.5e "
-	//     "rank=%d time=%g avg=[%.2f %.2f(%d)]\n",
-	//       K_idx, iter, obj_value, inf_pr_orig_pr, mu, inf_du,  alpha_du, alpha_pr, my_rank, monitor.timer.measureElapsedTime(),
-	//       tmavg, tmavg_over_last,over_n_last);
-	if(monitor.is_late) {
-	  if(obj_value<2*monitor.pen_threshold && inf_pr_orig_pr<2e-6 && mu<=1e-5) {
-	    monitor.user_stopped=true;
-	    printf("[stop]late   K_idx=%d iter %d : obj=%12.5e inf_pr_o=%12.5e mu=%12.5e inf_du=%12.5e a_du=%12.5e a_pr=%12.5e rank=%d\n",
-		   K_idx, iter, obj_value, inf_pr_orig_pr, mu, inf_du,  alpha_du, alpha_pr, my_rank);
-	    return false;
-	  } 
-	} else {
-	  if(obj_value<monitor.pen_threshold && inf_pr_orig_pr<1e-6 && mu<=5e-6) {
-	    monitor.user_stopped=true;
-	    printf("[stop]norm   K_idx=%d iter %d : obj=%12.5e inf_pr_o=%12.5e mu=%12.5e inf_du=%12.5e a_du=%12.5e a_pr=%12.5e rank=%d\n",
-		   K_idx, iter, obj_value, inf_pr_orig_pr, mu, inf_du,  alpha_du, alpha_pr, my_rank);
-	    return false;
-	  }
-	}
+      // 	if(monitor.is_late) {
+      // 	  if(obj_value<2*monitor.pen_threshold && inf_pr_orig_pr<2e-6 && mu<=1e-5) {
+      // 	    monitor.user_stopped=true;
+      // 	    printf("[stop]late   K_idx=%d iter %d : obj=%12.5e inf_pr_o=%12.5e mu=%12.5e inf_du=%12.5e a_du=%12.5e a_pr=%12.5e rank=%d\n",
+      // 		   K_idx, iter, obj_value, inf_pr_orig_pr, mu, inf_du,  alpha_du, alpha_pr, my_rank);
+      // 	    return false;
+      // 	  } 
+      // 	} else {
+      // 	  if(obj_value<monitor.pen_threshold && inf_pr_orig_pr<1e-6 && mu<=5e-6) {
+      // 	    monitor.user_stopped=true;
+      // 	    printf("[stop]norm   K_idx=%d iter %d : obj=%12.5e inf_pr_o=%12.5e mu=%12.5e inf_du=%12.5e a_du=%12.5e a_pr=%12.5e rank=%d\n",
+      // 		   K_idx, iter, obj_value, inf_pr_orig_pr, mu, inf_du,  alpha_du, alpha_pr, my_rank);
+      // 	    return false;
+      // 	  }
+      // 	}
       
-	if(tmavg_over_last>5.*tmavg && obj_value<20*monitor.pen_threshold && inf_pr_orig_pr<1e-6 && mu<=5e-6) {
-	  monitor.user_stopped=true;
-	  printf("[stop]slo1   K_idx=%d iter %d : obj=%12.5e inf_pr_o=%12.5e mu=%12.5e inf_du=%12.5e a_du=%12.5e a_pr=%12.5e rank=%d\n",
-		 K_idx, iter, obj_value, inf_pr_orig_pr, mu, inf_du,  alpha_du, alpha_pr, my_rank);
-	  return false;	 
-	}
-	if(tmavg_over_last>3.*tmavg && obj_value<10*monitor.pen_threshold && inf_pr_orig_pr<1e-6 && mu<=5e-6) {
-	  monitor.user_stopped=true;
-	  printf("[stop]slo2   K_idx=%d iter %d : obj=%12.5e inf_pr_o=%12.5e mu=%12.5e inf_du=%12.5e a_du=%12.5e a_pr=%12.5e rank=%d\n",
-		 K_idx, iter, obj_value, inf_pr_orig_pr, mu, inf_du,  alpha_du, alpha_pr, my_rank);
-	  return false;	 
-	}
+      // 	if(tmavg_over_last>5.*tmavg && obj_value<20*monitor.pen_threshold && inf_pr_orig_pr<1e-6 && mu<=5e-6) {
+      // 	  monitor.user_stopped=true;
+      // 	  printf("[stop]slo1   K_idx=%d iter %d : obj=%12.5e inf_pr_o=%12.5e mu=%12.5e inf_du=%12.5e a_du=%12.5e a_pr=%12.5e rank=%d\n",
+      // 		 K_idx, iter, obj_value, inf_pr_orig_pr, mu, inf_du,  alpha_du, alpha_pr, my_rank);
+      // 	  return false;	 
+      // 	}
+      // 	if(tmavg_over_last>3.*tmavg && obj_value<10*monitor.pen_threshold && inf_pr_orig_pr<1e-6 && mu<=5e-6) {
+      // 	  monitor.user_stopped=true;
+      // 	  printf("[stop]slo2   K_idx=%d iter %d : obj=%12.5e inf_pr_o=%12.5e mu=%12.5e inf_du=%12.5e a_du=%12.5e a_pr=%12.5e rank=%d\n",
+      // 		 K_idx, iter, obj_value, inf_pr_orig_pr, mu, inf_du,  alpha_du, alpha_pr, my_rank);
+      // 	  return false;	 
+      // 	}
 	
-	if(tmavg_over_last>2.*tmavg && obj_value< 2.*monitor.pen_threshold && inf_pr_orig_pr<1e-6 && mu<=5e-6) {
-	  monitor.user_stopped=true;
-	  printf("[stop]slo3   K_idx=%d iter %d : obj=%12.5e inf_pr_o=%12.5e mu=%12.5e inf_du=%12.5e a_du=%12.5e a_pr=%12.5e rank=%d\n",
-		 K_idx, iter, obj_value, inf_pr_orig_pr, mu, inf_du,  alpha_du, alpha_pr, my_rank);
-	  return false;	 
-	}
+      // 	if(tmavg_over_last>2.*tmavg && obj_value< 2.*monitor.pen_threshold && inf_pr_orig_pr<1e-6 && mu<=5e-6) {
+      // 	  monitor.user_stopped=true;
+      // 	  printf("[stop]slo3   K_idx=%d iter %d : obj=%12.5e inf_pr_o=%12.5e mu=%12.5e inf_du=%12.5e a_du=%12.5e a_pr=%12.5e rank=%d\n",
+      // 		 K_idx, iter, obj_value, inf_pr_orig_pr, mu, inf_du,  alpha_du, alpha_pr, my_rank);
+      // 	  return false;	 
+      // 	}
 
-	if(tmavg_over_last>1.5*tmavg && obj_value<10.*monitor.pen_threshold && inf_pr_orig_pr<1e-7 && inf_du <1e-6 && mu<=1e-6) {
-	  monitor.user_stopped=true;
-	  printf("[stop]slo4   K_idx=%d iter %d : obj=%12.5e inf_pr_o=%12.5e mu=%12.5e inf_du=%12.5e a_du=%12.5e a_pr=%12.5e rank=%d\n",
-		 K_idx, iter, obj_value, inf_pr_orig_pr, mu, inf_du,  alpha_du, alpha_pr, my_rank);
-	  return false;	 
-	}
+      // 	//!commented because it was causing false termination
+      // 	//if(tmavg_over_last>1.5*tmavg && obj_value<10.*monitor.pen_threshold && inf_pr_orig_pr<1e-7 && inf_du <1e-6 && mu<=1e-6) {
+      // 	//  monitor.user_stopped=true;
+      // 	//  printf("[stop]slo4   K_idx=%d iter %d : obj=%12.5e inf_pr_o=%12.5e mu=%12.5e inf_du=%12.5e a_du=%12.5e a_pr=%12.5e rank=%d\n",
+      // 	//	 K_idx, iter, obj_value, inf_pr_orig_pr, mu, inf_du,  alpha_du, alpha_pr, my_rank);
+      // 	//  return false;	 
+      // 	//}
 
-	if(true==monitor.bailout_allowed) {
-	  // do not set monitor.user_stopped=true;
+      // 	if(true==monitor.bailout_allowed) {
+      // 	  // do not set monitor.user_stopped=true;
 
-	  bool bret = true;
+      // 	  bool bret = true;
 
-	  if(tmavg_over_last>30. && iter>3) 
-	    if(data_sc.N_Bus.size() <= 35000) bret = false;
-	  if(tmavg_over_last>40. && iter>3) 
-	    bret = false;
+      // 	  if(tmavg_over_last>30. && iter>3) 
+      // 	    if(data_sc.N_Bus.size() <= 35000) bret = false;
+      // 	  if(tmavg_over_last>40. && iter>3) 
+      // 	    bret = false;
 
-	  if(tmavg>5. && iter>5)
-	    if(data_sc.N_Bus.size() <= 35000) bret = false;
+      // 	  if(tmavg>5. && iter>5)
+      // 	    if(data_sc.N_Bus.size() <= 35000) bret = false;
 
-	  if(tmavg>9. && iter>4) bret = false;
+      // 	  if(tmavg>9. && iter>4) bret = false;
 
-	  if(!bret) {
-	    printf("[stop]bail   K_idx=%d iter %d : obj=%12.5e inf_pr_o=%12.5e mu=%12.5e inf_du=%12.5e a_du=%12.5e a_pr=%12.5e rank=%d\n",
-		   K_idx, iter, obj_value, inf_pr_orig_pr, mu, inf_du,  alpha_du, alpha_pr, my_rank);
-	    return false;	 
-	  }
-	}
+      // 	  if(!bret) {
+      // 	    printf("[stop]bail   K_idx=%d iter %d : obj=%12.5e inf_pr_o=%12.5e mu=%12.5e inf_du=%12.5e a_du=%12.5e a_pr=%12.5e rank=%d\n",
+      // 		   K_idx, iter, obj_value, inf_pr_orig_pr, mu, inf_du,  alpha_du, alpha_pr, my_rank);
+      // 	    return false;	 
+      // 	  }
+      // 	}
 
-	if(!monitor.safe_mode) {
-	  if(monitor.timer.measureElapsedTime() > 350.) {
-	    printf("[stop]time   K_idx=%d iter %d : obj=%12.5e inf_pr_o=%12.5e mu=%12.5e inf_du=%12.5e a_du=%12.5e a_pr=%12.5e "
-		   "rank=%d avg=[%.2f %.2f(%d)]\n",
-		   K_idx, iter, obj_value, inf_pr_orig_pr, mu, inf_du,  alpha_du, alpha_pr, my_rank,
-		   tmavg, tmavg_over_last,over_n_last);
+      // 	if(!monitor.safe_mode) {
+      // 	  if(monitor.timer.measureElapsedTime() > 350.) {
+      // 	    printf("[stop]time   K_idx=%d iter %d : obj=%12.5e inf_pr_o=%12.5e mu=%12.5e inf_du=%12.5e a_du=%12.5e a_pr=%12.5e "
+      // 		   "rank=%d avg=[%.2f %.2f(%d)]\n",
+      // 		   K_idx, iter, obj_value, inf_pr_orig_pr, mu, inf_du,  alpha_du, alpha_pr, my_rank,
+      // 		   tmavg, tmavg_over_last,over_n_last);
 	    
-	    // do not set monitor.user_stopped=true;
+      // 	    // do not set monitor.user_stopped=true;
 	    
-	    return false;
-	  }
+      // 	    return false;
+      // 	  }
 	  
-	} else { //this is in safe_mode
-	  if(obj_value<20*monitor.pen_threshold && inf_pr_orig_pr<2e-6 && mu<=1e-5) {
-	    printf("[stop]safe   K_idx=%d iter %d : obj=%12.5e inf_pr_o=%12.5e mu=%12.5e inf_du=%12.5e a_du=%12.5e a_pr=%12.5e rank=%d\n",
-		   K_idx, iter, obj_value, inf_pr_orig_pr, mu, inf_du,  alpha_du, alpha_pr, my_rank);
-	    monitor.user_stopped=true;
-	    return false;
-	  }
+      // 	} else { //this is in safe_mode
+      // 	  if(obj_value<20*monitor.pen_threshold && inf_pr_orig_pr<2e-6 && mu<=1e-5) {
+      // 	    printf("[stop]safe   K_idx=%d iter %d : obj=%12.5e inf_pr_o=%12.5e mu=%12.5e inf_du=%12.5e a_du=%12.5e a_pr=%12.5e rank=%d\n",
+      // 		   K_idx, iter, obj_value, inf_pr_orig_pr, mu, inf_du,  alpha_du, alpha_pr, my_rank);
+      // 	    monitor.user_stopped=true;
+      // 	    return false;
+      // 	  }
 	  
-	  if(tmavg_over_last>3.*tmavg && obj_value<1e+6*monitor.pen_threshold && inf_pr_orig_pr<2e-6 && mu<=1e-5) {
-	    monitor.user_stopped=true;
-	    printf("[stop]slos   K_idx=%d iter %d : obj=%12.5e inf_pr_o=%12.5e mu=%12.5e inf_du=%12.5e a_du=%12.5e a_pr=%12.5e rank=%d\n",
-		   K_idx, iter, obj_value, inf_pr_orig_pr, mu, inf_du,  alpha_du, alpha_pr, my_rank);
-	  return false;	 
-	  }
+      // 	  if(tmavg_over_last>3.*tmavg && obj_value<1e+6*monitor.pen_threshold && inf_pr_orig_pr<2e-6 && mu<=1e-5) {
+      // 	    monitor.user_stopped=true;
+      // 	    printf("[stop]slos   K_idx=%d iter %d : obj=%12.5e inf_pr_o=%12.5e mu=%12.5e inf_du=%12.5e a_du=%12.5e a_pr=%12.5e rank=%d\n",
+      // 		   K_idx, iter, obj_value, inf_pr_orig_pr, mu, inf_du,  alpha_du, alpha_pr, my_rank);
+      // 	  return false;	 
+      // 	  }
 
-	}
-      }
+      // 	}
+      // }
 
       return true; 
     }

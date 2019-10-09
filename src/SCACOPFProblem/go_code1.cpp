@@ -108,6 +108,13 @@ int MyCode1::initialize(int argc, char *argv[])
     return false;
   }
 
+
+  //for(int i=0; i<data.N_Vlb.size(); i++) {
+  //  data.N_Vlb[i] *= 1.02;
+  //  data.N_Vub[i] *= 0.98;
+    //printf("%5d %8.3f %8.3f %8.3f %8.3f\n", i, data.N_Vlb[i], data.N_Vub[i], data.N_EVlb[i], data.N_EVub[i]);
+  //}
+
   phase3_initial_num_K_in_scacopf = (ScoringMethod==1 || ScoringMethod==3) ? 2 : 2;
   phase3_max_K_evals_to_wait_for = 1;//2*phase3_initial_num_K_in_scacopf;
   phase3_max_K_to_start_solver = 1;//phase3_initial_num_K_in_scacopf;
@@ -291,7 +298,7 @@ bool MyCode1::do_phase1()
     //build info for contingencies priorities
   }
   
-  bool blarge_prob = data.N_Bus.size() > 20000;
+  bool blarge_prob = false;//data.N_Bus.size() > 20000;
 
   scacopf_prob->use_nlp_solver("ipopt"); 
   scacopf_prob->set_solver_option("sb","yes");
@@ -316,8 +323,8 @@ bool MyCode1::do_phase1()
 
   } else {
     scacopf_prob->set_solver_option("mu_init", 0.1);
-    scacopf_prob->set_solver_option("tol", 1e-6);
-    scacopf_prob->set_solver_option("mu_target", 1e-8);
+    scacopf_prob->set_solver_option("tol", 1e-8);
+    scacopf_prob->set_solver_option("mu_target", 1e-9);
     
     //scacopf_prob->set_solver_option("bound_relax_factor", 0.);
     //scacopf_prob->set_solver_option("bound_push", 1e-16);
@@ -441,7 +448,7 @@ bool MyCode1::do_phase1()
     vector<int> Kgens_highp, Ktransm_highp;
     get_high_priority_Kgens(1024, Kgens_highp, scacopf_prob);
     get_high_priority_Ktransm(2048, Ktransm_highp, scacopf_prob);
-    sprintf(msg, "Kscreen: %d gens %d transm ", Kgens_highp.size(), Ktransm_highp.size()); str += msg;
+    sprintf(msg, "Kscreen: %lu gens %lu transm ", Kgens_highp.size(), Ktransm_highp.size()); str += msg;
 
     auto itg = Kgens_highp.begin(), itt=Ktransm_highp.begin();
     while(itg!=Kgens_highp.end() || itt!=Ktransm_highp.end()) {
@@ -1841,8 +1848,8 @@ double MyCode1::solve_contingency(int K_idx, int& status)
   ContingencyProblem prob(data, K_idx, my_rank);
 
   if(data.N_Bus.size()>8999) {
-    prob.monitor.is_active = true;
-    prob.monitor.pen_threshold = pen_threshold;
+    //prob.monitor.is_active = true;
+    //prob.monitor.pen_threshold = pen_threshold;
   }
 
   prob.update_AGC_smoothing_param(1e-2);
@@ -1868,7 +1875,7 @@ double MyCode1::solve_contingency(int K_idx, int& status)
   prob.set_solver_option("linear_solver", "ma57"); 
   prob.set_solver_option("print_level", 2);
   prob.set_solver_option("mu_init", 1e-4);
-  prob.set_solver_option("mu_target", 1e-8);//!
+  prob.set_solver_option("mu_target", 1e-9);//!
 
   //return if it takes too long in phase2
   prob.set_solver_option("max_iter", 1700);
@@ -1876,7 +1883,8 @@ double MyCode1::solve_contingency(int K_idx, int& status)
   prob.set_solver_option("acceptable_constr_viol_tol", 1e-5);
   prob.set_solver_option("acceptable_iter", 5);
 
-  if(data.N_Bus.size()<10000) {
+  //if(data.N_Bus.size()<10000) 
+  {
     prob.set_solver_option("bound_relax_factor", 0.);
     prob.set_solver_option("bound_push", 1e-16);
     prob.set_solver_option("slack_bound_push", 1e-16);

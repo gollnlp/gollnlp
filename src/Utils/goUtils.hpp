@@ -11,6 +11,7 @@
 #include <list>
 #include <numeric>
 #include <cassert>
+#include <math.h>
 
 namespace gollnlp {
 // trim from start (in place)

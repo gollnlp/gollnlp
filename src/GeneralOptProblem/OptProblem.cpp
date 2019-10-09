@@ -27,8 +27,8 @@ OptProblem::OptProblem()
   vars_primal = new OptVariables();
   cons = new OptConstraints();
   obj = new OptObjective();
-  obj_value   = -1e+20;
-  obj_barrier = -1e+20;
+  obj_value   = +1e+20;
+  obj_barrier = +1e+20;
   num_iter = -1;
   
   vars_duals_bounds_L = vars_duals_bounds_U = NULL;
@@ -62,15 +62,8 @@ bool OptProblem::eval_obj(const double* x, bool new_x, double& obj_val)
     if(new_x_fgradf) { new_x=true; new_x_fgradf=false; }
   }
   for(auto& ot: obj->vterms) {
-#ifdef DEBUG
-    double obj_val_before=obj_val;
-#endif
     if (!ot->eval_f(*vars_primal, new_x, obj_val) )
        return false;
-#ifdef DEBUG
-    //printf("obj_term '%s' returned %12.5e total %12.5e\n", ot->id.c_str(), obj_val-obj_val_before, obj_val);
-#endif
-    
   }
   return true;
 }
@@ -82,7 +75,7 @@ void OptProblem::print_objterms_evals()
   for(auto& ot: obj->vterms) {
     objterm = 0.;
     if (!ot->eval_f(*vars_primal, new_x, objterm) )
-      printf("  tobjterm '%s' -> error evaluating\n", ot->id.c_str());
+      printf("  objterm '%s' -> error evaluating\n", ot->id.c_str());
     else 
       printf("  objterm '%s' -> %15.8e\n", ot->id.c_str(), objterm);
     total += objterm;
@@ -511,9 +504,27 @@ void OptProblem::dual_problem_changed()
   vars_duals_cons = new_duals_cons();
 }
 
+void OptProblem::reallocate_nlp_solver()
+{
+  if(nlp_solver) {
+    nlp_solver->finalize();
+    delete nlp_solver;
+    nlp_solver=NULL;
+  }
+  use_nlp_solver("ipopt");
+}
+
+OptimizationStatus OptProblem::optimization_status() const
+{
+  if(nlp_solver)
+    return nlp_solver->return_code();
+  else 
+    return Invalid_Option;
+}
 
 bool OptProblem::optimize(const std::string& solver_name)
 {
+
   if(vars_duals_bounds_L) delete vars_duals_bounds_L;
   if(vars_duals_bounds_U) delete vars_duals_bounds_U;
   if(vars_duals_cons) delete vars_duals_cons;
@@ -543,7 +554,7 @@ bool OptProblem::reoptimize(RestartType t)
 
   nlp_solver->set_start_type(t);
 
-  if(true==nlp_solver->reoptimize()) {
+  if(true==nlp_solver->optimize()) {
     this->set_have_start();
   } else {
     return false;
@@ -735,13 +746,13 @@ void OptVariables::copy_to(std::vector<double>& v)
     v = vector<double>(this->n());
   this->copy_to(v.data());
 }
-void OptVariables::copy_from(const std::vector<double>& v)
+void OptVariables::copy_from(const double* v)
 {
   for(auto b: this->vblocks) {
-    assert(b->index+b->n < v.size());
-    b->set_start_to(v.data() + b->index);
+    b->set_start_to(v + b->index);
   }
 }
+
 void OptVariables::delete_block(const std::string& id)
 {
   OptVariablesBlock* block = NULL;
