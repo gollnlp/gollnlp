@@ -76,8 +76,6 @@ namespace gollnlp {
 
     bool do_fixing_for_AGC(const double& smoothing, bool fixVoltage, OptVariablesBlock* pgk, OptVariablesBlock* delta);
 
-    //uses 'dict_basecase_vars'
-    //bool set_warm_start_from_basecase_dictb();
     //also looks up 'dict_basecase_vars'
     bool warm_start_variable_from_basecase_dict(OptVariables& v);
 
