@@ -166,7 +166,7 @@ namespace gollnlp {
 
     add_variables(dK,false);
 
-    if(!warm_start_variable_from_basecase(*vars_primal)) {
+    if(!warm_start_variable_from_basecase_dict(*vars_primal)) {
       assert(false);
       return false;
     }
@@ -241,18 +241,18 @@ namespace gollnlp {
       dual_problem_changed();
     }
 
-    if(!warm_start_variable_from_basecase(*vars_duals_bounds_L)) return false;
+    if(!warm_start_variable_from_basecase_dict(*vars_duals_bounds_L)) return false;
     if( variable_duals_lower("duals_bndL_delta", dK) )
       variable_duals_lower("duals_bndL_delta", dK)->set_start_to(0.0);
     assert(vars_duals_bounds_L->provides_start());
 
-    if(!warm_start_variable_from_basecase(*vars_duals_bounds_U)) return false;
+    if(!warm_start_variable_from_basecase_dict(*vars_duals_bounds_U)) return false;
     if(variable_duals_upper("duals_bndU_delta", dK))
       variable_duals_upper("duals_bndU_delta", dK)->set_start_to(0.0);
     assert(vars_duals_bounds_U->provides_start());
 
     //AGC_simple_fixedpg0
-    if(!warm_start_variable_from_basecase(*vars_duals_cons)) return false;
+    if(!warm_start_variable_from_basecase_dict(*vars_duals_cons)) return false;
     if(variable_duals_cons("duals_AGC_simple_fixedpg0", dK))
       variable_duals_cons("duals_AGC_simple_fixedpg0", dK)->set_start_to(0.0);
     assert(vars_duals_cons->provides_start());
@@ -1202,7 +1202,7 @@ namespace gollnlp {
 
 
 
-  bool ContingencyProblemWithFixing::warm_start_variable_from_basecase(OptVariables& v)
+  bool ContingencyProblemWithFixing::warm_start_variable_from_basecase_dict(OptVariables& v)
   {
     SCACOPFData& dK = *data_K[0];
     for(auto& b : v.vblocks) {
