@@ -1,16 +1,18 @@
 #include "ContingencyProblemWithFixingCode1.hpp"
 
+#include "goSignalHandling.hpp"
+
 using namespace std;
 
-static const int max_mem_ma57_normal = 1000; //MB
-static const int max_mem_ma57_safem = 1500; //MB
-static const int alarm_ma57_normal = 30; //seconds
-static const int alarm_ma57_safem = 30; //M
-
-static const int max_mem_ma27_normal = 1000; //MB
-static const int max_mem_ma27_safem = 1500; //MB
-static const int alarm_ma27_normal = 45; //seconds
-static const int alarm_ma27_safem = 45; //MB
+//definitions in ContingencyProblemWithFixing
+extern const int max_mem_ma57_normal;// = 1000; //MB
+extern const int max_mem_ma57_safem;// = 1500; //MB
+extern const int alarm_ma57_normal;// = 30; //seconds
+extern const int alarm_ma57_safem;// = 30; //M
+extern const int max_mem_ma27_normal;// = 1000; //MB
+extern const int max_mem_ma27_safem;// = 1500; //MB
+extern const int alarm_ma27_normal;// = 45; //seconds
+extern const int alarm_ma27_safem;// = 45; //MB
 
 
 extern volatile sig_atomic_t g_solve_watch_ma57;
@@ -27,7 +29,7 @@ extern volatile int g_my_rank_ma27;
 extern volatile int g_my_K_idx_ma27;
 void set_timer_message_ma27(const char* msg);
 
-#define BE_VERBOSE 1
+//#define BE_VERBOSE 1
 
 namespace gollnlp {
 
@@ -51,11 +53,8 @@ namespace gollnlp {
       return true;
     }
     
-    printf("solve 1 before!!!!!!!!!!!!!!!\n");
     bool bFirstSolveOK = do_solve1();
     f = this->obj_value;
-    printf("solve 1 after!!!!!!!!!!!!!!!\n");
-
     
     if(variable("delta", d)) solv1_delta_optim = variable("delta", d)->x[0];
     else                     solv1_delta_optim = 0.;
@@ -269,44 +268,6 @@ namespace gollnlp {
       if(this->obj_value>acceptable_penalty && skip_2nd_solve)
 	printf("ContProbWithFixing K_idx=%d opt2 needed but not done insufic time rank=%d\n", K_idx, my_rank);
     }
-      
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-    f = -1e+20;
-    //if(!optimize("ipopt")) {
-    if(!reoptimize(OptProblem::primalDualRestart)) {
-      //if(!reoptimize(OptProblem::primalRestart)) {
-      if(!monitor.user_stopped) {
-	f = 1e+6;
-	return false;
-      }
-    }
-    
-    // objective value
-    f = this->obj_value;
     
     tmrec.stop();
 #ifdef BE_VERBOSE

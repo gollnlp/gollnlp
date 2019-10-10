@@ -9,23 +9,21 @@
 
 #include "goUtils.hpp"
 
-#ifdef GOLLNLP_FAULT_HANDLING
 #include "goSignalHandling.hpp"
-#endif
 
 #include "goTimer.hpp"
 #include "unistd.h"
 using namespace std;
 
-static const int max_mem_ma57_normal = 1000; //MB
-static const int max_mem_ma57_safem = 1500; //MB
-static const int alarm_ma57_normal = 30; //seconds
-static const int alarm_ma57_safem = 30; //M
+const int max_mem_ma57_normal = 1000; //MB
+const int max_mem_ma57_safem = 1500; //MB
+const int alarm_ma57_normal = 30; //seconds
+const int alarm_ma57_safem = 30; //M
 
-static const int max_mem_ma27_normal = 1000; //MB
-static const int max_mem_ma27_safem = 1500; //MB
-static const int alarm_ma27_normal = 45; //seconds
-static const int alarm_ma27_safem = 45; //MB
+const int max_mem_ma27_normal = 1000; //MB
+const int max_mem_ma27_safem = 1500; //MB
+const int alarm_ma27_normal = 45; //seconds
+const int alarm_ma27_safem = 45; //MB
 
 
 extern volatile sig_atomic_t g_solve_watch_ma57;
@@ -249,14 +247,21 @@ namespace gollnlp {
     goTimer tmrec; tmrec.start();
     //! "ma27_ignore_singularity" 
     //set_solver_option("ma27_meminc_factor", 1.1);
-    
+#ifdef GOLLNLP_FAULT_HANDLING    
     g_solve_watch_ma57=true;
+#else
+    g_solve_watch_ma57=false;
+#endif
     g_alarm_duration_ma57=alarm_ma57_normal;
     g_max_memory_ma57=max_mem_ma57_normal;
     g_my_rank_ma57=my_rank;
     g_my_K_idx_ma57=K_idx;
     
+#ifdef GOLLNLP_FAULT_HANDLING    
     g_solve_watch_ma27=true;
+#else
+    g_solve_watch_ma27=false;
+#endif
     g_alarm_duration_ma27=alarm_ma27_normal;
     g_max_memory_ma27=max_mem_ma27_normal;
     g_my_rank_ma27=my_rank;
@@ -563,14 +568,20 @@ namespace gollnlp {
 
     if(bFirstSolveOK)
       vars_ini->set_start_to(*vars_primal);
-
+#ifdef GOLLNLP_FAULT_HANDLING
     g_solve_watch_ma57=true;
+#else
+    g_solve_watch_ma57=false;
+#endif
     g_alarm_duration_ma57=alarm_ma57_normal;
     g_max_memory_ma57=max_mem_ma57_normal;
     g_my_rank_ma57=my_rank;
     g_my_K_idx_ma57=K_idx;
-
+#ifdef GOLLNLP_FAULT_HANDLING
     g_solve_watch_ma27=true;
+#else
+    g_solve_watch_ma27=false;
+#endif
     g_alarm_duration_ma27=alarm_ma27_normal;
     g_max_memory_ma27=max_mem_ma27_normal;//Mbytes
     g_my_rank_ma27=my_rank;

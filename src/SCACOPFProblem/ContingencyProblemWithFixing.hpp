@@ -104,7 +104,7 @@ namespace gollnlp {
     int comm_size;
     goTimer tmTotal;
   public:
-#ifdef GOLLNLP_FAULT_HANDLING
+
     virtual bool iterate_callback(int iter, const double& obj_value,
 				  const double* primals,
 				  const double& inf_pr, const double& inf_pr_orig_pr, 
@@ -241,7 +241,7 @@ namespace gollnlp {
   protected:
     OptVariables *vars_ini, *vars_last;
     IterInfo best_known_iter;
-#endif
+
   };
 
 } //end namespace
