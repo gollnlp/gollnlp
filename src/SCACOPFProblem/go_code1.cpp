@@ -2,7 +2,7 @@
 
 #include "SCMasterProblem.hpp"
 #include "SCRecourseProblem.hpp"
-
+#include "ContingencyProblemWithFixingCode1.hpp"
 #include "goUtils.hpp"
 
 //using namespace std;
@@ -14,6 +14,9 @@ using namespace gollnlp;
 #include "unistd.h"
 #include <chrono>
 #include <thread>
+
+//! remove it
+#include "SCACOPFIO.hpp"
 
 //#define DEBUG_COMM 1
 #define DEBUG_SCHED 1
@@ -54,7 +57,7 @@ MyCode1::MyCode1(const std::string& InFile1_, const std::string& InFile2_,
 
   iAmMaster=iAmSolver=iAmEvaluator=false;
   scacopf_prob = NULL;
-  my_rank = -1; 
+  my_rank = comm_size = -1; 
 
   req_recv_K_idx = NULL;
   req_send_penalty = NULL;
@@ -92,6 +95,7 @@ int MyCode1::initialize(int argc, char *argv[])
   if(MPI_SUCCESS != ret) {
     return false;
   }
+  ret = MPI_Comm_size(comm_world, &comm_size); assert(ret==MPI_SUCCESS);
 
   rank_master = 0;
   rank_solver_rank0 = 1;
@@ -160,8 +164,6 @@ void MyCode1::phase1_ranks_allocation()
 {
   iAmMaster=iAmSolver=iAmEvaluator=false;
   assert(comm_world != MPI_COMM_NULL);
-  int ret, comm_size;
-  ret = MPI_Comm_size(comm_world, &comm_size); assert(ret==MPI_SUCCESS);
 
   rank_master = 0;
   rank_solver_rank0 = 1;
@@ -190,8 +192,6 @@ void MyCode1::phase1_ranks_allocation()
 void MyCode1::phase2_ranks_allocation()   
 {
   assert(comm_world != MPI_COMM_NULL);
-  int ret, comm_size;
-  ret = MPI_Comm_size(comm_world, &comm_size); assert(ret==MPI_SUCCESS);
 
   //solver is rank_solver_rank0
   iAmSolver = my_rank==rank_solver_rank0;
@@ -334,8 +334,9 @@ bool MyCode1::do_phase1()
   }
 
   if(iAmSolver) {    assert(my_rank==rank_solver_rank0);
-    //if(true) {
+
     scacopf_prob->set_solver_option("print_level", 5);
+    scacopf_prob->set_solver_option("max_iter", 1);//!
 
   } else {
     //master and evaluators do not solve, but we call optimize to force an
@@ -344,36 +345,50 @@ bool MyCode1::do_phase1()
     scacopf_prob->set_solver_option("max_iter", 1);
   }
 
-  printf("[ph1] rank %d  starts scacopf solve phase 1 global time %g\n", 
-	   my_rank, glob_timer.measureElapsedTime());
-
-  
   bool bret = scacopf_prob->optimize("ipopt");
 
   if(!iAmSolver)
     printf("[ph1] rank %d  scacopf solve phase 1 done at global time %g\n", 
 	   my_rank, glob_timer.measureElapsedTime());
 
+  scacopf_prob->build_pd_vars_dict(dict_basecase_vars);
 
-  //if(scacopf_prob->data_K.size()>0)
-  //  scacopf_prob->print_reactive_power_balance_info(*scacopf_prob->data_K[0]);
-  //scacopf_prob->print_reactive_power_balance_info(data);
-  //scacopf_prob->print_line_limits_info(data);
-  
+  //! //aaa
+  if(true && iAmSolver)
+  {
+    //scacopf_prob->print_summary();
+    scacopf_prob->set_solver_option("max_iter", 1);
+    std::unordered_map<std::string, gollnlp::OptVariablesBlock*> dict_basecase_vars_;
+    gollnlp::SCACOPFIO::read_variables_blocks(data, dict_basecase_vars_);
+    
+    //cout << "!!!!!!!!!!!!! dictionary is\n" ;
+    //for(auto it : dict_basecase_vars_) 
+    //  cout << "[" << it.first << "]=" << it.second->id << endl;
+
+    scacopf_prob->warm_start_basecasevariables_from_dict(dict_basecase_vars_);
+
+    for(auto& it: dict_basecase_vars_) delete it.second;
+  }
+  //!~ edd
+
+  printf("[ph1] rank %d  starts scacopf solve phase 1 global time %g\n", 
+	   my_rank, glob_timer.measureElapsedTime());
+
+
+
 
   //
   //communication -> solver rank0 bcasts basecase solutions
   //
 
-  //scacopf_prob->primal_variables()->
-  //  MPI_Bcast_x(rank_solver_rank0, comm_world, my_rank);
-
-  //scacopf_prob->duals_bounds_lower()->
-  //  MPI_Bcast_x(rank_solver_rank0, comm_world, my_rank);
-  //scacopf_prob->duals_bounds_upper()->
-  //  MPI_Bcast_x(rank_solver_rank0, comm_world, my_rank);
-  //scacopf_prob->duals_constraints()->
-  //  MPI_Bcast_x(rank_solver_rank0, comm_world, my_rank);
+  scacopf_prob->primal_variables()->
+    MPI_Bcast_x(rank_solver_rank0, comm_world, my_rank);
+  scacopf_prob->duals_bounds_lower()->
+    MPI_Bcast_x(rank_solver_rank0, comm_world, my_rank);
+  scacopf_prob->duals_bounds_upper()->
+    MPI_Bcast_x(rank_solver_rank0, comm_world, my_rank);
+  scacopf_prob->duals_constraints()->
+    MPI_Bcast_x(rank_solver_rank0, comm_world, my_rank);
 
   MPI_Bcast(&cost_basecase, 1, MPI_DOUBLE, rank_solver_rank0, comm_world);
   //printf("[ph1] rank %d  phase 1 basecase bcasts done at global time %g\n", 
@@ -505,6 +520,10 @@ std::vector<int> MyCode1::phase2_contingencies()
   return data.K_Contingency;
   //return {0, 1, 48, 106};
 
+  vector<int> ret;
+  for(auto idx : data.K_Contingency)
+    ret.push_back(11763);
+  return ret;
   //return {101,  102,  103,  110,  249,  344,  394,  816,  817, 55, 2, 2, 3, 4, 5, 6, 7, 8, 9, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 1};// 101,  102,  106,  110,  249,  344,  394,  816,  817, 55}; //net 7
   return {55, 101,  102,  106,  110,  249,  344,  394,  816,  817, 55, 497}; //net 7
   //return {106};
@@ -614,7 +633,7 @@ int MyCode1::get_next_conting_foreval(int Kidx_last, int rank, vector<ContingInf
   // get one from the front of K_high_prio_phase2
   // or 
   // try Kidx_last+1, Kidx_last+2, ..., numK, 1, 2, ..., Kidx_last-1 (and remove it from K_high_prio_phase2)
-  bool done=false, is_high_prior=false; int comm_size = K_on_rank.size(); 
+  bool done=false, is_high_prior=false; assert( comm_size == K_on_rank.size()); 
   int Kidx_next = Kidx_last;
   while(!done) {
 
@@ -1774,7 +1793,7 @@ void MyCode1::process_contingency(const int& K_idx, int& status, double& penalty
   //
   // the actual solve 
   //
-  penalty = solve_contingency(K_idx, status);
+  penalty = solve_contingency_use_fixing(K_idx, status);
 
   //
   // prepare info for master rank
@@ -1832,8 +1851,69 @@ void MyCode1::process_contingency(const int& K_idx, int& status, double& penalty
 
   //status is OK=0 or failure<0 or OK-ish>0
   //return penalty/objective for the contingency problem
-
 }
+
+double MyCode1::solve_contingency_use_fixing(int K_idx, int& status)
+{
+  assert(iAmEvaluator);
+  assert(scacopf_prob != NULL);
+  
+  status = 0; //be positive
+  auto p_g0 = scacopf_prob->variable("p_g", data); 
+  auto v_n0 = scacopf_prob->variable("v_n", data);
+
+  goTimer t; t.start();
+
+  ContingencyProblemWithFixingCode1 prob(data, K_idx, 
+					 my_rank, comm_size, 
+					 dict_basecase_vars, 
+					 -1, -1., false);
+
+  ContingencyProblemWithFixing::g_bounds_abuse = 0.000095;
+  prob.monitor.is_active = true;
+
+  prob.use_nlp_solver("ipopt");
+
+  if(!prob.default_assembly(dict_basecase_vars["v_n_0"], dict_basecase_vars["thetan_0"], 
+			    dict_basecase_vars["b_s_0"], 
+			    dict_basecase_vars["p_g_0"], dict_basecase_vars["q_g_0"])) {
+
+    printf("rank=%d failed in default_assembly for contingency K_idx=%d\n",
+	   my_rank, K_idx);
+    status = -1;
+    return 1e+20;
+  }
+
+
+  //if(!prob.default_assembly(p_g0, v_n0)) {
+  //  printf("Evaluator Rank %d failed in default_assembly for contingency K_idx=%d\n",
+  //	   my_rank, K_idx);
+  //status = -1;
+  //return 1e+20;
+  //}
+
+  printf("Evaluator Rank %d starts evaluation K_idx=%d\n",
+	   my_rank, K_idx);
+
+
+  double penalty; 
+  if(!prob.eval_obj(p_g0, v_n0, penalty)) {
+    printf("Evaluator Rank %d failed in the eval_obj of contingency K_idx=%d\n",
+	   my_rank, K_idx);
+    status = -3;
+    penalty=1e+6;
+  }
+  int num_iter = prob.number_of_iterations();
+
+
+  printf("Evaluator Rank %3d K_idx=%d finished with penalty %12.3f "
+	 "in %5.3f sec and %3d iterations  sol_from_scacopf_pass %d  global time %g\n",
+	 my_rank, K_idx, penalty, t.stop(), 
+	 num_iter, phase3_scacopf_pass_solution, glob_timer.measureElapsedTime());
+  
+  return penalty;
+}
+
 double MyCode1::solve_contingency(int K_idx, int& status)
 {
   assert(iAmEvaluator);
@@ -1875,7 +1955,7 @@ double MyCode1::solve_contingency(int K_idx, int& status)
   prob.set_solver_option("linear_solver", "ma57"); 
   prob.set_solver_option("print_level", 2);
   prob.set_solver_option("mu_init", 1e-4);
-  prob.set_solver_option("mu_target", 1e-9);//!
+  prob.set_solver_option("mu_target", 1e-9);
 
   //return if it takes too long in phase2
   prob.set_solver_option("max_iter", 1700);

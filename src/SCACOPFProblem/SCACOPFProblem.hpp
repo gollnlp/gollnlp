@@ -10,6 +10,9 @@
 #include "goTimer.hpp"
 //this class is for ACOPF base case and is inherited by ACOPFContingencyProblem
 #include <unistd.h>
+
+#include <unordered_map>
+
 namespace gollnlp {
   
   class SCACOPFProblem : public OptProblem
@@ -196,6 +199,11 @@ namespace gollnlp {
 
     //grows dest as needed
     void copy_basecase_primal_variables_to(std::vector<double>& dest);
+
+    //copy values from the dictionary to the blocks of 'vars'
+    //this is for testing
+    void warm_start_basecasevariables_from_dict(std::unordered_map<std::string, gollnlp::OptVariablesBlock*>& dict);
+    void build_pd_vars_dict(std::unordered_map<std::string, gollnlp::OptVariablesBlock*>& dict);
 
     // returns the idxs of PVPQ gens and corresponding buses
     // generators at the same PVPQ bus are aggregated

@@ -3152,6 +3152,44 @@ void SCACOPFProblem::write_pridua_solution_basecase()
   fclose(file);
 }
 
+void SCACOPFProblem::build_pd_vars_dict(std::unordered_map<std::string, gollnlp::OptVariablesBlock*>& dict)
+{
+  for(auto& v : vars_primal->vblocks) 
+    dict.insert({v->id, v});
+  for(auto& v : vars_duals_bounds_L->vblocks) 
+    dict.insert({v->id, v});
+  for(auto& v : vars_duals_bounds_U->vblocks) 
+    dict.insert({v->id, v});
+  for(auto& v : vars_duals_cons->vblocks) 
+    dict.insert({v->id, v});
+}
+
+static void warmstart_helper(std::unordered_map<std::string, gollnlp::OptVariablesBlock*>& dict,
+			     OptVariables& vars)
+{
+  for(auto& b : vars.vblocks) {
+    auto b0p = dict.find(b->id);
+    if(b0p == dict.end()) {
+
+      cout << "!!!!! could not find variable " << b->id << endl;
+      //assert(false);
+      b->set_start_to(0.0);
+      continue;
+    } else {
+      b->set_start_to(*b0p->second);
+    }
+  }
+}
+
+void SCACOPFProblem::
+warm_start_basecasevariables_from_dict(std::unordered_map<std::string, gollnlp::OptVariablesBlock*>& dict)
+{
+  warmstart_helper(dict, *vars_primal);
+  warmstart_helper(dict, *vars_duals_bounds_L);
+  warmstart_helper(dict, *vars_duals_bounds_U);
+  warmstart_helper(dict, *vars_duals_cons);
+}
+
 void SCACOPFProblem::write_solution_extras_basecase()
 {
   // balance slacks

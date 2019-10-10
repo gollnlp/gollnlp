@@ -13,6 +13,7 @@
 #include "goTimer.hpp"
 
 #include <iostream>
+#include <unordered_map>
 
 using namespace std;
 
@@ -569,12 +570,13 @@ private: //methods
 
   void process_contingency(const int& K_idx, int& status_out,
 			   double& penalty_out, double* info_out);
-			   
+		   
 
   //K_idx is the index in data.K_Contingency that will be solved for
   //status is on return OK=0 or failure<0 or OK-ish>0
   //return penalty/objective for the contingency problem
   double solve_contingency(int K_idx, int& status);
+  double solve_contingency_use_fixing(int K_idx, int& status);
   double solve_contingency_with_basecase(int K_idx, int& status);
 
   //phase 3 solve scacopf with newly received K_idxs (on solver rank only)
@@ -615,7 +617,7 @@ private: //data members
   bool iAmSolver;    //rank(s) that solve SC-ACOPF problem
   bool iAmEvaluator; //ranks that evaluate recourse given SC-ACOPF base case solution
 
-  int my_rank;
+  int my_rank, comm_size;
   
   //rank of the master, usually 0, available on all ranks
   int rank_master;
@@ -632,6 +634,8 @@ private: //data members
   gollnlp::goTimer glob_timer;
 
   static int MAX_NUM_Kidxs_SCACOPF, MAX_K_EVALS;
+
+  std::unordered_map<std::string, gollnlp::OptVariablesBlock*> dict_basecase_vars;
 };
 
 
