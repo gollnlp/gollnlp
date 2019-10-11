@@ -26,10 +26,10 @@ ostream& operator<<(ostream& os, const MyCode1::ContingInfo& o)
 {
   os << "idx=" << o.idx << " K_idx=" << o.K_idx << " restr=" << o.restrictions
      << " scacopfed_at_pass " << o.scacopfed_at_pass 
-     << " evaled_with_sol_at_pass " << o.evaled_with_sol_at_pass
+     << " ev_sol_pass " << o.evaled_with_sol_at_pass
      << " -> penalty=" << o.penalty 
-     << " scacopf_solves=" << o.n_scacopf_solves << " n_evals=" << o.n_evals 
-     << " max_K_evals=" << o.max_K_evals <<  " force_reev=" << o.force_reeval
+     << " scacopf_solves=" << o.n_scacopf_solves << " n_ev=" << o.n_evals 
+     << " max_K_ev=" << o.max_K_evals <<  " force_reev=" << o.force_reeval
      << " rank=" << o.rank_eval 
     //<< " P| " << o.p1 << ' ' << o.q1 << ' ' << o.p2 << ' ' << o.q2 << " | "
      << " scacopf actions: [";
@@ -148,7 +148,7 @@ int MyCode1::initialize(int argc, char *argv[])
   pen_threshold = 1.*data.K_Contingency.size(); //dolars; violations of O(1) or less allowed per contingency
   if(data.N_Bus.size()<7000) pen_threshold = 0.5*data.K_Contingency.size();
   if(data.N_Bus.size()<4000) pen_threshold = 0.25*data.K_Contingency.size();
-  pen_threshold=7000; //!
+  pen_threshold=20000; //!
 
 
   return true;
@@ -266,7 +266,7 @@ bool MyCode1::do_phase1()
   //scacopf_prob->set_PVPQ_as_nonanticip(true);
 
   //reduce T and L rates to min(RateBase, TL_rate_reduction*RateEmer)
-  TL_rate_reduction = 0.85;
+  TL_rate_reduction = 0.999;
   //if((ScoringMethod==1 || ScoringMethod==3))
   //  TL_rate_reduction = 0.85;
 
@@ -573,7 +573,8 @@ void MyCode1::phase2_initial_contingency_distribution()
       nEvaluators++;
       
       int K_idx_phase2=-55;
-      if(1.0*r/num_ranks <= 110.0/144 && !K_high_prio_phase2.empty()) {
+      //if(1.0*r/num_ranks <= 110.0/144 && !K_high_prio_phase2.empty()) {
+      if(!K_high_prio_phase2.empty()) {
 	K_idx_phase2 = K_high_prio_phase2.front();
 	K_high_prio_phase2.pop_front();
 	K_on_rank[r].push_back(K_idx_phase2);
@@ -635,7 +636,8 @@ int MyCode1::get_next_conting_foreval(int Kidx_last, int rank, vector<ContingInf
   int Kidx_next = Kidx_last;
   while(!done) {
 
-    if(1.0*rank/comm_size <= 110.0/144 && !K_high_prio_phase2.empty()) {
+    //if(1.0*rank/comm_size <= 110.0/144 && !K_high_prio_phase2.empty()) {
+    if(!K_high_prio_phase2.empty()) {
       Kidx_next = K_high_prio_phase2.front();
       is_high_prior=true;
     } else {
@@ -720,14 +722,20 @@ int MyCode1::get_next_conting_foreval(int Kidx_last, int rank, vector<ContingInf
   }
   
   //
-  // third pass -> find first one evaluated with an old basecase solution
+  // third pass -> find first one evaluated with the oldest basecase solution
   //
+  int oldest_basecase_sol=numeric_limits<int>::max();
+  for(ContingInfo& kinfo : K_info_all) 
+    if(kinfo.rank_eval==rank && kinfo.evaled_with_sol_at_pass<oldest_basecase_sol) 
+      oldest_basecase_sol = kinfo.evaled_with_sol_at_pass;
+
   for(ContingInfo& kinfo : K_info_all) {
     if(kinfo.rank_eval==rank) {
+
       //if !have_new_first_timer -> check that evaled_with_sol_at_pass == phase3_scacopf_passes_master 
-      // if not, return it (evaled_with_sol_at_pass < phase3_scacopf_passes_master)
+      // if not, return one  (evaled_with_sol_at_pass < phase3_scacopf_passes_master) with minimum 'evaled_with_sol_at_pass'
       if(!have_new_firsttimer) {
-	if(kinfo.evaled_with_sol_at_pass<phase3_scacopf_passes_master) {
+	if(kinfo.evaled_with_sol_at_pass<phase3_scacopf_passes_master && kinfo.evaled_with_sol_at_pass<=oldest_basecase_sol) {
 #ifdef DEBUG_SCHED
 	  printf("[sched] Master: next contingency for K_idx=%d (globidx=%d) to have "
 		 "idx=%d (globidx=%d) [3] [%s] for rank %d\n",
@@ -1042,8 +1050,6 @@ std::vector<int> sort_high_penalties_w_remove_close(const std::vector<double>& K
     if(K_penalties[it]>=thresh)
       K_idxs_all.push_back(it);  
   }
-
-  //printvec(K_idxs_all, "K_idxs_all 11111");
 
   if(proximity>0)  {
     sort(K_idxs_all.begin(),  K_idxs_all.end());
