@@ -379,15 +379,15 @@ bool MyCode1::do_phase1()
   //communication -> solver rank0 bcasts basecase solutions
   //
 
-  //scacopf_prob->primal_variables()->
-  //  MPI_Bcast_x(rank_solver_rank0, comm_world, my_rank);
-  //scacopf_prob->duals_bounds_lower()->
-  //  MPI_Bcast_x(rank_solver_rank0, comm_world, my_rank);
-  //scacopf_prob->duals_bounds_upper()->
-  //  MPI_Bcast_x(rank_solver_rank0, comm_world, my_rank);
-  //scacopf_prob->duals_constraints()->
-  //  MPI_Bcast_x(rank_solver_rank0, comm_world, my_rank);
-
+  scacopf_prob->primal_variables()->
+    MPI_Bcast_x(rank_solver_rank0, comm_world, my_rank);
+  scacopf_prob->duals_bounds_lower()->
+    MPI_Bcast_x(rank_solver_rank0, comm_world, my_rank);
+  scacopf_prob->duals_bounds_upper()->
+    MPI_Bcast_x(rank_solver_rank0, comm_world, my_rank);
+  scacopf_prob->duals_constraints()->
+    MPI_Bcast_x(rank_solver_rank0, comm_world, my_rank);
+  
   MPI_Bcast(&cost_basecase, 1, MPI_DOUBLE, rank_solver_rank0, comm_world);
   //printf("[ph1] rank %d  phase 1 basecase bcasts done at global time %g\n", 
   //	   my_rank, glob_timer.measureElapsedTime());
@@ -594,7 +594,7 @@ void MyCode1::phase2_initial_contingency_distribution()
       }
     }
   }
-  //printvecvec(K_on_rank);
+  printvecvec(K_on_rank);
 
   if(K_on_rank[1].size()==0) K_on_rank[1].push_back(-2);
 
@@ -1082,8 +1082,8 @@ void MyCode1::determine_solver_actions(const vector<ContingInfo>& K_info_all,
     if(kinfo.penalty>pen_threshold) {
       //attempt to "include" if "penalized" was done MAX_K_EVALS and did not reduce penalty
       // this is disabled for medium and large networks
-      if(kinfo.n_evals>=kinfo.max_K_evals  && kinfo.n_evals-1==kinfo.n_scacopf_solves && data.N_Bus.size()<3200) {
-
+      //if(kinfo.n_evals>=kinfo.max_K_evals  && kinfo.n_evals-1==kinfo.n_scacopf_solves && data.N_Bus.size()<3200) {
+      if(false && kinfo.n_evals>=kinfo.max_K_evals  && kinfo.n_evals-1==kinfo.n_scacopf_solves) {
 	bool include_it=true;
        
 	//do not include if it is restricted from being included (infeasible Kgen)
@@ -1103,11 +1103,11 @@ void MyCode1::determine_solver_actions(const vector<ContingInfo>& K_info_all,
       } else {
 	if(kinfo.n_evals>kinfo.n_scacopf_solves) {
 
-	  if((data.N_Bus.size()>=3200 && kinfo.n_scacopf_solves<=3) || data.N_Bus.size()<3200) {
-	    kinfo.scacopf_actions.push_back(-101);
-	    assert(kinfo.n_scacopf_solves == kinfo.scacopf_actions.size()-1);
-	    K_info_next_solve.push_back(kinfo);
-	  }
+	  //if((data.N_Bus.size()>=3200 && kinfo.n_scacopf_solves<=3) || data.N_Bus.size()<3200) {
+	  kinfo.scacopf_actions.push_back(-101);
+	  assert(kinfo.n_scacopf_solves == kinfo.scacopf_actions.size()-1);
+	  K_info_next_solve.push_back(kinfo);
+	  //}
 	}
       }
     }
