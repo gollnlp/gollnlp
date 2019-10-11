@@ -26,17 +26,16 @@ public:
   IpoptNlp(OptProblem* p) : prob(p), have_adv_pd_restart(false)
   { 
     assert(prob); 
-#ifdef GOLLNLP_FAULT_HANDLING
     _primals=NULL;
-#endif
+    _primals_sz=0;
   } 
 
   /** default destructor */
   virtual ~IpoptNlp()
   {
-#ifdef GOLLNLP_FAULT_HANDLING
+    _primals_sz = 0;
     delete[] _primals;
-#endif
+    _primals = NULL;
   }
 
   /**@name Overloaded from TNLP */
@@ -194,20 +193,26 @@ public:
     if(NULL!=ip_cq) {
       inf_pr_orig_problem = ip_cq->curr_nlp_constraint_violation(Ipopt::NORM_MAX);
 
-#ifdef GOLLNLP_FAULT_HANDLING
       //get primal variables
       Ipopt::OrigIpoptNLP* orignlp = dynamic_cast<OrigIpoptNLP*>(GetRawPtr(ip_cq->GetIpoptNLP()));
       if( orignlp != NULL ) {
      	Ipopt::TNLPAdapter* tnlp_adapter = dynamic_cast<TNLPAdapter*>(GetRawPtr(orignlp->nlp()));
 	if(tnlp_adapter) {
-	  if(NULL == _primals) _primals = new double[prob->get_num_variables()];
+	  if(_primals_sz != prob->get_num_variables()) {
+	    delete [] _primals;
+	    _primals = NULL; 
+	    _primals_sz = 0;
+	  }
+	  if(NULL == _primals) {
+	    _primals_sz = prob->get_num_variables();
+	    _primals = new double[_primals_sz];
+	  }
 	  tnlp_adapter->ResortX(*ip_data->curr()->x(), _primals);
 	  return prob->iterate_callback(iter, obj_value, _primals, inf_pr, inf_pr_orig_problem, inf_du, mu, 
 					alpha_du, alpha_pr, ls_trials, mode);
 	  
 	}
       }
-#endif
     }
 
     // algorithm in restoration or some other abnormal Ipopt situation -> primals=NULL
@@ -241,9 +246,8 @@ private:
   SmartPtr< const IteratesVector > iter_vector;
   bool have_adv_pd_restart;
 
-#ifdef GOLLNLP_FAULT_HANDLING
   double* _primals;
-#endif
+  int _primals_sz;
   /**@name Methods to block default compiler methods.
    */
   //@{
