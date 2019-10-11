@@ -1604,6 +1604,10 @@ bool SCACOPFProblem::set_warm_start_from_base_of(SCACOPFProblem& srcProb)
 	return set_warm_start_for_cont_from_base_of(*dB, srcProb);
       }
     }
+    assert(vars_primal->provides_start());
+    assert(vars_duals_cons->provides_start());
+    assert(vars_duals_bounds_L->provides_start());
+    assert(vars_duals_bounds_U->provides_start());
     return false;
   }
   bool SCACOPFProblem::set_warm_start_for_cont_from_base_of(SCACOPFData& dB, SCACOPFProblem& srcProb)

@@ -112,13 +112,6 @@ int MyCode1::initialize(int argc, char *argv[])
     return false;
   }
 
-
-  //for(int i=0; i<data.N_Vlb.size(); i++) {
-  //  data.N_Vlb[i] *= 1.02;
-  //  data.N_Vub[i] *= 0.98;
-    //printf("%5d %8.3f %8.3f %8.3f %8.3f\n", i, data.N_Vlb[i], data.N_Vub[i], data.N_EVlb[i], data.N_EVub[i]);
-  //}
-
   phase3_initial_num_K_in_scacopf = (ScoringMethod==1 || ScoringMethod==3) ? 2 : 2;
   phase3_max_K_evals_to_wait_for = 1;//2*phase3_initial_num_K_in_scacopf;
   phase3_max_K_to_start_solver = 1;//phase3_initial_num_K_in_scacopf;
@@ -155,7 +148,7 @@ int MyCode1::initialize(int argc, char *argv[])
   pen_threshold = 1.*data.K_Contingency.size(); //dolars; violations of O(1) or less allowed per contingency
   if(data.N_Bus.size()<7000) pen_threshold = 0.5*data.K_Contingency.size();
   if(data.N_Bus.size()<4000) pen_threshold = 0.25*data.K_Contingency.size();
-
+  pen_threshold=7000; //!
 
 
   return true;
@@ -336,7 +329,7 @@ bool MyCode1::do_phase1()
   if(iAmSolver) {    assert(my_rank==rank_solver_rank0);
 
     scacopf_prob->set_solver_option("print_level", 5);
-    scacopf_prob->set_solver_option("max_iter", 1);//!
+    scacopf_prob->set_solver_option("max_iter", 1000);//!
 
   } else {
     //master and evaluators do not solve, but we call optimize to force an
@@ -351,11 +344,16 @@ bool MyCode1::do_phase1()
     printf("[ph1] rank %d  scacopf solve phase 1 done at global time %g\n", 
 	   my_rank, glob_timer.measureElapsedTime());
 
+  
   scacopf_prob->build_pd_vars_dict(dict_basecase_vars);
+  //  cout << "!!!!!!!!!!!!! dictionary is\n" ;
+  //for(auto it : dict_basecase_vars) 
+  //  cout << "[" << it.first << "]=" << it.second->id << endl;
 
   //! //aaa
-  if(true && iAmSolver)
+  if(false && iAmSolver)
   {
+
     //scacopf_prob->print_summary();
     scacopf_prob->set_solver_option("max_iter", 1);
     std::unordered_map<std::string, gollnlp::OptVariablesBlock*> dict_basecase_vars_;
@@ -381,14 +379,14 @@ bool MyCode1::do_phase1()
   //communication -> solver rank0 bcasts basecase solutions
   //
 
-  scacopf_prob->primal_variables()->
-    MPI_Bcast_x(rank_solver_rank0, comm_world, my_rank);
-  scacopf_prob->duals_bounds_lower()->
-    MPI_Bcast_x(rank_solver_rank0, comm_world, my_rank);
-  scacopf_prob->duals_bounds_upper()->
-    MPI_Bcast_x(rank_solver_rank0, comm_world, my_rank);
-  scacopf_prob->duals_constraints()->
-    MPI_Bcast_x(rank_solver_rank0, comm_world, my_rank);
+  //scacopf_prob->primal_variables()->
+  //  MPI_Bcast_x(rank_solver_rank0, comm_world, my_rank);
+  //scacopf_prob->duals_bounds_lower()->
+  //  MPI_Bcast_x(rank_solver_rank0, comm_world, my_rank);
+  //scacopf_prob->duals_bounds_upper()->
+  //  MPI_Bcast_x(rank_solver_rank0, comm_world, my_rank);
+  //scacopf_prob->duals_constraints()->
+  //  MPI_Bcast_x(rank_solver_rank0, comm_world, my_rank);
 
   MPI_Bcast(&cost_basecase, 1, MPI_DOUBLE, rank_solver_rank0, comm_world);
   //printf("[ph1] rank %d  phase 1 basecase bcasts done at global time %g\n", 
@@ -1855,14 +1853,22 @@ void MyCode1::process_contingency(const int& K_idx, int& status, double& penalty
 
 double MyCode1::solve_contingency_use_fixing(int K_idx, int& status)
 {
+  goTimer t; t.start();
   assert(iAmEvaluator);
   assert(scacopf_prob != NULL);
   
   status = 0; //be positive
   auto p_g0 = scacopf_prob->variable("p_g", data); 
+  auto q_g0 = scacopf_prob->variable("q_g", data); 
   auto v_n0 = scacopf_prob->variable("v_n", data);
+  auto theta_n0 = scacopf_prob->variable("theta_n", data);
+  auto b_s0 = scacopf_prob->variable("b_s", data); 
 
-  goTimer t; t.start();
+  assert(p_g0 == dict_basecase_vars["p_g_0"]);
+  assert(q_g0 == dict_basecase_vars["q_g_0"]);
+  assert(v_n0 == dict_basecase_vars["v_n_0"]);
+  assert(theta_n0 == dict_basecase_vars["theta_n_0"]);
+  assert(b_s0 == dict_basecase_vars["b_s_0"]);
 
   ContingencyProblemWithFixingCode1 prob(data, K_idx, 
 					 my_rank, comm_size, 
@@ -1872,29 +1878,22 @@ double MyCode1::solve_contingency_use_fixing(int K_idx, int& status)
   ContingencyProblemWithFixing::g_bounds_abuse = 0.000095;
   prob.monitor.is_active = true;
 
+  prob.pen_accept = 0.99*pen_threshold;
+  prob.pen_accept_initpt=0.99*pen_threshold;
+  prob.pen_accept_solve1= 0.99*pen_threshold;
+  prob.pen_accept_emer= 0.99*pen_threshold;
+  prob.pen_accept_safemode= 0.99*pen_threshold;
+
   prob.use_nlp_solver("ipopt");
 
-  if(!prob.default_assembly(dict_basecase_vars["v_n_0"], dict_basecase_vars["thetan_0"], 
-			    dict_basecase_vars["b_s_0"], 
-			    dict_basecase_vars["p_g_0"], dict_basecase_vars["q_g_0"])) {
+
+  if(!prob.default_assembly(v_n0, theta_n0, b_s0, p_g0, q_g0)) {
 
     printf("rank=%d failed in default_assembly for contingency K_idx=%d\n",
 	   my_rank, K_idx);
     status = -1;
     return 1e+20;
   }
-
-
-  //if(!prob.default_assembly(p_g0, v_n0)) {
-  //  printf("Evaluator Rank %d failed in default_assembly for contingency K_idx=%d\n",
-  //	   my_rank, K_idx);
-  //status = -1;
-  //return 1e+20;
-  //}
-
-  printf("Evaluator Rank %d starts evaluation K_idx=%d\n",
-	   my_rank, K_idx);
-
 
   double penalty; 
   if(!prob.eval_obj(p_g0, v_n0, penalty)) {
@@ -2117,11 +2116,12 @@ double MyCode1::phase3_solve_scacopf(std::vector<int>& K_idxs,
     for(int K_idx: Ks_to_add_as_blocks)
       scacopf_prob->add_contingency_block(K_idx);
 
+    scacopf_prob->primal_problem_changed();
     scacopf_prob->dual_problem_changed();
     
 
-    for(int K_idx: Ks_to_add_as_blocks)
-      scacopf_prob->set_warm_start_for_cont_from_base_of(K_idx, *scacopf_prob);
+    //for(int K_idx: Ks_to_add_as_blocks) //!
+    //  scacopf_prob->set_warm_start_for_cont_from_base_of(K_idx, *scacopf_prob);
 
 
   } else {
@@ -2170,8 +2170,8 @@ double MyCode1::phase3_solve_scacopf(std::vector<int>& K_idxs,
   }
 
   
-  //bool bret = scacopf_prob->optimize("ipopt");
-  bool bret = scacopf_prob->reoptimize(OptProblem::primalDualRestart);
+  bool bret = scacopf_prob->optimize("ipopt");
+  //bool bret = scacopf_prob->reoptimize(OptProblem::primalDualRestart);
   //bret = scacopf_prob->reoptimize(OptProblem::primalDualRestart);
 
   //if(scacopf_prob->data_K.size()>0)
