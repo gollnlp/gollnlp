@@ -28,6 +28,10 @@ public:
     assert(prob); 
     _primals=NULL;
     _primals_sz=0;
+    _duals_con=NULL;;
+    _duals_con_sz=0;
+    _duals_lb=_duals_ub=NULL;
+    _duals_b_sz=0;
   } 
 
   /** default destructor */
@@ -36,6 +40,15 @@ public:
     _primals_sz = 0;
     delete[] _primals;
     _primals = NULL;
+
+    _duals_con_sz=0;
+    delete[] _duals_con;
+    _duals_con=NULL;;
+
+    _duals_b_sz=0;
+    delete [] _duals_lb;
+    delete [] _duals_ub;
+    _duals_lb=_duals_ub=NULL;    
   }
 
   /**@name Overloaded from TNLP */
@@ -208,8 +221,37 @@ public:
 	    _primals = new double[_primals_sz];
 	  }
 	  tnlp_adapter->ResortX(*ip_data->curr()->x(), _primals);
+
+	  if(prob->requests_intermediate_duals()) {
+	    if(_duals_con_sz != prob->get_num_constraints()) {
+	      delete [] _duals_con;
+	      _duals_con = NULL;
+	      _duals_con_sz = 0;
+	    }
+	    if(_duals_b_sz != prob->get_num_variables()) {
+	      delete [] _duals_lb;
+	      delete [] _duals_ub;
+	      _duals_lb =  _duals_ub = NULL;
+	      _duals_b_sz = 0;
+	    }
+	    if( NULL==_duals_con ) {
+	      _duals_con_sz = prob->get_num_constraints();
+	      _duals_con = new double[_duals_con_sz];
+	    }
+	    if(NULL==_duals_lb) {
+	      assert(NULL==_duals_ub);
+	      _duals_b_sz = prob->get_num_variables();
+	      _duals_lb = new double[_duals_b_sz];
+	      _duals_ub = new double[_duals_b_sz];
+	    }
+	    tnlp_adapter->ResortG(*ip_data->curr()->y_c(), *ip_data->curr()->y_d(), _duals_con);
+	    tnlp_adapter->ResortBnds(*ip_data->curr()->z_L(), _duals_lb,
+				     *ip_data->curr()->z_U(), _duals_ub);
+	  }
+
 	  return prob->iterate_callback(iter, obj_value, _primals, inf_pr, inf_pr_orig_problem, inf_du, mu, 
-					alpha_du, alpha_pr, ls_trials, mode);
+					alpha_du, alpha_pr, ls_trials, mode,
+					_duals_con, _duals_lb, _duals_ub);
 	  
 	}
       }
@@ -248,6 +290,12 @@ private:
 
   double* _primals;
   int _primals_sz;
+
+  double* _duals_con;
+  int _duals_con_sz;
+
+  double *_duals_lb, *_duals_ub;
+  int _duals_b_sz;
   /**@name Methods to block default compiler methods.
    */
   //@{
