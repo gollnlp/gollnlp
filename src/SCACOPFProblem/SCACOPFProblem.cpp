@@ -3333,7 +3333,7 @@ bool SCACOPFProblem::iterate_callback(int iter, const double& obj_value,
     }
 
     if(!monitor.bcast_done && inf_pr_orig_pr<=1e-8 && inf_du<=1e-6 && mu<=1e-8) {
-      {
+
       IterInfo v;
       v.initialize(vars_primal, vars_duals_cons, vars_duals_bounds_L, vars_duals_bounds_U);
 
@@ -3345,8 +3345,6 @@ bool SCACOPFProblem::iterate_callback(int iter, const double& obj_value,
       v.vars_duals_bounds_L->MPI_Bcast_x(rank_solver_rank0, comm_world, my_rank);
       v.vars_duals_bounds_U->MPI_Bcast_x(rank_solver_rank0, comm_world, my_rank);
       v.vars_duals_cons->MPI_Bcast_x(rank_solver_rank0, comm_world, my_rank);
-
-      }	
 
       double cost_basecase=obj_value;
       MPI_Bcast(&cost_basecase, 1, MPI_DOUBLE, rank_solver_rank0, comm_world);

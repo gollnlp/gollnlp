@@ -20,7 +20,6 @@ using namespace gollnlp;
 
 //#define DEBUG_COMM 1
 #define DEBUG_SCHED 1
-//#define MAX_NUM_Kidxs_SCACOPF 512
 
 ostream& operator<<(ostream& os, const MyCode1::ContingInfo& o)
 {
@@ -31,7 +30,7 @@ ostream& operator<<(ostream& os, const MyCode1::ContingInfo& o)
      << " scacopf_solves=" << o.n_scacopf_solves << " n_ev=" << o.n_evals 
      << " max_K_ev=" << o.max_K_evals <<  " force_reev=" << o.force_reeval
      << " rank=" << o.rank_eval 
-    //<< " P| " << o.p1 << ' ' << o.q1 << ' ' << o.p2 << ' ' << o.q2 << " | "
+    << " P| " << o.p1 << ' ' << o.q1 << ' ' << o.p2 << ' ' << o.q2 << " | "
      << " scacopf actions: [";
   for(auto a : o.scacopf_actions) os << a << ' ';
   
@@ -145,11 +144,9 @@ int MyCode1::initialize(int argc, char *argv[])
   phase3_scacopf_passes_master = 0;
   phase3_scacopf_pass_solution=-1;
 
-  pen_threshold = 1.*data.K_Contingency.size(); //dolars; violations of O(1) or less allowed per contingency
-  if(data.N_Bus.size()<7000) pen_threshold = 0.5*data.K_Contingency.size();
-  if(data.N_Bus.size()<4000) pen_threshold = 0.25*data.K_Contingency.size();
-  pen_threshold=20000; //!
-
+  pen_threshold = 400000;//data.K_Contingency.size(); //dolars; violations of O(1) or less allowed per contingency
+  if(data.N_Bus.size()<17000) pen_threshold = 225000;
+  if(data.N_Bus.size()<10000) pen_threshold = 100000;
 
   return true;
 }
@@ -232,6 +229,20 @@ void MyCode1::phase3_ranks_allocation()
   phase1_ranks_allocation();
 }
 
+extern volatile sig_atomic_t g_solve_watch_ma57;
+extern volatile sig_atomic_t g_alarm_duration_ma57;
+extern volatile sig_atomic_t g_max_memory_ma57;
+extern volatile int g_my_rank_ma57;
+extern volatile int g_my_K_idx_ma57;
+void set_timer_message_ma57(const char* msg);
+
+extern volatile sig_atomic_t g_solve_watch_ma27;
+extern volatile sig_atomic_t g_alarm_duration_ma27;
+extern volatile sig_atomic_t g_max_memory_ma27;
+extern volatile int g_my_rank_ma27;
+extern volatile int g_my_K_idx_ma27;
+void set_timer_message_ma27(const char* msg);
+
 bool MyCode1::do_phase1()
 {
   printf("[ph1] rank %d  starts phase 1 global time %g\n", 
@@ -256,26 +267,21 @@ bool MyCode1::do_phase1()
   // solver scacopf problem on solver rank(s) xxxbase1
   //
   scacopf_prob = new SCACOPFProblem(data);
-
   scacopf_prob->my_rank = my_rank;
-
-  scacopf_prob->update_AGC_smoothing_param(1e-4);
+  scacopf_prob->best_known_iter.my_rank = my_rank;
+  scacopf_prob->rank_solver_rank0 = rank_solver_rank0;
+  scacopf_prob->comm_world = comm_world;
+  scacopf_prob->update_AGC_smoothing_param(1e-2);
   scacopf_prob->update_PVPQ_smoothing_param(1e-2);
-  //scacopf_prob->set_AGC_as_nonanticip(true);
-  //scacopf_prob->set_AGC_simplified(true);
-  //scacopf_prob->set_PVPQ_as_nonanticip(true);
 
   //reduce T and L rates to min(RateBase, TL_rate_reduction*RateEmer)
   TL_rate_reduction = 0.999;
-  //if((ScoringMethod==1 || ScoringMethod==3))
-  //  TL_rate_reduction = 0.85;
-
   scacopf_prob->set_basecase_L_rate_reduction(TL_rate_reduction);
   scacopf_prob->set_basecase_T_rate_reduction(TL_rate_reduction);
-
   //scacopf_prob->set_quadr_penalty_qg0(true);
 
   scacopf_prob->assembly(K_SCACOPF_phase1);
+  scacopf_prob->enable_intermediate_duals();
 
   if(iAmMaster) {
     vector<int> Kgen_infeas_gen_idxs, Kgen_infeas_K_idxs;
@@ -287,172 +293,324 @@ bool MyCode1::do_phase1()
 	  K_info_phase2[k].restrictions = 1; //do not include in SCACOPF
       }
     }
-
-    //build info for contingencies priorities
   }
   
-  bool blarge_prob = false;//data.N_Bus.size() > 20000;
-
   scacopf_prob->use_nlp_solver("ipopt"); 
   scacopf_prob->set_solver_option("sb","yes");
   scacopf_prob->set_solver_option("linear_solver", "ma57"); 
 
   scacopf_prob->set_solver_option("print_frequency_iter", 5);
   scacopf_prob->set_solver_option("max_iter", 2000);    
-  scacopf_prob->set_solver_option("acceptable_tol", 1e-3);
-  scacopf_prob->set_solver_option("acceptable_constr_viol_tol", 1e-6);
-  scacopf_prob->set_solver_option("acceptable_iter", 7);
+  scacopf_prob->set_solver_option("acceptable_tol", 1e-5);
+  scacopf_prob->set_solver_option("acceptable_constr_viol_tol", 1e-8);
+  scacopf_prob->set_solver_option("acceptable_iter", 5);
 
-  if(!blarge_prob) {
-    scacopf_prob->set_solver_option("mu_init", 1.);
-    scacopf_prob->set_solver_option("tol", 1e-9);
-    scacopf_prob->set_solver_option("mu_target", 1e-9);
-
-    scacopf_prob->set_solver_option("bound_relax_factor", 0.);
-    scacopf_prob->set_solver_option("bound_push", 1e-16);
-    scacopf_prob->set_solver_option("slack_bound_push", 1e-16);
-    scacopf_prob->set_solver_option("mu_linear_decrease_factor", 0.4);
-    scacopf_prob->set_solver_option("mu_superlinear_decrease_power", 1.4);
-
-  } else {
-    scacopf_prob->set_solver_option("mu_init", 0.1);
-    scacopf_prob->set_solver_option("tol", 1e-8);
-    scacopf_prob->set_solver_option("mu_target", 1e-9);
-    
-    //scacopf_prob->set_solver_option("bound_relax_factor", 0.);
-    //scacopf_prob->set_solver_option("bound_push", 1e-16);
-    //scacopf_prob->set_solver_option("slack_bound_push", 1e-16);
-    scacopf_prob->set_solver_option("mu_linear_decrease_factor", 0.5);
-    scacopf_prob->set_solver_option("mu_superlinear_decrease_power", 1.2);
+  if(false) {  
+    scacopf_prob->set_solver_option("fixed_variable_treatment", "relax_bounds");
+    scacopf_prob->set_solver_option("honor_original_bounds", "yes");
   }
+  if(false) {  
+    double relax_factor = 1e-8;//std::min(1e-8, pow(10., 3*n_solves-16));
+    scacopf_prob->set_solver_option("bound_relax_factor", relax_factor);
+    double bound_push = 1e-2;//std::min(1e-2, pow(10., 3*n_solves-12));
+    scacopf_prob->set_solver_option("bound_push", bound_push);
+    scacopf_prob->set_solver_option("slack_bound_push", bound_push); 
+    double bound_frac = 1e-2;//std::min(1e-2, pow(10., 3*n_solves-10));
+    scacopf_prob->set_solver_option("bound_frac", bound_frac);
+    scacopf_prob->set_solver_option("slack_bound_frac", bound_frac);
+  }
+  scacopf_prob->set_solver_option("mu_init", 0.1);
+  scacopf_prob->set_solver_option("tol", 1e-7);
+  scacopf_prob->set_solver_option("mu_target", 5e-9);
+  
+  scacopf_prob->set_solver_option("mu_linear_decrease_factor", 0.5);
+  scacopf_prob->set_solver_option("mu_superlinear_decrease_power", 1.2);
+
+#ifdef GOLLNLP_FAULT_HANDLING
+  g_solve_watch_ma57 = 1;
+  g_solve_watch_ma27 = 1;
+  string msg = "[timer] code1 ma57 timeout rank=" + std::to_string(my_rank) +" occured!\n";
+  set_timer_message_ma57(msg.c_str());
+  
+  msg = "[timer] code1 ma27 timeout rank=" + std::to_string(my_rank) +" occured!\n";
+  set_timer_message_ma27(msg.c_str());
+#else 
+  g_solve_watch_ma57 = 0;
+  g_solve_watch_ma27 = 0;
+#endif
+
+  g_max_memory_ma57 = 600;
+  g_alarm_duration_ma57 = 10;
+  g_max_memory_ma27 = 800;
+  g_alarm_duration_ma27 = 15;
+
+  if(data.N_Bus.size()>35000) {
+    g_max_memory_ma57 = 1500;
+    g_alarm_duration_ma57 = 20;
+    g_max_memory_ma27 = 1700;
+    g_alarm_duration_ma27 = 25;
+  } else if(data.N_Bus.size()>12000) {
+    g_max_memory_ma57 = 1000;
+    g_alarm_duration_ma57 = 15;
+    g_max_memory_ma27 = 1200;
+    g_alarm_duration_ma27 = 20;
+  }
+  g_my_rank_ma57 = g_my_rank_ma27 = my_rank;
+  g_my_K_idx_ma57 = g_my_K_idx_ma27 = -117;
+
 
   if(iAmSolver) {    assert(my_rank==rank_solver_rank0);
-
+    scacopf_prob->monitor.is_active=true;
+    scacopf_prob->monitor.timeout = (ScoringMethod==1 || ScoringMethod==3) ? 450 : 700;
     scacopf_prob->set_solver_option("print_level", 5);
-    scacopf_prob->set_solver_option("max_iter", 1000);//!
+    scacopf_prob->set_solver_option("max_iter", 1000);
 
   } else {
+    scacopf_prob->monitor.is_active=false;
     //master and evaluators do not solve, but we call optimize to force an
     //allocation of the internals, such as the dual variables
     scacopf_prob->set_solver_option("print_level", 1);
     scacopf_prob->set_solver_option("max_iter", 1);
   }
 
-  bool bret = scacopf_prob->optimize("ipopt");
-
-  if(!iAmSolver)
-    printf("[ph1] rank %d  scacopf solve phase 1 done at global time %g\n", 
-	   my_rank, glob_timer.measureElapsedTime());
-
-  
-  scacopf_prob->build_pd_vars_dict(dict_basecase_vars);
-  //  cout << "!!!!!!!!!!!!! dictionary is\n" ;
-  //for(auto it : dict_basecase_vars) 
-  //  cout << "[" << it.first << "]=" << it.second->id << endl;
-
-  //! //aaa
-  if(false && iAmSolver)
-  {
-
-    //scacopf_prob->print_summary();
-    scacopf_prob->set_solver_option("max_iter", 1);
-    std::unordered_map<std::string, gollnlp::OptVariablesBlock*> dict_basecase_vars_;
-    gollnlp::SCACOPFIO::read_variables_blocks(data, dict_basecase_vars_);
-    
-    //cout << "!!!!!!!!!!!!! dictionary is\n" ;
-    //for(auto it : dict_basecase_vars_) 
-    //  cout << "[" << it.first << "]=" << it.second->id << endl;
-
-    scacopf_prob->warm_start_basecasevariables_from_dict(dict_basecase_vars_);
-
-    for(auto& it: dict_basecase_vars_) delete it.second;
-  }
-  //!~ edd
-
   printf("[ph1] rank %d  starts scacopf solve phase 1 global time %g\n", 
 	   my_rank, glob_timer.measureElapsedTime());
 
 
+  bool bret = scacopf_prob->optimize("ipopt");
 
+  bool emergency = false;
+  if(iAmSolver) {
+
+    if(!bret) {
+      if(!scacopf_prob->monitor.user_stopped) {
+	//emergency -> restauration phase, linear solver exception, or max_iter
+	emergency = true;
+      } else {
+	//user stopped
+	if(scacopf_prob->monitor.emergency) {
+	  //emergency -> optimization timeout
+	  emergency = true;
+	} else {
+	  //this should not happen since we user-stop only for emergency
+	}
+      }
+    }
+    
+    if(emergency) {
+      if(scacopf_prob->best_known_iter.inf_pr_orig_pr <= 1e-5) {
+	//we have some form of acceptable solution
+	printf("[ph1][emergency] rank %d  phase 1 writes solution1.txt obj_val=%.5e at global time %g\n", 
+	       my_rank, scacopf_prob->best_known_iter.obj_value, glob_timer.measureElapsedTime());
+	scacopf_prob->write_solution_basecase(scacopf_prob->best_known_iter.vars_primal);
+	scacopf_prob->write_pridua_solution_basecase(scacopf_prob->best_known_iter.vars_primal,
+						     scacopf_prob->best_known_iter.vars_duals_cons,
+						     scacopf_prob->best_known_iter.vars_duals_bounds_L,
+						     scacopf_prob->best_known_iter.vars_duals_bounds_U);
+	if(!scacopf_prob->monitor.user_stopped) {
+	  scacopf_prob->primal_variables()->set_start_to(*scacopf_prob->best_known_iter.vars_primal);
+	  scacopf_prob->duals_constraints()->set_start_to(*scacopf_prob->best_known_iter.vars_duals_cons);
+	  scacopf_prob->duals_bounds_lower()->set_start_to(*scacopf_prob->best_known_iter.vars_duals_bounds_L);
+	  scacopf_prob->duals_bounds_upper()->set_start_to(*scacopf_prob->best_known_iter.vars_duals_bounds_U);
+	}
+      } else { //scacopf_prob->best_known_iter.inf_pr_orig_pr > 1e-5
+	//did not get a good solution
+
+	emergency = false;
+	scacopf_prob->set_solver_option("acceptable_tol", 1e-3);
+	scacopf_prob->set_solver_option("acceptable_constr_viol_tol", 5e-6);
+	scacopf_prob->set_solver_option("acceptable_iter", 3);
+	scacopf_prob->set_solver_option("max_iter", 1000);
+
+	double relax_factor = 1e-8;//std::min(1e-8, pow(10., 3*n_solves-16));
+	scacopf_prob->set_solver_option("bound_relax_factor", relax_factor);
+	double bound_push = 1e-2;//std::min(1e-2, pow(10., 3*n_solves-12));
+	scacopf_prob->set_solver_option("bound_push", bound_push);
+	scacopf_prob->set_solver_option("slack_bound_push", bound_push); 
+	double bound_frac = 1e-2;//std::min(1e-2, pow(10., 3*n_solves-10));
+	scacopf_prob->set_solver_option("bound_frac", bound_frac);
+	scacopf_prob->set_solver_option("slack_bound_frac", bound_frac);
+	
+	scacopf_prob->set_solver_option("mu_init", 1.);
+	scacopf_prob->set_solver_option("tol", 1e-6);
+	scacopf_prob->set_solver_option("mu_target", 1e-8);
+  
+	g_max_memory_ma57 = g_max_memory_ma57*1.5;
+	g_alarm_duration_ma57 = g_alarm_duration_ma57*1.5;
+	scacopf_prob->set_solver_option("linear_solver", "ma57"); 
+	//scacopf_prob->set_solver_option("ma57_automatic_scaling", "yes");
+	scacopf_prob->set_solver_option("ma57_small_pivot_flag", 1); //particularly efficient if the matrix is highly rank deficient
+	scacopf_prob->set_solver_option("ma57_pivtol", 1e-6);
+	bret = scacopf_prob->optimize("ipopt");
+	if(!bret) {
+	  //if(scacopf_prob->best_known_iter.inf_pr_orig_pr <= 1e-5) {
+	  emergency = true;
+	  printf("[ph1][extreme emergency] rank %d  phase 1 writes solution1.txt obj_val=%.5e at global time %g\n", 
+		 my_rank, scacopf_prob->best_known_iter.obj_value, glob_timer.measureElapsedTime());
+	  scacopf_prob->write_solution_basecase(scacopf_prob->best_known_iter.vars_primal);
+	  scacopf_prob->write_pridua_solution_basecase(scacopf_prob->best_known_iter.vars_primal,
+						       scacopf_prob->best_known_iter.vars_duals_cons,
+						       scacopf_prob->best_known_iter.vars_duals_bounds_L,
+						       scacopf_prob->best_known_iter.vars_duals_bounds_U);
+	  if(!scacopf_prob->monitor.user_stopped) {
+	    scacopf_prob->primal_variables()->set_start_to(*scacopf_prob->best_known_iter.vars_primal);
+	    scacopf_prob->duals_constraints()->set_start_to(*scacopf_prob->best_known_iter.vars_duals_cons);
+	    scacopf_prob->duals_bounds_lower()->set_start_to(*scacopf_prob->best_known_iter.vars_duals_bounds_L);
+	    scacopf_prob->duals_bounds_upper()->set_start_to(*scacopf_prob->best_known_iter.vars_duals_bounds_U);
+	  }
+	}
+	//resets
+	scacopf_prob->set_solver_option("ma57_automatic_scaling", "no");
+	scacopf_prob->set_solver_option("ma57_small_pivot_flag", 0); //particularly efficient if the matrix is highly rank deficient
+	scacopf_prob->set_solver_option("ma57_pivtol", 1e-8);
+
+      }
+    }
+  } // end of if(iAmSolver)
+
+  if(!iAmSolver) {
+    printf("[ph1] rank %d  scacopf solve phase 1 done at global time %g\n", 
+	   my_rank, glob_timer.measureElapsedTime());
+  }
 
   //
   //communication -> solver rank0 bcasts basecase solutions
   //
 
-  scacopf_prob->primal_variables()->
-    MPI_Bcast_x(rank_solver_rank0, comm_world, my_rank);
-  scacopf_prob->duals_bounds_lower()->
-    MPI_Bcast_x(rank_solver_rank0, comm_world, my_rank);
-  scacopf_prob->duals_bounds_upper()->
-    MPI_Bcast_x(rank_solver_rank0, comm_world, my_rank);
-  scacopf_prob->duals_constraints()->
-    MPI_Bcast_x(rank_solver_rank0, comm_world, my_rank);
-  
-  MPI_Bcast(&cost_basecase, 1, MPI_DOUBLE, rank_solver_rank0, comm_world);
-  //printf("[ph1] rank %d  phase 1 basecase bcasts done at global time %g\n", 
-  //	   my_rank, glob_timer.measureElapsedTime());
+  if(!iAmSolver) {
+    scacopf_prob->primal_variables()->
+      MPI_Bcast_x(rank_solver_rank0, comm_world, my_rank);
+    scacopf_prob->duals_bounds_lower()->
+      MPI_Bcast_x(rank_solver_rank0, comm_world, my_rank);
+    scacopf_prob->duals_bounds_upper()->
+      MPI_Bcast_x(rank_solver_rank0, comm_world, my_rank);
+    scacopf_prob->duals_constraints()->
+      MPI_Bcast_x(rank_solver_rank0, comm_world, my_rank);
+    
+    MPI_Bcast(&cost_basecase, 1, MPI_DOUBLE, rank_solver_rank0, comm_world);
+    printf("[ph1] rank %d  phase 1 basecase bcasts obj=%.6f done at global time %g\n", 
+	   my_rank, cost_basecase, glob_timer.measureElapsedTime());
+  } else {
+    if(!scacopf_prob->monitor.bcast_done) {
+      SCACOPFProblem::IterInfo& v = scacopf_prob->best_known_iter; //shortcut
 
+      v.vars_primal->MPI_Bcast_x(rank_solver_rank0, comm_world, my_rank);
+      v.vars_duals_bounds_L->MPI_Bcast_x(rank_solver_rank0, comm_world, my_rank);
+      v.vars_duals_bounds_U->MPI_Bcast_x(rank_solver_rank0, comm_world, my_rank);
+      v.vars_duals_cons->MPI_Bcast_x(rank_solver_rank0, comm_world, my_rank);
+	
+
+      double cost_basecase=v.obj_value;
+      MPI_Bcast(&cost_basecase, 1, MPI_DOUBLE, rank_solver_rank0, comm_world);
+      printf("[ph1] rank %d  phase 1 basecase bcasts done [outside] at global time %g\n", 
+	     my_rank, glob_timer.measureElapsedTime());
+      scacopf_prob->monitor.bcast_done = true;
+    }
+  }
 
   //force a have_start set
   if(!iAmSolver) {
     scacopf_prob->set_have_start();
   } else {
-
-    //scacopf_prob->print_summary();
-
     K_SCACOPF_phase3 = K_SCACOPF_phase1;
-    attempt_write_solutions(scacopf_prob, bret);
+    if(!emergency) 
+      attempt_write_solutions(scacopf_prob, true);
+
+    double bound_push = 1e-18;//std::min(1e-2, pow(10., 3*n_solves-12));
+    scacopf_prob->set_solver_option("bound_push", bound_push);
+    scacopf_prob->set_solver_option("slack_bound_push", bound_push); 
+    double bound_frac = 1e-18;//std::min(1e-2, pow(10., 3*n_solves-10));
+    scacopf_prob->set_solver_option("bound_frac", bound_frac);
+    scacopf_prob->set_solver_option("slack_bound_frac", bound_frac);
+
+    if(emergency) {
+      scacopf_prob->set_solver_option("mu_init", 1e-1);
+      scacopf_prob->set_solver_option("tol", 1e-7);
+      scacopf_prob->set_solver_option("mu_target", 1e-8);
+
+      scacopf_prob->set_solver_option("acceptable_tol", 1e-5);
+      scacopf_prob->set_solver_option("acceptable_constr_viol_tol", 1e-7);
+      scacopf_prob->set_solver_option("acceptable_iter", 5);
+
+      scacopf_prob->set_solver_option("mu_linear_decrease_factor", 0.5);
+      scacopf_prob->set_solver_option("mu_superlinear_decrease_power", 1.25);
+  
+    } else {
+
+      scacopf_prob->set_solver_option("acceptable_tol", 1e-7);
+      scacopf_prob->set_solver_option("acceptable_constr_viol_tol", 1e-8);
+      scacopf_prob->set_solver_option("acceptable_iter", 15);
+
+      scacopf_prob->set_solver_option("mu_init", 5e-9);
+      scacopf_prob->set_solver_option("tol", 1e-8);
+      scacopf_prob->set_solver_option("mu_target", 1e-9);
+
+      //scacopf_prob->set_solver_option("fixed_variable_treatment", "relax_bounds");
+      //scacopf_prob->set_solver_option("honor_original_bounds", "yes");
+      scacopf_prob->set_solver_option("bound_push", 1e-12);
+      scacopf_prob->set_solver_option("slack_bound_push", 1e-12);
+      scacopf_prob->set_solver_option("warm_start_init_point", "yes");
+      scacopf_prob->set_solver_option("warm_start_bound_push", 1e-12);
+      scacopf_prob->set_solver_option("warm_start_slack_bound_push", 1e-12);
+      scacopf_prob->set_solver_option("warm_start_mult_bound_push", 1e-12);
+      scacopf_prob->set_solver_option("warm_start_bound_frac", 1e-12);
+      scacopf_prob->set_solver_option("warm_start_slack_bound_frac", 1e-12);
+      //scacopf_prob->set_solver_option("ma57_small_pivot_flag", 1); //particularly efficient if the matrix is highly rank deficient
+      //scacopf_prob->set_solver_option("ma57_pivtol", 1e-6);
+    }
+
+    scacopf_prob->monitor.is_active=true;
+    scacopf_prob->monitor.timeout = (ScoringMethod==1 || ScoringMethod==3) ? 590-glob_timer.measureElapsedTime() : 700;
+    scacopf_prob->monitor.timer.restart();
+    scacopf_prob->iter_sol_written=-10;
+    bool bret = scacopf_prob->reoptimize(OptProblem::primalDualRestart);
+    if(bret) {
+      attempt_write_solutions(scacopf_prob, bret);
+    } else {
+      printf("[ph1][emergency]222 rank %d  phase 1 writes solution1.txt obj_val=%.5e at global time %g\n", 
+	     my_rank, scacopf_prob->best_known_iter.obj_value, glob_timer.measureElapsedTime());
+      scacopf_prob->write_solution_basecase(scacopf_prob->best_known_iter.vars_primal);
+      scacopf_prob->write_pridua_solution_basecase(scacopf_prob->best_known_iter.vars_primal,
+						   scacopf_prob->best_known_iter.vars_duals_cons,
+						   scacopf_prob->best_known_iter.vars_duals_bounds_L,
+						   scacopf_prob->best_known_iter.vars_duals_bounds_U);
+    }
   }
 
-  if(my_rank<=3)
-    printf("[ph1] rank %d  basecase obj %g global time %g\n", 
-	   my_rank, cost_basecase, glob_timer.measureElapsedTime());
-  fflush(stdout);
+  scacopf_prob->build_pd_vars_dict(dict_basecase_vars);
 
   // all non-solver ranks posts recv for basecase solution from solver rank
   if(!iAmSolver) {
     req_recv_base_sol.post(scacopf_prob, Tag7, rank_solver_rank0, comm_world);
 
-    while(!req_recv_base_sol.is_done()) {
-      std::this_thread::sleep_for(std::chrono::milliseconds(100));
-    }
-    int scacopf_pass = req_recv_base_sol.update_prob_variables(scacopf_prob);
+    //while(!req_recv_base_sol.is_done()) {
+    //  printf("!!!! nonsolver will sleep because req_recv_base_sols has not completed time=%.3f\n", glob_timer.measureElapsedTime());
+    //  std::this_thread::sleep_for(std::chrono::milliseconds(2000));
+    //}
+    //int scacopf_pass = req_recv_base_sol.update_prob_variables(scacopf_prob);
     //printf("rank %d  basecase solution pass %d received\n", my_rank, scacopf_pass);
   } else {
-    req_send_base_sols.post_new_sol(scacopf_prob, Tag7, my_rank, comm_world, phase3_scacopf_passes_solver);
+     req_send_base_sols.post_new_sol(scacopf_prob, Tag7, my_rank, comm_world, phase3_scacopf_passes_solver);
     
-    if(blarge_prob) {
-      scacopf_prob->set_solver_option("tol", 1e-9);
-      scacopf_prob->set_solver_option("bound_relax_factor", 1e-8);
-      scacopf_prob->set_solver_option("bound_push", 1e-8);
-      scacopf_prob->set_solver_option("slack_bound_push", 1e-8);
+  //   if(blarge_prob) {
 
-      //scacopf_prob->set_solver_option("bound_push", 1e-12);
-      //scacopf_prob->set_solver_option("slack_bound_push", 1e-12);
-      //scacopf_prob->set_solver_option("warm_start_init_point", "yes");
-      //scacopf_prob->set_solver_option("warm_start_bound_push", 1e-12);
-      //scacopf_prob->set_solver_option("warm_start_slack_bound_push", 1e-12);
-      //scacopf_prob->set_solver_option("warm_start_mult_bound_push", 1e-12);
-      //scacopf_prob->set_solver_option("warm_start_bound_frac", 1e-12);
-      //scacopf_prob->set_solver_option("warm_start_slack_bound_frac", 1e-12);
+  //     scacopf_prob->set_solver_option("mu_init", 1e-8);
       
-      scacopf_prob->set_solver_option("mu_target", 1e-8);
-      scacopf_prob->set_solver_option("mu_init", 1e-8);
-      
-      bool bret = scacopf_prob->reoptimize(OptProblem::primalDualRestart);
-      attempt_write_solutions(scacopf_prob, bret);
-    }      
-    cost_basecase = scacopf_prob->objective_value();
-    scacopf_prob->print_objterms_evals();
-    printf("[ph1] rank %d  scacopf solve phase 1 done at global time %g\n", 
-	   my_rank, glob_timer.measureElapsedTime());
+  //     bool bret = scacopf_prob->reoptimize(OptProblem::primalDualRestart);
+  //     attempt_write_solutions(scacopf_prob, bret);
+  //   }      
+  //   cost_basecase = scacopf_prob->objective_value();
+  //   scacopf_prob->print_objterms_evals();
+  //   printf("[ph1] rank %d  scacopf solve phase 1 done at global time %g\n", 
+  // 	   my_rank, glob_timer.measureElapsedTime());
 
       
-    std::this_thread::sleep_for(std::chrono::milliseconds(50));
-    while(!req_send_base_sols.sends_list.back()->all_are_done()) {
-      std::this_thread::sleep_for(std::chrono::milliseconds(100));
-    }
-    //printf("rank %d  basecase solution pass %d send to all\n", my_rank, phase3_scacopf_passes_solver);
+     std::this_thread::sleep_for(std::chrono::milliseconds(50));
+     while(!req_send_base_sols.sends_list.back()->all_are_done()) {
+       printf("!!!! Solver will sleep because req_send_base_sols has not completed time=%.3f\n", glob_timer.measureElapsedTime());
+       std::this_thread::sleep_for(std::chrono::milliseconds(500));
+     }
+     printf("solver rank %d  basecase solution pass %d send to all\n", my_rank, phase3_scacopf_passes_solver);
   }
 
   if(iAmMaster) {
@@ -471,6 +629,9 @@ bool MyCode1::do_phase1()
     sprintf(msg, " took %.4f sec\n", tm.getElapsedTime()); str += msg;
     printf("[rank 0] %s", str.c_str());
   }
+  if(iAmSolver)
+    printf("[ph1] rank %d  scacopf solve phase 1 done at global time %g\n", 
+	   my_rank, glob_timer.measureElapsedTime());
 
   return true;
 }
@@ -500,18 +661,13 @@ void MyCode1::attempt_write_solutions(gollnlp::SCACOPFProblem* prob, bool opt_su
 
 vector<int> MyCode1::phase1_SCACOPF_contingencies()
 {
-  bool testing = true;
-  if(true) {
- 
-    //vector<int> cont_list = {0, 141, 102}; //net 01
-    //vector<int> cont_list = {52}; //net 03
-    //return  {101,  102,  106,  110,  249,  344,  394,  816,  817};
-    vector<int> cont_list = {};//102,  817};
-
-    return  cont_list;
-  } else {
-    return vector<int>();
-  }
+  //vector<int> cont_list = {0, 141, 102}; //net 01
+  //vector<int> cont_list = {52}; //net 03
+  //return  {101,  102,  106,  110,  249,  344,  394,  816,  817};
+  //vector<int> cont_list = {};//102,  817};
+  
+  //return  cont_list;
+  return vector<int>();
 }
 std::vector<int> MyCode1::phase2_contingencies()
 {
@@ -575,10 +731,17 @@ void MyCode1::phase2_initial_contingency_distribution()
       int K_idx_phase2=-55;
       //if(1.0*r/num_ranks <= 110.0/144 && !K_high_prio_phase2.empty()) {
       if(!K_high_prio_phase2.empty()) {
-	K_idx_phase2 = K_high_prio_phase2.front();
-	K_high_prio_phase2.pop_front();
-	K_on_rank[r].push_back(K_idx_phase2);
 
+	//if(false && r==2) {
+	//  K_idx_phase2 = 11763;
+	//  K_on_rank[r].push_back(11763);
+	//  erase_elem_from(K_high_prio_phase2, 11763);
+	//} else 
+	{
+	  K_idx_phase2 = K_high_prio_phase2.front();
+	  K_high_prio_phase2.pop_front();
+	  K_on_rank[r].push_back(K_idx_phase2);
+	}
       } else {
 	K_idx_phase2 = nEvaluators*perRank;
 	if(nEvaluators<remainder)
@@ -806,21 +969,22 @@ bool MyCode1::do_phase2_master_part()
 
   //check recv for basecase solution (from solver rank)
   //post a new one if the previous was completed
-  while(req_recv_base_sol.is_done()) {
+  if(req_recv_base_sol.is_done()) {
     int scacopf_pass = req_recv_base_sol.update_prob_variables(scacopf_prob);
 
     assert(scacopf_pass >= phase3_scacopf_pass_solution);
     phase3_scacopf_pass_solution = scacopf_pass;
 
-#ifdef DEBUG_COMM
+    //#ifdef DEBUG_COMM
     printf("[comm] Master: recv basecase solution from scacopf_pass %d completed [current master scacopf_pass=%d] "
       "at global time %g\n", 
       scacopf_pass, phase3_scacopf_passes_master, glob_timer.measureElapsedTime());
-#endif 
+    //#endif 
     assert(phase3_scacopf_passes_master >= scacopf_pass-1);
     req_recv_base_sol.post(scacopf_prob, Tag7, rank_solver_rank0, comm_world);
   }
 
+  //printf("!!!!do_phase2_master_part %.3f sec\n", glob_timer.measureElapsedTime());
 
   for(int r=0; r<num_ranks; r++) {
     if(K_on_rank[r].size()==0) {
@@ -1223,7 +1387,7 @@ bool MyCode1::do_phase3_master_solverpart(bool master_evalpart_done)
 
   //check recv for basecase solution (from solver rank)
   //post a new one if the previous was completed
-  while(req_recv_base_sol.is_done()) {
+  if(req_recv_base_sol.is_done()) {
     int scacopf_pass = req_recv_base_sol.update_prob_variables(scacopf_prob);
     assert(scacopf_pass > phase3_scacopf_pass_solution);
     phase3_scacopf_pass_solution = scacopf_pass;
@@ -1486,7 +1650,7 @@ bool MyCode1::do_phase2_evaluator_part(int& switchToSolver)
 	  
 	  if(req_recv_base_sol.is_done()) {
 	    scacopf_pass_of_solution = req_recv_base_sol.update_prob_variables(scacopf_prob);
-#ifdef DEBUG_COMM
+#ifdef DEBUG_COMM 
 	    printf("[comm] Evaluator Rank %d recv basecase solution "
 		   "from scacopf_pass %d completed at global time %g [K_idx=%d][2]\n", 
 		   my_rank, scacopf_pass_of_solution, K_phase2[K_idx],
@@ -1495,15 +1659,25 @@ bool MyCode1::do_phase2_evaluator_part(int& switchToSolver)
 	    phase3_scacopf_pass_solution = scacopf_pass_of_solution;
 	    req_recv_base_sol.post(scacopf_prob, Tag7, rank_solver_rank0, comm_world);
 	  } else {
+
+	    if(phase3_scacopf_pass_solution==-1) {
+	      //an approx solution is already available from the quick bcast
+#ifdef DEBUG_COMM
+	      printf("[comm] [warning] Evaluator Rank %d first approx basecase solution should be fine\n",
+		     my_rank);
+#endif
+	      break;
+	    }
 	    std::this_thread::sleep_for(std::chrono::milliseconds(500));
 	  }
 	}	    
 	
-	assert(phase3_scacopf_pass_solution>=0);
-	assert(scacopf_pass_from_Kidxreq <= phase3_scacopf_pass_solution);
+	int scacopf_pass_solution = std::max(0, phase3_scacopf_pass_solution);
+	//assert(phase3_scacopf_pass_solution>=0);
+	assert(scacopf_pass_from_Kidxreq <= scacopf_pass_solution);
 
 	assert(req_send_penalty == NULL);
-	req_send_penalty = new ReqPenalty(K_idx, -1e+20, phase3_scacopf_pass_solution);
+	req_send_penalty = new ReqPenalty(K_idx, -1e+20, scacopf_pass_solution);
 	//
 	// solve contingency
 	//
@@ -1516,7 +1690,7 @@ bool MyCode1::do_phase2_evaluator_part(int& switchToSolver)
 #ifdef DEBUG_COMM	
 	printf("[comm] Evaluator Rank %d posted penalty send value=%g for Kidx=%d "
 	       "to master rank %d solutionfrom_pass=%d tag=%d\n", 
-	       my_rank, penalty, K_phase2[K_idx], rank_master, phase3_scacopf_pass_solution, Tag2);
+	       my_rank, penalty, K_phase2[K_idx], rank_master, scacopf_pass_solution, Tag2);
 #endif
 	//delete recv request
 	delete req_recv_K_idx;
@@ -1620,8 +1794,8 @@ bool MyCode1::do_phase2()
     if(iAmEvaluator && !evaluator_part_done) {
       finished = do_phase2_evaluator_part(switchToSolver);
 
-      //if(finished)
-      //printf("evaluator part finished on rank %d\n", my_rank);
+      if(my_rank==1)
+      printf("!!!!!!!!!!!solve is evaluator rank %d\n", my_rank);
 
       if(finished) {
 	evaluator_part_done=true;
@@ -1798,6 +1972,7 @@ void MyCode1::process_contingency(const int& K_idx, int& status, double& penalty
   // the actual solve 
   //
   penalty = solve_contingency_use_fixing(K_idx, status);
+  //penalty = solve_contingency(K_idx, status);
 
   //
   // prepare info for master rank
@@ -1956,9 +2131,9 @@ double MyCode1::solve_contingency(int K_idx, int& status)
 
   prob.use_nlp_solver("ipopt");
   prob.set_solver_option("sb","yes");
-  prob.set_solver_option("print_frequency_iter", 1);
+  prob.set_solver_option("print_frequency_iter", 10);
   prob.set_solver_option("linear_solver", "ma57"); 
-  prob.set_solver_option("print_level", 2);
+  prob.set_solver_option("print_level", 5);
   prob.set_solver_option("mu_init", 1e-4);
   prob.set_solver_option("mu_target", 1e-9);
 
@@ -2067,7 +2242,11 @@ double MyCode1::phase3_solve_scacopf(std::vector<int>& K_idxs,
 
     sprintf(msg, "K_idx=%d >> %d ", K_idxs[it], K_actions[it]); smsg += msg;
 
-    double penalty_weight = 10./data.K_Contingency.size();
+    ///home/petra1/work/projects/gocompet/specCpp/build
+    //net20-2.log is with penalty_weight = 1./data.K_Contingency.size();
+    //net20-3.log is with penalty_weight = 10./data.K_Contingency.size();
+    //net20-4.log is with penalty_weight = 1.;//
+    double penalty_weight = 1./data.K_Contingency.size();
 
     if(K_actions[it] == -101) {
       //penalize
@@ -2125,18 +2304,12 @@ double MyCode1::phase3_solve_scacopf(std::vector<int>& K_idxs,
     scacopf_prob->primal_problem_changed();
     scacopf_prob->dual_problem_changed();
     
-
+    assert(false && "code has slow performance - do not use");
     //for(int K_idx: Ks_to_add_as_blocks) //!
     //  scacopf_prob->set_warm_start_for_cont_from_base_of(K_idx, *scacopf_prob);
 
 
-  } else {
-
-  }
-
-  //scacopf_prob->set_AGC_as_nonanticip(true);
-  //scacopf_prob->set_AGC_simplified(true);
-  //scacopf_prob->set_PVPQ_as_nonanticip(true);
+  } 
 
   //TL_rate_reduction was computed in phase1
   //reduce T and L rates to min(RateBase, TL_rate_reduction*RateEmer)
@@ -2145,7 +2318,7 @@ double MyCode1::phase3_solve_scacopf(std::vector<int>& K_idxs,
 
   //!  scacopf_prob->set_quadr_penalty_qg0(true);
 
-  bool blarge_prob = data.N_Bus.size() > 20000;
+  bool blarge_prob = true;//data.N_Bus.size() > 20000;
 
   scacopf_prob->use_nlp_solver("ipopt"); 
   scacopf_prob->set_solver_option("linear_solver", "ma57"); 
@@ -2153,32 +2326,36 @@ double MyCode1::phase3_solve_scacopf(std::vector<int>& K_idxs,
   scacopf_prob->set_solver_option("print_frequency_iter", 5);
   scacopf_prob->set_solver_option("print_level", 5);
 
-  scacopf_prob->set_solver_option("acceptable_tol", 1e-4);
-  scacopf_prob->set_solver_option("acceptable_constr_viol_tol", 1e-6);
-  scacopf_prob->set_solver_option("acceptable_iter", 7);
+  scacopf_prob->set_solver_option("acceptable_tol", 1e-7);
+  scacopf_prob->set_solver_option("acceptable_constr_viol_tol", 1e-8);
+  scacopf_prob->set_solver_option("acceptable_iter", 10);
     
-  if(!blarge_prob) {
-    scacopf_prob->set_solver_option("mu_target", 1e-9);
-    scacopf_prob->set_solver_option("max_iter", 600);
-    scacopf_prob->set_solver_option("bound_relax_factor", 0.);
-    scacopf_prob->set_solver_option("bound_push", 1e-18);
-    scacopf_prob->set_solver_option("slack_bound_push", 1e-18);
-    scacopf_prob->set_solver_option("mu_linear_decrease_factor", 0.4);
-    scacopf_prob->set_solver_option("mu_superlinear_decrease_power", 1.4); 
-  } else {
-    scacopf_prob->set_solver_option("mu_target", 1e-8);
-    scacopf_prob->set_solver_option("max_iter", 400);
-    scacopf_prob->set_solver_option("bound_relax_factor", 1e-8);
-    scacopf_prob->set_solver_option("bound_push", 1e-8);
-    scacopf_prob->set_solver_option("slack_bound_push", 1e-8);
-    scacopf_prob->set_solver_option("mu_linear_decrease_factor", 0.5);
-    scacopf_prob->set_solver_option("mu_superlinear_decrease_power", 1.2);     
-  }
-
+  // if(!blarge_prob) {
+  //   scacopf_prob->set_solver_option("mu_target", 1e-9);
+  //   scacopf_prob->set_solver_option("max_iter", 600);
+  //   scacopf_prob->set_solver_option("bound_relax_factor", 1e-8);
+  //   scacopf_prob->set_solver_option("bound_push", 1e-2);
+  //   scacopf_prob->set_solver_option("slack_bound_push", 1e-2);
+  //   scacopf_prob->set_solver_option("mu_linear_decrease_factor", 0.4);
+  //   scacopf_prob->set_solver_option("mu_superlinear_decrease_power", 1.4); 
+  // }
+  scacopf_prob->set_solver_option("mu_target", 1e-9);
+  scacopf_prob->set_solver_option("tol", 1e-10);
+  scacopf_prob->set_solver_option("max_iter", 500);
+  scacopf_prob->set_solver_option("bound_relax_factor", 1e-8);
+  scacopf_prob->set_solver_option("bound_push", 1e-8);
+  scacopf_prob->set_solver_option("slack_bound_push", 1e-8);
+  scacopf_prob->set_solver_option("mu_linear_decrease_factor", 0.5);
+  scacopf_prob->set_solver_option("mu_superlinear_decrease_power", 1.25);     
   
-  bool bret = scacopf_prob->optimize("ipopt");
-  //bool bret = scacopf_prob->reoptimize(OptProblem::primalDualRestart);
-  //bret = scacopf_prob->reoptimize(OptProblem::primalDualRestart);
+  scacopf_prob->monitor.is_active=true;
+  scacopf_prob->monitor.timeout = (ScoringMethod==1 || ScoringMethod==3) ? 596-glob_timer.measureElapsedTime() : 700;
+  scacopf_prob->monitor.timer.restart();
+//this will disable writing the sol files in the callback
+  scacopf_prob->iter_sol_written=1000000; 
+  scacopf_prob->best_known_iter.obj_value = 1e+20;
+  //bool bret = scacopf_prob->optimize("ipopt");
+  bool bret = scacopf_prob->reoptimize(OptProblem::primalDualRestart);
 
   //if(scacopf_prob->data_K.size()>0)
   //  scacopf_prob->print_p_g_with_coupling_info(*scacopf_prob->data_K[0]);
@@ -2428,6 +2605,9 @@ void MyCode1::get_high_priority_Ktransm(int Kmax, std::vector<int>& K_high_prio,
 					  p_li1, p_li2, p_ti1, p_ti2, 
 					  pli1_capac, pli2_capac, pti1_capac, pti2_capac,
 					  in, out);
+
+      if(in>-1e-6) in = std::max(0., in);
+      if(out<1e-6) out= std::min(0.,out);
       assert(in>=0 && out<=0);
       bus_inflow_ramping[N_from_idx] = in;
       bus_outflow_ramping[N_from_idx] = out;
@@ -2438,7 +2618,10 @@ void MyCode1::get_high_priority_Ktransm(int Kmax, std::vector<int>& K_high_prio,
       compute_bus_inflow_outflow_rampings(N_to_idx, p_g, v_n, 
 					  p_li1, p_li2, p_ti1, p_ti2, 
 					  pli1_capac, pli2_capac, pti1_capac, pti2_capac,
-					  in, out); assert(in>=0 && out<=0);
+					  in, out); 
+      if(in>-1e-6) in = std::max(0., in);
+      if(out<1e-6) out= std::min(0.,out);
+      assert(in>=0 && out<=0);
       bus_inflow_ramping[N_to_idx] = in;
       bus_outflow_ramping[N_to_idx] = out;
     }
@@ -2448,12 +2631,12 @@ void MyCode1::get_high_priority_Ktransm(int Kmax, std::vector<int>& K_high_prio,
       bool special=false;
 
       double r1=0.;
-      if(p_li1->x[TL_idx] < -1e-8) {
+      if(p_li1->x[TL_idx] < -1e-6) {
 	double remaining_inflow_ramping = bus_inflow_ramping[N_from_idx] - std::max(0., pli1_capac[TL_idx] + p_li1->x[TL_idx]);
 
 	//printf(" --- lidx=%d, pli=%g remaining_inflow_ramping=%g\n", 
 	//       TL_idx, p_li1->x[TL_idx], remaining_inflow_ramping);
-	assert(remaining_inflow_ramping >=0);
+	assert(remaining_inflow_ramping >=-1e-6);
 
 	r1 = 1. + (-p_li1->x[TL_idx])/pli_max;
 	if(remaining_inflow_ramping>1e-8) {
@@ -2463,9 +2646,9 @@ void MyCode1::get_high_priority_Ktransm(int Kmax, std::vector<int>& K_high_prio,
 	  special=true;
 	}
 
-      } else if(p_li1->x[TL_idx] > 1e-8) {
+      } else if(p_li1->x[TL_idx] > 1e-6) {
 	double remaining_outflow_ramping = bus_outflow_ramping[N_from_idx] + std::max(0., pli1_capac[TL_idx]-p_li1->x[TL_idx]);
-	assert(remaining_outflow_ramping<=0);
+	assert(remaining_outflow_ramping<=1e-6);
 
 	r1 = 1. + (p_li1->x[TL_idx])/pli_max;
 	if(remaining_outflow_ramping<-1e-8) {
@@ -2481,11 +2664,11 @@ void MyCode1::get_high_priority_Ktransm(int Kmax, std::vector<int>& K_high_prio,
       
       
       double r2 = 0.;
-      if(p_li2->x[TL_idx] < -1e-8) {
+      if(p_li2->x[TL_idx] < -1e-6) {
 
 	double remaining_inflow_ramping = bus_inflow_ramping[N_to_idx] - std::max(0., p_li2->x[TL_idx] + pli2_capac[TL_idx]);
 
-	assert(remaining_inflow_ramping >=0);
+	assert(remaining_inflow_ramping >=-1e-6);
 	r2 = 1. + (-p_li2->x[TL_idx])/pli_max;;//-100*p_li2->x[TL_idx];
 
      	if(remaining_inflow_ramping>1e-8) {
@@ -2495,9 +2678,9 @@ void MyCode1::get_high_priority_Ktransm(int Kmax, std::vector<int>& K_high_prio,
 	  special=true;
 	}
 
-      } else if(p_li2->x[TL_idx] > 1e-8) {
+      } else if(p_li2->x[TL_idx] > 1e-6) {
 	double remaining_outflow_ramping = bus_outflow_ramping[N_to_idx] +  std::max(0., pli2_capac[TL_idx]-p_li2->x[TL_idx]);
-	assert(remaining_outflow_ramping<=0);
+	assert(remaining_outflow_ramping<=1e-6);
 	r2 = 1. + (p_li2->x[TL_idx])/pli_max;
      	if(remaining_outflow_ramping<-1e-8) {
      	  r2 = p_li2->x[TL_idx] / (0-remaining_outflow_ramping); assert(r2>=0);
@@ -2525,7 +2708,7 @@ void MyCode1::get_high_priority_Ktransm(int Kmax, std::vector<int>& K_high_prio,
 
 	//printf(" --- lidx=%d, pli=%g remaining_inflow_ramping=%g\n", 
 	//       TL_idx, p_li1->x[TL_idx], remaining_inflow_ramping);
-	assert(remaining_inflow_ramping >=0);
+	assert(remaining_inflow_ramping >=-1e-6);
 
 	r1 = 1. + (-p_ti1->x[TL_idx])/pti_max;
 	if(remaining_inflow_ramping>1e-8) {
@@ -2537,7 +2720,7 @@ void MyCode1::get_high_priority_Ktransm(int Kmax, std::vector<int>& K_high_prio,
 
       } else if(p_ti1->x[TL_idx] > 1e-8) {
 	double remaining_outflow_ramping = bus_outflow_ramping[N_from_idx] + std::max(0., pti1_capac[TL_idx]-p_ti1->x[TL_idx]);
-	assert(remaining_outflow_ramping<=0);
+	assert(remaining_outflow_ramping<=1e-6);
 
 	r1 = 1. + (p_ti1->x[TL_idx])/pti_max;
 	if(remaining_outflow_ramping<-1e-8) {
@@ -2560,7 +2743,7 @@ void MyCode1::get_high_priority_Ktransm(int Kmax, std::vector<int>& K_high_prio,
 	//printf("bus_inflow_ramping[N_to_idx]=%12.6e remaining_inflow_ramping=%12.6e pli2_capac[TL_idx]=%12.6e\n", 
 	//       bus_inflow_ramping[N_to_idx], remaining_inflow_ramping, pli2_capac[TL_idx]);
 
-	assert(remaining_inflow_ramping >=0);
+	assert(remaining_inflow_ramping >=-1e-6);
 	r2 = 1. + (-p_ti2->x[TL_idx])/pti_max;;//-100*p_li2->x[TL_idx];
 
      	if(remaining_inflow_ramping>1e-8) {
@@ -2572,7 +2755,7 @@ void MyCode1::get_high_priority_Ktransm(int Kmax, std::vector<int>& K_high_prio,
 
       } else if(p_ti2->x[TL_idx] > 1e-8) {
 	double remaining_outflow_ramping = bus_outflow_ramping[N_to_idx] +  std::max(0., pti2_capac[TL_idx]-p_ti2->x[TL_idx]);
-	assert(remaining_outflow_ramping<=0);
+	assert(remaining_outflow_ramping<=1e-6);
 	r2 = 1. + (p_ti2->x[TL_idx])/pti_max;
      	if(remaining_outflow_ramping<-1e-8) {
      	  r2 = p_ti2->x[TL_idx] / (0-remaining_outflow_ramping); assert(r2>=0);
