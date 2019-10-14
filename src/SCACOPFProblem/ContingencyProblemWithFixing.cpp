@@ -1020,12 +1020,12 @@ namespace gollnlp {
 	      if(pg0->x[data_sc.K_outidx[K_idx]] < -1e-6) assert(false);
 
 	      //double gen_deficit = pg0->x[data_sc.K_outidx[K_idx]];
-	      if(pen_p_balance > 2e5)
-		gen_K_diff = 10*poverall;
+	      if(pen_p_balance > 5e5)
+		gen_K_diff = 4*poverall;
 	      else if(pen_p_balance > 5e4)
-		gen_K_diff = 5*poverall;
-	      else 
 		gen_K_diff = 2.5*poverall;
+	      else 
+		gen_K_diff = 1.75*poverall;
 	    }
 	  }
 	}
