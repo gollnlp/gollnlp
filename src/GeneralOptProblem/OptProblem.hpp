@@ -136,7 +136,7 @@ public:
 friend class OptProblem;
 
 public: //MPI_Helpers
-  //broadcasts 'this'; of non-null, 'buffer' will be used to pack/unpack variables blocks
+  //broadcasts 'this'; if non-null, 'buffer' will be used to pack/unpack variables blocks
   int MPI_Bcast_x(int root, MPI_Comm comm, int my_rank, double* buffer=NULL);
 private:
   // appends b to list of blocks; updates this->n and b->index
@@ -460,9 +460,12 @@ public:
 				const double& inf_du, 
 				const double& mu, 
 				const double& alpha_du, const double& alpha_pr,
-				int ls_trials, OptimizationMode mode) 
+				int ls_trials, OptimizationMode mode,
+				const double* duals_con=NULL,
+				const double* duals_lb=NULL, const double* duals_ub=NULL) 
   { return true; }
-
+  inline bool enable_intermediate_duals() { need_intermediate_duals=true; }
+  inline bool requests_intermediate_duals() const { return need_intermediate_duals; }
   virtual bool iterate_finalize()
   {
     vars_primal->set_xref_to_x();
@@ -547,6 +550,8 @@ protected:
   std::vector<OptSparseEntry> ij_Jac, ij_Hess;
 
   bool new_x_fgradf;
+
+  bool need_intermediate_duals;
 public:
   //quick hack - will be revisited
   static const OptimizationStatus Solve_Succeeded = Ipopt::Solve_Succeeded;

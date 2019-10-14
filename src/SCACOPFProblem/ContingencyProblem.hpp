@@ -104,7 +104,9 @@ namespace gollnlp {
 				  const double& inf_du, 
 				  const double& mu, 
 				  const double& alpha_du, const double& alpha_pr,
-				  int ls_trials, OptimizationMode mode)
+				  int ls_trials, OptimizationMode mode,
+				  const double* duals_con=NULL,
+				  const double* duals_lb=NULL, const double* duals_ub=NULL)
     {
       // if(monitor.is_active) {
       // 	monitor.hist_tm.push_back(monitor.timer.measureElapsedTime());
