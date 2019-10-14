@@ -224,9 +224,18 @@ namespace gollnlp {
     void add_quadr_penalty(const int& idx_gen, const double& p0, const double& f_pen, 
 			   const double& lb, const double& ub)
     {
-      assert(f_pen>1e-2); assert(p0<=ub && p0>=lb); assert(fabs(p0)>1e-6); assert(idx_gen>=0 && idx_gen<x->n);
+#ifdef DEBUG
+      if(p0>ub || p0<lb) {
+	printf(" !!!!!!!!!!!  %.5e < %.5e < %.5e \n", lb, p0, ub);
+	//p0 = std::min(p0,ub);
+	//p0 = std::max(p0,lb);
+      }
+#endif
+      assert(f_pen>1e-2); assert(p0<=ub && p0>=lb); 
+      //assert(fabs(p0)>1e-6); 
+      assert(idx_gen>=0 && idx_gen<x->n);
       
-      if(f_pen<=1e-6) return;
+      if(f_pen<=1e-2) return;
 
       double a = std::max(0., lb);
       if(p0<0) a = std::min(0., ub);

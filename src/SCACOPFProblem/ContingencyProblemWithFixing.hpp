@@ -111,7 +111,9 @@ namespace gollnlp {
 				  const double& inf_du, 
 				  const double& mu, 
 				  const double& alpha_du, const double& alpha_pr,
-				  int ls_trials, OptimizationMode mode)
+				  int ls_trials, OptimizationMode mode,
+				  const double* duals_con=NULL,
+				  const double* duals_lb=NULL, const double* duals_ub=NULL)
     {
       if(primals && mode!=RestorationPhaseMode) {
 	if(vars_last) vars_last->copy_from(primals);
@@ -185,63 +187,9 @@ namespace gollnlp {
 	}
       }
       return true;
-      //ContingencyProblem::iterate_callback(iter, obj_value, primals, inf_pr, inf_pr_orig_pr, inf_du,
-      //					  mu, alpha_du, alpha_pr, ls_trials, mode);
     }
-  public:
-    struct IterInfo
-    {
-      IterInfo() 
-	: obj_value(1e+20), vars_primal(NULL), inf_pr(1e+20), inf_pr_orig_pr(1e+20), inf_du(1e+20), mu(1000.), iter(-1)
-      { }
-      virtual ~IterInfo()
-      {
-	delete vars_primal;
-      }
-      
-      inline void initialize( OptVariables* primal_vars_template ) {
-	if(NULL==vars_primal)
-	  vars_primal = primal_vars_template->new_copy();
-	else if(vars_primal->n() != primal_vars_template->n()) {
-	  assert(false);
-	  delete vars_primal;
-	  vars_primal = NULL;
-	  vars_primal = primal_vars_template->new_copy();
-	}
-      }
-
-      inline void set_objective(const double& obj) { obj_value = obj; }
-      
-      inline void copy_primal_vars_from(const double* opt_vars_values, OptVariables* primal_vars_template) {
-	if(NULL!=vars_primal) 
-	  vars_primal->copy_from(opt_vars_values);
-	else 
-	  assert(false);
-      }
-      
-      inline void set_iter_stats(int iter_, const double& obj_value_,
-				 const double& inf_pr_, const double& inf_pr_orig_pr_, 
-				 const double& inf_du_, 
-				 const double& mu_, OptimizationMode mode_)
-      {
-	iter=iter_;
-	obj_value=obj_value_;
-	inf_pr=inf_pr_;
-	inf_pr_orig_pr=inf_pr_orig_pr_;
-	inf_du=inf_du_;
-	mu=mu_;
-	mode=mode_;
-      }
-      
-      OptVariables* vars_primal;
-      double obj_value, inf_pr, inf_pr_orig_pr, inf_du, mu;
-      int iter;
-      OptimizationMode mode;
-    };
   protected:
     OptVariables *vars_ini, *vars_last;
-    IterInfo best_known_iter;
-
   };
 
 } //end namespace
