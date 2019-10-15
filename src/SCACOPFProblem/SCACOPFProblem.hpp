@@ -10,6 +10,9 @@
 #include "goTimer.hpp"
 //this class is for ACOPF base case and is inherited by ACOPFContingencyProblem
 #include <unistd.h>
+
+#include <unordered_map>
+
 namespace gollnlp {
   
   class SCACOPFProblem : public OptProblem
@@ -22,7 +25,9 @@ namespace gollnlp {
 	quadr_penalty_qg0(false)
     {
       L_rate_reduction = T_rate_reduction = 1.;
-      my_rank=-1;
+      my_rank=-1; rank_solver_rank0 = 1;
+      comm_world = MPI_COMM_NULL;
+      iter_sol_written=-10;
     }
     virtual ~SCACOPFProblem();
 
@@ -146,7 +151,8 @@ namespace gollnlp {
     //options
     bool useQPen;
     double slacks_scale;
-    int my_rank;
+    int my_rank, rank_solver_rank0;
+    MPI_Comm comm_world;
   protected:
     double AGCSmoothing, PVPQSmoothing;
     bool quadr_penalty_qg0;
@@ -197,6 +203,11 @@ namespace gollnlp {
     //grows dest as needed
     void copy_basecase_primal_variables_to(std::vector<double>& dest);
 
+    //copy values from the dictionary to the blocks of 'vars'
+    //this is for testing
+    void warm_start_basecasevariables_from_dict(std::unordered_map<std::string, gollnlp::OptVariablesBlock*>& dict);
+    void build_pd_vars_dict(std::unordered_map<std::string, gollnlp::OptVariablesBlock*>& dict);
+
     // returns the idxs of PVPQ gens and corresponding buses
     // generators at the same PVPQ bus are aggregated
     //
@@ -219,9 +230,12 @@ namespace gollnlp {
 
     void print_line_limits_info(SCACOPFData& dB);
     void print_transf_limits_info(SCACOPFData& dB);
-    void write_solution_basecase();
-    void write_pridua_solution_basecase();
-    void write_solution_extras_basecase();
+    void write_solution_basecase(OptVariables* primal_vars=NULL);
+    void write_pridua_solution_basecase(OptVariables* primal_vars=NULL,
+					OptVariables* dual_con_vars=NULL,
+					OptVariables* dual_lb_vars=NULL,
+					OptVariables* dual_ub_vars=NULL);
+    void write_solution_extras_basecase(OptVariables* primal_vars=NULL);
 
   public:
     virtual bool iterate_callback(int iter, const double& obj_value,
@@ -230,15 +244,14 @@ namespace gollnlp {
 				  const double& inf_du, 
 				  const double& mu, 
 				  const double& alpha_du, const double& alpha_pr,
-				  int ls_trials, OptimizationMode mode) 
-    {
-      return true; 
-    }
+				  int ls_trials, OptimizationMode mode,
+				  const double* duals_con=NULL,
+				  const double* duals_lb=NULL, const double* duals_ub=NULL);
     
     struct ConvMonitor
     {
       ConvMonitor() : is_active(false), user_stopped(false), emergency(false),
-		      pen_accept(1.), pen_accept_emer(1000.), timeout(500)
+		      pen_accept(1.), pen_accept_emer(1000.), timeout(500), bcast_done(false)
       {
 	timer.start();
       };
@@ -250,9 +263,121 @@ namespace gollnlp {
       double timeout; //max time spent 
       goTimer timer;
       std::vector<double> hist_tm;
+      bool bcast_done;
     };
     ConvMonitor monitor;
+  public:
+    struct IterInfo
+    {
+      IterInfo() 
+	: obj_value(1e+20), vars_primal(NULL), inf_pr(1e+20), inf_pr_orig_pr(1e+20), inf_du(1e+20), mu(1000.), iter(-1),
+	  vars_duals_cons(NULL), vars_duals_bounds_L(NULL), vars_duals_bounds_U(NULL), my_rank(-1)
+      {
+      }
+      virtual ~IterInfo()
+      {
+	delete vars_primal;
+	delete vars_duals_cons;
+	delete vars_duals_bounds_L;
+	delete vars_duals_bounds_U;
+      }
+      
+      inline void initialize( OptVariables* primal_vars_template,
+			      OptVariables* duals_cons_vars_template=NULL,
+			      OptVariables* duals_lb_vars_template=NULL,
+			      OptVariables* duals_ub_vars_template=NULL) {
+	if(NULL==vars_primal) {
+	  //printf("\n!!![best_known] primal_vars_created rank=%d\n\n", my_rank);
+	  vars_primal = primal_vars_template->new_copy();
+	}
+	else if(vars_primal->n() != primal_vars_template->n()) {
+	  assert(false);
+	  delete vars_primal;
+	  vars_primal = NULL;
+	  vars_primal = primal_vars_template->new_copy();
+	}
 
+	if(duals_cons_vars_template) {
+	  if(vars_duals_cons==NULL) {
+	    vars_duals_cons = duals_cons_vars_template->new_copy();
+	    //printf("\n!!![best_known] duals_cons_vars_created rank=%d\n\n", my_rank);
+	  }
+	  else if(vars_duals_cons->n() != duals_cons_vars_template->n()) {
+	    assert(false);
+	    delete vars_duals_cons;
+	    vars_duals_cons = NULL;
+	    vars_duals_cons = duals_cons_vars_template->new_copy();
+	  }
+	}
+	if(duals_lb_vars_template) {
+	  assert(duals_ub_vars_template);
+	  if(vars_duals_bounds_L==NULL) {
+	    assert(vars_duals_bounds_U==NULL);
+	    //printf("\n!!![best_known] dual_lb_vars_created rank=%d\n\n", my_rank);
+	    vars_duals_bounds_L = duals_lb_vars_template->new_copy();
+	    vars_duals_bounds_U = duals_ub_vars_template->new_copy();
+	  } else if(vars_duals_bounds_L->n() != duals_lb_vars_template->n()) {
+	    assert(false);
+	    delete vars_duals_bounds_L;
+	    vars_duals_bounds_L=NULL;
+	    vars_duals_bounds_L = duals_lb_vars_template->new_copy();
+	    delete vars_duals_bounds_U;
+	    vars_duals_bounds_U=NULL;
+	    vars_duals_bounds_U=duals_ub_vars_template->new_copy();
+	  }
+	}		
+      }
+
+      inline void set_objective(const double& obj) { obj_value = obj; }
+      
+      inline void copy_primal_vars_from(const double* opt_vars_values, OptVariables* primal_vars_template) {
+	if(NULL!=vars_primal) 
+	  vars_primal->copy_from(opt_vars_values);
+	else 
+	  assert(false);
+      }
+      inline void copy_dual_vars_from(const double* duals_con, 
+				      const double* duals_lb,
+				      const double* duals_ub) {
+	if(NULL!=vars_duals_cons) 
+	  vars_duals_cons->copy_from(duals_con);
+	else 
+	  assert(false);
+
+	if(NULL!=vars_duals_bounds_L) 
+	  vars_duals_bounds_L->copy_from(duals_lb);
+	else 
+	  assert(false);
+
+	if(NULL!=vars_duals_bounds_U) 
+	  vars_duals_bounds_U->copy_from(duals_ub);
+	else 
+	  assert(false);
+      }
+      
+      inline void set_iter_stats(int iter_, const double& obj_value_,
+				 const double& inf_pr_, const double& inf_pr_orig_pr_, 
+				 const double& inf_du_, 
+				 const double& mu_, OptimizationMode mode_)
+      {
+	iter=iter_;
+	obj_value=obj_value_;
+	inf_pr=inf_pr_;
+	inf_pr_orig_pr=inf_pr_orig_pr_;
+	inf_du=inf_du_;
+	mu=mu_;
+	mode=mode_;
+      }
+      
+      OptVariables* vars_primal;
+      double obj_value, inf_pr, inf_pr_orig_pr, inf_du, mu;
+      int iter;
+      OptimizationMode mode;
+      OptVariables *vars_duals_cons, *vars_duals_bounds_L, *vars_duals_bounds_U;
+      int my_rank;
+    };
+    IterInfo best_known_iter;
+    int iter_sol_written;
   }; // end of SCACOPFProblem
 
 

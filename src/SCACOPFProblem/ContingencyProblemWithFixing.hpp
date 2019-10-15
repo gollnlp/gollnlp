@@ -76,10 +76,8 @@ namespace gollnlp {
 
     bool do_fixing_for_AGC(const double& smoothing, bool fixVoltage, OptVariablesBlock* pgk, OptVariablesBlock* delta);
 
-    //uses 'dict_basecase_vars'
-    bool set_warm_start_from_basecase();
     //also looks up 'dict_basecase_vars'
-    bool warm_start_variable_from_basecase(OptVariables& v);
+    bool warm_start_variable_from_basecase_dict(OptVariables& v);
 
     void default_primal_start();
     
@@ -106,14 +104,16 @@ namespace gollnlp {
     int comm_size;
     goTimer tmTotal;
   public:
-#ifdef GOLLNLP_FAULT_HANDLING
+
     virtual bool iterate_callback(int iter, const double& obj_value,
 				  const double* primals,
 				  const double& inf_pr, const double& inf_pr_orig_pr, 
 				  const double& inf_du, 
 				  const double& mu, 
 				  const double& alpha_du, const double& alpha_pr,
-				  int ls_trials, OptimizationMode mode)
+				  int ls_trials, OptimizationMode mode,
+				  const double* duals_con=NULL,
+				  const double* duals_lb=NULL, const double* duals_ub=NULL)
     {
       if(primals && mode!=RestorationPhaseMode) {
 	if(vars_last) vars_last->copy_from(primals);
@@ -187,63 +187,9 @@ namespace gollnlp {
 	}
       }
       return true;
-      //ContingencyProblem::iterate_callback(iter, obj_value, primals, inf_pr, inf_pr_orig_pr, inf_du,
-      //					  mu, alpha_du, alpha_pr, ls_trials, mode);
     }
-  public:
-    struct IterInfo
-    {
-      IterInfo() 
-	: obj_value(1e+20), vars_primal(NULL), inf_pr(1e+20), inf_pr_orig_pr(1e+20), inf_du(1e+20), mu(1000.), iter(-1)
-      { }
-      virtual ~IterInfo()
-      {
-	delete vars_primal;
-      }
-      
-      inline void initialize( OptVariables* primal_vars_template ) {
-	if(NULL==vars_primal)
-	  vars_primal = primal_vars_template->new_copy();
-	else if(vars_primal->n() != primal_vars_template->n()) {
-	  assert(false);
-	  delete vars_primal;
-	  vars_primal = NULL;
-	  vars_primal = primal_vars_template->new_copy();
-	}
-      }
-
-      inline void set_objective(const double& obj) { obj_value = obj; }
-      
-      inline void copy_primal_vars_from(const double* opt_vars_values, OptVariables* primal_vars_template) {
-	if(NULL!=vars_primal) 
-	  vars_primal->copy_from(opt_vars_values);
-	else 
-	  assert(false);
-      }
-      
-      inline void set_iter_stats(int iter_, const double& obj_value_,
-				 const double& inf_pr_, const double& inf_pr_orig_pr_, 
-				 const double& inf_du_, 
-				 const double& mu_, OptimizationMode mode_)
-      {
-	iter=iter_;
-	obj_value=obj_value_;
-	inf_pr=inf_pr_;
-	inf_pr_orig_pr=inf_pr_orig_pr_;
-	inf_du=inf_du_;
-	mu=mu_;
-	mode=mode_;
-      }
-      
-      OptVariables* vars_primal;
-      double obj_value, inf_pr, inf_pr_orig_pr, inf_du, mu;
-      int iter;
-      OptimizationMode mode;
-    };
   protected:
     OptVariables *vars_ini, *vars_last;
-    IterInfo best_known_iter;
-#endif
   };
 
 } //end namespace

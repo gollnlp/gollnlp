@@ -26,17 +26,29 @@ public:
   IpoptNlp(OptProblem* p) : prob(p), have_adv_pd_restart(false)
   { 
     assert(prob); 
-#ifdef GOLLNLP_FAULT_HANDLING
     _primals=NULL;
-#endif
+    _primals_sz=0;
+    _duals_con=NULL;;
+    _duals_con_sz=0;
+    _duals_lb=_duals_ub=NULL;
+    _duals_b_sz=0;
   } 
 
   /** default destructor */
   virtual ~IpoptNlp()
   {
-#ifdef GOLLNLP_FAULT_HANDLING
+    _primals_sz = 0;
     delete[] _primals;
-#endif
+    _primals = NULL;
+
+    _duals_con_sz=0;
+    delete[] _duals_con;
+    _duals_con=NULL;;
+
+    _duals_b_sz=0;
+    delete [] _duals_lb;
+    delete [] _duals_ub;
+    _duals_lb=_duals_ub=NULL;    
   }
 
   /**@name Overloaded from TNLP */
@@ -194,20 +206,55 @@ public:
     if(NULL!=ip_cq) {
       inf_pr_orig_problem = ip_cq->curr_nlp_constraint_violation(Ipopt::NORM_MAX);
 
-#ifdef GOLLNLP_FAULT_HANDLING
       //get primal variables
       Ipopt::OrigIpoptNLP* orignlp = dynamic_cast<OrigIpoptNLP*>(GetRawPtr(ip_cq->GetIpoptNLP()));
       if( orignlp != NULL ) {
      	Ipopt::TNLPAdapter* tnlp_adapter = dynamic_cast<TNLPAdapter*>(GetRawPtr(orignlp->nlp()));
 	if(tnlp_adapter) {
-	  if(NULL == _primals) _primals = new double[prob->get_num_variables()];
+	  if(_primals_sz != prob->get_num_variables()) {
+	    delete [] _primals;
+	    _primals = NULL; 
+	    _primals_sz = 0;
+	  }
+	  if(NULL == _primals) {
+	    _primals_sz = prob->get_num_variables();
+	    _primals = new double[_primals_sz];
+	  }
 	  tnlp_adapter->ResortX(*ip_data->curr()->x(), _primals);
+
+	  if(prob->requests_intermediate_duals()) {
+	    if(_duals_con_sz != prob->get_num_constraints()) {
+	      delete [] _duals_con;
+	      _duals_con = NULL;
+	      _duals_con_sz = 0;
+	    }
+	    if(_duals_b_sz != prob->get_num_variables()) {
+	      delete [] _duals_lb;
+	      delete [] _duals_ub;
+	      _duals_lb =  _duals_ub = NULL;
+	      _duals_b_sz = 0;
+	    }
+	    if( NULL==_duals_con ) {
+	      _duals_con_sz = prob->get_num_constraints();
+	      _duals_con = new double[_duals_con_sz];
+	    }
+	    if(NULL==_duals_lb) {
+	      assert(NULL==_duals_ub);
+	      _duals_b_sz = prob->get_num_variables();
+	      _duals_lb = new double[_duals_b_sz];
+	      _duals_ub = new double[_duals_b_sz];
+	    }
+	    tnlp_adapter->ResortG(*ip_data->curr()->y_c(), *ip_data->curr()->y_d(), _duals_con);
+	    tnlp_adapter->ResortBnds(*ip_data->curr()->z_L(), _duals_lb,
+				     *ip_data->curr()->z_U(), _duals_ub);
+	  }
+
 	  return prob->iterate_callback(iter, obj_value, _primals, inf_pr, inf_pr_orig_problem, inf_du, mu, 
-					alpha_du, alpha_pr, ls_trials, mode);
+					alpha_du, alpha_pr, ls_trials, mode,
+					_duals_con, _duals_lb, _duals_ub);
 	  
 	}
       }
-#endif
     }
 
     // algorithm in restoration or some other abnormal Ipopt situation -> primals=NULL
@@ -241,9 +288,14 @@ private:
   SmartPtr< const IteratesVector > iter_vector;
   bool have_adv_pd_restart;
 
-#ifdef GOLLNLP_FAULT_HANDLING
   double* _primals;
-#endif
+  int _primals_sz;
+
+  double* _duals_con;
+  int _duals_con_sz;
+
+  double *_duals_lb, *_duals_ub;
+  int _duals_b_sz;
   /**@name Methods to block default compiler methods.
    */
   //@{
@@ -304,7 +356,8 @@ public:
       return true;
     }
     else {
-      printf("Ipopt solve FAILED with status %d!!!\n", app_status);
+      if(app_status != Ipopt::User_Requested_Stop)
+	printf("Ipopt solve FAILED with status %d!!!\n", app_status);
       return false;
     }
   }

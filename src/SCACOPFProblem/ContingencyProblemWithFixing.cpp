@@ -9,23 +9,21 @@
 
 #include "goUtils.hpp"
 
-#ifdef GOLLNLP_FAULT_HANDLING
 #include "goSignalHandling.hpp"
-#endif
 
 #include "goTimer.hpp"
 #include "unistd.h"
 using namespace std;
 
-static const int max_mem_ma57_normal = 1000; //MB
-static const int max_mem_ma57_safem = 1500; //MB
-static const int alarm_ma57_normal = 30; //seconds
-static const int alarm_ma57_safem = 30; //M
+const int max_mem_ma57_normal = 1000; //MB
+const int max_mem_ma57_safem = 1500; //MB
+const int alarm_ma57_normal = 30; //seconds
+const int alarm_ma57_safem = 30; //M
 
-static const int max_mem_ma27_normal = 1000; //MB
-static const int max_mem_ma27_safem = 1500; //MB
-static const int alarm_ma27_normal = 45; //seconds
-static const int alarm_ma27_safem = 45; //MB
+const int max_mem_ma27_normal = 1000; //MB
+const int max_mem_ma27_safem = 1500; //MB
+const int alarm_ma27_normal = 45; //seconds
+const int alarm_ma27_safem = 45; //MB
 
 
 extern volatile sig_atomic_t g_solve_watch_ma57;
@@ -43,45 +41,6 @@ extern volatile int g_my_K_idx_ma27;
 void set_timer_message_ma27(const char* msg);
 
 #define BE_VERBOSE 1
-
-// #ifdef GOLLNLP_FAULT_HANDLING
-// #define MSG_MAX_SZ 128
-// static char msg_timer[MSG_MAX_SZ];
-// static int sz_msg_timer = 0;
-
-// static volatile sig_atomic_t solve_watch=false;
-// static volatile sig_atomic_t alarm_duration=15; //seconds
-
-// //this is used by the optimiz solver's callback
-// volatile sig_atomic_t solve_is_alive=false;
-
-// static sigjmp_buf jump_env;
-
-// //only use approved/safe functions
-// extern "C" void solve_timer_handler(int nsignum)
-// {
-//   if(solve_watch) {
-//     //write(2, "watch\n", 6);
-//     if(!solve_is_alive) {
-//       //write(2, "notalive\n", 9);
-//       write(2, msg_timer, sz_msg_timer);
-//       siglongjmp(jump_env,1);
-//     } else {
-//       //write(2, "alive\n", 6);
-//       solve_is_alive=false;
-//       alarm(alarm_duration);
-//     }
-//   }
-// };
-
-// static void set_timer_message(const char* msg)
-// {
-//   strncpy(msg_timer, msg,  MSG_MAX_SZ-2);
-//   msg_timer[MSG_MAX_SZ-2] = '\n';
-//   msg_timer[MSG_MAX_SZ-1] = '\0';
-//   sz_msg_timer = strlen(msg_timer);
-// };
-// #endif
 
 namespace gollnlp {
 
@@ -166,7 +125,7 @@ namespace gollnlp {
 
     add_variables(dK,false);
 
-    if(!warm_start_variable_from_basecase(*vars_primal)) {
+    if(!warm_start_variable_from_basecase_dict(*vars_primal)) {
       assert(false);
       return false;
     }
@@ -241,18 +200,18 @@ namespace gollnlp {
       dual_problem_changed();
     }
 
-    if(!warm_start_variable_from_basecase(*vars_duals_bounds_L)) return false;
+    if(!warm_start_variable_from_basecase_dict(*vars_duals_bounds_L)) return false;
     if( variable_duals_lower("duals_bndL_delta", dK) )
       variable_duals_lower("duals_bndL_delta", dK)->set_start_to(0.0);
     assert(vars_duals_bounds_L->provides_start());
 
-    if(!warm_start_variable_from_basecase(*vars_duals_bounds_U)) return false;
+    if(!warm_start_variable_from_basecase_dict(*vars_duals_bounds_U)) return false;
     if(variable_duals_upper("duals_bndU_delta", dK))
       variable_duals_upper("duals_bndU_delta", dK)->set_start_to(0.0);
     assert(vars_duals_bounds_U->provides_start());
 
     //AGC_simple_fixedpg0
-    if(!warm_start_variable_from_basecase(*vars_duals_cons)) return false;
+    if(!warm_start_variable_from_basecase_dict(*vars_duals_cons)) return false;
     if(variable_duals_cons("duals_AGC_simple_fixedpg0", dK))
       variable_duals_cons("duals_AGC_simple_fixedpg0", dK)->set_start_to(0.0);
     assert(vars_duals_cons->provides_start());
@@ -288,14 +247,21 @@ namespace gollnlp {
     goTimer tmrec; tmrec.start();
     //! "ma27_ignore_singularity" 
     //set_solver_option("ma27_meminc_factor", 1.1);
-    
+#ifdef GOLLNLP_FAULT_HANDLING    
     g_solve_watch_ma57=true;
+#else
+    g_solve_watch_ma57=false;
+#endif
     g_alarm_duration_ma57=alarm_ma57_normal;
     g_max_memory_ma57=max_mem_ma57_normal;
     g_my_rank_ma57=my_rank;
     g_my_K_idx_ma57=K_idx;
     
+#ifdef GOLLNLP_FAULT_HANDLING    
     g_solve_watch_ma27=true;
+#else
+    g_solve_watch_ma27=false;
+#endif
     g_alarm_duration_ma27=alarm_ma27_normal;
     g_max_memory_ma27=max_mem_ma27_normal;
     g_my_rank_ma27=my_rank;
@@ -602,14 +568,20 @@ namespace gollnlp {
 
     if(bFirstSolveOK)
       vars_ini->set_start_to(*vars_primal);
-
+#ifdef GOLLNLP_FAULT_HANDLING
     g_solve_watch_ma57=true;
+#else
+    g_solve_watch_ma57=false;
+#endif
     g_alarm_duration_ma57=alarm_ma57_normal;
     g_max_memory_ma57=max_mem_ma57_normal;
     g_my_rank_ma57=my_rank;
     g_my_K_idx_ma57=K_idx;
-
+#ifdef GOLLNLP_FAULT_HANDLING
     g_solve_watch_ma27=true;
+#else
+    g_solve_watch_ma27=false;
+#endif
     g_alarm_duration_ma27=alarm_ma27_normal;
     g_max_memory_ma27=max_mem_ma27_normal;//Mbytes
     g_my_rank_ma27=my_rank;
@@ -1048,12 +1020,12 @@ namespace gollnlp {
 	      if(pg0->x[data_sc.K_outidx[K_idx]] < -1e-6) assert(false);
 
 	      //double gen_deficit = pg0->x[data_sc.K_outidx[K_idx]];
-	      if(pen_p_balance > 2e5)
-		gen_K_diff = 10*poverall;
+	      if(pen_p_balance > 5e5)
+		gen_K_diff = 4*poverall;
 	      else if(pen_p_balance > 5e4)
-		gen_K_diff = 5*poverall;
-	      else 
 		gen_K_diff = 2.5*poverall;
+	      else 
+		gen_K_diff = 1.75*poverall;
 	    }
 	  }
 	}
@@ -1202,7 +1174,7 @@ namespace gollnlp {
 
 
 
-  bool ContingencyProblemWithFixing::warm_start_variable_from_basecase(OptVariables& v)
+  bool ContingencyProblemWithFixing::warm_start_variable_from_basecase_dict(OptVariables& v)
   {
     SCACOPFData& dK = *data_K[0];
     for(auto& b : v.vblocks) {
@@ -1275,59 +1247,6 @@ namespace gollnlp {
     }
     return true;
   }
-//   bool ContingencyProblemWithFixing::set_warm_start_from_basecase()
-//   {
-//     assert(false && "do not use");
-//     SCACOPFData& dK = *data_K[0];
-// if(false) {
-    
-
-//     if(!warm_start_variable_from_basecase(*vars_primal)) return false;
-
-//     if(NULL==vars_duals_bounds_L || NULL==vars_duals_bounds_U || NULL==vars_duals_cons) {
-//       //force allocation of duals
-//       dual_problem_changed();
-//     }
-//     if(!warm_start_variable_from_basecase(*vars_duals_bounds_L)) return false;
-//     if(!warm_start_variable_from_basecase(*vars_duals_bounds_U)) return false;
-//     if(!warm_start_variable_from_basecase(*vars_duals_cons)) return false;
-//     return true;
-
-// } else {
-//     variable("v_n", dK)->set_start_to(*v_n0);
-//     variable("theta_n", dK)->set_start_to(*theta_n0);
-//     variable("b_s", dK)->set_start_to(*b_s0);
-
-//     if(dK.K_ConType[0] == SCACOPFData::kGenerator) {
-//       auto p_gK = variable("p_g", dK);
-//       for(int i=0; i<pg0_nonpartic_idxs.size(); i++) {
-// 	p_gK->x[pgK_nonpartic_idxs[i]] = p_g0->x[pg0_nonpartic_idxs[i]];
-//       }
-//       for(int i=0; i<pg0_partic_idxs.size(); i++) {
-// 	p_gK->x[pgK_partic_idxs[i]] = p_g0->x[pg0_partic_idxs[i]];
-//       }
-//       p_gK->providesStartingPoint = true;
-      
-//       auto q_gK = variable("q_g", dK);
-//       for(int i=0; i<pg0_nonpartic_idxs.size(); i++) {
-// 	q_gK->x[pgK_nonpartic_idxs[i]] = q_g0->x[pg0_nonpartic_idxs[i]];
-//       }
-//       for(int i=0; i<pg0_partic_idxs.size(); i++) {
-// 	q_gK->x[pgK_partic_idxs[i]] = q_g0->x[pg0_partic_idxs[i]];
-//       }
-//       q_gK->providesStartingPoint = true;
-      
-//     } else {
-// #ifdef DEBUG
-//       assert(variable("p_g", dK)->n == p_g0->n);
-//       assert(variable("q_g", dK)->n == q_g0->n);
-// #endif
-//       variable("p_g", dK)->set_start_to(*p_g0);
-//       variable("q_g", dK)->set_start_to(*q_g0);
-//     }
-// }
-
-//   }
 
   bool ContingencyProblemWithFixing::
   add_cons_AGC_simplified(SCACOPFData& dB, 
@@ -1772,977 +1691,5 @@ namespace gollnlp {
 
     return true;
   }
-
-//   bool ContingencyProblemWithFixing::do_solve1_old()
-//   {
-//     g_solve_watch_ma57=true;
-//     g_alarm_duration_ma57=3;//seconds
-//     g_max_memory_ma57=200;//Mbytes
-//     g_my_rank_ma57=my_rank;
-//     g_my_K_idx_ma57=K_idx;
-
-
-
-//     goTimer tmrec; tmrec.start();
-//     vector<int> hist_iter, hist_obj;
-//     bool bret = true, done = false; 
-//     int n_solves=0; 
-//     while(!done) {
-
-//       double mu_init; bool opt_ok=false;
-
-//       if(n_solves>2) safe_mode = true;
-
-//       monitor.safe_mode=safe_mode; 
-//       monitor.timer.restart();
-//       monitor.hist_tm.clear();
-//       monitor.user_stopped = false;
-
-//        if(n_solves==2) {
-// 	reallocate_nlp_solver();
-
-// 	vars_primal->set_start_to(*vars_last);
-
-// 	set_solver_option("linear_solver", "ma27"); 
-// 	printf("[warning] ContProbWithFixing K_idx=%d opt1 will use ma27 for try %d\n", K_idx, n_solves+1); 
-//       } else {
-// 	set_solver_option("linear_solver", "ma57"); 
-//       }
-
-//      if(n_solves==1) {
-// 	set_solver_option("ma57_pivot_order", 4); //enforce metis
-//       } else {
-// 	set_solver_option("ma57_pivot_order", 5); //automatic
-//       }
-
-//       if(n_solves>=3) {
-// 	set_solver_option("ma57_pivot_order", 4); 
-// 	set_solver_option("ma57_automatic_scaling", "yes");
-//       } else {
-// 	set_solver_option("ma57_automatic_scaling", "no");
-//       }
-
-//       set_solver_option("print_user_options", "yes");
-
-//       set_solver_option("sb","yes");
-//       set_solver_option("print_level", 5);
-//       set_solver_option("max_iter", 300);
-//       set_solver_option("acceptable_tol", 1e-3);
-//       set_solver_option("acceptable_constr_viol_tol", 1e-6);
-//       set_solver_option("acceptable_iter", 5);
-      
-
-//       set_solver_option("neg_curv_test_reg", "yes"); //default yes ->ChiangZavala primal regularization
-//       set_solver_option("linear_system_scaling", "mc19");
-//       set_solver_option("linear_scaling_on_demand", "yes");
-
-//       if(data_sc.N_Bus.size()>8999) {
-// 	if(safe_mode)
-// 	  monitor.bailout_allowed=true;//! probably not needed when watching timeouts
-// 	else 
-// 	  monitor.bailout_allowed=false;
-// 	set_solver_option("mu_init", 1e-1);
-//       } else {
-// 	set_solver_option("mu_init", 1e-4);
-//       }
-
-//       //if(n_solves>0) 
-// 	set_solver_option("fixed_variable_treatment", "relax_bounds");
-//       double relax_factor = std::min(1e-8, pow(10., 3*n_solves-16));
-//       set_solver_option("bound_relax_factor", relax_factor);
- 
-
-//       double bound_push = std::min(1e-2, pow(10., 3*n_solves-12));
-//       set_solver_option("bound_push", bound_push);
-//       set_solver_option("slack_bound_push", bound_push);
-
-//       double bound_frac = std::min(1e-2, pow(10., 3*n_solves-10));
-//       set_solver_option("bound_frac", bound_frac);
-//       set_solver_option("slack_bound_frac", bound_frac);
-
-//       if(n_solves>=1) {
-// 	set_solver_option("tol", 1e-7);
-// 	set_solver_option("mu_linear_decrease_factor", 0.4);
-// 	set_solver_option("mu_superlinear_decrease_power", 1.2);
-//       }
-
-//       //  opt_ok = OptProblem::optimize("ipopt");
-//       if(n_solves==0) {
-//        	//medium and small problems default primal-dual restart
-//        	//if(data_sc.N_Bus.size()<9000)	  
-
-// 	opt_ok = OptProblem::reoptimize(OptProblem::primalDualRestart);
-
-// 	  //else 
-//        	  //opt_ok = OptProblem::reoptimize(OptProblem::primalRestart);	
-//       } else {
-//        	if(n_solves<=2)
-// 	  vars_primal->set_start_to(*vars_last);
-//        	else 
-//        	  vars_primal->set_start_to(*vars_ini);
-
-//        	opt_ok = OptProblem::reoptimize(OptProblem::primalRestart);
-//       }
-
-//       n_solves++;
-
-//       hist_iter.push_back(number_of_iterations());
-//       hist_obj.push_back(this->obj_value);
-
-//       if(opt_ok) {
-// 	done = true;
-//       } else {
-// 	if(monitor.user_stopped) {
-// 	  done = true;
-// 	} else {
-// 	  //something bad happened, will resolve
-// 	  printf("[warning] ContProbWithFixing K_idx=%d opt1 failed at try %d rank=%d time %g\n", 
-// 		 K_idx, n_solves, my_rank, tmrec.measureElapsedTime()); 
-// 	}
-//       }
-      
-//       if(n_solves>9) done = true;
-//       if(tmrec.measureElapsedTime()>800) {
-// 	printf("[warning] ContProbWithFixing K_idx=%d opt1 taking too long on rank=%d; tries %d time %g\n", 
-// 	       K_idx, my_rank, n_solves, tmrec.measureElapsedTime());
-// 	done = true;
-// 	bret = false;
-//       }
-      
-//     } //end of outer while
-// #ifdef BE_VERBOSE
-//     string sit = "["; for(auto iter:  hist_iter) sit += to_string(iter)+'/'; sit[sit.size()-1] = ']';
-//     string sobj="["; for(auto obj: hist_obj) sobj += to_string(obj)+'/'; sobj[sobj.size()-1]=']';
-//     printf("ContProbWithFixing K_idx=%d opt1 took %g sec - iters %s objs %s tries %d on rank=%d\n", 
-// 	   K_idx, tmrec.measureElapsedTime(), sit.c_str(), sobj.c_str(), n_solves, my_rank);
-//     fflush(stdout);
-// #endif
-//     get_solution_simplicial_vectorized(sln_solve1);
-//     obj_solve1 = this->obj_value;
-//     return bret;
-//   }
-//   //
-//   // solve2
-//   //
-//   bool ContingencyProblemWithFixing::do_solve2_old(bool bFirstSolveOK)
-//   {
-//     goTimer tmrec; tmrec.start();
-
-// #ifdef GOLLNLP_FAULT_HANDLING
-//     if(bFirstSolveOK)
-//       vars_ini->set_start_to(*vars_primal);
-// #endif
-
-//     vector<int> hist_iter, hist_obj;
-//     bool bret = true, done = false; 
-//     int volatile n_solves=0; 
-//     while(!done) {
-//       double mu_init; bool opt_ok=false;
-
-//       if(n_solves>2) safe_mode = true;
-
-//       monitor.safe_mode=safe_mode; 
-//       monitor.timer.restart();
-//       monitor.hist_tm.clear();
-//       monitor.user_stopped = false;
-
-//       if(n_solves==2) {
-// 	reallocate_nlp_solver();
-	
-// 	vars_primal->set_start_to(*vars_last);
-	
-// 	set_solver_option("linear_solver", "ma27"); 
-// 	printf("[warning] ContProbWithFixing K_idx=%d opt1 will use ma27 for try %d\n", K_idx, n_solves+1); 
-//       } else {
-// 	set_solver_option("linear_solver", "ma57"); 
-//       }
-
-//      if(n_solves==1) {
-// 	set_solver_option("ma57_pivot_order", 4); //enforce metis
-//       } else {
-// 	set_solver_option("ma57_pivot_order", 5); //automatic
-//       }
-
-//       if(n_solves>=3) {
-// 	set_solver_option("ma57_pivot_order", 4); 
-// 	set_solver_option("ma57_automatic_scaling", "yes");
-//       } else {
-// 	set_solver_option("ma57_automatic_scaling", "no");
-//       }
-
-//       set_solver_option("max_iter", 500);
-//       set_solver_option("acceptable_tol", 1e-3);
-//       set_solver_option("acceptable_constr_viol_tol", 1e-6);
-//       set_solver_option("acceptable_iter", 5);
-      
-
-//       if(data_sc.N_Bus.size()>8999) {
-// 	if(safe_mode)
-// 	  monitor.bailout_allowed=true;//! probably not needed when watching timeouts
-// 	else 
-// 	  monitor.bailout_allowed=false;
-// 	set_solver_option("mu_init", 1e-1);
-// 	//opt_ok = OptProblem::optimize("ipopt");
-//       } else {
-// 	set_solver_option("mu_init", 1e-4);
-// 	//opt_ok = OptProblem::reoptimize(OptProblem::primalDualRestart);
-//       }
-//       double relax_factor = std::min(1e-8, pow(10., 3*n_solves-16));
-//       set_solver_option("bound_relax_factor", relax_factor);
-//       if(n_solves>0) 
-// 	set_solver_option("fixed_variable_treatment", "relax_bounds");
-
-//       double bound_push = std::min(1e-2, pow(10., 3*n_solves-12));
-//       set_solver_option("bound_push", bound_push);
-//       set_solver_option("slack_bound_push", bound_push);
-
-//       double bound_frac = std::min(1e-2, pow(10., 3*n_solves-10));
-//       set_solver_option("bound_frac", bound_frac);
-//       set_solver_option("slack_bound_frac", bound_frac);
-
-//       set_solver_option("mu_linear_decrease_factor", 0.5);
-//       set_solver_option("mu_superlinear_decrease_power", 1.2);
-
-//       if(n_solves>=1) { 
-// 	set_solver_option("tol", 1e-7);
-// 	set_solver_option("mu_linear_decrease_factor", 0.4);
-// 	set_solver_option("mu_superlinear_decrease_power", 1.2);
-//       }
-
-//       if(bFirstSolveOK) {
-// 	//medium and small problems default primal-dual restart
-// 	opt_ok = OptProblem::reoptimize(OptProblem::primalDualRestart);
-//       } else {
-// 	if(n_solves<=2)
-// 	  vars_primal->set_start_to(*vars_last);
-//        	else 
-//        	  vars_primal->set_start_to(*vars_ini);
-	
-// 	opt_ok = OptProblem::reoptimize(OptProblem::primalRestart);
-//       }
-
-//       n_solves++;
-//       hist_iter.push_back(number_of_iterations());
-//       hist_obj.push_back(this->obj_value);
-      
-//       if(opt_ok) {
-// 	done = true; 
-//       } else {
-// 	if(monitor.user_stopped) {
-// 	  done = true; 
-// 	} else {
-// 	  //something bad happened, will resolve
-// 	  printf("[warning] ContProbWithFixing K_idx=%d opt2 failed at try %d rank=%d time %g\n", 
-// 		 K_idx, n_solves, my_rank, tmrec.measureElapsedTime()); 
-// 	}
-//       }
-
-//       if(n_solves>9) done = true;
-//       if(tmrec.measureElapsedTime()>800) {
-// 	printf("[warning] ContProbWithFixing K_idx=%d opt2 taking too long on rank=%d; tries %d time %g\n", 
-// 	       K_idx, my_rank, n_solves, tmrec.measureElapsedTime());
-// 	done = true;
-// 	bret = false;
-//       }
-
-//     } //end of outer while
-// #ifdef BE_VERBOSE
-//     string sit = "["; for(auto iter:  hist_iter) sit += to_string(iter)+'/'; sit[sit.size()-1] = ']';
-//     string sobj="["; for(auto obj: hist_obj) sobj += to_string(obj)+'/'; sobj[sobj.size()-1]=']';
-//     printf("ContProbWithFixing K_idx=%d opt2 took %g sec - iters %s objs %s tries %d on rank=%d\n", 
-// 	   K_idx, tmrec.measureElapsedTime(), sit.c_str(), sobj.c_str(), n_solves, my_rank);
-//     fflush(stdout);
-// #endif
-//     get_solution_simplicial_vectorized(sln_solve2);
-//     obj_solve2 = this->obj_value;
-//     return bret;
-//   }
-
-
-
-
-  // bool ContingencyProblemWithFixing::do_fixing_for_PVPQ(const double& smoothing, bool fixVoltage,
-  // 							OptVariablesBlock* vnk, OptVariablesBlock* qgk)
-  // {
-  //   SCACOPFData& d = *data_K[0];
-
-  //   //(aggregated) non-fixed q_g generator ids at each node/bus
-  //   // with PVPQ generators that have at least one non-fixed q_g 
-  //   vector<vector<int> > idxs_gen_agg;
-  //   //bus indexes that have at least one non-fixed q_g
-  //   vector<int> idxs_bus_pvpq;
-  //   //aggregated lb and ub on reactive power at each PVPQ bus
-  //   vector<double> Qlb, Qub;
-  //   int nPVPQGens=0,  num_qgens_fixed=0, num_N_PVPQ=0, num_buses_all_qgen_fixed=0;
-    
-  //   get_idxs_PVPQ(d, Gk, idxs_gen_agg, idxs_bus_pvpq, Qlb, Qub, 
-  // 		  nPVPQGens, num_qgens_fixed, num_N_PVPQ, num_buses_all_qgen_fixed);
-  //   assert(idxs_gen_agg.size() == idxs_bus_pvpq.size());
-  //   assert(vnk->n == v_n0->n);
-
-  //   for(int itpvpq=0; itpvpq<idxs_bus_pvpq.size(); itpvpq++) {
-  //     const int busidx = idxs_bus_pvpq[itpvpq];
-  //     double vdev = (vnk->x[busidx]-v_n0->x[busidx]) / std::max(1., fabs(v_n0->x[busidx]));
-  //     double Qlbn=0., Qubn=0., qapprox_nk=0.;
-  //     for(int gidx : idxs_gen_agg[itpvpq]) {
-  // 	Qlbn += d.G_Qlb[gidx];
-  // 	Qubn += d.G_Qub[gidx];
-  // 	qapprox_nk += qgk->x[gidx];
-  //     }
-
-  //     double gen_band = Qubn - Qlbn; 
-  //     double dist_lower = (qapprox_nk - Qlbn)/gen_band; 
-  //     double dist_upper = (Qubn - qapprox_nk)/gen_band; 
-      
-
-  //     if(dist_lower<=0 || dist_upper<=0 || gen_band<1e-6)
-  // 	printf("busidx=%d %g %g %g qlb[%g %g] qub[%g %g]\n", 
-  // 	       busidx, gen_band, dist_lower,  dist_upper,
-  // 	       Qlbn, Qlb[itpvpq], Qubn, Qub[itpvpq]);
-
-  //     assert(dist_lower>=0); assert(dist_upper>=0); assert(gen_band>=0);
-  //     assert(fabs(Qlbn-Qlb[itpvpq])<1e-10);  assert(fabs(Qubn-Qub[itpvpq])<1e-10);
-
-  //     const double rtol = 1e-2, rtolv=1e-3;
-  //     if(dist_lower > rtol && dist_upper > rtol) {
-  // 	//inside -> fix v_nk
-  // 	if(fabs(vdev)>=sqrt(smoothing)) {
-  // 	  printf("[warning] sum(q_gk) in is inside the bounds (dist_lower,dist_upper)=(%g,%g), "
-  // 		 "but volt dev is large %g. %d gens at the busidx %d.", 
-  // 		 dist_lower, dist_upper, vdev, idxs_gen_agg[itpvpq].size(), busidx);
-  // 	}
-  // 	//printf("  fixing v_nk\n");
-  // 	vnk->lb[busidx] = vnk->ub[busidx] = v_n0->x[busidx];
-  //       //for g=Gnk
-  // 	//    q_gk[g] = @variable(m, lower_bound=G[:Qlb][g], upper_bound=G[:Qub][g], start=qapprox_gk[g])
-  // 	//end
-
-  //     } else if(dist_lower <= rtol) {
-  // 	if(vdev >= rtolv) {
-  // 	  //strict complementarity -> fix q_gk     to Qlb               
-	  
-  //         //printf("  fixing q_gk to Qlb;  lower bound for v_nk updated\n");
-
-  // 	  vnk->lb[busidx] = v_n0->x[busidx]; 
-  // 	  for(int g : idxs_gen_agg[itpvpq])
-  // 	    qgk->lb[g] = qgk->ub[g] = d.G_Qlb[g];
-  // 	}  else {
-  // 	  //degenerate complementarity 
-	  
-  // 	  if(fixVoltage) {
-  // 	    printf("  degenerate complementarity (q_g close to lower) at busidx=%d; will fix voltage\n", busidx); 
-  // 	    vnk->lb[busidx] = vnk->ub[busidx] = v_n0->x[busidx];
-  // 	  } else {
-  // 	    printf("  degenerate complementarity (q_g close to lower) at busidx=%d; will put q_g close to lower\n", busidx); 
-  // 	    vnk->lb[busidx] = v_n0->x[busidx]; 
-  // 	    for(int g : idxs_gen_agg[itpvpq])
-  // 	      qgk->lb[g] = qgk->ub[g] = d.G_Qlb[g];
-  // 	  }
-  // 	}
-  //     } else { // if(dist_upper <= rtol)
-  // 	assert(dist_upper <= rtol);
-  // 	if(vdev <= - rtolv) {
-  // 	  //strict complementarity -> fix q_gk to Qub 
-  // 	  //printf("  fixing q_gk to Qub;  upper bound for v_nk updated\n");
-	  
-  // 	  vnk->ub[busidx] = v_n0->x[busidx]; 
-  // 	    for(int g : idxs_gen_agg[itpvpq])
-  // 	      qgk->lb[g] = qgk->ub[g] = d.G_Qub[g];
-  // 	} else {
-  // 	  //degenerate complementarity 
-	  
-  // 	  if(fixVoltage) 
-  // 	    {
-  // 	      printf("  degenerate complementarity (q_g close to upper) at busidx=%d; will fix voltage\n", busidx); 
-  // 	      vnk->lb[busidx] = vnk->ub[busidx] = v_n0->x[busidx];
-  // 	    } else {
-  // 	    printf("  degenerate complementarity (q_g close to upper) at busidx=%d; will put q_g to the upper\n", busidx); 
-  // 	    vnk->ub[busidx] = v_n0->x[busidx]; 
-  // 	    for(int g : idxs_gen_agg[itpvpq])
-  // 		qgk->lb[g] = qgk->ub[g] = d.G_Qub[g];
-  // 	  }
-  // 	}
-  //     }
-      
-  //   }
-
-  //   return true;
-  // }
-
-  // bool ContingencyProblemWithFixing::attempt_fixing_for_PVPQ(const double& smoothing, bool fixVoltage,
-  // 							     OptVariablesBlock* vnk, OptVariablesBlock* qgk)
-  // {
-  //   SCACOPFData& d = *data_K[0];
-  //   bool needs_another_fixing=false;
-
-  //   //(aggregated) non-fixed q_g generator ids at each node/bus
-  //   // with PVPQ generators that have at least one non-fixed q_g 
-  //   vector<vector<int> > idxs_gen_agg;
-  //   //bus indexes that have at least one non-fixed q_g
-  //   vector<int> idxs_bus_pvpq;
-  //   //aggregated lb and ub on reactive power at each PVPQ bus
-  //   vector<double> Qlb, Qub;
-  //   int nPVPQGens=0,  num_qgens_fixed=0, num_N_PVPQ=0, num_buses_all_qgen_fixed=0;
-    
-  //   get_idxs_PVPQ(d, Gk, idxs_gen_agg, idxs_bus_pvpq, Qlb, Qub, 
-  // 		  nPVPQGens, num_qgens_fixed, num_N_PVPQ, num_buses_all_qgen_fixed);
-  //   assert(idxs_gen_agg.size() == idxs_bus_pvpq.size());
-  //   assert(vnk->n == v_n0->n);
-
-  //   for(int itpvpq=0; itpvpq<idxs_bus_pvpq.size(); itpvpq++) {
-  //     const int busidx = idxs_bus_pvpq[itpvpq];
-  //     double vdev = (vnk->x[busidx]-v_n0->x[busidx]) / std::max(1., fabs(v_n0->x[busidx]));
-  //     double Qlbn=0., Qubn=0., qapprox_nk=0.;
-  //     for(int gidx : idxs_gen_agg[itpvpq]) {
-  // 	Qlbn += d.G_Qlb[gidx];
-  // 	Qubn += d.G_Qub[gidx];
-  // 	qapprox_nk += qgk->x[gidx];
-  //     }
-
-  //     double gen_band = Qubn - Qlbn; 
-  //     double dist_lower = (qapprox_nk - Qlbn)/gen_band; 
-  //     double dist_upper = (Qubn - qapprox_nk)/gen_band; 
-      
-
-  //     if(dist_lower<=0 || dist_upper<=0 || gen_band<1e-6)
-  // 	printf("busidx=%d %g %g %g qlb[%g %g] qub[%g %g]\n", 
-  // 	       busidx, gen_band, dist_lower,  dist_upper,
-  // 	       Qlbn, Qlb[itpvpq], Qubn, Qub[itpvpq]);
-
-  //     assert(dist_lower>=0); assert(dist_upper>=0); assert(gen_band>=0);
-  //     assert(fabs(Qlbn-Qlb[itpvpq])<1e-10);  assert(fabs(Qubn-Qub[itpvpq])<1e-10);
-
-  //     const double rtol = 1e-2, rtolv=1e-3;
-  //     if(dist_lower > rtol && dist_upper > rtol) {
-  // 	//inside -> fix v_nk
-  // 	if(fabs(vdev)>=sqrt(smoothing)) {
-  // 	  printf("[warning] sum(q_gk) in is inside the bounds (dist_lower,dist_upper)=(%g,%g), "
-  // 		 "but volt dev is large %g. %d gens at the busidx %d.", 
-  // 		 dist_lower, dist_upper, vdev, idxs_gen_agg[itpvpq].size(), busidx);
-  // 	}
-  // 	//printf("  fixing v_nk\n");
-  // 	//!vnk->lb[busidx] = vnk->ub[busidx] = v_n0->x[busidx];
-  //       //for g=Gnk
-  // 	//    q_gk[g] = @variable(m, lower_bound=G[:Qlb][g], upper_bound=G[:Qub][g], start=qapprox_gk[g])
-  // 	//end
-
-  //     } else if(dist_lower <= rtol) {
-  // 	if(vdev >= rtolv) {
-  // 	  //strict complementarity -> fix q_gk     to Qlb               
-	  
-  //         //printf("  fixing q_gk to Qlb;  lower bound for v_nk updated\n");
-
-  // 	  //!vnk->lb[busidx] = v_n0->x[busidx]; 
-  // 	  //!for(int g : idxs_gen_agg[itpvpq])
-  // 	  //!  qgk->lb[g] = qgk->ub[g] = d.G_Qlb[g];
-  // 	}  else {
-  // 	  //degenerate complementarity 
-  // 	  needs_another_fixing=true;
-  // 	  if(fixVoltage) {
-  // 	    printf("  degenerate complementarity (q_g close to lower) at busidx=%d;\n", busidx); 
-  // 	    //!!vnk->lb[busidx] = v_n0->x[busidx];
-  // 	    //!1for(int g : idxs_gen_agg[itpvpq])
-  // 	    //!!  qgk->ub[g] = qgk->x[g];
-  // 	  } else {
-  // 	    printf("  degenerate complementarity (q_g close to lower) at busidx=%d\n", busidx); 
-  // 	    //!!vnk->lb[busidx] = v_n0->x[busidx]; 
-  // 	    //!!for(int g : idxs_gen_agg[itpvpq])
-  // 	    //!!  qgk->ub[g] = qgk->x[g];
-  // 	  }
-  // 	}
-  //     } else { // if(dist_upper <= rtol)
-  // 	assert(dist_upper <= rtol);
-  // 	if(vdev <= - rtolv) {
-  // 	  //strict complementarity -> fix q_gk to Qub 
-  // 	  //printf("  fixing q_gk to Qub;  upper bound for v_nk updated\n");
-	  
-  // 	  //!vnk->ub[busidx] = v_n0->x[busidx]; 
-  // 	  //!for(int g : idxs_gen_agg[itpvpq])
-  // 	  //!  qgk->lb[g] = qgk->ub[g] = d.G_Qub[g];
-  // 	} else {
-  // 	  //degenerate complementarity 
-  // 	  needs_another_fixing=true;
-  // 	  if(fixVoltage) {
-  // 	    printf("  degenerate complementarity (q_g close to upper) at busidx=%d\n", busidx); 
-  // 	    //!!vnk->ub[busidx] = v_n0->x[busidx];
-  // 	    //!!for(int g : idxs_gen_agg[itpvpq])
-  // 	//!!	qgk->lb[g] = qgk->x[g];
-  // 	  } else {
-  // 	    printf("  degenerate complementarity (q_g close to upper) at busidx=%d\n", busidx); 
-  // 	    //!!vnk->ub[busidx] = v_n0->x[busidx]; 
-  // 	    //!!for(int g : idxs_gen_agg[itpvpq])
-  // 	//!!	qgk->lb[g] = qgk->x[g];
-  // 	  }
-  // 	}
-  //     }
-      
-  //   }
-
-  //   return needs_another_fixing;
-  // }
-
-//   bool ContingencyProblemWithFixing::optimize(OptVariablesBlock* pg0, OptVariablesBlock* vn0, double& f, vector<double>& sln)
-//   {
-//     goTimer tmrec; tmrec.start();
-//     SCACOPFData& d = *data_K[0];
-
-//     assert(p_g0 == pg0); assert(v_n0 == vn0);
-//     p_g0 = pg0; v_n0=vn0;
-
-//     bool bFirstSolveOK=true; 
-//     vector<int> hist_iter, hist_obj;
-
-//     bFirstSolveOK = do_solve1();
-
-//     double mu_init; bool opt_ok=false;
-
-//     monitor.safe_mode=false; 
-//     monitor.timer.restart();
-//     monitor.hist_tm.clear();
-//     set_solver_option("max_iter", 250);
-
-//     //default_primal_start();
-//     //print_summary();
-
-//     if(data_sc.N_Bus.size()>8999) {
-//       monitor.bailout_allowed=true;
-//       set_solver_option("mu_init", 1e-1);
-//       opt_ok = OptProblem::optimize("ipopt");
-//     } else {
-//       set_solver_option("mu_init", 1e-4);
-//       opt_ok = OptProblem::reoptimize(OptProblem::primalDualRestart);
-//     }
-
-//     if(!opt_ok) {
-//       if(!monitor.user_stopped) {
-// 	monitor.user_stopped=false;
-// 	monitor.safe_mode=true;
-// 	monitor.bailout_allowed=false;
-// 	monitor.timer.restart();
-// 	monitor.hist_tm.clear();
-// 	printf("[warning] ContProbWithFixing K_idx=%d opt1 failed\n", K_idx); 
-// 	bFirstSolveOK=false;
-// 	hist_iter.push_back(number_of_iterations());
-// 	hist_obj.push_back(this->obj_value);
-	
-// 	set_solver_option("mu_init", 1e-1);
-// 	set_solver_option("max_iter", 300);
-
-// 	set_solver_option("bound_relax_factor", 1e-8);
-// 	set_solver_option("bound_push", 0.01);
-// 	set_solver_option("slack_bound_push", 0.01);
-// 	set_solver_option("mu_linear_decrease_factor", 0.5);
-// 	set_solver_option("mu_superlinear_decrease_power", 1.2);
-// 	set_solver_option("tol", 1e-7);
-
-// 	if(!OptProblem::reoptimize(OptProblem::primalRestart)) {
-// 	  printf("[warning] ContProbWithFixing K_idx=%d opt11 failed user[stop]=%d\n", K_idx, monitor.user_stopped);
-// 	  //default_primal_start();
-	  
-// 	  //get a solution even if it failed
-// 	  get_solution_simplicial_vectorized(sln);
-// 	  if(!monitor.user_stopped)
-// 	    bFirstSolveOK=false;
-// 	  else 
-// 	    bFirstSolveOK=true;
-// 	  monitor.user_stopped=false;
-// 	} else {
-// 	  bFirstSolveOK=true;
-// 	}
-//       } else { //if(!monitor.user_stopped) 
-
-// 	//solution OK
-
-// 	monitor.user_stopped=false;
-//       }
-//     } 
-//     //else 
-//     {
-//       get_solution_simplicial_vectorized(sln);
-
-// #ifdef DEBUG
-//       auto pgK = variable("p_g", d); assert(pgK!=NULL); 
-//       double delta=0.; assert(variable("delta", d));
-//       if(variable("delta", d)) {
-// 	auto delta = variable("delta", d)->x[0]; 
-	
-// 	for(int i=0; i<pg0_partic_idxs.size(); i++) {
-// 	  const double gen = pg0->x[pg0_partic_idxs[i]] + delta * data_sc.G_alpha[pg0_partic_idxs[i]];
-// 	  if(gen >= data_sc.G_Pub[pg0_partic_idxs[i]]) 
-// 	    assert(fabs(pgK->x[pgK_partic_idxs[i]] - data_sc.G_Pub[pg0_partic_idxs[i]]) < 9e-5);
-// 	  if(gen <= data_sc.G_Plb[pg0_partic_idxs[i]]) 
-// 	    assert(fabs(pgK->x[pgK_partic_idxs[i]] - data_sc.G_Plb[pg0_partic_idxs[i]]) < 9e-5);
-// 	}
-//       }
-
-// #endif
-//     }
-//     f = this->obj_value;
-//     hist_iter.push_back(number_of_iterations());
-//     hist_obj.push_back(this->obj_value);
-
-//     if(variable("delta", d)) solv1_delta_optim = variable("delta", d)->x[0];
-//     else                     solv1_delta_optim = 0.;
-
-//     if(num_K_done<comm_size-1) num_K_done=comm_size-1;
-
-//     double K_avg_time_so_far = time_so_far  / num_K_done;
-
-//     if(K_avg_time_so_far > 0.91*2.) monitor.is_late=true;
-
-//     bool skip_2nd_solve = monitor.is_late;
-
-//     if(time_so_far < 0.085*2.*data_sc.K_Contingency.size()) skip_2nd_solve=false;
-
-//     if(this->obj_value>=5e5 && K_avg_time_so_far < 0.950*2.) skip_2nd_solve=false;
-//     if(this->obj_value>=1e6 && K_avg_time_so_far < 1.025*2.) skip_2nd_solve=false;
-
-//     if(!bFirstSolveOK) skip_2nd_solve=false;
-
-//     if(bFirstSolveOK && tmrec.measureElapsedTime()>800.) {
-//       skip_2nd_solve=true;
-//       printf("ContProbWithFixing K_idx=%d will exit prematuraly b/c first solves took long %g sec on rank=%d\n", 
-// 	     K_idx, tmrec.measureElapsedTime(), my_rank);
-//     }
-
-//     if(this->obj_value>pen_threshold && !skip_2nd_solve) {
-
-//  #ifdef BE_VERBOSE
-//       print_objterms_evals();
-//       //print_p_g_with_coupling_info(*data_K[0], pg0);
-//       printf("ContProbWithFixing K_idx=%d first pass resulted in high pen delta=%g\n", K_idx, solv1_delta_optim);
-// #endif
-
-//       double pplus, pminus, poverall;
-//       estimate_active_power_deficit(pplus, pminus, poverall);
-// #ifdef BE_VERBOSE
-//       printf("ContProbWithFixing K_idx=%d (after solv1) act pow imbalances p+ p- poveral %g %g %g\n",
-// 	     K_idx, pplus, pminus, poverall);
-// #endif
-
-//       bool one_more_push_and_fix=false; double gen_K_diff=0.;
-//       if(fabs(solv1_delta_optim-solv1_delta_blocking)<1e-2 && 
-// 	 d.K_ConType[0]==SCACOPFData::kGenerator && solv1_Pg_was_enough) {
-// 	one_more_push_and_fix = true;
-// 	if(pg0->x[data_sc.K_outidx[K_idx]]>1e-6 )  gen_K_diff = std::max(0., 1.1*poverall);
-// 	else if(pg0->x[data_sc.K_outidx[K_idx]]<-1e-6)  gen_K_diff = std::min(0., poverall);
-// 	else one_more_push_and_fix = false;
-//       }
-
-//       if(fabs(poverall)>1e-4) {// && d.K_ConType[0]!=SCACOPFData::kGenerator) {
-// 	double rpa = fabs(pplus) / fabs(poverall);
-// 	double rma = fabs(pminus) / fabs(poverall);
-
-// 	//solv1_delta_optim=0.;//!
-
-// 	if( (rpa>0.85 && rpa<1.15) || (rma>0.85 && rma <1.15) ) {	  
-// 	  one_more_push_and_fix = true;
-// 	  gen_K_diff = poverall;
-
-// 	  //ignore small delta for transmission contingencies since they're really optimization noise
-// 	  if(d.K_ConType[0]!=SCACOPFData::kGenerator && fabs(solv1_delta_optim)<1e-6) {
-// 	    solv1_delta_optim=0.;
-// 	  }
-// 	}
-//       }
-
-//       if(one_more_push_and_fix) {
-//  	//apparently we need to further unblock generation
-//  	auto pgK = variable("p_g", d); assert(pgK!=NULL);
-//  	//find AGC generators that are "blocking" and fix them; update particip and non-particip indexes
-//  	vector<int> pg0_partic_idxs_u=solv1_pg0_partic_idxs, pgK_partic_idxs_u=solv1_pgK_partic_idxs;
-//  	vector<int> pgK_nonpartic_idxs_u=solv1_pgK_nonpartic_idxs, pg0_nonpartic_idxs_u=solv1_pg0_nonpartic_idxs;
-
-//  	double delta_out=0., delta_needed=0., delta_blocking=0., delta_lb, delta_ub; 
-// 	double residual_Pg;
-//  	bool bfeasib;
-
-// 	if(fabs(gen_K_diff)>1e-6) {
-// 	  //solv1_delta_optim and gen_K_diff must have same sign at this point
-// 	  if(solv1_delta_optim * gen_K_diff < 0) gen_K_diff=0.;
-// 	  bfeasib = push_and_fix_AGCgen(d, gen_K_diff, solv1_delta_optim, 
-// 					pg0_partic_idxs_u, pgK_partic_idxs_u, pg0_nonpartic_idxs_u, pgK_nonpartic_idxs_u,
-// 					pg0, pgK, 
-// 					data_sc.G_Plb, data_sc.G_Pub, data_sc.G_alpha,
-// 					delta_out, delta_needed, delta_blocking, delta_lb, delta_ub, residual_Pg);
-//  	  //alter starting points 
-// 	  assert(pg0_partic_idxs_u.size() == pgK_partic_idxs_u.size());
-// 	  for(int it=0; it<pg0_partic_idxs_u.size(); it++) {
-// 	    const int& i0 = pg0_partic_idxs_u[it];
-// 	    pgK->x[pgK_partic_idxs_u[it]] = pg0->x[i0]+data_sc.G_alpha[i0]*delta_out;
-// 	  }
-// #ifdef BE_VERBOSE
-// 	  printf("ContProbWithFixing K_idx=%d (gener)(after solv1) fixed %lu gens; adtl deltas out=%g needed=%g blocking=%g "
-// 		 "residualPg=%g feasib=%d\n",
-// 		 K_idx, solv1_pg0_partic_idxs.size()-pg0_partic_idxs_u.size(),
-// 		 delta_out, delta_needed, delta_blocking, residual_Pg, bfeasib);
-// 	  //printvec(solv1_pgK_partic_idxs, "solv1_pgK_partic_idxs");
-// 	  //printvec(pgK_partic_idxs_u, "pgK_partic_idxs_u");
-// #endif
-	  
-// 	  delete_constraint_block(con_name("AGC_simple_fixedpg0", d));
-// 	  delete_duals_constraint(con_name("AGC_simple_fixedpg0", d));
-	  
-// 	  if(pg0_partic_idxs_u.size()>0) {
-// 	    add_cons_AGC_simplified(d, pg0_partic_idxs_u, pgK_partic_idxs_u, pg0);
-// 	    append_duals_constraint(con_name("AGC_simple_fixedpg0", d));
-// 	    variable_duals_cons("duals_AGC_simple_fixedpg0", d)->set_start_to(0.0);
-	    
-// 	    variable("delta", d)->set_start_to(delta_out);
-// 	  }
-	  
-// 	  primal_problem_changed();
-// 	}
-//       } // else of if(one_more_push_and_fix)
-
-//       //
-//       {
-// 	auto v = variable("v_n", d);
-// 	for(int i=0; i<v->n; i++) {
-// 	  v->lb[i] = v->lb[i] - g_bounds_abuse;
-// 	  v->ub[i] = v->ub[i] + g_bounds_abuse;
-// 	}
-//       }
-//       if(true){
-// 	auto v = variable("q_g", d);
-// 	for(int i=0; i<v->n; i++) {
-// 	  v->lb[i] = v->lb[i] - g_bounds_abuse;
-// 	  v->ub[i] = v->ub[i] + g_bounds_abuse;
-// 	}
-//       }
-
-//       if(true){
-// 	auto v = variable("p_g", d);
-// 	for(int i=0; i<v->n; i++) {
-// 	  v->lb[i] = v->lb[i] - g_bounds_abuse;
-// 	  v->ub[i] = v->ub[i] + g_bounds_abuse;
-// 	}
-//       }
-
-//       do_qgen_fixing_for_PVPQ(variable("v_n", d), variable("q_g", d));
-
-// #ifdef DEBUG
-//       if(bFirstSolveOK) {
-// 	if(!vars_duals_bounds_L->provides_start()) print_summary();
-// 	assert(vars_duals_bounds_L->provides_start()); 	assert(vars_duals_bounds_U->provides_start()); 	
-// 	assert(vars_duals_cons->provides_start());
-//       }
-// #endif
-
-//       //second solve
-//       monitor.safe_mode = false;
-//       monitor.user_stopped=false;
-//       if(bFirstSolveOK) monitor.bailout_allowed=true;
-//       else              monitor.bailout_allowed=false;
-//       monitor.timer.restart();
-//       monitor.hist_tm.clear();
-//       this->set_solver_option("max_iter", 250);
-//       if(data_sc.N_Bus.size()>8999) {
-// 	set_solver_option("mu_init", 1e-1);
-//       }
-//       bool opt2_ok = false;
-//       if(bFirstSolveOK) {
-// 	opt2_ok = OptProblem::reoptimize(OptProblem::primalDualRestart);
-//       } else {
-// 	opt2_ok = OptProblem::reoptimize(OptProblem::primalRestart);
-//       }
-
-//       if(!opt2_ok) {
-// 	if(bFirstSolveOK && data_sc.N_Bus.size()>9999) {
-// 	  //first solve is good enough 
-
-// 	  //some reporting 
-// 	  f = this->obj_value;
-// 	  hist_iter.push_back(number_of_iterations());
-// 	  hist_obj.push_back(this->obj_value);
-
-// 	  if(monitor.user_stopped) {
-// 	    //we can assume that solution is OK
-// 	    if(bFirstSolveOK) { if(hist_obj.back() < hist_obj[0]) get_solution_simplicial_vectorized(sln); }
-// 	    else get_solution_simplicial_vectorized(sln);
-// 	  }	  
-
-// 	} else { //first solves failed or the network is small 
-// 	  if(!monitor.user_stopped) {
-// 	    hist_iter.push_back(number_of_iterations());
-// 	    hist_obj.push_back(this->obj_value);
-// 	    monitor.bailout_allowed=false;
-// 	    monitor.user_stopped=false;
-// 	    monitor.safe_mode = true;
-// 	    monitor.timer.restart();
-// 	    monitor.hist_tm.clear();
-// 	    printf("[warning] ContProbWithFixing K_idx=%d opt2 failed\n", K_idx); 
-	    
-// 	    set_solver_option("mu_init", 1e-1);
-// 	    set_solver_option("max_iter", 500);
-	    
-// 	    set_solver_option("bound_relax_factor", 1e-8);
-// 	    set_solver_option("bound_push", 0.01);
-// 	    set_solver_option("slack_bound_push", 0.01);
-// 	    set_solver_option("mu_linear_decrease_factor", 0.5);
-// 	    set_solver_option("mu_superlinear_decrease_power", 1.2);
-// 	    set_solver_option("tol", 1e-7);
-	    
-// 	    if(!OptProblem::reoptimize(OptProblem::primalRestart)) {
-// 	      printf("[warning] ContProbWithFixing K_idx=%d opt22 failed user[stop]=%d\n", K_idx, monitor.user_stopped); 
-// 	      if(!bFirstSolveOK) get_solution_simplicial_vectorized(sln);
-// 	    } else {
-// 	      get_solution_simplicial_vectorized(sln);
-// 	    }
-// 	    f = this->obj_value;
-// 	    hist_iter.push_back(number_of_iterations());
-// 	    hist_obj.push_back(this->obj_value);
-
-
-// 	  } else { //true == monitor.user_stopped
-// 	    //we can assume that solution is OK
-
-// 	    f = this->obj_value;
-// 	    hist_iter.push_back(number_of_iterations());
-// 	    hist_obj.push_back(this->obj_value);
-
-// 	    if(bFirstSolveOK) { if(hist_obj.back() < hist_obj[0]) get_solution_simplicial_vectorized(sln); }
-// 	    else get_solution_simplicial_vectorized(sln);
-// 	  }	    
-// 	}
-//       } else { //opt2_ok
-
-// 	f = this->obj_value;
-// 	hist_iter.push_back(number_of_iterations());
-// 	hist_obj.push_back(this->obj_value);
-	
-// 	assert(hist_iter.size()>=1);
-// 	assert(hist_obj.size()>=1);
-// 	if(hist_obj.back() < hist_obj[0]) {
-// 	  get_solution_simplicial_vectorized(sln);
-// 	}
-// 	if(!bFirstSolveOK) get_solution_simplicial_vectorized(sln);
-//       }
-      
-//       if(this->obj_value>pen_threshold) {
-// 	double delta_optim = 0.;//
-// 	if(variable("delta", d)) delta_optim = variable("delta", d)->x[0];
-// #ifdef BE_VERBOSE
-// 	print_objterms_evals();
-// 	//print_p_g_with_coupling_info(*data_K[0], pg0);
-// 	printf("ContProbWithFixing K_idx=%d  pass 1-2 resulted in high pen delta=%g\n", K_idx, delta_optim);
-// #endif
-//       }  
-//     } else {
-//       if(this->obj_value>pen_threshold && skip_2nd_solve) 
-// 	printf("ContProbWithFixing K_idx=%d pass2 needed but not done - time restrictions\n", K_idx);
-//     }
-      
-//     tmrec.stop();
-// #ifdef BE_VERBOSE
-//     string sit = "["; for(auto iter:  hist_iter) sit += to_string(iter)+'/'; sit[sit.size()-1] = ']';
-//     string sobj="["; for(auto obj: hist_obj) sobj += to_string(obj)+'/'; sobj[sobj.size()-1]=']';
-//     printf("ContProbWithFixing K_idx=%d optimize took %g sec - iters %s objs %s on rank=%d\n", 
-// 	   K_idx, tmrec.getElapsedTime(), sit.c_str(), sobj.c_str(), my_rank);
-//     fflush(stdout);
-// #endif
-//     return true;
-
-//   }
-
-  // void ContingencyProblemWithFixing::default_primal_start()
-  // {
-  //   assert(false);
-  //   //for(auto b: vars_primal->vblocks) b->providesStartingPoint=false; 
-
-  //   SCACOPFData& dK = *data_K[0]; 
-  //   auto v = variable("v_n", dK);
-  //   //v->set_start_to(data_sc.N_v0.data());
-  //   v->set_start_to(*v_n0);
-
-  //   v = variable("theta_n", dK);
-  //   //v->set_start_to(data_sc.N_theta0.data());
-  //   v->set_start_to(*theta_n0);
-
-  //   v = variable("b_s", dK);
-  //   //v->set_start_to(data_sc.SSh_B0.data());
-  //   v->set_start_to(*b_s0);
-
-  //   v = variable("p_g", dK); assert(v->n == dK.G_p0.size());
-  //   //v->set_start_to(dK.G_p0.data());
-
-  //   v = variable("q_g", dK); 
-  //   //v->set_start_to(dK.G_q0.data());
-
-  //   //compute starting points: p_li1_powerflow, p_li2_powerflow
-  //   if(true){
-  //     auto p_li1 = variable("p_li1",dK), p_li2 = variable("p_li2",dK);
-  //     auto pf_cons1 = dynamic_cast<PFConRectangular*>(constraint("p_li1_powerflow", dK));
-  //     auto pf_cons2 = dynamic_cast<PFConRectangular*>(constraint("p_li2_powerflow", dK));
-  //     pf_cons1->compute_power(p_li1); p_li1->providesStartingPoint=true;
-  //     pf_cons2->compute_power(p_li2); p_li2->providesStartingPoint=true;
-  //   }
-
-  //   //q_li1_powerflow, q_li2_powerflow
-  //   if(true){
-  //     auto q_li1 = variable("q_li1",dK), q_li2 = variable("q_li2",dK);
-  //     auto pf_cons1 = dynamic_cast<PFConRectangular*>(constraint("q_li1_powerflow", dK));
-  //     auto pf_cons2 = dynamic_cast<PFConRectangular*>(constraint("q_li2_powerflow", dK));
-  //     pf_cons1->compute_power(q_li1); q_li1->providesStartingPoint=true;
-  //     pf_cons2->compute_power(q_li2); q_li2->providesStartingPoint=true;
-  //   }
-
-
-  //   // // transformers
-  //   if(true){
-  //     auto p_ti1 = variable("p_ti1",dK), p_ti2 = variable("p_ti2",dK);
-  //     auto pf_cons1 = dynamic_cast<PFConRectangular*>(constraint("p_ti1_powerflow", dK));
-  //     auto pf_cons2 = dynamic_cast<PFConRectangular*>(constraint("p_ti2_powerflow", dK));
-  //     pf_cons1->compute_power(p_ti1); p_ti1->providesStartingPoint=true;
-  //     pf_cons2->compute_power(p_ti2); p_ti2->providesStartingPoint=true;
-  //   }
-
-  //   //q_li1_powerflow, q_li2_powerflow
-  //   if(true){
-  //     auto q_ti1 = variable("q_ti1",dK), q_ti2 = variable("q_ti2",dK);
-  //     auto pf_cons1 = dynamic_cast<PFConRectangular*>(constraint("q_ti1_powerflow", dK));
-  //     auto pf_cons2 = dynamic_cast<PFConRectangular*>(constraint("q_ti2_powerflow", dK));
-  //     pf_cons1->compute_power(q_ti1); q_ti1->providesStartingPoint=true;
-  //     pf_cons2->compute_power(q_ti2); q_ti2->providesStartingPoint=true;
-  //   }
-
-  //   //active balance slacks
-  //   if(true) {
-  //     auto pf_p_bal = dynamic_cast<PFActiveBalance*>(constraint("p_balance", dK));
-  //     OptVariablesBlock* pslacks_n = pf_p_bal->slacks();
-  //     pf_p_bal->compute_slacks(pslacks_n); pslacks_n->providesStartingPoint=true;
-      
-  //     //reactive power balance slacks
-  //     auto pf_q_bal = dynamic_cast<PFReactiveBalance*>(constraint("q_balance", dK));
-  //     OptVariablesBlock* qslacks_n = pf_q_bal->slacks();
-  //     pf_q_bal->compute_slacks(qslacks_n); qslacks_n->providesStartingPoint=true;
-  //   }
-
-  //   //line limits
-  //   if(true){
-  //     auto pf_line_lim1 = dynamic_cast<PFLineLimits*>(constraint("line_limits1", dK));
-  //     OptVariablesBlock* sslack_li1 = pf_line_lim1->slacks();
-  //     pf_line_lim1->compute_slacks(sslack_li1); sslack_li1->providesStartingPoint=true;
-  //     auto pf_line_lim2 = dynamic_cast<PFLineLimits*>(constraint("line_limits2", dK));
-  //     OptVariablesBlock* sslack_li2 = pf_line_lim2->slacks();
-  //     pf_line_lim1->compute_slacks(sslack_li2); sslack_li2->providesStartingPoint=true;
-
-  //   }
-
-  //   //transformer limits
-  //   if(true){
-  //     auto pf_trans_lim1 = dynamic_cast<PFTransfLimits*>(constraint("trans_limits1", dK));
-  //     OptVariablesBlock* sslack_ti1 = pf_trans_lim1->slacks();
-  //     pf_trans_lim1->compute_slacks(sslack_ti1); sslack_ti1->providesStartingPoint=true;
-  //     auto pf_trans_lim2 = dynamic_cast<PFTransfLimits*>(constraint("trans_limits2", dK));
-  //     OptVariablesBlock* sslack_ti2 = pf_trans_lim2->slacks();
-  //     pf_trans_lim2->compute_slacks(sslack_ti2); sslack_ti2->providesStartingPoint=true;
-
-  //   }
-  //  auto deltav = variable("delta", dK);
-  //  //if(deltav) deltav->set_start_to(1.41203e-06);
-  //  //print_summary();
-  //  assert(vars_primal->provides_start());
-  // }
 
 } //end of namespace

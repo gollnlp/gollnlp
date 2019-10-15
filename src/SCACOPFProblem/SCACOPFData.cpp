@@ -1239,6 +1239,12 @@ bool SCACOPFData::readCON(const string& con,
     assert(line.substr(0,3)=="END");
 
   } // end of while
+
+  //const int tokeep=400;
+  //contingencies_label.erase(contingencies_label.begin()+tokeep, contingencies_label.end());
+  //contingencies_type.erase(contingencies_type.begin()+tokeep, contingencies_type.end());
+  //contingencies_con.erase(contingencies_con.begin()+tokeep, contingencies_con.end());
+
   log.printf(hovSummary, "loaded  %d contingencies\n", contingencies_con.size());
   return true;
 }

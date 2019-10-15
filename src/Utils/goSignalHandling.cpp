@@ -97,19 +97,19 @@ void enable_fault_signal_handling(void (*handler)(int))
 // https://stackoverflow.com/questions/38842951/why-is-sigalrm-not-working-second-time/38843103#38843103
 // https://stackoverflow.com/questions/20647808/c-unix-siglongjmp-and-sigsetjmp
 
-void enable_timer_handling(void (*handler)(int))
-{
-  struct sigaction new_action, old_action;
-  int signal = SIGALRM;
-  sigemptyset (&new_action.sa_mask);
-  new_action.sa_handler = handler;
-  new_action.sa_flags = 0;
+// void enable_timer_handling(void (*handler)(int))
+// {
+//   struct sigaction new_action, old_action;
+//   int signal = SIGALRM;
+//   sigemptyset (&new_action.sa_mask);
+//   new_action.sa_handler = handler;
+//   new_action.sa_flags = 0;
 
-  sigaction(signal, NULL, &old_action);
-  if(old_action.sa_handler != SIG_IGN)
-    sigaction(signal, &new_action, NULL);
-  else
-    printf("[warning] SIGALRM is set to ignore -- alarm handler was not set for it\n");
-}
+//   sigaction(signal, NULL, &old_action);
+//   if(old_action.sa_handler != SIG_IGN)
+//     sigaction(signal, &new_action, NULL);
+//   else
+//     printf("[warning] SIGALRM is set to ignore -- alarm handler was not set for it\n");
+// }
 
 #endif

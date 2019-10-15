@@ -46,7 +46,7 @@ bool SCACOPFProblem::default_assembly()
   //d.L_RateBase : d.L_RateEmer;
   for(int it=0; it<sz; it++) {
     r_emer = L_rate_reduction * d.L_RateEmer[it];
-    r_base = 0.99             * d.L_RateBase[it];
+    r_base =                    d.L_RateBase[it];
     rate[it] = r_emer < r_base ? r_emer : r_base;
   }
   add_cons_thermal_li_lims(d, rate);
@@ -55,7 +55,7 @@ bool SCACOPFProblem::default_assembly()
   //d.L_RateBase : d.L_RateEmer;
   for(int it=0; it<sz; it++) {
     r_emer = T_rate_reduction * d.T_RateEmer[it];
-    r_base = 0.99              * d.T_RateBase[it];
+    r_base =                    d.T_RateBase[it];
     rate[it] = r_emer < r_base ? r_emer : r_base;
   }
   add_cons_thermal_ti_lims(d, rate);
@@ -94,6 +94,9 @@ bool SCACOPFProblem::assembly(const std::vector<int>& K_Cont)
     add_contingency_block(K);
   }
   //print_summary();
+  //printf("\n!!![best_known] initialize111 rank=%d\n\n", my_rank);
+  best_known_iter.initialize(vars_primal, vars_duals_cons, vars_duals_bounds_L, vars_duals_bounds_U);
+
   return true;
 }
 
@@ -1604,6 +1607,10 @@ bool SCACOPFProblem::set_warm_start_from_base_of(SCACOPFProblem& srcProb)
 	return set_warm_start_for_cont_from_base_of(*dB, srcProb);
       }
     }
+    assert(vars_primal->provides_start());
+    assert(vars_duals_cons->provides_start());
+    assert(vars_duals_bounds_L->provides_start());
+    assert(vars_duals_bounds_U->provides_start());
     return false;
   }
   bool SCACOPFProblem::set_warm_start_for_cont_from_base_of(SCACOPFData& dB, SCACOPFProblem& srcProb)
@@ -3042,30 +3049,31 @@ void SCACOPFProblem::print_Transf_powers(SCACOPFData& dB, bool SysCond_BaseCase)
 
 }
 
-void SCACOPFProblem::write_solution_basecase()
+void SCACOPFProblem::write_solution_basecase(OptVariables* primal_vars)
 {
+  if(primal_vars==NULL) primal_vars = this->vars_primal;
   //data_sc is for the basecase
-  OptVariablesBlock* p_g = variable("p_g", data_sc);
+  OptVariablesBlock* p_g = primal_vars->vars_block(var_name("p_g", data_sc));
   if(NULL==p_g) {
     printf("[warning] no solution was written; p_g0 is missing from the problem\n");
     return;
   }
-  OptVariablesBlock* q_g = variable("q_g", data_sc);
+  OptVariablesBlock* q_g = primal_vars->vars_block(var_name("q_g", data_sc));//variable("q_g", data_sc);
   if(NULL==q_g) {
     printf("[warning] no solution was written; q_g0 is missing from the problem\n");
     return;
   }
-  OptVariablesBlock* v_n = variable("v_n", data_sc);
+  OptVariablesBlock* v_n = primal_vars->vars_block(var_name("v_n", data_sc));//variable("v_n", data_sc);
   if(NULL==v_n) {
     printf("[warning] no solution was written; v_n0 is missing from the problem\n");
     return;
   }
-  OptVariablesBlock* theta_n = variable("theta_n", data_sc);
+  OptVariablesBlock* theta_n = primal_vars->vars_block(var_name("theta_n", data_sc));//variable("theta_n", data_sc);
   if(NULL==theta_n) {
     printf("[warning] no solution was written; theta_n0 is missing from the problem\n");
     return;
   }
-  OptVariablesBlock* b_s = variable("b_s", data_sc);
+  OptVariablesBlock* b_s = primal_vars->vars_block(var_name("b_s", data_sc));//variable("b_s", data_sc);
   if(NULL==b_s) {
     printf("[warning] no solution was written; b_s0 is missing from the problem\n");
     return;
@@ -3077,8 +3085,15 @@ void SCACOPFProblem::write_solution_basecase()
 			     data_sc, "solution1.txt");  
 }
 
-void SCACOPFProblem::write_pridua_solution_basecase()
+void SCACOPFProblem::write_pridua_solution_basecase(OptVariables* primal_vars,
+						    OptVariables* dual_con_vars,
+						    OptVariables* dual_lb_vars,
+						    OptVariables* dual_ub_vars)
 {
+  if(primal_vars==NULL) primal_vars = this->vars_primal;
+  if(dual_con_vars==NULL) dual_con_vars = this->vars_duals_cons;
+  if(dual_lb_vars==NULL) dual_lb_vars = this->vars_duals_bounds_L;
+  if(dual_ub_vars==NULL) dual_ub_vars = this->vars_duals_bounds_U;
 
   string filename = "solution_b_pd.txt";
   FILE* file = fopen(filename.c_str(), "w");
@@ -3118,7 +3133,7 @@ void SCACOPFProblem::write_pridua_solution_basecase()
   //all_vars_names.insert(all_vars_names.end(), duals_cons_names.begin(), duals_cons_names.end());
 
   for(string& var_name : vars_names) {
-    OptVariablesBlock* var = vars_block(var_name);
+    OptVariablesBlock* var = primal_vars->vars_block(var_name);
     if(NULL==var) {
       printf("[warning] '%s' variable NOT written: is missing from the problem\n", var_name.c_str());
       continue;
@@ -3126,7 +3141,7 @@ void SCACOPFProblem::write_pridua_solution_basecase()
     SCACOPFIO::write_variable_block(var, data_sc, file);
   }
   for(string& var_name : duals_bndL_names) {
-    OptVariablesBlock* var = vars_block_duals_bounds_lower(var_name);
+    OptVariablesBlock* var = dual_lb_vars->vars_block(var_name);//vars_block_duals_bounds_lower(var_name);
     if(NULL==var) {
       printf("[warning] '%s' variable NOT written: is missing from the problem\n", var_name.c_str());
       continue;
@@ -3134,7 +3149,7 @@ void SCACOPFProblem::write_pridua_solution_basecase()
     SCACOPFIO::write_variable_block(var, data_sc, file);
   }
   for(string& var_name : duals_bndU_names) {
-    OptVariablesBlock* var = vars_block_duals_bounds_upper(var_name);
+    OptVariablesBlock* var = dual_ub_vars->vars_block(var_name);//vars_block_duals_bounds_upper(var_name);
     if(NULL==var) {
       printf("[warning] '%s' variable NOT written: is missing from the problem\n", var_name.c_str());
       continue;
@@ -3142,7 +3157,7 @@ void SCACOPFProblem::write_pridua_solution_basecase()
     SCACOPFIO::write_variable_block(var, data_sc, file);
   }
   for(string& var_name : duals_cons_names) {
-    OptVariablesBlock* var = vars_block_duals_cons(var_name);
+    OptVariablesBlock* var = dual_con_vars->vars_block(var_name);//vars_block_duals_cons(var_name);
     if(NULL==var) {
       printf("[warning] '%s' variable NOT written: is missing from the problem\n", var_name.c_str());
       continue;
@@ -3152,7 +3167,45 @@ void SCACOPFProblem::write_pridua_solution_basecase()
   fclose(file);
 }
 
-void SCACOPFProblem::write_solution_extras_basecase()
+void SCACOPFProblem::build_pd_vars_dict(std::unordered_map<std::string, gollnlp::OptVariablesBlock*>& dict)
+{
+  for(auto& v : vars_primal->vblocks) 
+    dict.insert({v->id, v});
+  for(auto& v : vars_duals_bounds_L->vblocks) 
+    dict.insert({v->id, v});
+  for(auto& v : vars_duals_bounds_U->vblocks) 
+    dict.insert({v->id, v});
+  for(auto& v : vars_duals_cons->vblocks) 
+    dict.insert({v->id, v});
+}
+
+static void warmstart_helper(std::unordered_map<std::string, gollnlp::OptVariablesBlock*>& dict,
+			     OptVariables& vars)
+{
+  for(auto& b : vars.vblocks) {
+    auto b0p = dict.find(b->id);
+    if(b0p == dict.end()) {
+
+      cout << "!!!!! could not find variable " << b->id << endl;
+      //assert(false);
+      b->set_start_to(0.0);
+      continue;
+    } else {
+      b->set_start_to(*b0p->second);
+    }
+  }
+}
+
+void SCACOPFProblem::
+warm_start_basecasevariables_from_dict(std::unordered_map<std::string, gollnlp::OptVariablesBlock*>& dict)
+{
+  warmstart_helper(dict, *vars_primal);
+  warmstart_helper(dict, *vars_duals_bounds_L);
+  warmstart_helper(dict, *vars_duals_bounds_U);
+  warmstart_helper(dict, *vars_duals_cons);
+}
+
+void SCACOPFProblem::write_solution_extras_basecase(OptVariables* primal_vars)
 {
   // balance slacks
   auto pf_p_bal = dynamic_cast<PFActiveBalance*>(constraint("p_balance", data_sc));
@@ -3232,6 +3285,88 @@ void SCACOPFProblem::write_solution_extras_basecase()
   
   fclose(file);
   printf("basecase solution extras written to file %s\n", strFileName.c_str());
+}
+
+bool SCACOPFProblem::iterate_callback(int iter, const double& obj_value,
+				      const double* primals,
+				      const double& inf_pr, const double& inf_pr_orig_pr, 
+				      const double& inf_du, 
+				      const double& mu, 
+				      const double& alpha_du, const double& alpha_pr,
+				      int ls_trials, OptimizationMode mode,
+				      const double* duals_con,
+				      const double* duals_lb, const double* duals_ub)
+{
+  if(monitor.is_active) {
+
+    //finish initialization if needed
+    if(iter==0) {
+      //printf("\n!!![best_known] initialize222 rank=%d\n\n", my_rank);
+      best_known_iter.initialize(vars_primal, vars_duals_cons, vars_duals_bounds_L, vars_duals_bounds_U);
+    }
+
+    assert(duals_con); assert(duals_lb); assert(duals_ub); 
+
+    if(primals && mode!=RestorationPhaseMode) {
+      if(inf_pr_orig_pr<=1e-6 && best_known_iter.obj_value>=obj_value) {
+	best_known_iter.copy_primal_vars_from(primals, vars_primal);
+	best_known_iter.copy_dual_vars_from(duals_con, duals_lb, duals_ub);
+	best_known_iter.set_iter_stats( iter, obj_value, inf_pr, inf_pr_orig_pr, inf_du, mu, mode);
+
+	if(iter-iter_sol_written>5) {
+	  printf("[ph1] rank %d  phase 1 writes solution1.txt from call_back iter=%d\n", 
+		 my_rank, iter);
+	  write_solution_basecase(best_known_iter.vars_primal);
+	  write_pridua_solution_basecase(best_known_iter.vars_primal,
+					 best_known_iter.vars_duals_cons,
+					 best_known_iter.vars_duals_bounds_L,
+					 best_known_iter.vars_duals_bounds_U);
+	  iter_sol_written = iter;
+	}
+      }
+    } else {
+      if(mode==RestorationPhaseMode) {
+	monitor.emergency = true;
+	//do not set monitor.user_stopped=true; since doing so will look like the last solution is ok
+	return false;
+      }
+    }
+
+    if(!monitor.bcast_done && inf_pr_orig_pr<=1e-8 && inf_du<=1e-6 && mu<=1e-8) {
+
+      IterInfo v;
+      v.initialize(vars_primal, vars_duals_cons, vars_duals_bounds_L, vars_duals_bounds_U);
+
+      v.copy_primal_vars_from(primals, vars_primal);
+      v.copy_dual_vars_from(duals_con, duals_lb, duals_ub);
+      v.set_iter_stats( iter, obj_value, inf_pr, inf_pr_orig_pr, inf_du, mu, mode);
+
+      v.vars_primal->MPI_Bcast_x(rank_solver_rank0, comm_world, my_rank);
+      v.vars_duals_bounds_L->MPI_Bcast_x(rank_solver_rank0, comm_world, my_rank);
+      v.vars_duals_bounds_U->MPI_Bcast_x(rank_solver_rank0, comm_world, my_rank);
+      v.vars_duals_cons->MPI_Bcast_x(rank_solver_rank0, comm_world, my_rank);
+
+      double cost_basecase=obj_value;
+      MPI_Bcast(&cost_basecase, 1, MPI_DOUBLE, rank_solver_rank0, comm_world);
+      printf("[ph1] rank %d  phase 1 basecase bcasts done at iter %d\n", 
+	     my_rank, iter);
+      monitor.bcast_done = true;
+    }
+
+    if(monitor.timer.measureElapsedTime() > monitor.timeout) {
+      monitor.emergency = true;
+      monitor.user_stopped=true;
+      return false;
+    }
+
+    //if(inf_pr_orig_pr<=1e-6 && inf_du<=1e-6 && mu<=2e-8) {
+    //  monitor.user_stopped = true;
+    //  monitor.emergency = false;
+    //  return false;
+    //}
+  }
+
+  return true;
 }
 
 } //end namespace
