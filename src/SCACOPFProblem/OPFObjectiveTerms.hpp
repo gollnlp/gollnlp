@@ -40,6 +40,34 @@ namespace gollnlp {
   };
 
   //////////////////////////////////////////////////////////////////////////////
+  // Production cost (approximate) affine objective
+  // min l(p) = a*p+b
+  // where l(CostPi[0]) = CostCi[0] and l(CostPi[end]) = CostCi[end]
+  // or on short l(plb)=C1, l(pub)=Cn
+  // so that a = (Cn-C1)/(pub-plb) and b=(C1*pub - Cn*plb)/(pub-plb)
+  //////////////////////////////////////////////////////////////////////////////
+  class PFProdCostApproxAffineObjTerm : public OptObjectiveTerm {
+  public: 
+    //Gidx contains the indexes (in d.G_Generator) of the generator participating
+    PFProdCostApproxAffineObjTerm(const std::string& id_, 
+				  OptVariablesBlock* p_g_,
+				  const std::vector<int>& Gidx_,
+				  const std::vector<std::vector<double> >& G_CostCi,
+				  const std::vector<std::vector<double> >& G_CostPi_);
+    virtual ~PFProdCostApproxAffineObjTerm();
+    virtual bool eval_f(const OptVariables& vars_primal, bool new_x, double& obj_val);
+    virtual bool eval_grad(const OptVariables& vars_primal, bool new_x, double* grad);
+    //Hessian is all zero
+
+  private:
+    std::string id;
+    int* Gidx;
+    double *a, const_term;
+    int ngen;
+    OptVariablesBlock* p_g;
+  };
+
+  //////////////////////////////////////////////////////////////////////////////
   // Slack penalty piecewise linear objective
   // min sum_i( sum_h P[i][h] sigma_h[i][h])
   // constraints (handled outside) are

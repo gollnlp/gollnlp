@@ -279,6 +279,7 @@ bool MyCode1::do_phase1()
   scacopf_prob->set_basecase_L_rate_reduction(TL_rate_reduction);
   scacopf_prob->set_basecase_T_rate_reduction(TL_rate_reduction);
   //scacopf_prob->set_quadr_penalty_qg0(true);
+  //scacopf_prob->set_linear_prod_cost(true);
 
   scacopf_prob->assembly(K_SCACOPF_phase1);
   scacopf_prob->enable_intermediate_duals();

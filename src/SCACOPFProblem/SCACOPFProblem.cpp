@@ -1508,13 +1508,22 @@ void SCACOPFProblem::add_obj_prod_cost(SCACOPFData& d)
   
   auto p_g = variable("p_g", d);
 
-  PFProdCostAffineCons* prod_cost_cons = 
-    new PFProdCostAffineCons(con_name("prodcost_cons",d), 2*gens.size(), 
-			     p_g, gens, d.G_CostCi, d.G_CostPi);
-  append_constraints(prod_cost_cons);
+  if(linear_prod_cost) {
+    PFProdCostApproxAffineObjTerm* cost_term = 
+      new PFProdCostApproxAffineObjTerm("prodcost_affine_0",
+					p_g, 
+					gens, d.G_CostCi, d.G_CostPi);
+    append_objterm(cost_term);
 
-  OptVariablesBlock* t_h = prod_cost_cons->get_t_h();
-  prod_cost_cons->compute_t_h(t_h); t_h->providesStartingPoint = true;
+  } else {
+    PFProdCostAffineCons* prod_cost_cons = 
+      new PFProdCostAffineCons(con_name("prodcost_cons",d), 2*gens.size(), 
+			       p_g, gens, d.G_CostCi, d.G_CostPi);
+    append_constraints(prod_cost_cons);
+    
+    OptVariablesBlock* t_h = prod_cost_cons->get_t_h();
+    prod_cost_cons->compute_t_h(t_h); t_h->providesStartingPoint = true;
+  }
 }
 
 

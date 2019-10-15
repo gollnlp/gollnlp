@@ -22,7 +22,7 @@ namespace gollnlp {
       : data_sc(d_in), 
 	useQPen(false), slacks_scale(1.),  PVPQSmoothing(0.01), AGCSmoothing(1e-2),
 	AGC_as_nonanticip(false), AGC_simplified(false), PVPQ_as_nonanticip(false),
-	quadr_penalty_qg0(false)
+	linear_prod_cost(false), quadr_penalty_qg0(false)
     {
       L_rate_reduction = T_rate_reduction = 1.;
       my_rank=-1; rank_solver_rank0 = 1;
@@ -83,6 +83,9 @@ namespace gollnlp {
     inline void set_AGC_simplified(bool onOrOff)
     { AGC_simplified = onOrOff; }
     void update_AGC_smoothing_param(const double& val);
+
+    inline void set_linear_prod_cost(const bool onOrOff)
+    { linear_prod_cost = onOrOff; assert(onOrOff && "can only be switched on");}
 
     inline void set_PVPQ_as_nonanticip(bool onOrOff)
     { PVPQ_as_nonanticip = onOrOff; }
@@ -158,6 +161,7 @@ namespace gollnlp {
     bool quadr_penalty_qg0;
   public:
     bool AGC_as_nonanticip, AGC_simplified, PVPQ_as_nonanticip;
+    bool linear_prod_cost;
     double L_rate_reduction, T_rate_reduction;
   public:
     //variables and constraints accessers
