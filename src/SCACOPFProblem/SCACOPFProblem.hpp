@@ -348,15 +348,15 @@ namespace gollnlp {
 	else 
 	  assert(false);
 
-	if(NULL!=vars_duals_bounds_L) 
+	if(NULL!=vars_duals_bounds_L) {
 	  vars_duals_bounds_L->copy_from(duals_lb);
-	else 
-	  assert(false);
+	  vars_duals_bounds_L->set_inactive_duals_lb_to(0., *vars_primal);
+	}else assert(false);
 
-	if(NULL!=vars_duals_bounds_U) 
+	if(NULL!=vars_duals_bounds_U) {
 	  vars_duals_bounds_U->copy_from(duals_ub);
-	else 
-	  assert(false);
+	  vars_duals_bounds_U->set_inactive_duals_ub_to(0., *vars_primal);
+	} else assert(false);
       }
       
       inline void set_iter_stats(int iter_, const double& obj_value_,

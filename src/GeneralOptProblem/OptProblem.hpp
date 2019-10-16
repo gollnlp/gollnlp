@@ -116,6 +116,15 @@ public:
   inline void copy_from(const std::vector<double>& v) { copy_from(v.data()); }
   void copy_from(const double* v);
 
+
+  //
+  //'this' is a dual (lb or ub) corresponding to 'primals'
+  //
+  //the method sets all the inactive duals (primals.lb=-1e+20) to 'ct'
+  void set_inactive_duals_lb_to(double ct, const OptVariables& primals);
+  //the method sets all the inactive duals (primals.ub=+1e+20) to 'ct'
+  void set_inactive_duals_ub_to(double ct, const OptVariables& primals);
+
   OptVariables* new_copy() 
   {
     OptVariables* new_vars = new OptVariables();
