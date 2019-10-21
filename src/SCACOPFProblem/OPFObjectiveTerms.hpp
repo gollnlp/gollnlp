@@ -459,6 +459,148 @@ namespace gollnlp {
     enum {p1=0, q1, p2, q2};
     GenerKPenaltyObjTerm** pen;
   };
+
+  class VoltageKPenaltyObjTerm : public OptObjectiveTerm {
+  public:
+    VoltageKPenaltyObjTerm(const std::string& id, OptVariablesBlock* v_n0_)
+      : OptObjectiveTerm(id), v_n0(v_n0_), H_nnz(0), H_nz_idxs(NULL)
+    { }
+    virtual ~VoltageKPenaltyObjTerm() 
+    { 
+      delete[] H_nz_idxs;
+    }
+
+    bool update_term(int K_idx, int N_idx, const double& v0_new, const double& f0_new, const double& g0_new)
+    {
+      for( VoltTermData& t : terms) {
+	if(t.K_idx==K_idx && t.N_idx==N_idx) {
+	  if(g0_new * t.g0 < 0) {
+	    if(f0_new<t.f0) {
+	      printf("!!!! different sign in deriv\n");
+	      return false; //they should have the same direction
+	    } else {
+	      t = VoltTermData(K_idx, N_idx, v0_new, f0_new, g0_new);
+	      printf("!!!!  sign switched in deriv  newer penalty is larger will be used\n");
+	      return true;
+	    }
+	  }
+	  VoltTermData t_new(K_idx, N_idx, v0_new, f0_new, g0_new);
+	  //is the new term greater than the old term at v0_new?
+	  //is term_new.c  less than t.c ?
+	  
+	  const double aux1 = t_new.x0-t.c;
+	  const double aux2 = t_new.x0-t_new.c;
+	  if(t.a * aux1 * aux1 > t_new.a * aux2 * aux2) {
+	    printf("!!!!  newer pen is small at v0_new\n");
+	    return false;
+	  }
+
+	  if(t_new.g0 > 0 && t_new.c > t.c) {
+	    printf("!!!!  c is increasing  g0 positive \n");
+	    return false;
+	  }
+	  if(t_new.g0 < 0 && t_new.c < t.c) {
+	    printf("!!!!  c is decreasing  g0 negative \n");
+	    return false;
+	  }
+
+	  t = t_new;
+	  return true;
+	}
+      }
+      //not found
+      terms.push_back(VoltTermData(K_idx, N_idx, v0_new, f0_new, g0_new));
+      return true;
+    }
+       
+
+    // f(x)=a(x-c)^2 such f(x0)=f0 and f'(x0)=g0
+    struct VoltTermData
+    {
+      VoltTermData(int K_idx_, int N_idx_, const double& x0_, const double& f0_, const double& g0_)
+	: K_idx(K_idx_), N_idx(N_idx_), x0(x0_), f0(f0_), g0(g0_)
+      {
+	c = x0 - 2*(f0/g0);
+	a = (g0/f0)*(g0/4);
+      }
+      double a,c; 
+      int K_idx, N_idx;
+      double x0, f0, g0;
+    private:
+      VoltTermData() {};
+    };
+
+    virtual bool eval_f(const OptVariables& vars_primal, bool new_x, double& obj_val)
+    { 
+      for(auto& t : terms) {
+	const double aux = v_n0->xref[t.N_idx] - t.c;
+	obj_val += t.a*aux*aux;
+      }
+      //for(int i=0; i<4; i++) pen[i]->eval_f(vars_primal, new_x, obj_val);
+      return true;
+    }
+    virtual bool eval_grad(const OptVariables& vars_primal, bool new_x, double* grad)
+    {
+      for(auto& t : terms) {
+	grad[v_n0->index + t.N_idx] = t.a * (v_n0->xref[t.N_idx] - t.c) * 2;
+      }
+      return true;
+    }
+
+    virtual bool eval_HessLagr(const OptVariables& vars_primal, bool new_x, 
+			       const double& obj_factor,
+			       const int& nnz, int* ii, int* jj, double* M)
+    {
+      assert(terms.size()==H_nnz);
+      if(NULL==M) {
+	int idx, row;
+	for(int it=0; it<terms.size(); it++) {
+	  idx = H_nz_idxs[it]; 
+	  if(idx<0) {assert(false); return false; }
+	  ii[idx] = jj[idx] = v_n0->index + terms[it].N_idx;
+	}
+      } else {
+	for(int it=0; it<terms.size(); it++) {
+	  assert(H_nz_idxs[it]>=0);
+	  assert(H_nz_idxs[it]<nnz);
+	  M[H_nz_idxs[it]] += obj_factor * 2.* terms[it].a;
+	}
+      }
+      return true;
+    }
+
+    virtual int get_HessLagr_nnz() { 
+      return terms.size();
+    }
+    // (i,j) entries in the HessLagr to which this term contributes to
+    virtual bool get_HessLagr_ij(std::vector<OptSparseEntry>& vij) 
+    { 
+      int nnz = terms.size();
+      if(nnz != H_nnz) {
+	delete [] H_nz_idxs;
+	H_nnz = nnz;
+	H_nz_idxs = new int[H_nnz];
+      }
+      
+      int it=0;
+      for(auto& t : terms) {
+	const int i=v_n0->index+t.N_idx;
+	vij.push_back(OptSparseEntry(i,i, H_nz_idxs+it));
+	assert(it<H_nnz);
+	it++;
+      }
+      assert(it==H_nnz);
+      return true; 
+    }
+
+  protected:
+    OptVariablesBlock* v_n0;
+    std::vector<VoltTermData> terms;
+    int H_nnz;
+    int *H_nz_idxs;
+  private:
+    VoltageKPenaltyObjTerm() : OptObjectiveTerm("voltage_pen_dummy"), v_n0(NULL) { }
+  };
 } //end namespace
 
 #endif
