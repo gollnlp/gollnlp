@@ -1670,8 +1670,8 @@ bool MyCode1::do_phase2_evaluator_part(int& switchToSolver)
 #ifdef DEBUG_COMM 
 	    printf("[comm] Evaluator Rank %d recv basecase solution "
 		   "from scacopf_pass %d completed at global time %g [K_idx=%d][2]\n", 
-		   my_rank, scacopf_pass_of_solution, K_phase2[K_idx],
-		   glob_timer.measureElapsedTime());
+		   my_rank, scacopf_pass_of_solution,
+		   glob_timer.measureElapsedTime(), K_phase2[K_idx]);
 #endif 
 	    phase3_scacopf_pass_solution = scacopf_pass_of_solution;
 	    req_recv_base_sol.post(scacopf_prob, Tag7, rank_solver_rank0, comm_world);
@@ -2279,7 +2279,7 @@ double MyCode1::phase3_solve_scacopf(std::vector<int>& K_idxs,
 		   K_idxs[it], v0, f0, g0, N_idx);
 	  
 	    bool updated = scacopf_prob->update_conting_penalty_voltage(K_idxs[it], N_idx, v0, f0, g0);
-	    if(!updated) printf("K_idx=%d [pen-volt transf] penalty term was not updated\n");
+	    if(!updated) printf("K_idx=%d [pen-volt transf] penalty term was not updated\n", K_idxs[it]);
 	   
 	    sprintf(msg, "[pen-volt transf] |");
 	  }
