@@ -148,6 +148,7 @@ int MyCode1::initialize(int argc, char *argv[])
   if(data.N_Bus.size()<17000) pen_threshold = 225000;
   if(data.N_Bus.size()<10000) pen_threshold = 100000;
 
+  pen_threshold = 400000;
   return true;
 }
 void MyCode1::phase1_ranks_allocation()
@@ -733,11 +734,25 @@ void MyCode1::phase2_initial_contingency_distribution()
       //if(1.0*r/num_ranks <= 110.0/144 && !K_high_prio_phase2.empty()) {
       if(!K_high_prio_phase2.empty()) {
 
-	//if(false && r==2) {
-	//  K_idx_phase2 = 11763;
-	//  K_on_rank[r].push_back(11763);
-	//  erase_elem_from(K_high_prio_phase2, 11763);
-	//} else 
+	if(r==2){
+	  int kk = 11763;//11971;//11763;
+	  if(kk>=data.K_Contingency.size())
+	    kk=17;
+	  K_idx_phase2 = kk;
+
+
+	  K_on_rank[r].push_back(kk);
+	  erase_elem_from(K_high_prio_phase2, kk);
+	} else if(r==3){
+	  int kk = 11827;//11763;//11971;//11763;
+	  if(kk>=data.K_Contingency.size())
+	    kk=17;
+	  K_idx_phase2 = kk;
+
+
+	  K_on_rank[r].push_back(kk);
+	  erase_elem_from(K_high_prio_phase2, kk);
+	} else 
 	{
 	  K_idx_phase2 = K_high_prio_phase2.front();
 	  K_high_prio_phase2.pop_front();
@@ -1026,7 +1041,8 @@ bool MyCode1::do_phase2_master_part()
 
 	assert(K_info_phase2[idx].evaled_with_sol_at_pass<=solution_pass_of_eval);
 
-	K_info_phase2[idx].penalty = penalty; K_info_phase2[idx].n_evals++;
+	K_info_phase2[idx].penalty = penalty;
+	K_info_phase2[idx].n_evals++;
 	K_info_phase2[idx].p1 = req_pen->buffer[1]; K_info_phase2[idx].q1 = req_pen->buffer[2];
 	K_info_phase2[idx].p2 = req_pen->buffer[3]; K_info_phase2[idx].q2 = req_pen->buffer[4];
 	K_info_phase2[idx].rank_eval = r;
@@ -1972,68 +1988,16 @@ void MyCode1::process_contingency(const int& K_idx, int& status, double& penalty
   //
   // the actual solve 
   //
-  penalty = solve_contingency_use_fixing(K_idx, status);
+  status=0;
+  penalty = solve_contingency_use_fixing(K_idx, status, info_out);
   //penalty = solve_contingency(K_idx, status);
 
-  //
-  // prepare info for master rank
-  //
-  info_out[0]=penalty;
-
-  if(data.K_ConType[K_idx] == SCACOPFData::kGenerator) {
-
-    auto pg0 = scacopf_prob->variable("p_g", data);
-    assert(pg0->n == data.G_Generator.size());
-    assert(K_idx>=0 && K_idx<data.K_outidx.size());
-    assert(data.K_outidx.size() == data.K_Contingency.size());
-
-    int idx_gen = data.K_outidx[K_idx];
-    assert(idx_gen>=0 && idx_gen<pg0->n);
-    
-    info_out[1]=pg0->x[idx_gen];
-    info_out[2]=info_out[3]=info_out[4]=0.;
-
-  } else if(data.K_ConType[K_idx] == SCACOPFData::kLine) {
-
-    auto qli1 = scacopf_prob->variable("q_li1", data);
-    auto qli2 = scacopf_prob->variable("q_li2", data); assert(qli2->n==qli1->n);
-    auto pli1 = scacopf_prob->variable("p_li1", data); assert(pli1->n==qli1->n);
-    auto pli2 = scacopf_prob->variable("p_li2", data); assert(pli2->n==qli1->n);
-    assert(data.L_Line.size() == qli1->n);
-    assert(K_idx>=0 && K_idx<data.K_outidx.size());
-
-    int idx = data.K_outidx[K_idx];
-    assert(idx>=0 && idx<qli1->n);
-    
-    info_out[1]=pli1->x[idx];
-    info_out[2]=qli1->x[idx];
-    info_out[3]=pli2->x[idx];
-    info_out[4]=qli2->x[idx];
-
-  } else if(data.K_ConType[K_idx] == SCACOPFData::kTransformer) {
-    auto qti1 = scacopf_prob->variable("q_ti1", data);
-    auto qti2 = scacopf_prob->variable("q_ti2", data);
-    auto pti1 = scacopf_prob->variable("p_ti1", data);
-    auto pti2 = scacopf_prob->variable("p_ti2", data);
-
-    assert(data.T_Transformer.size() == qti1->n);
-    assert(K_idx>=0 && K_idx<data.K_outidx.size());
-    
-    int idx = data.K_outidx[K_idx];
-    assert(idx>=0 && idx<qti1->n);
-    
-    info_out[1]=pti1->x[idx];
-    info_out[2]=qti1->x[idx];
-    info_out[3]=pti2->x[idx];
-    info_out[4]=qti2->x[idx];
-
-  }
 
   //status is OK=0 or failure<0 or OK-ish>0
   //return penalty/objective for the contingency problem
 }
 
-double MyCode1::solve_contingency_use_fixing(int K_idx, int& status)
+double MyCode1::solve_contingency_use_fixing(int K_idx, int& status, double* data_for_master)
 {
   goTimer t; t.start();
   assert(iAmEvaluator);
@@ -2045,12 +2009,25 @@ double MyCode1::solve_contingency_use_fixing(int K_idx, int& status)
   auto v_n0 = scacopf_prob->variable("v_n", data);
   auto theta_n0 = scacopf_prob->variable("theta_n", data);
   auto b_s0 = scacopf_prob->variable("b_s", data); 
+  auto p_li1 = scacopf_prob->variable("p_li1", data); 
+  auto q_li1 = scacopf_prob->variable("q_li1", data); 
+  auto p_li2 = scacopf_prob->variable("p_li2", data); 
+  auto q_li2 = scacopf_prob->variable("q_li2", data);
+  auto p_ti1 = scacopf_prob->variable("p_ti1", data); 
+  auto q_ti1 = scacopf_prob->variable("q_ti1", data); 
+  auto p_ti2 = scacopf_prob->variable("p_ti2", data); 
+  auto q_ti2 = scacopf_prob->variable("q_ti2", data); 
+
 
   assert(p_g0 == dict_basecase_vars["p_g_0"]);
   assert(q_g0 == dict_basecase_vars["q_g_0"]);
   assert(v_n0 == dict_basecase_vars["v_n_0"]);
   assert(theta_n0 == dict_basecase_vars["theta_n_0"]);
   assert(b_s0 == dict_basecase_vars["b_s_0"]);
+  assert(p_li1 == dict_basecase_vars["p_li1_0"]);
+  assert(q_li1 == dict_basecase_vars["q_li1_0"]);
+  assert(p_li2 == dict_basecase_vars["p_li2_0"]);
+  assert(q_li2 == dict_basecase_vars["q_li2_0"]);
 
   ContingencyProblemWithFixingCode1 prob(data, K_idx, 
 					 my_rank, comm_size, 
@@ -2069,23 +2046,26 @@ double MyCode1::solve_contingency_use_fixing(int K_idx, int& status)
   prob.use_nlp_solver("ipopt");
 
 
-  if(!prob.default_assembly(v_n0, theta_n0, b_s0, p_g0, q_g0)) {
+  if(!prob.default_assembly(v_n0, theta_n0, b_s0, p_g0, q_g0, p_li1, q_li1, p_li2, q_li2, p_ti1, q_ti1, p_ti2, q_ti2)) {
 
     printf("rank=%d failed in default_assembly for contingency K_idx=%d\n",
 	   my_rank, K_idx);
     status = -1;
-    return 1e+20;
+    data_for_master[0]=-0.117;
+    data_for_master[1]=data_for_master[2]=data_for_master[3]=data_for_master[4]=0.;
+    return -1170;
   }
 
-  double penalty; 
-  if(!prob.eval_obj(p_g0, v_n0, penalty)) {
-    printf("Evaluator Rank %d failed in the eval_obj of contingency K_idx=%d\n",
-	   my_rank, K_idx);
+  double penalty; int num_iter = -117;
+  if(!prob.eval_obj(p_g0, v_n0, penalty, data_for_master)) {
+    printf("Evaluator Rank %d failed in the eval_obj of contingency K_idx=%d  global time %g\n",
+	   my_rank, K_idx, glob_timer.measureElapsedTime());
     status = -3;
-    penalty=1e+6;
-  }
-  int num_iter = prob.number_of_iterations();
-
+    data_for_master[0]=penalty=-0.0117;
+    data_for_master[1]=data_for_master[2]=data_for_master[3]=data_for_master[4]=0.;
+  } else {
+    num_iter = prob.number_of_iterations();
+  }  
 
   printf("Evaluator Rank %3d K_idx=%d finished with penalty %12.3f "
 	 "in %5.3f sec and %3d iterations  sol_from_scacopf_pass %d  global time %g\n",
@@ -2270,12 +2250,41 @@ double MyCode1::phase3_solve_scacopf(std::vector<int>& K_idxs,
 						penalty_weight*penalty);
 	sprintf(msg, "[pen line] |");
       } else if(data.K_ConType[K_idxs[it]]==SCACOPFData::kTransformer) {
-	scacopf_prob->remove_conting_penalty_transf0(idx_elem);
-	scacopf_prob->add_conting_penalty_transf0(idx_elem, 
-						K_powers[it][0], K_powers[it][1],
-						K_powers[it][2], K_powers[it][3],
-						penalty_weight*penalty);
-	sprintf(msg, "[pen transf] |");
+	assert(4 == K_powers[it].size());
+	if(fabs(K_powers[it][1])<1e+8) {
+	  assert(false);
+	  scacopf_prob->remove_conting_penalty_transf0(idx_elem);
+	  scacopf_prob->add_conting_penalty_transf0(idx_elem, 
+						    K_powers[it][0], K_powers[it][1],
+						    K_powers[it][2], K_powers[it][3],
+						    penalty_weight*penalty);
+	  sprintf(msg, "[pen-pow transf] |");
+	} else {
+	  double f0 = penalty_weight*penalty;
+
+	  int N_idx = (int) K_powers[it][3]; assert(N_idx!=0);
+	  bool lower_bound_pen = (N_idx<=-1);
+	  if(N_idx<0) N_idx = 0 - N_idx;
+	  N_idx = N_idx -1;
+	  assert(N_idx>=0); 
+	  assert(N_idx < data.N_Bus.size());
+	  auto v_n0 = scacopf_prob->variable("v_n", data); assert(v_n0);
+	  double v0 = v_n0->x[N_idx];
+	  double v0_received = K_powers[it][0]-1000; assert(v0_received>=0.5 && v0_received<=1.5);
+	  assert(fabs(v0-v0_received )<0.025);
+	  if(fabs(v0-v0_received)<0.025) {
+	    double g0 = K_powers[it][2]*penalty_weight;
+
+	    printf("K_idx=%d [pen-volt transf] v0=%.6f f0=%.6f g0=%.6f N_idx=%d (weigthed)\n",
+		   K_idxs[it], v0, f0, g0, N_idx);
+	  
+	    bool updated = scacopf_prob->update_conting_penalty_voltage(K_idxs[it], N_idx, v0, f0, g0);
+	    if(!updated) printf("K_idx=%d [pen-volt transf] penalty term was not updated\n");
+	   
+	    sprintf(msg, "[pen-volt transf] |");
+	  }
+	}
+	
       } else { assert(false); }
 
       smsg += msg;
@@ -2306,7 +2315,7 @@ double MyCode1::phase3_solve_scacopf(std::vector<int>& K_idxs,
     scacopf_prob->dual_problem_changed();
     
     assert(false && "code has slow performance - do not use");
-    //for(int K_idx: Ks_to_add_as_blocks) //!
+    //for(int K_idx: Ks_to_add_as_blocks) 
     //  scacopf_prob->set_warm_start_for_cont_from_base_of(K_idx, *scacopf_prob);
 
 
@@ -2317,7 +2326,7 @@ double MyCode1::phase3_solve_scacopf(std::vector<int>& K_idxs,
   scacopf_prob->set_basecase_L_rate_reduction(TL_rate_reduction);
   scacopf_prob->set_basecase_T_rate_reduction(TL_rate_reduction);
 
-  //!  scacopf_prob->set_quadr_penalty_qg0(true);
+  //scacopf_prob->set_quadr_penalty_qg0(true);
 
   bool blarge_prob = true;//data.N_Bus.size() > 20000;
 
