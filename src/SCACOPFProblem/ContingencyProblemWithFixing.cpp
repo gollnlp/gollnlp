@@ -85,6 +85,7 @@ namespace gollnlp {
 
     p_g0=pg0; v_n0=vn0;
 
+
     assert(data_K.size()==1);
     SCACOPFData& dK = *data_K[0];
     useQPen = true;
@@ -134,13 +135,17 @@ namespace gollnlp {
     //find AGC generators that are "blocking" and fix them; update particip and non-particip indexes
     solv1_pg0_partic_idxs=pg0_partic_idxs; solv1_pgK_partic_idxs=pgK_partic_idxs;
     solv1_pgK_nonpartic_idxs=pgK_nonpartic_idxs; solv1_pg0_nonpartic_idxs=pg0_nonpartic_idxs;
-    double gen_K_diff=0.;//default for transmission contingencies; surplus or deficit of generation
+    double gen_K_diff=0.01;//default for transmission contingencies; surplus or deficit of generation
     double residual_Pg;
     solv1_delta_out=0.; solv1_delta_lb=-1e+20; solv1_delta_ub=1e+20; 
     solv1_delta_blocking=0.; solv1_delta_needed=0.;
-    if(dK.K_ConType[0]==SCACOPFData::kGenerator) {
-      assert(data_sc.K_outidx[K_idx]<pg0->n);
-      gen_K_diff = pg0->x[data_sc.K_outidx[K_idx]];
+    if(dK.K_ConType[0]==SCACOPFData::kGenerator || gen_K_diff>0.) {
+      
+      if(dK.K_ConType[0]==SCACOPFData::kGenerator) {
+	assert(data_sc.K_outidx[K_idx]<pg0->n);
+	gen_K_diff = pg0->x[data_sc.K_outidx[K_idx]];
+	
+      }
 
       solv1_Pg_was_enough = push_and_fix_AGCgen(dK, gen_K_diff, 0., 
 				   solv1_pg0_partic_idxs, solv1_pgK_partic_idxs, 
@@ -546,9 +551,6 @@ namespace gollnlp {
     get_solution_simplicial_vectorized(sln_solve1);
     obj_solve1 = this->obj_value;
     
-    //print_active_power_balance_info(*data_K[0]);
-    //print_reactive_power_balance_info(*data_K[0]);
-
 #ifdef BE_VERBOSE
     string sit = "["; for(auto iter:  hist_iter) sit += to_string(iter)+'/'; sit[sit.size()-1] = ']';
     string sobj="["; for(auto obj: hist_obj) sobj += to_string(obj)+'/'; sobj[sobj.size()-1]=']';
@@ -1020,12 +1022,12 @@ namespace gollnlp {
 	      if(pg0->x[data_sc.K_outidx[K_idx]] < -1e-6) assert(false);
 
 	      //double gen_deficit = pg0->x[data_sc.K_outidx[K_idx]];
-	      if(pen_p_balance > 5e5)
-		gen_K_diff = 4*poverall;
+	      if(pen_p_balance > 2e5)
+		gen_K_diff = 3*poverall;
 	      else if(pen_p_balance > 5e4)
-		gen_K_diff = 2.5*poverall;
+		gen_K_diff = 2*poverall;
 	      else 
-		gen_K_diff = 1.75*poverall;
+		gen_K_diff = 1.5*poverall;
 	    }
 	  }
 	}
