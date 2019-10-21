@@ -58,6 +58,18 @@ bool SCACOPFProblem::default_assembly()
     r_base =                    d.T_RateBase[it];
     rate[it] = r_emer < r_base ? r_emer : r_base;
   }
+
+  int idx=6343;
+  //double r1 = rate[idx];
+  //rate[idx] *= 0.99;
+  //printf("!!!!!!!!!! changing rate for transf idx=%d from %.5e to %.5e\n", idx, r1, rate[idx]);
+
+  //! //aaa
+  auto v_n = variable("v_n", d);
+  idx = 7454;//4090;//7454;//43869;//16677;;
+  //v_n->ub[idx] *= 0.96;// v_n->lb[idx]*1.1;
+  //v_n->lb[idx] = v_n->ub[idx]*0.9;
+
   add_cons_thermal_ti_lims(d, rate);
 
   add_obj_prod_cost(d);
@@ -76,6 +88,8 @@ bool SCACOPFProblem::default_assembly()
   append_objterm(new TransmKPenaltyObjTerm("penalty_transf_from_conting",
 					   variable("p_ti1", d), variable("q_ti1", d), 
 					   variable("p_ti2", d), variable("q_ti2", d)));
+
+  append_objterm(new VoltageKPenaltyObjTerm("penalty_voltage_from_conting", variable("v_n", d)));
 
   add_agc_reserves_for_max_Lloss_Ugain();
   add_agc_reserves();
@@ -938,6 +952,16 @@ void SCACOPFProblem::remove_conting_penalty_transf0(const int& idx_transf)
   TransmKPenaltyObjTerm* ot =  dynamic_cast<TransmKPenaltyObjTerm*>(objterm("penalty_transf_from_conting"));
   assert(ot);
   if(ot) ot->remove_penalty(idx_transf);
+}
+
+bool SCACOPFProblem::update_conting_penalty_voltage(const int& K_idx, const int& N_idx, 
+						    const double& v0, const double& pen0, 
+						    const double& pen0_deriv)
+{
+  VoltageKPenaltyObjTerm* ot = dynamic_cast<VoltageKPenaltyObjTerm*>(objterm("penalty_voltage_from_conting"));
+  assert(ot);
+  if(ot) return ot->update_term(K_idx, N_idx, v0, pen0, pen0_deriv);
+  else   return false;
 }
 
 void SCACOPFProblem::add_variables(SCACOPFData& d, bool SysCond_BaseCase)

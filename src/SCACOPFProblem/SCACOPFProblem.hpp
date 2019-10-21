@@ -111,6 +111,8 @@ namespace gollnlp {
 				   const double& f_pen);
     void remove_conting_penalty_transf0(const int& idx_line);
 
+    bool update_conting_penalty_voltage(const int& K_idx, const int& N_idx, 
+					const double& v0, const double& pen0, const double& pen0_deriv);
 
     bool set_warm_start_from_base_of(SCACOPFProblem& srcProb);
   protected:
