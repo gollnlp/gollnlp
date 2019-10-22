@@ -159,6 +159,7 @@ namespace gollnlp {
  	bool bfeasib;
 
 	if(fabs(gen_K_diff)>1e-6) {
+	  if(K_idx==11827) printf("!!!!K_idx=%d gen_K_diff=%g solv1_delta_optim=%g\n", K_idx, gen_K_diff, solv1_delta_optim);
 	  //solv1_delta_optim and gen_K_diff must have same sign at this point
 	  if(solv1_delta_optim * gen_K_diff < 0) gen_K_diff=0.;
 	  bfeasib = push_and_fix_AGCgen(d, gen_K_diff, solv1_delta_optim, 
@@ -322,10 +323,10 @@ namespace gollnlp {
       assert(idx>=0 && idx<q_li10->n);
       if(!recourse_action_from_voltages(idx, true, info_out)) { 
 	//use penalization of the powers through the transformer
-	info_out[1]=p_ti10->x[idx];
-	info_out[2]=q_ti10->x[idx];
-	info_out[3]=p_ti20->x[idx];
-	info_out[4]=q_ti20->x[idx];
+	info_out[1]=p_li10->x[idx];
+	info_out[2]=q_li10->x[idx];
+	info_out[3]=p_li20->x[idx];
+	info_out[4]=q_li20->x[idx];
       }      
       
     } else if(data.K_ConType[K_idx] == SCACOPFData::kTransformer) {
@@ -428,7 +429,6 @@ namespace gollnlp {
 	     K_idx, isLine ? "line" : "transf", Nidx);
 #endif
       info_out[0] = obj_value;
-      // f0 is in info_out[0]
       info_out[0+1] = 1000+v_n0->x[Nidx];
       info_out[1+1] = 1e+8; //upper is 1e+8, lower is -1e+8; fabs>=1e+8 indicates a voltage penalty
       info_out[2+1] = vnk_duals_ub->x[Nidx];
@@ -439,11 +439,34 @@ namespace gollnlp {
       
     }
     if(Nidx_from_lower>=0 && Nidx_from_upper<0) {
-      assert(false && "at lower");
+      printf("[warning] code1 in an UNTESTED case (voltage at lower) K_idx=%d\n", K_idx);
+      const int Nidx = Nidx_from_lower;
+#ifdef BE_VERBOSE
+      printf("ContingencyProblem_wfix K_idx=%d recourse_%s voltage pen at busidx=%d (voltage at lower)\n",
+	     K_idx, isLine ? "line" : "transf", Nidx);
+#endif
+      info_out[0] = obj_value;
+      info_out[0+1] = 1000+v_n0->x[Nidx];
+      info_out[1+1] = -1e+8; //upper is 1e+8, lower is -1e+8; fabs>=1e+8 indicates a voltage penalty
+      info_out[2+1] = vnk_duals_lb->x[Nidx];
+      info_out[3+1] = (double)(-1-Nidx); // -1-Nidx for lower
+      return true;
     }
 
     if(Nidx_from_lower>=0 && Nidx_from_upper>=0) {
-      assert(false && "at lower and at upper" );
+      if(Nidx_from_lower == Nidx_from_upper) {
+	printf("[warning] code1 in an UNTESTED case (voltage at lower and upper at the same bus %d) K_idx=%d will do nothing\n", Nidx_from_lower, K_idx);
+	return false;
+      } else {
+	printf("[warning] code1 in an UNTESTED case (voltage at lower and upper) K_idx=%d will do use upper\n", K_idx);
+	const int Nidx = Nidx_from_upper;
+	info_out[0] = obj_value;
+	info_out[0+1] = 1000+v_n0->x[Nidx];
+	info_out[1+1] = 1e+8; //upper is 1e+8, lower is -1e+8; fabs>=1e+8 indicates a voltage penalty
+	info_out[2+1] = vnk_duals_ub->x[Nidx];
+	info_out[3+1] = (double)(1+Nidx); //it will be -1-Nidx for lower
+	return true;
+      }
     }
 
     if(Nidx_from_upper>=0 || Nidx_from_lower>=0) return false;

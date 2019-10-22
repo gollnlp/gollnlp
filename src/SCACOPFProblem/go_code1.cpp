@@ -737,7 +737,7 @@ void MyCode1::phase2_initial_contingency_distribution()
 	if(r==2){
 	  int kk = 11763;//11971;//11763;
 	  if(kk>=data.K_Contingency.size())
-	    kk=17;
+	    kk=4916;
 	  K_idx_phase2 = kk;
 
 
@@ -2202,7 +2202,6 @@ double MyCode1::phase3_solve_scacopf(std::vector<int>& K_idxs,
   assert(K_idxs.size()==K_penalties.size());
   assert(K_idxs.size()==K_actions.size());
 
-
   goTimer t; t.start();
 
   {
@@ -2243,16 +2242,50 @@ double MyCode1::phase3_solve_scacopf(std::vector<int>& K_idxs,
 						    penalty_weight*penalty);
 	sprintf(msg, "[pen gen] |");
       } else if(data.K_ConType[K_idxs[it]]==SCACOPFData::kLine) {
-	scacopf_prob->remove_conting_penalty_line0(idx_elem);
-	scacopf_prob->add_conting_penalty_line0(idx_elem, 
-						K_powers[it][0], K_powers[it][1],
-						K_powers[it][2], K_powers[it][3],
-						penalty_weight*penalty);
-	sprintf(msg, "[pen line] |");
+	assert(4 == K_powers[it].size());
+	if(fabs(K_powers[it][1])<1e+8) {
+
+	  scacopf_prob->remove_conting_penalty_line0(idx_elem);
+	  scacopf_prob->add_conting_penalty_line0(idx_elem, 
+						  K_powers[it][0], K_powers[it][1],
+						  K_powers[it][2], K_powers[it][3],
+						  penalty_weight*penalty);
+	  sprintf(msg, "[pen-pow line] |");
+	} else {
+	  double f0 = penalty_weight*penalty;
+
+	  int N_idx = (int) K_powers[it][3]; assert(N_idx!=0);
+
+	  //check consistency
+	  if(N_idx*(K_powers[it][1]/1e5) >=0) {
+	    bool is_lower_bound_pen = (N_idx<=-1);
+	    if(N_idx<0) N_idx = 0 - N_idx;
+	    N_idx = N_idx - 1; assert(N_idx>=0); assert(N_idx < data.N_Bus.size());
+	    auto v_n0 = scacopf_prob->variable("v_n", data); assert(v_n0);
+	    double v0 = v_n0->x[N_idx];
+	    double v0_received = K_powers[it][0]-1000; assert(v0_received>=0.5 && v0_received<=1.5);
+	    assert(fabs(v0-v0_received )<0.05);
+	    if(fabs(v0-v0_received)<0.05) {
+	      
+	      double g0 = K_powers[it][2]*penalty_weight;
+
+	      printf("K_idx=%d [pen-volt line] v0=%.6f f0=%.6f g0=%.6f N_idx=%d (weigthed)\n",
+		     K_idxs[it], v0, f0, g0, N_idx);
+	      
+	      //make sure g0 has the right sign
+	      if(is_lower_bound_pen) g0 = -fabs(g0);
+	      
+	      bool updated = scacopf_prob->update_conting_penalty_voltage(K_idxs[it], N_idx, v0, f0, -g0);
+	      if(!updated) printf("K_idx=%d [pen-volt line] penalty term was not updated\n", K_idxs[it]);
+	      
+	      sprintf(msg, "[pen-volt transf] |");
+	    }
+	  }
+	}
+	
       } else if(data.K_ConType[K_idxs[it]]==SCACOPFData::kTransformer) {
 	assert(4 == K_powers[it].size());
 	if(fabs(K_powers[it][1])<1e+8) {
-	  assert(false);
 	  scacopf_prob->remove_conting_penalty_transf0(idx_elem);
 	  scacopf_prob->add_conting_penalty_transf0(idx_elem, 
 						    K_powers[it][0], K_powers[it][1],
@@ -2263,25 +2296,31 @@ double MyCode1::phase3_solve_scacopf(std::vector<int>& K_idxs,
 	  double f0 = penalty_weight*penalty;
 
 	  int N_idx = (int) K_powers[it][3]; assert(N_idx!=0);
-	  bool lower_bound_pen = (N_idx<=-1);
-	  if(N_idx<0) N_idx = 0 - N_idx;
-	  N_idx = N_idx -1;
-	  assert(N_idx>=0); 
-	  assert(N_idx < data.N_Bus.size());
-	  auto v_n0 = scacopf_prob->variable("v_n", data); assert(v_n0);
-	  double v0 = v_n0->x[N_idx];
-	  double v0_received = K_powers[it][0]-1000; assert(v0_received>=0.5 && v0_received<=1.5);
-	  assert(fabs(v0-v0_received )<0.025);
-	  if(fabs(v0-v0_received)<0.025) {
-	    double g0 = K_powers[it][2]*penalty_weight;
 
-	    printf("K_idx=%d [pen-volt transf] v0=%.6f f0=%.6f g0=%.6f N_idx=%d (weigthed)\n",
-		   K_idxs[it], v0, f0, g0, N_idx);
-	  
-	    bool updated = scacopf_prob->update_conting_penalty_voltage(K_idxs[it], N_idx, v0, f0, g0);
-	    if(!updated) printf("K_idx=%d [pen-volt transf] penalty term was not updated\n", K_idxs[it]);
-	   
-	    sprintf(msg, "[pen-volt transf] |");
+	  //check consistency
+	  if(N_idx*(K_powers[it][1]/1e5) >=0) {
+	    bool is_lower_bound_pen = (N_idx<=-1);
+	    if(N_idx<0) N_idx = 0 - N_idx;
+	    N_idx = N_idx - 1; assert(N_idx>=0); assert(N_idx < data.N_Bus.size());
+	    auto v_n0 = scacopf_prob->variable("v_n", data); assert(v_n0);
+	    double v0 = v_n0->x[N_idx];
+	    double v0_received = K_powers[it][0]-1000; assert(v0_received>=0.5 && v0_received<=1.5);
+	    assert(fabs(v0-v0_received )<0.05);
+	    if(fabs(v0-v0_received)<0.05) {
+	      
+	      double g0 = K_powers[it][2]*penalty_weight;
+
+	      printf("K_idx=%d [pen-volt transf] v0=%.6f f0=%.6f g0=%.6f N_idx=%d (weigthed)\n",
+		     K_idxs[it], v0, f0, g0, N_idx);
+	      
+	      //make sure g0 has the right sign
+	      if(is_lower_bound_pen) g0 = -fabs(g0);
+	      
+	      bool updated = scacopf_prob->update_conting_penalty_voltage(K_idxs[it], N_idx, v0, f0, g0);
+	      if(!updated) printf("K_idx=%d [pen-volt transf] penalty term was not updated\n", K_idxs[it]);
+	      
+	      sprintf(msg, "[pen-volt transf] |");
+	    }
 	  }
 	}
 	
