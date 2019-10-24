@@ -594,25 +594,16 @@ bool MyCode1::do_phase1()
   } else {
      req_send_base_sols.post_new_sol(scacopf_prob, Tag7, my_rank, comm_world, phase3_scacopf_passes_solver);
     
-  //   if(blarge_prob) {
-
-  //     scacopf_prob->set_solver_option("mu_init", 1e-8);
-      
-  //     bool bret = scacopf_prob->reoptimize(OptProblem::primalDualRestart);
-  //     attempt_write_solutions(scacopf_prob, bret);
-  //   }      
-  //   cost_basecase = scacopf_prob->objective_value();
-  //   scacopf_prob->print_objterms_evals();
-  //   printf("[ph1] rank %d  scacopf solve phase 1 done at global time %g\n", 
-  // 	   my_rank, glob_timer.measureElapsedTime());
-
-      
-     std::this_thread::sleep_for(std::chrono::milliseconds(50));
-     while(!req_send_base_sols.sends_list.back()->all_are_done()) {
-       printf("!!!! Solver will sleep because req_send_base_sols has not completed time=%.3f\n", glob_timer.measureElapsedTime());
-       std::this_thread::sleep_for(std::chrono::milliseconds(500));
+     std::this_thread::sleep_for(std::chrono::milliseconds(100));
+     for(int ntry=0; ntry<5; ntry++) {
+       if(!req_send_base_sols.sends_list.back()->all_are_done()) {
+	 printf("!!!! Solver will sleep because req_send_base_sols has not completed time=%.3f\n", glob_timer.measureElapsedTime());
+	 std::this_thread::sleep_for(std::chrono::milliseconds(500));
+       } else {
+	 printf("solver rank %d  basecase solution pass %d send to all\n", my_rank, phase3_scacopf_passes_solver);
+	 break;
+       }
      }
-     printf("solver rank %d  basecase solution pass %d send to all\n", my_rank, phase3_scacopf_passes_solver);
   }
 
   if(iAmMaster) {
@@ -2533,17 +2524,16 @@ double MyCode1::phase3_solve_scacopf(std::vector<int>& K_idxs,
 #endif
   }
 
-
-  for(int i=0; i<100; i++)
-    std::this_thread::sleep_for(std::chrono::milliseconds(1));
-
-  //this will free memory associated with all basecase solution send requests that completed
-  int n_cleanups = req_send_base_sols.attempt_cleanup();
+  //let solver rank touch the MPI buffers a couple of times
+  for(int i=0; i<10; i++) {
+    //this will free memory associated with all basecase solution send requests that completed
+    int n_cleanups = req_send_base_sols.attempt_cleanup();
 #ifdef DEBUG_COMM
-  printf("Solver Rank %d -> cleanups: %d  [at pass %d]\n",
-  	 my_rank, n_cleanups, phase3_scacopf_passes_solver);
+    printf("Solver Rank %d -> cleanups: %d  [at pass %d]\n",
+	   my_rank, n_cleanups, phase3_scacopf_passes_solver);
 #endif
-
+    std::this_thread::sleep_for(std::chrono::milliseconds(10));
+  }
   return cost;
 }
 
