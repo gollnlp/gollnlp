@@ -842,8 +842,10 @@ int MyCode2::pick_new_contingency(int rank)
 {
   //pick new contingency 
   int perRank = K_Contingency.size()/(comm_size-1);
-  int Kstart = perRank*(rank-1);
-  if(rank<=120) Kstart=0;
+  
+  //int Kstart = perRank*(rank-1);
+  //if(rank<=120) Kstart=0;
+  int Kstart=0;
   auto Kidxs = findall(K_left, [Kstart](int val) {return val>=Kstart;});
   if(Kidxs.empty()) 
     Kidxs = findall(K_left, [](int val) {return val>=0;});
