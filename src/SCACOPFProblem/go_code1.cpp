@@ -1882,6 +1882,7 @@ bool MyCode1::do_phase3_solver_part()
 	}; 
 	printf("]\n"); fflush(stdout);
 
+
 	bool last_pass = false;
 	assert(K_idxs.size()>0);
 	if(K_idxs.size()>0) {
@@ -1927,6 +1928,17 @@ bool MyCode1::do_phase3_solver_part()
       } else {
 	//request for SCACOPF idxs did not complete
       }
+
+      {
+	  //let solver rank touch the MPI buffer
+	  //this will free memory associated with all basecase solution send requests that completed
+	  int n_cleanups = req_send_base_sols.attempt_cleanup();
+	  //#ifdef DEBUG_COMM
+	  //printf("!!!!Solver Rank %d -> cleanups: %d  [at pass %d]\n",
+	  //	 my_rank, n_cleanups, phase3_scacopf_passes_solver);
+	  //#endif
+	  if(0==n_cleanups) std::this_thread::sleep_for(std::chrono::milliseconds(10));
+	}
     }
   }
   return false;
