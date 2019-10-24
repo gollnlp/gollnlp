@@ -4,6 +4,8 @@
 
 #include "string.h"
 
+using namespace std;
+
 namespace gollnlp {
 
 //////////////////////////////////////////////////////////////////////////////
@@ -46,6 +48,73 @@ bool PFProdCostPcLinObjTerm::eval_grad(const OptVariables& vars_primal, bool new
   //printf("Pen2: grad %p\n", grad);
   //printf("t_h index %d\n", t_h->index);
   DAXPY(&(t_h->n), &done, CostCi, &ione, grad+t_h->index, &ione);
+  return true;
+}
+
+//////////////////////////////////////////////////////////////////////////////
+// Production cost (approximate) affine objective
+// min l(p) = a*p+b
+// where l(CostPi[0]) = CostCi[0] and l(CostPi[end]) = CostCi[end]
+// or on short l(plb)=C1, l(pub)=Cn
+// so that a = (Cn-C1)/(pub-plb) and b=(C1*pub - Cn*plb)/(pub-plb)
+//////////////////////////////////////////////////////////////////////////////
+PFProdCostApproxAffineObjTerm::
+PFProdCostApproxAffineObjTerm(const std::string& id_, 
+			      OptVariablesBlock* p_g_,
+			      const std::vector<int>& Gidx,
+			      const std::vector<std::vector<double> >& G_CostCi,
+			      const std::vector<std::vector<double> >& G_CostPi)
+  : OptObjectiveTerm(id_), p_g(p_g_)
+{
+  ngen = Gidx.size();
+  assert(ngen==p_g->n);
+
+  a = new double[ngen]; 
+  const_term = 0.;
+
+  for(int it=0; it<ngen; it++) {
+     vector<double> Pi = G_CostPi[Gidx[it]];
+     const vector<double>& Ci = G_CostCi[Gidx[it]];
+     const int idx_min = 0; 
+     const int idx_max = Pi.size()-1; 
+
+#ifdef DEBUG
+     assert(Pi.size() == Ci.size());
+     sort(Pi.begin(), Pi.end());
+     assert(Pi == G_CostPi[Gidx[it]] && "we expect sorted generation cost points for any given generator");
+     assert(idx_max>=1);
+#endif
+     if(idx_max <0) { a[it]=1.; }
+     if(idx_max==0) { a[it]=1.; }
+     
+     const double& plb = Pi[idx_min];
+     const double& pub = Pi[idx_max];
+     
+     const double& Cn = Ci[idx_max];
+     const double& C1 = Ci[idx_min]; 
+     double aux = pub-plb;
+     assert(aux>1e-8);
+     aux = std::max(1e-6, aux);
+     
+     a[it] = (Cn-C1)/aux;
+     const_term += (C1*pub-Cn*plb)/aux;
+  }
+}
+
+PFProdCostApproxAffineObjTerm::~PFProdCostApproxAffineObjTerm()
+{
+  delete[] a;
+}
+bool PFProdCostApproxAffineObjTerm::eval_f(const OptVariables& vars_primal, bool new_x, double& obj_val)
+{
+  assert(p_g->n == ngen);
+  obj_val += DDOT(&(p_g->n), const_cast<double*>(p_g->xref), &ione, a, &ione);
+  obj_val += const_term;
+  return true;
+}
+bool PFProdCostApproxAffineObjTerm::eval_grad(const OptVariables& vars_primal, bool new_x, double* grad)
+{
+  DAXPY(&(p_g->n), &done, a, &ione, grad+p_g->index, &ione);
   return true;
 }
 

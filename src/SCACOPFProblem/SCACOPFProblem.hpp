@@ -22,7 +22,7 @@ namespace gollnlp {
       : data_sc(d_in), 
 	useQPen(false), slacks_scale(1.),  PVPQSmoothing(0.01), AGCSmoothing(1e-2),
 	AGC_as_nonanticip(false), AGC_simplified(false), PVPQ_as_nonanticip(false),
-	quadr_penalty_qg0(false)
+	linear_prod_cost(false), quadr_penalty_qg0(false)
     {
       L_rate_reduction = T_rate_reduction = 1.;
       my_rank=-1; rank_solver_rank0 = 1;
@@ -84,6 +84,9 @@ namespace gollnlp {
     { AGC_simplified = onOrOff; }
     void update_AGC_smoothing_param(const double& val);
 
+    inline void set_linear_prod_cost(const bool onOrOff)
+    { linear_prod_cost = onOrOff; assert(onOrOff && "can only be switched on");}
+
     inline void set_PVPQ_as_nonanticip(bool onOrOff)
     { PVPQ_as_nonanticip = onOrOff; }
     void update_PVPQ_smoothing_param(const double& val);
@@ -93,21 +96,41 @@ namespace gollnlp {
 
     inline void set_quadr_penalty_qg0(bool onOrOff) { quadr_penalty_qg0 = onOrOff; }
 
-    void add_quadr_conting_penalty_pg0(const int& idx_gen, const double& p0, const double& f_pen);
-    void remove_quadr_conting_penalty_pg0(const int& idx_gen);
+    // void add_quadr_conting_penalty_pg0(const int& idx_gen, const double& p0, const double& f_pen);
+    // void remove_quadr_conting_penalty_pg0(const int& idx_gen);
 
-    void add_conting_penalty_line0(const int& idx_line, 
-				   const double& pli10, const double& qli10, 
-				   const double& pli20, const double& qli20, 
-				   const double& f_pen);
-    void remove_conting_penalty_line0(const int& idx_line);
+    // void add_conting_penalty_line0(const int& idx_line, 
+    // 				   const double& pli10, const double& qli10, 
+    // 				   const double& pli20, const double& qli20, 
+    // 				   const double& f_pen);
+    // void remove_conting_penalty_line0(const int& idx_line);
 
-    void add_conting_penalty_transf0(const int& idx_transf, 
-				   const double& pti10, const double& qti10, 
-				   const double& pti20, const double& qti20, 
-				   const double& f_pen);
-    void remove_conting_penalty_transf0(const int& idx_line);
+    // void add_conting_penalty_transf0(const int& idx_transf, 
+    // 				   const double& pti10, const double& qti10, 
+    // 				   const double& pti20, const double& qti20, 
+    // 				   const double& f_pen);
+    // void remove_conting_penalty_transf0(const int& idx_line);
 
+
+    bool update_conting_penalty_gener_active_power(const int& K_idx, const int& g_idx,
+						  const double& pg0, const double& delta_p, const double& pen0);
+    bool update_conting_penalty_line_active_power(const int& K_idx, const int& li_idx,
+						  const double& pli10, const double& pli20, 
+						  const double& delta_p, const double& pen0);
+    bool update_conting_penalty_transf_active_power(const int& K_idx, const int& ti_idx,
+						  const double& pti10, const double& pti20, 
+						  const double& delta_p, const double& pen0);
+    bool update_conting_penalty_gener_reactive_power(const int& K_idx, const int& g_idx,
+						  const double& qg0, const double& delta_q, const double& pen0);
+    bool update_conting_penalty_line_reactive_power(const int& K_idx, const int& li_idx,
+						  const double& qli10, const double& qli20, 
+						  const double& delta_q, const double& pen0);
+    bool update_conting_penalty_transf_reactive_power(const int& K_idx, const int& ti_idx,
+						  const double& qti10, const double& qti20, 
+						  const double& delta_q, const double& pen0);
+
+    bool update_conting_penalty_voltage(const int& K_idx, const int& N_idx, 
+					const double& v0, const double& pen0, const double& pen0_deriv);
 
     bool set_warm_start_from_base_of(SCACOPFProblem& srcProb);
   protected:
@@ -158,6 +181,7 @@ namespace gollnlp {
     bool quadr_penalty_qg0;
   public:
     bool AGC_as_nonanticip, AGC_simplified, PVPQ_as_nonanticip;
+    bool linear_prod_cost;
     double L_rate_reduction, T_rate_reduction;
   public:
     //variables and constraints accessers
@@ -344,15 +368,15 @@ namespace gollnlp {
 	else 
 	  assert(false);
 
-	if(NULL!=vars_duals_bounds_L) 
+	if(NULL!=vars_duals_bounds_L) {
 	  vars_duals_bounds_L->copy_from(duals_lb);
-	else 
-	  assert(false);
+	  vars_duals_bounds_L->set_inactive_duals_lb_to(0., *vars_primal);
+	}else assert(false);
 
-	if(NULL!=vars_duals_bounds_U) 
+	if(NULL!=vars_duals_bounds_U) {
 	  vars_duals_bounds_U->copy_from(duals_ub);
-	else 
-	  assert(false);
+	  vars_duals_bounds_U->set_inactive_duals_ub_to(0., *vars_primal);
+	} else assert(false);
       }
       
       inline void set_iter_stats(int iter_, const double& obj_value_,

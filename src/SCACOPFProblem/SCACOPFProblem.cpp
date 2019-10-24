@@ -47,6 +47,7 @@ bool SCACOPFProblem::default_assembly()
   for(int it=0; it<sz; it++) {
     r_emer = L_rate_reduction * d.L_RateEmer[it];
     r_base =                    d.L_RateBase[it];
+
     rate[it] = r_emer < r_base ? r_emer : r_base;
   }
   add_cons_thermal_li_lims(d, rate);
@@ -58,6 +59,8 @@ bool SCACOPFProblem::default_assembly()
     r_base =                    d.T_RateBase[it];
     rate[it] = r_emer < r_base ? r_emer : r_base;
   }
+
+
   add_cons_thermal_ti_lims(d, rate);
 
   add_obj_prod_cost(d);
@@ -69,13 +72,29 @@ bool SCACOPFProblem::default_assembly()
   }			  
 
 
-  append_objterm(new GenerKPenaltyObjTerm("penalty_gener_from_conting", variable("p_g", d)));
-  append_objterm(new TransmKPenaltyObjTerm("penalty_line_from_conting",
-					   variable("p_li1", d), variable("q_li1", d), 
-					   variable("p_li2", d), variable("q_li2", d)));
-  append_objterm(new TransmKPenaltyObjTerm("penalty_transf_from_conting",
-					   variable("p_ti1", d), variable("q_ti1", d), 
-					   variable("p_ti2", d), variable("q_ti2", d)));
+  // append_objterm(new GenerKPenaltyObjTerm("penalty_gener_from_conting", variable("p_g", d)));
+  // append_objterm(new TransmKPenaltyObjTerm("penalty_line_from_conting",
+  // 					   variable("p_li1", d), variable("q_li1", d), 
+  // 					   variable("p_li2", d), variable("q_li2", d)));
+  // append_objterm(new TransmKPenaltyObjTerm("penalty_transf_from_conting",
+  // 					   variable("p_ti1", d), variable("q_ti1", d), 
+  // 					   variable("p_ti2", d), variable("q_ti2", d)));
+
+
+  append_objterm(new QuadrBarrierPenaltyObjTerm("pen_conting_gen_activ_power", variable("p_g", d)));
+  append_objterm(new QuadrBarrierPenaltyObjTerm("pen_conting_gen_reactiv_power", variable("q_g", d)));
+
+  append_objterm(new QuadrBarrierPenaltyObjTerm("pen_conting_line_activ_power1", variable("p_li1", d)));
+  append_objterm(new QuadrBarrierPenaltyObjTerm("pen_conting_line_activ_power2", variable("p_li2", d)));
+  append_objterm(new QuadrBarrierPenaltyObjTerm("pen_conting_line_reactiv_power1", variable("q_li1", d)));
+  append_objterm(new QuadrBarrierPenaltyObjTerm("pen_conting_line_reactiv_power2", variable("q_li2", d)));
+
+  append_objterm(new QuadrBarrierPenaltyObjTerm("pen_conting_transf_activ_power1", variable("p_ti1", d)));
+  append_objterm(new QuadrBarrierPenaltyObjTerm("pen_conting_transf_activ_power2", variable("p_ti2", d)));
+  append_objterm(new QuadrBarrierPenaltyObjTerm("pen_conting_transf_reactiv_power1", variable("q_ti1", d)));
+  append_objterm(new QuadrBarrierPenaltyObjTerm("pen_conting_transf_reactiv_power2", variable("q_ti2", d)));
+
+  append_objterm(new VoltageKPenaltyObjTerm("penalty_voltage_from_conting", variable("v_n", d)));
 
   add_agc_reserves_for_max_Lloss_Ugain();
   add_agc_reserves();
@@ -551,9 +570,6 @@ void SCACOPFProblem::add_agc_reserves()
     auto K_gens_idxs_area = findall(K_gens_idxs, [&](int val) { return Garea[val]==area;});
     K_gens_idxs_area = selectfrom(K_gens_idxs, K_gens_idxs_area);
 
-    //if(area!=8 && area!=1) continue;
-    //if(area!=8) continue; //aaa //!
-
     //printf("area %d -> AGC gens\n", area);
     //printvec(AGC_gens_idxs_area);
     //printf("area %d -> generator IDs subject to contingency\n", area);
@@ -895,49 +911,163 @@ void SCACOPFProblem::add_agc_reserves_for_max_Lloss_Ugain()
 #endif
 }
 
-void SCACOPFProblem::add_quadr_conting_penalty_pg0(const int& idx_gen, const double& p0, const double& f_pen)
+// void SCACOPFProblem::add_quadr_conting_penalty_pg0(const int& idx_gen, const double& p0, const double& f_pen)
+// {
+//   GenerKPenaltyObjTerm* ot = dynamic_cast<GenerKPenaltyObjTerm*>(objterm("penalty_gener_from_conting"));
+//   assert(ot);
+//   if(ot) ot->add_quadr_penalty(idx_gen, p0, f_pen, data_sc.G_Plb[idx_gen], data_sc.G_Pub[idx_gen]);
+// }
+// void SCACOPFProblem::remove_quadr_conting_penalty_pg0(const int& idx_gen)
+// {
+//   GenerKPenaltyObjTerm* ot = dynamic_cast<GenerKPenaltyObjTerm*>(objterm("penalty_gener_from_conting"));
+//   assert(ot);
+//   if(ot) ot->remove_penalty(idx_gen);
+// }
+
+// void SCACOPFProblem::add_conting_penalty_line0(const int& idx_line, 
+// 					       const double& pli10, const double& qli10, 
+// 					       const double& pli20, const double& qli20, 
+// 					       const double& f_pen)
+// {
+//   TransmKPenaltyObjTerm* ot =  dynamic_cast<TransmKPenaltyObjTerm*>(objterm("penalty_line_from_conting"));
+//   assert(ot);
+//   if(ot) ot->add_penalty(idx_line, pli10, qli10, pli20, qli20, f_pen);
+// }
+// void SCACOPFProblem::remove_conting_penalty_line0(const int& idx_line)
+// {
+//   TransmKPenaltyObjTerm* ot =  dynamic_cast<TransmKPenaltyObjTerm*>(objterm("penalty_line_from_conting"));
+//   assert(ot);
+//   if(ot) ot->remove_penalty(idx_line);
+// }
+
+// void SCACOPFProblem::add_conting_penalty_transf0(const int& idx_transf, 
+// 						 const double& pti10, const double& qti10, 
+// 						 const double& pti20, const double& qti20, 
+// 						 const double& f_pen)
+// {
+//   TransmKPenaltyObjTerm* ot =  dynamic_cast<TransmKPenaltyObjTerm*>(objterm("penalty_transf_from_conting"));
+//   assert(ot);
+//   if(ot) ot->add_penalty(idx_transf, pti10, qti10, pti20, qti20, f_pen);
+// }
+// void SCACOPFProblem::remove_conting_penalty_transf0(const int& idx_transf)
+// {
+//   TransmKPenaltyObjTerm* ot =  dynamic_cast<TransmKPenaltyObjTerm*>(objterm("penalty_transf_from_conting"));
+//   assert(ot);
+//   if(ot) ot->remove_penalty(idx_transf);
+// }
+
+bool SCACOPFProblem::
+update_conting_penalty_gener_active_power(const int& K_idx, const int& g_idx,
+					  const double& pg0, const double& delta_p, const double& pen0)
 {
-  GenerKPenaltyObjTerm* ot = dynamic_cast<GenerKPenaltyObjTerm*>(objterm("penalty_gener_from_conting"));
+  QuadrBarrierPenaltyObjTerm* ot = dynamic_cast<QuadrBarrierPenaltyObjTerm*>(objterm("pen_conting_gen_activ_power"));
   assert(ot);
-  if(ot) ot->add_quadr_penalty(idx_gen, p0, f_pen, data_sc.G_Plb[idx_gen], data_sc.G_Pub[idx_gen]);
+  if(ot) return ot->update_term(K_idx, g_idx, pg0, pen0, delta_p);
+  else   return false;
 }
-void SCACOPFProblem::remove_quadr_conting_penalty_pg0(const int& idx_gen)
+bool SCACOPFProblem::
+update_conting_penalty_gener_reactive_power(const int& K_idx, const int& g_idx,
+					    const double& qg0, const double& delta_q, const double& pen0)
 {
-  GenerKPenaltyObjTerm* ot = dynamic_cast<GenerKPenaltyObjTerm*>(objterm("penalty_gener_from_conting"));
+  QuadrBarrierPenaltyObjTerm* ot = dynamic_cast<QuadrBarrierPenaltyObjTerm*>(objterm("pen_conting_gen_reactiv_power"));
   assert(ot);
-  if(ot) ot->remove_penalty(idx_gen);
+  if(ot) return ot->update_term(K_idx, g_idx, qg0, pen0, delta_q);
+  return false;
+}
+bool SCACOPFProblem::
+update_conting_penalty_line_active_power(const int& K_idx, const int& li_idx,
+					 const double& pli10, const double& pli20, 
+					 const double& delta_p, const double& pen0)
+{
+  const double pen = pen0/2;
+  bool updated=false;
+  {
+    QuadrBarrierPenaltyObjTerm* ot = dynamic_cast<QuadrBarrierPenaltyObjTerm*>(objterm("pen_conting_line_activ_power1"));
+    assert(ot);
+    if(ot) 
+      if(ot->update_term(K_idx, li_idx, pli10, pen, delta_p)) updated=true;
+  }
+  {
+    QuadrBarrierPenaltyObjTerm* ot = dynamic_cast<QuadrBarrierPenaltyObjTerm*>(objterm("pen_conting_line_activ_power2"));
+    assert(ot);
+    if(ot) 
+      if(ot->update_term(K_idx, li_idx, pli20, pen, delta_p)) updated=true;
+  }
+  return updated;
+}
+bool SCACOPFProblem::
+update_conting_penalty_transf_active_power(const int& K_idx, const int& ti_idx,
+					   const double& pti10, const double& pti20, 
+					   const double& delta_p, const double& pen0)
+{
+  const double pen = pen0/2;
+  bool updated=false;
+  {
+    QuadrBarrierPenaltyObjTerm* ot = dynamic_cast<QuadrBarrierPenaltyObjTerm*>(objterm("pen_conting_transf_activ_power1"));
+    assert(ot);
+    if(ot) 
+      if(ot->update_term(K_idx, ti_idx, pti10, pen, delta_p)) updated=true;
+  }
+  {
+    QuadrBarrierPenaltyObjTerm* ot = dynamic_cast<QuadrBarrierPenaltyObjTerm*>(objterm("pen_conting_transf_activ_power2"));
+    assert(ot);
+    if(ot) 
+      if(ot->update_term(K_idx, ti_idx, pti20, pen, delta_p)) updated=true;
+  }
+  return updated;
 }
 
-void SCACOPFProblem::add_conting_penalty_line0(const int& idx_line, 
-					       const double& pli10, const double& qli10, 
-					       const double& pli20, const double& qli20, 
-					       const double& f_pen)
+bool SCACOPFProblem::
+update_conting_penalty_line_reactive_power(const int& K_idx, const int& li_idx,
+					   const double& qli10, const double& qli20, 
+					   const double& delta_q, const double& pen0)
 {
-  TransmKPenaltyObjTerm* ot =  dynamic_cast<TransmKPenaltyObjTerm*>(objterm("penalty_line_from_conting"));
-  assert(ot);
-  if(ot) ot->add_penalty(idx_line, pli10, qli10, pli20, qli20, f_pen);
+  const double pen = pen0/2;
+  bool updated=false;
+  {
+    QuadrBarrierPenaltyObjTerm* ot = dynamic_cast<QuadrBarrierPenaltyObjTerm*>(objterm("pen_conting_line_reactiv_power1"));
+    assert(ot);
+    if(ot) 
+      if(ot->update_term(K_idx, li_idx, qli10, pen, delta_q)) updated=true;
+  }
+  {
+    QuadrBarrierPenaltyObjTerm* ot = dynamic_cast<QuadrBarrierPenaltyObjTerm*>(objterm("pen_conting_line_reactiv_power2"));
+    assert(ot);
+    if(ot) 
+      if(ot->update_term(K_idx, li_idx, qli20, pen, delta_q)) updated=true;
+  }
+  return updated;
 }
-void SCACOPFProblem::remove_conting_penalty_line0(const int& idx_line)
+bool SCACOPFProblem::
+update_conting_penalty_transf_reactive_power(const int& K_idx, const int& ti_idx,
+					     const double& qti10, const double& qti20, 
+					     const double& delta_q, const double& pen0)
 {
-  TransmKPenaltyObjTerm* ot =  dynamic_cast<TransmKPenaltyObjTerm*>(objterm("penalty_line_from_conting"));
-  assert(ot);
-  if(ot) ot->remove_penalty(idx_line);
+  const double pen = pen0/2;
+  bool updated=false;
+  {
+    QuadrBarrierPenaltyObjTerm* ot = dynamic_cast<QuadrBarrierPenaltyObjTerm*>(objterm("pen_conting_transf_reactiv_power1"));
+    assert(ot);
+    if(ot) 
+      if(ot->update_term(K_idx, ti_idx, qti10, pen, delta_q)) updated=true;
+  }
+  {
+    QuadrBarrierPenaltyObjTerm* ot = dynamic_cast<QuadrBarrierPenaltyObjTerm*>(objterm("pen_conting_transf_reactiv_power2"));
+    assert(ot);
+    if(ot) 
+      if(ot->update_term(K_idx, ti_idx, qti20, pen, delta_q)) updated=true;
+  }
+  return updated;
 }
 
-void SCACOPFProblem::add_conting_penalty_transf0(const int& idx_transf, 
-						 const double& pti10, const double& qti10, 
-						 const double& pti20, const double& qti20, 
-						 const double& f_pen)
+bool SCACOPFProblem::update_conting_penalty_voltage(const int& K_idx, const int& N_idx, 
+						    const double& v0, const double& pen0, 
+						    const double& pen0_deriv)
 {
-  TransmKPenaltyObjTerm* ot =  dynamic_cast<TransmKPenaltyObjTerm*>(objterm("penalty_transf_from_conting"));
+  VoltageKPenaltyObjTerm* ot = dynamic_cast<VoltageKPenaltyObjTerm*>(objterm("penalty_voltage_from_conting"));
   assert(ot);
-  if(ot) ot->add_penalty(idx_transf, pti10, qti10, pti20, qti20, f_pen);
-}
-void SCACOPFProblem::remove_conting_penalty_transf0(const int& idx_transf)
-{
-  TransmKPenaltyObjTerm* ot =  dynamic_cast<TransmKPenaltyObjTerm*>(objterm("penalty_transf_from_conting"));
-  assert(ot);
-  if(ot) ot->remove_penalty(idx_transf);
+  if(ot) return ot->update_term(K_idx, N_idx, v0, pen0, pen0_deriv);
+  else   return false;
 }
 
 void SCACOPFProblem::add_variables(SCACOPFData& d, bool SysCond_BaseCase)
@@ -1016,49 +1146,6 @@ void SCACOPFProblem::add_variables(SCACOPFData& d, bool SysCond_BaseCase)
   b_s->set_start_to(data_sc.SSh_B0.data());
   append_variables(b_s);
   //append_objterm(new DummySingleVarQuadrObjTerm("b_s_sq", b_s));
-
-
-
-  //!
-  // auto Plb = d.G_Plb, Pub = d.G_Pub;
-  //  if(SysCond_BaseCase==true) {
-  //    //for(int i=0; i<d.G_Generator.size(); i++) {
-  //    //double aux = Pub[i]-Plb[i];
-  //     //Plb[i] += 0.1* aux;
-  //    //Pub[i] =+ 0.05* aux;
-
-  //    //d.G_Pub[2] = d.G_Plb[2] = 0.;
-  //    //d.G_Pub[62] = d.G_Plb[62] = 0.;
-  //    Plb = d.G_Plb; Pub = d.G_Pub;
-  //    //Pub[49] /= 4;
-  //    //Pub[48] /= 4;
-
-  //    //data.G_Pub[62] = data.G_Plb[62] = 0.;
-  //    //data.G_Pub[2] = data.G_Plb[2];
-  //    //data.G_Pub[0] = data.G_Plb[0];
-  //    //data.G_Pub[1] = data.G_Plb[1];
-     
-  //    //Pub[62] = Plb[62] = 0.;
-  //    ///Pub[62] = 3.25;
-  //    ///Pub[63] = Plb[63];
-  //    ///Pub[64] = Plb[64];
-  //    //61] [ 175]  0.00000e+00  0.00000e+00      0.00000e+00  4.68346e+00
-  //    //[  62] [ 179]  8.98293e-01  8.98293e-01      0.00000e+00  8.98450e-01
-  //    //[  63] [ 182]  5.57131e-05  5.57131e-05      0.00000e+00  3.10588e+00
-
-  //    //Pub[2] = Plb[2]; //outidx
-  //    //Pub[0] = Plb[0];
-  //    //Pub[1] = Plb[1];
-
-  //    //printf("!!!!!!!!!!!!!!!!!  AGC fixed !!!!!!!!!!\n");
-  //    //for(int i=42; i<48; i++)
-  //    //  Pub[i] = Plb[i];
-
-  //    //Plb[62] *= 1.5;
-  //    //}
-  // }
-  //auto p_g = new OptVariablesBlock(d.G_Generator.size(), var_name("p_g",d), 
-  //				   Plb.data(), Pub.data());
 
   auto p_g = new OptVariablesBlock(d.G_Generator.size(), var_name("p_g",d), 
 				   d.G_Plb.data(), d.G_Pub.data());
@@ -1267,7 +1354,6 @@ void SCACOPFProblem::add_cons_transformers_pf(SCACOPFData& d)
 
 void SCACOPFProblem::add_cons_active_powbal(SCACOPFData& d)
 {
-  //!temp 
   bool useQPenActiveBalance = useQPen; //double slacks_scale=1.;
 
   //active power balance
@@ -1287,7 +1373,6 @@ void SCACOPFProblem::add_cons_active_powbal(SCACOPFData& d)
   pf_p_bal->compute_slacks(pslacks_n); pslacks_n->providesStartingPoint=true;
 
   if(useQPenActiveBalance) {
-    //printf("!!!!!!!!using d.PenaltyWeight=%g\n", d.PenaltyWeight);
     append_objterm( new PFPenaltyQuadrApproxObjTerm("quadr_pen_" + pslacks_n->id, pslacks_n, 
 						    d.P_Penalties[SCACOPFData::pP], d.P_Quantities[SCACOPFData::pP], 
 						    d.PenaltyWeight, slacks_scale) );
@@ -1309,7 +1394,6 @@ void SCACOPFProblem::add_cons_active_powbal(SCACOPFData& d)
 
 void SCACOPFProblem::add_cons_reactive_powbal(SCACOPFData& d)
 {
-  //!temp 
   bool useQPenReactiveBalance = useQPen; //double slacks_scale=1.;
 
   auto q_li1 = variable("q_li1",d), q_li2 = variable("q_li2",d), 
@@ -1360,7 +1444,6 @@ void SCACOPFProblem::add_cons_thermal_li_lims(SCACOPFData& d, bool SysCond_BaseC
 void SCACOPFProblem::add_cons_thermal_li_lims(SCACOPFData& d, 
 					      const std::vector<double>& L_Rate)
 {
-  //! temp
   bool useQPenLi1 = useQPen, useQPenLi2 = useQPen; //double slacks_scale=1.;
 
   auto v_n = variable("v_n",d);
@@ -1436,7 +1519,6 @@ void SCACOPFProblem::add_cons_thermal_li_lims(SCACOPFData& d,
 
   void SCACOPFProblem::add_cons_thermal_ti_lims(SCACOPFData& d,  const std::vector<double>& T_Rate)
 {
-  //! temp
   bool useQPenTi1=useQPen, useQPenTi2=useQPen; //double slacks_scale=1.;
   
   // - removed vector<double>& T_Rate = SysCond_BaseCase ? d.T_RateBase : d.T_RateEmer;
@@ -1508,13 +1590,22 @@ void SCACOPFProblem::add_obj_prod_cost(SCACOPFData& d)
   
   auto p_g = variable("p_g", d);
 
-  PFProdCostAffineCons* prod_cost_cons = 
-    new PFProdCostAffineCons(con_name("prodcost_cons",d), 2*gens.size(), 
-			     p_g, gens, d.G_CostCi, d.G_CostPi);
-  append_constraints(prod_cost_cons);
+  if(linear_prod_cost) {
+    PFProdCostApproxAffineObjTerm* cost_term = 
+      new PFProdCostApproxAffineObjTerm("prodcost_affine_0",
+					p_g, 
+					gens, d.G_CostCi, d.G_CostPi);
+    append_objterm(cost_term);
 
-  OptVariablesBlock* t_h = prod_cost_cons->get_t_h();
-  prod_cost_cons->compute_t_h(t_h); t_h->providesStartingPoint = true;
+  } else {
+    PFProdCostAffineCons* prod_cost_cons = 
+      new PFProdCostAffineCons(con_name("prodcost_cons",d), 2*gens.size(), 
+			       p_g, gens, d.G_CostCi, d.G_CostPi);
+    append_constraints(prod_cost_cons);
+    
+    OptVariablesBlock* t_h = prod_cost_cons->get_t_h();
+    prod_cost_cons->compute_t_h(t_h); t_h->providesStartingPoint = true;
+  }
 }
 
 
@@ -2851,7 +2942,7 @@ void SCACOPFProblem::print_active_power_balance_info(SCACOPFData& d)
   for(int i=0; i<n; i++) {
     string neigh = "";// conn busidx:";
 
-    if(fabs(pslacks_n->x[i])>1e-6 || fabs(pslacks_n->x[i+n])>1e-6) {
+    if(fabs(pslacks_n->x[i])>5e-3 || fabs(pslacks_n->x[i+n])>5e-3) {
 
       assert(d.G_Nidx.size()==d.G_Bus.size());
       assert(d.G_Generator.size()==d.G_Bus.size());
@@ -3301,7 +3392,6 @@ bool SCACOPFProblem::iterate_callback(int iter, const double& obj_value,
 
     //finish initialization if needed
     if(iter==0) {
-      //printf("\n!!![best_known] initialize222 rank=%d\n\n", my_rank);
       best_known_iter.initialize(vars_primal, vars_duals_cons, vars_duals_bounds_L, vars_duals_bounds_U);
     }
 

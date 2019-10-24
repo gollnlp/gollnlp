@@ -576,7 +576,7 @@ private: //methods
   //status is on return OK=0 or failure<0 or OK-ish>0
   //return penalty/objective for the contingency problem
   double solve_contingency(int K_idx, int& status);
-  double solve_contingency_use_fixing(int K_idx, int& status);
+  double solve_contingency_use_fixing(int K_idx, int& status, double* data_for_master);
   double solve_contingency_with_basecase(int K_idx, int& status);
 
   //phase 3 solve scacopf with newly received K_idxs (on solver rank only)

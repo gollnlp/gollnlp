@@ -753,6 +753,49 @@ void OptVariables::copy_from(const double* v)
   }
 }
 
+void OptVariables::set_inactive_duals_lb_to(double ct, const OptVariables& primals)
+{
+  OptVariablesBlock *bdual=NULL;
+  const OptVariablesBlock *bprimal=NULL;
+  if(vblocks.size()!=primals.vblocks.size()) { assert(false); return; }
+  for(int b=0; b<vblocks.size(); b++) {
+
+    bdual = vblocks[b];
+    bprimal = primals.vblocks[b];
+
+    if(bdual->n != bprimal->n) { assert(false); return; }
+    if(bdual->index != bprimal->index) { assert(false); return; }
+
+    for(int idx=0; idx<bdual->n; idx++) {
+      if(bprimal->lb[idx]<=-1e+20) {
+	//printf("  \t wrote for idx=%d\n", idx);
+	bdual->x[idx] = ct;
+      }
+    }
+  }
+}
+void OptVariables::set_inactive_duals_ub_to(double ct, const OptVariables& primals)
+{
+  OptVariablesBlock *bdual=NULL;
+  const OptVariablesBlock *bprimal=NULL;
+  if(vblocks.size()!=primals.vblocks.size()) { assert(false); return; }
+  for(int b=0; b<vblocks.size(); b++) {
+
+    bdual = vblocks[b];
+    bprimal = primals.vblocks[b];
+
+    if(bdual->n != bprimal->n) { assert(false); return; }
+    if(bdual->index != bprimal->index) { assert(false); return; }
+
+    for(int idx=0; idx<bdual->n; idx++) {
+      if(bprimal->ub[idx]>=+1e+20) {
+	//printf("  \t wrote for idx=%d\n", idx);
+	bdual->x[idx] = ct;
+      }
+    }
+  }
+}
+
 void OptVariables::delete_block(const std::string& id)
 {
   OptVariablesBlock* block = NULL;
