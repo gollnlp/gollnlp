@@ -491,7 +491,7 @@ namespace gollnlp {
 	  const double aux1 = t_new.x0-t.c;
 	  const double aux2 = t_new.x0-t_new.c;
 	  if(t.a * aux1 * aux1 > t_new.a * aux2 * aux2) {
-	    printf("!!!!  newer pen is small at v0_new\n");
+	    printf("!!!! voltage K_idx=%d newer pen is small at v0_new\n", K_idx);
 	    return false;
 	  }
 
@@ -542,7 +542,7 @@ namespace gollnlp {
     virtual bool eval_grad(const OptVariables& vars_primal, bool new_x, double* grad)
     {
       for(auto& t : terms) {
-	grad[v_n0->index + t.N_idx] = t.a * (v_n0->xref[t.N_idx] - t.c) * 2;
+	grad[v_n0->index + t.N_idx] += t.a * (v_n0->xref[t.N_idx] - t.c) * 2;
       }
       return true;
     }
@@ -600,6 +600,174 @@ namespace gollnlp {
     int *H_nz_idxs;
   private:
     VoltageKPenaltyObjTerm() : OptObjectiveTerm("voltage_pen_dummy"), v_n0(NULL) { }
+  };
+
+  // Given f0>0, x0>0, and d>0 such that x0-d>=0 , the quadratic barrier term is such that
+  // q(x) = f0/d^2 [x - ( x0-d)]^2, if x >= x0-d
+  //      = 0, -x0+d <= x <= x0-d
+  //      = f0/d^2 [x - (-x0+d)]^2, if x<=-x0+d
+  //
+  // we store a = f0/d^2>0 and c=x0-d>=0 in QBTermData
+
+  class QuadrBarrierPenaltyObjTerm : public OptObjectiveTerm {
+  public:
+    QuadrBarrierPenaltyObjTerm(const std::string& id, OptVariablesBlock* x_)
+      : OptObjectiveTerm(id), x(x_), H_nnz(0), H_nz_idxs(NULL)
+    { }
+    virtual ~QuadrBarrierPenaltyObjTerm()
+    { 
+      delete[] H_nz_idxs;
+    }
+
+    bool update_term(int K_idx, int idx_in_x, const double& x0_new, const double& f0_new, const double& d_new)
+    {
+      assert(idx_in_x>=0);
+      assert(idx_in_x<x->n);
+      for( QBTermData& t : terms) {
+	if(t.K_idx==K_idx && t.idx==idx_in_x) {
+	  QBTermData t_new(K_idx, idx_in_x, x0_new, f0_new, d_new);
+	  //is the new term greater than the old term at x0_new?
+	  
+	  double aux1 = t_new.x0-t.c; 
+	  if(aux1<0) aux1=0.;
+	  const double aux2 = t_new.x0-t_new.c;
+	  if(t.a * aux1 * aux1 > t_new.a * aux2 * aux2) {
+#ifdef DEBUG
+	    //	    printf("!!!! QBar: newer pen is smaller at x0_new will not update\n");
+	    printf("!!! [warning]-ish QBar: newer pen is smaller at x0_new will not update K_idx=%d new/old x_idx=%d x0=%.8f/%.8f f0=%.8f/%.8f d=%.8f/%.8f\n", 
+		   K_idx,  idx_in_x, x0_new, t.x0, f0_new, t.f0, d_new, t.d);
+#endif
+	    return false;
+	  }
+	  t = t_new;
+	  return true;
+	}
+      }
+      //not found
+      terms.push_back(QBTermData(K_idx, idx_in_x, x0_new, f0_new, d_new));
+      return true;
+    }
+       
+
+    // f(x)=a(x-c)^2 x>=c, 0 when -c<=x<=c, and a(x+c)^2 and x<=-c
+    struct QBTermData
+    {
+      QBTermData(int K_idx_, int x_idx_, const double& x0_, const double& f0_, const double& d_)
+	: K_idx(K_idx_), idx(x_idx_), x0(x0_), f0(f0_), d(d_)
+      {
+	if(x0<0) assert(false);
+	x0 = fabs(x0);
+	if(d<0) {
+	  assert(false);
+	  d=0.;
+	}
+
+	if(d>x0) {
+#ifdef DEBUG
+	  printf("!!! [warning]-ish K_idx=%d x_idx=%d x0=%.8f f0=%.8f d=%.8f\n", K_idx,  idx, x0_, f0_, d_);
+	  //assert(false);
+#endif
+	  d=x0;
+	}
+
+	if(d<1e-5) {
+	  //no penalty
+	  a = 0; c =0.;
+	} else {
+	  c = x0-d;
+	  a = f0/d/d;
+	}
+      }
+      double a,c; 
+      int K_idx, idx;
+      double x0, f0, d;
+    private:
+      QBTermData() {};
+    };
+
+    virtual bool eval_f(const OptVariables& vars_primal, bool new_x, double& obj_val)
+    { 
+      for(auto& t : terms) {
+	const double& xval = x->xref[t.idx];
+	if(xval<-t.c) 
+	  obj_val += t.a*(xval+t.c)*(xval+t.c);
+	else if(xval> t.c) 
+	  obj_val += t.a*(xval-t.c)*(xval-t.c);
+      }
+      return true;
+    }
+    virtual bool eval_grad(const OptVariables& vars_primal, bool new_x, double* grad)
+    {
+      for(auto& t : terms) {
+	const double& xval = x->xref[t.idx];
+	if(xval<-t.c) 
+	  grad[x->index + t.idx] += t.a *(xval+t.c)*2;
+	else if(xval> t.c) 
+	  grad[x->index + t.idx] += t.a*(xval-t.c)*2;
+      }
+      return true;
+    }
+
+    virtual bool eval_HessLagr(const OptVariables& vars_primal, bool new_x, 
+			       const double& obj_factor,
+			       const int& nnz, int* ii, int* jj, double* M)
+    {
+      assert(terms.size()==H_nnz);
+      if(NULL==M) {
+	int idx, row;
+	for(int it=0; it<terms.size(); it++) {
+	  idx = H_nz_idxs[it]; 
+	  if(idx<0) {assert(false); return false; }
+	  ii[idx] = jj[idx] = x->index + terms[it].idx;
+	}
+      } else {
+	for(int it=0; it<terms.size(); it++) {
+	  assert(H_nz_idxs[it]>=0);
+	  assert(H_nz_idxs[it]<nnz);
+	  const QBTermData& t = terms[it];
+	  const double& xval = x->xref[t.idx];
+
+	  if(xval<=-t.c || xval> t.c) {
+	    M[H_nz_idxs[it]] += obj_factor * 2.* t.a;
+	  } else {
+	    //should be 0.
+	  }
+	}
+      }
+      return true;
+    }
+
+    virtual int get_HessLagr_nnz() { 
+      return terms.size();
+    }
+    // (i,j) entries in the HessLagr to which this term contributes to
+    virtual bool get_HessLagr_ij(std::vector<OptSparseEntry>& vij) 
+    { 
+      int nnz = terms.size();
+      if(nnz != H_nnz) {
+	delete [] H_nz_idxs;
+	H_nnz = nnz;
+	H_nz_idxs = new int[H_nnz];
+      }
+      
+      int it=0;
+      for(auto& t : terms) {
+	const int i=x->index+t.idx;
+	vij.push_back(OptSparseEntry(i,i, H_nz_idxs+it));
+	assert(it<H_nnz);
+	it++;
+      }
+      assert(it==H_nnz);
+      return true; 
+    }
+
+  protected:
+    OptVariablesBlock* x;
+    std::vector<QBTermData> terms;
+    int H_nnz;
+    int *H_nz_idxs;
+  private:
+    QuadrBarrierPenaltyObjTerm() : OptObjectiveTerm("voltage_pen_dummy"), x(NULL) { }
   };
 } //end namespace
 
