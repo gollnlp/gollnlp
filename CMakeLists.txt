@@ -22,7 +22,7 @@ include(FortranCInterface)
 FortranCInterface_HEADER(FortranCInterface.hpp MACRO_NAMESPACE "FC_")
 
 option(GOLLNLP_USE_MPI "Build with MPI support" ON)
-option(GOLLNLP_FAULT_HANDLING, "Using handlers for select signals" ON)
+option(GOLLNLP_FAULT_HANDLING "Using handlers for select signals" ON)
 #with testing drivers capable of 'selfchecking' (-selfcheck)
 option(GOLLNLP_WITH_MAKETEST "Enable 'make test'" ON)
 
