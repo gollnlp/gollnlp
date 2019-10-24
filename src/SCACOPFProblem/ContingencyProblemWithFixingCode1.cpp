@@ -159,7 +159,7 @@ namespace gollnlp {
  	bool bfeasib;
 
 	if(fabs(gen_K_diff)>1e-6) {
-	  if(K_idx==11827) printf("!!!!K_idx=%d gen_K_diff=%g solv1_delta_optim=%g\n", K_idx, gen_K_diff, solv1_delta_optim);
+	  //if(K_idx==11827) printf("!!!!K_idx=%d gen_K_diff=%g solv1_delta_optim=%g\n", K_idx, gen_K_diff, solv1_delta_optim);
 	  //solv1_delta_optim and gen_K_diff must have same sign at this point
 	  if(solv1_delta_optim * gen_K_diff < 0) gen_K_diff=0.;
 	  bfeasib = push_and_fix_AGCgen(d, gen_K_diff, solv1_delta_optim, 
@@ -270,6 +270,9 @@ namespace gollnlp {
 	if(variable("delta", d)) delta_optim = variable("delta", d)->x[0];
 #ifdef BE_VERBOSE
 	print_objterms_evals();
+	//print_line_limits_info(*data_K[0]);
+	//print_active_power_balance_info(*data_K[0]);
+	//print_reactive_power_balance_info(*data_K[0]);
 	//print_p_g_with_coupling_info(*data_K[0], pg0);
 	printf("ContProb_wfix K_idx=%d opt1 opt2 resulted in high pen delta=%g\n", K_idx, delta_optim);
 #endif
@@ -299,7 +302,24 @@ namespace gollnlp {
     // prepare info for master rank
     //
     info_out[0]=this->obj_value;
+    double pen_p_balance, pen_q_balance, pen_line_limits, pen_trans_limits;
+    get_objective_penalties(pen_p_balance, pen_q_balance, pen_line_limits, pen_trans_limits);
 
+    double p_imbalance = 0;
+    {
+      double bal_p_plus, bal_p_minus, bal_p_overall;
+      estimate_active_power_deficit(bal_p_plus,  bal_p_minus,  bal_p_overall);
+      p_imbalance = fabs(bal_p_plus) > fabs(bal_p_minus) ? bal_p_plus : bal_p_minus;
+    }
+
+    double q_imbalance = 0;
+    {
+      double bal_q_plus, bal_q_minus, bal_q_overall;
+      estimate_reactive_power_deficit(bal_q_plus,  bal_q_minus,  bal_q_overall);
+      q_imbalance = fabs(bal_q_plus) > fabs(bal_q_minus) ? bal_q_plus : bal_q_minus;
+    }
+
+    
     if(data.K_ConType[K_idx] == SCACOPFData::kGenerator) {
 
       assert(p_g0->n == data.G_Generator.size());
@@ -308,10 +328,34 @@ namespace gollnlp {
       
       int idx_gen = data.K_outidx[K_idx];
       assert(idx_gen>=0 && idx_gen<p_g0->n);
-      
-      info_out[1]=p_g0->x[idx_gen];
-      info_out[2]=info_out[3]=info_out[4]=0.;
-      
+
+      info_out[1]=info_out[2]=info_out[3]=info_out[4]=0.;
+
+      string msg = "penalizing ";
+#ifdef BE_VERBOSE
+      printf("ContingencyProblem_wfix K_idx=%d recourse_generator:  penalties p=%.4e q=%.4e ll=%.4e tl=%.4e imbalance p=%.4e q=%.4e  rank=%d\n",
+	     K_idx, pen_p_balance, pen_q_balance, pen_line_limits, pen_trans_limits,
+	     -p_imbalance, -q_imbalance, my_rank);
+#endif
+      if(pen_p_balance>5e4) {
+	double delta = fabs(p_imbalance);
+	delta = ((int)(delta*10000))/10000.;
+	info_out[1]=1e8*delta + fabs(p_g0->x[idx_gen]);
+
+	//printf("!!!!!!!!!!! delta = %16.8e info1=%.16f  info2=%.16f\n", delta, info_out[1], info_out[2]);
+	msg += "pg ";
+      }
+      if(pen_q_balance>1e5 && pen_q_balance>pen_p_balance) {
+	double delta = fabs(q_imbalance);
+	delta = ((int)(delta*10000))/10000.;
+	info_out[2]=1e8*delta + fabs(q_g0->x[idx_gen]);
+	//info_out[4]=1e8*delta + fabs(q_li20->x[idx]);
+	msg += "qg ";
+      }
+#ifdef BE_VERBOSE
+      printf("ContingencyProblem_wfix K_idx=%d recourse_line: %s  rank=%d\n", K_idx, msg.c_str(), my_rank);
+#endif
+ 
     } else if(data.K_ConType[K_idx] == SCACOPFData::kLine) {
 
       assert(p_li10); assert(q_li10); assert(p_li20); assert(q_li20);
@@ -321,14 +365,42 @@ namespace gollnlp {
       int idx = data.K_outidx[K_idx];
        
       assert(idx>=0 && idx<q_li10->n);
-      if(!recourse_action_from_voltages(idx, true, info_out)) { 
-	//use penalization of the powers through the transformer
-	info_out[1]=p_li10->x[idx];
-	info_out[2]=q_li10->x[idx];
-	info_out[3]=p_li20->x[idx];
-	info_out[4]=q_li20->x[idx];
-      }      
-      
+
+      info_out[1]=info_out[2]=info_out[3]=info_out[4]=0.;
+
+      string msg = "penalizing ";
+#ifdef BE_VERBOSE
+      printf("ContingencyProblem_wfix K_idx=%d recourse_line:  penalties p=%.4e q=%.4e ll=%.4e tl=%.4e imbalance p=%.4e q=%.4e  rank=%d\n",
+	     K_idx, pen_p_balance, pen_q_balance, pen_line_limits, pen_trans_limits,
+	     -p_imbalance, -q_imbalance, my_rank);
+#endif
+      if(pen_p_balance>5e4) {
+	double delta = fabs(p_imbalance);
+	delta = ((int)(delta*10000))/10000.;
+
+	info_out[1]=1e8*delta + fabs(p_li10->x[idx]);
+	info_out[3]=1e8*delta + fabs(p_li20->x[idx]);
+
+	//printf("!!!!!!!!!!! delta = %16.8e info1=%.16f  info3=%.16f\n", delta, info_out[1], info_out[3]);
+
+	msg += "pli ";
+      }
+      if(pen_q_balance>5e4) {
+	double delta = fabs(q_imbalance);
+	delta = ((int)(delta*10000))/10000.;
+	info_out[2]=1e8*delta + fabs(q_li10->x[idx]);
+	info_out[4]=1e8*delta + fabs(q_li20->x[idx]);
+	msg += "qli ";
+      }
+      if(pen_q_balance>5*pen_p_balance) {
+	if(!recourse_action_from_voltages(idx, true, info_out)) { 
+	  
+	} else {
+	  msg = "penalizing voltages";
+	}   
+      }  
+      printf("ContingencyProblem_wfix K_idx=%d recourse_line: %s  rank=%d\n", K_idx, msg.c_str(), my_rank);
+
     } else if(data.K_ConType[K_idx] == SCACOPFData::kTransformer) {
 
       assert(data.T_Transformer.size() == q_ti10->n);
@@ -336,13 +408,38 @@ namespace gollnlp {
       int idx = data.K_outidx[K_idx];
       assert(idx>=0 && idx<q_ti10->n);
 
-      if(!recourse_action_from_voltages(idx, false, info_out)) { 
-	//use penalization of the powers through the transformer
-	info_out[1]=p_ti10->x[idx];
-	info_out[2]=q_ti10->x[idx];
-	info_out[3]=p_ti20->x[idx];
-	info_out[4]=q_ti20->x[idx];
+      info_out[1]=info_out[2]=info_out[3]=info_out[4]=0.;
+
+      string msg = "penalizing ";
+#ifdef BE_VERBOSE
+      printf("ContingencyProblem_wfix K_idx=%d recourse_transf:  penalties p=%.4e q=%.4e ll=%.4e tl=%.4e imbalance p=%.4e q=%.4e  rank=%d\n",
+	     K_idx, pen_p_balance, pen_q_balance, pen_line_limits, pen_trans_limits,
+	     -p_imbalance, -q_imbalance, my_rank);
+#endif
+      if(pen_p_balance>5e4) {
+	double delta = fabs(p_imbalance);
+	delta = ((int)(delta*10000))/10000.;
+	info_out[1]=1e8*delta + fabs(p_ti10->x[idx]);
+	info_out[3]=1e8*delta + fabs(p_ti20->x[idx]);
+	msg += "pli ";
       }
+      if(pen_q_balance>5e4) {
+	double delta = fabs(q_imbalance);
+	delta = ((int)(delta*10000))/10000.;
+	info_out[2]=1e8*delta + fabs(q_ti10->x[idx]);
+	info_out[4]=1e8*delta + fabs(q_ti20->x[idx]);
+	msg += "qli ";
+      }
+
+      if(pen_q_balance>5*pen_p_balance) {
+	if(!recourse_action_from_voltages(idx, false, info_out)) { 
+	} else {
+	  msg = "penalizing voltages";
+	}
+      }
+#ifdef BE_VERBOSE
+      printf("ContingencyProblem_wfix K_idx=%d recourse_transf: %s  rank=%d\n", K_idx, msg.c_str(), my_rank);
+#endif
     }
     return true;
   }
@@ -392,10 +489,10 @@ namespace gollnlp {
       int idx_in_Nfrom = indexin(dualsidx_vnk_ub, NidxFrom); assert(idx_in_Nfrom>=0);
       int idx_in_Nto   = indexin(dualsidx_vnk_ub, NidxTo);   assert(idx_in_Nto  >=0);
       
-      if(idx_in_Nfrom < 10 && fabs(v_nk->x[dualsidx_vnk_ub[idx_in_Nfrom]] - v_nk->ub[dualsidx_vnk_ub[idx_in_Nfrom]])<1e-2) {
+      if(idx_in_Nfrom < 10 && fabs(v_n0->x[dualsidx_vnk_ub[idx_in_Nfrom]] - v_n0->ub[dualsidx_vnk_ub[idx_in_Nfrom]])<1e-2) {
 	Nidx_from_upper = dualsidx_vnk_ub[idx_in_Nfrom];
       }
-      if(idx_in_Nto   < 10 && fabs(v_nk->x[dualsidx_vnk_ub[idx_in_Nto  ]] - v_nk->ub[dualsidx_vnk_ub[idx_in_Nto  ]])<1e-2) {
+      if(idx_in_Nto   < 10 && fabs(v_n0->x[dualsidx_vnk_ub[idx_in_Nto  ]] - v_n0->ub[dualsidx_vnk_ub[idx_in_Nto  ]])<1e-2) {
 	if(Nidx_from_upper>=0) {
 	  if(fabs(vnk_duals_ub->x[idx_in_Nto]) > fabs(vnk_duals_ub->x[Nidx_from_upper]))
 	    Nidx_from_upper = dualsidx_vnk_ub[idx_in_Nto];
@@ -408,10 +505,10 @@ namespace gollnlp {
       int idx_in_Nfrom = indexin(dualsidx_vnk_lb, NidxFrom); assert(idx_in_Nfrom>=0);
       int idx_in_Nto   = indexin(dualsidx_vnk_lb, NidxTo);   assert(idx_in_Nto  >=0);
       
-      if(idx_in_Nfrom < 10 && fabs(v_nk->x[dualsidx_vnk_lb[idx_in_Nfrom]] - v_nk->lb[dualsidx_vnk_lb[idx_in_Nfrom]])<1e-2) {
+      if(idx_in_Nfrom < 10 && fabs(v_n0->x[dualsidx_vnk_lb[idx_in_Nfrom]] - v_n0->lb[dualsidx_vnk_lb[idx_in_Nfrom]])<1e-2) {
 	Nidx_from_lower = dualsidx_vnk_lb[idx_in_Nfrom];
       }
-      if(idx_in_Nto   < 10 && fabs(v_nk->x[dualsidx_vnk_lb[idx_in_Nto  ]] - v_nk->lb[dualsidx_vnk_lb[idx_in_Nto  ]])<1e-2) {
+      if(idx_in_Nto   < 10 && fabs(v_n0->x[dualsidx_vnk_lb[idx_in_Nto  ]] - v_n0->lb[dualsidx_vnk_lb[idx_in_Nto  ]])<1e-2) {
 	if(Nidx_from_lower>=0) {
 	  if(fabs(vnk_duals_lb->x[idx_in_Nto]) > fabs(vnk_duals_lb->x[Nidx_from_upper]))
 	    Nidx_from_lower = dualsidx_vnk_lb[idx_in_Nto];
@@ -430,7 +527,7 @@ namespace gollnlp {
 #endif
       info_out[0] = obj_value;
       info_out[0+1] = 1000+v_n0->x[Nidx];
-      info_out[1+1] = 1e+8; //upper is 1e+8, lower is -1e+8; fabs>=1e+8 indicates a voltage penalty
+      info_out[1+1] = 1e+20; //upper is 1e+20, lower is -1e+20; fabs>=1e+20 indicates a voltage penalty
       info_out[2+1] = vnk_duals_ub->x[Nidx];
       info_out[3+1] = (double)(1+Nidx); //it will be -1-Nidx for lower
 
@@ -447,7 +544,7 @@ namespace gollnlp {
 #endif
       info_out[0] = obj_value;
       info_out[0+1] = 1000+v_n0->x[Nidx];
-      info_out[1+1] = -1e+8; //upper is 1e+8, lower is -1e+8; fabs>=1e+8 indicates a voltage penalty
+      info_out[1+1] = -1e+20; //upper is 1e+20, lower is -1e+20; fabs>=1e+20 indicates a voltage penalty
       info_out[2+1] = vnk_duals_lb->x[Nidx];
       info_out[3+1] = (double)(-1-Nidx); // -1-Nidx for lower
       return true;
@@ -462,7 +559,7 @@ namespace gollnlp {
 	const int Nidx = Nidx_from_upper;
 	info_out[0] = obj_value;
 	info_out[0+1] = 1000+v_n0->x[Nidx];
-	info_out[1+1] = 1e+8; //upper is 1e+8, lower is -1e+8; fabs>=1e+8 indicates a voltage penalty
+	info_out[1+1] = 1e+20; //upper is 1e+20, lower is -1e+20; fabs>=1e+20 indicates a voltage penalty
 	info_out[2+1] = vnk_duals_ub->x[Nidx];
 	info_out[3+1] = (double)(1+Nidx); //it will be -1-Nidx for lower
 	return true;
@@ -471,43 +568,7 @@ namespace gollnlp {
 
     if(Nidx_from_upper>=0 || Nidx_from_lower>=0) return false;
 
-
-
     return false;
   }
-
-    //      if(K_idx==11763){// || 925==K_idx) {
-    //   print_active_power_balance_info(*data_K[0]);
-    //   print_reactive_power_balance_info(*data_K[0]);
-    //   print_PVPQ_info(*data_K[0], v_n0);
-
-    //   auto duals_ub = variable_duals_upper("duals_bndU_v_n", *data_K[0]);
-    //   auto duals_lb = variable_duals_lower("duals_bndL_v_n", *data_K[0]);
-    //   auto v_n = variable("v_n", *data_K[0]);
-
-    //   assert(duals_lb); assert(duals_ub); assert(v_n);
-    //   vector<int> idxs = {1, 4090, 7454, 7476, 7477, 16677};
-    //   for(auto idx: idxs) 
-    // 	printf("!!!! idx=%d v_n0=%.5e v_nk=[%.5e < %.5e < %.5e] dual_L=%g dual_U=%g\n", 
-    // 	       idx, v_n0->x[idx], v_n->lb[idx], v_n->x[idx], v_n->ub[idx], duals_lb->x[idx], duals_ub->x[idx]);
-    // }
-    // if(K_idx==11763){// || 925==K_idx) {
-    //   print_active_power_balance_info(*data_K[0]);
-    //   print_reactive_power_balance_info(*data_K[0]);
-    //   print_PVPQ_info(*data_K[0], v_n0);
-
-    //   auto duals_ub = variable_duals_upper("duals_bndU_v_n", *data_K[0]);
-    //   auto duals_lb = variable_duals_lower("duals_bndL_v_n", *data_K[0]);
-    //   auto v_n = variable("v_n", *data_K[0]);
-
-    //   assert(duals_lb); assert(duals_ub); assert(v_n);
-
-    //   assert(duals_lb); assert(duals_ub); assert(v_n);
-    //   vector<int> idxs = {1, 4090, 7454, 7476, 7477, 16677};
-    //   for(auto idx: idxs) 
-    // 	printf("!!!! idx=%d v_n0=%.5e v_nk=[%.5e < %.5e < %.5e] dual_L=%g dual_U=%g\n", 
-    // 	       idx, v_n0->x[idx], v_n->lb[idx], v_n->x[idx], v_n->ub[idx], duals_lb->x[idx], duals_ub->x[idx]);
-    // }
-
 }
 
