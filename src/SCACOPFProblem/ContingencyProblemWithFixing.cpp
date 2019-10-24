@@ -1015,9 +1015,9 @@ namespace gollnlp {
 	  if(d.K_ConType[0]==SCACOPFData::kGenerator) {
 	    double pen_p_balance, pen_q_balance, pen_line_limits, pen_trans_limits;
 	    get_objective_penalties(pen_p_balance, pen_q_balance, pen_line_limits, pen_trans_limits);
-	    if(pen_p_balance > 500.*pen_q_balance && 
-	       pen_p_balance > 500.*pen_line_limits && 
-	       pen_p_balance > 500.*pen_trans_limits) {
+	    if(pen_p_balance > 100.*pen_q_balance && 
+	       pen_p_balance > 100.*pen_line_limits && 
+	       pen_p_balance > 100.*pen_trans_limits) {
 
 	      if(pg0->x[data_sc.K_outidx[K_idx]] < -1e-6) assert(false);
 
@@ -1475,6 +1475,15 @@ namespace gollnlp {
     int n = data_sc.N_Bus.size(); assert(pslacks_n->n == 2*n);
     for(int i=n; i<2*n; i++) { p_plus  += pslacks_n->x[i]; p_overall += pslacks_n->x[i]; }
     for(int i=0; i<n; i++)   { p_minus -= pslacks_n->x[i]; p_overall -= pslacks_n->x[i]; }
+  }
+  void ContingencyProblemWithFixing::estimate_reactive_power_deficit(double& q_plus, double& q_minus, double& q_overall)
+  {
+    q_plus = q_minus = q_overall = 0.;
+    auto pf_q_bal = dynamic_cast<PFReactiveBalance*>(constraint("q_balance",*data_K[0]));
+    OptVariablesBlock* qslacks_n = pf_q_bal->slacks();
+    int n = data_sc.N_Bus.size(); assert(qslacks_n->n == 2*n);
+    for(int i=n; i<2*n; i++) { q_plus  += qslacks_n->x[i]; q_overall += qslacks_n->x[i]; }
+    for(int i=0; i<n; i++)   { q_minus -= qslacks_n->x[i]; q_overall -= qslacks_n->x[i]; }
   }
   void ContingencyProblemWithFixing::get_objective_penalties(double& pen_p_balance, double& pen_q_balance, 
 							     double& pen_line_limits, double& pen_trans_limits)

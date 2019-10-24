@@ -82,6 +82,7 @@ namespace gollnlp {
     void default_primal_start();
     
     void estimate_active_power_deficit(double& p_plus, double& p_minus, double& p_overall);
+    void estimate_reactive_power_deficit(double& q_plus, double& q_minus, double& q_overall);
     void get_objective_penalties(double& pen_p_balance, double& pen_q_balance, 
 				 double& pen_line_limits, double& pen_trans_limits);
 
