@@ -36,6 +36,14 @@ endif(GOLLNLP_USE_MPI)
 
 find_package(OpenMP)
 
+
+if(${CMAKE_Fortran_COMPILER_ID} STREQUAL "Intel")
+  set(FORTRAN_LIB "-lifcore")	
+  else()
+    set(FORTRAN_LIB "-lgfortran"	)
+endif(${CMAKE_Fortran_COMPILER_ID} STREQUAL "Intel")
+message("Using Fortran library flag ${FORTRAN_LIB}")
+
 if(GOLLNLP_FAULT_HANDLING)
   add_definitions(-DGOLLNLP_FAULT_HANDLING)
 endif(GOLLNLP_FAULT_HANDLING)
@@ -86,10 +94,10 @@ add_library(gollnlp STATIC $<TARGET_OBJECTS:goSCACOPF> $<TARGET_OBJECTS:goUtils>
 # competition executables
 #
 add_executable(MyExe1 MyCpp1.cpp)
-target_link_libraries(MyExe1 gollnlp "-lgfortran" ipopt coinhsl coinmetis ${LAPACK_LIBRARIES})
+target_link_libraries(MyExe1 gollnlp ${FORTRAN_LIB} ipopt coinhsl coinmetis ${LAPACK_LIBRARIES})
 
 add_executable(MyExe2 MyCpp2.cpp)
-target_link_libraries(MyExe2 gollnlp "-lgfortran" ipopt coinhsl coinmetis ${LAPACK_LIBRARIES})
+target_link_libraries(MyExe2 gollnlp ${FORTRAN_LIB} ipopt coinhsl coinmetis ${LAPACK_LIBRARIES})
 
 
 ##########################################################
