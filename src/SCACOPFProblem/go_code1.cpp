@@ -15,7 +15,6 @@ using namespace gollnlp;
 #include <chrono>
 #include <thread>
 
-//! remove it
 #include "SCACOPFIO.hpp"
 
 //#define DEBUG_COMM 1
@@ -353,11 +352,16 @@ bool MyCode1::do_phase1()
   g_max_memory_ma27 = 800;
   g_alarm_duration_ma27 = 15;
 
-  if(data.N_Bus.size()>35000) {
+  if(data.N_Bus.size()>55000) {
+    g_max_memory_ma57 = 2000;
+    g_alarm_duration_ma57 = 40;
+    g_max_memory_ma27 = 2200;
+    g_alarm_duration_ma27 = 45;
+  } else if(data.N_Bus.size()>25000) {
     g_max_memory_ma57 = 1500;
-    g_alarm_duration_ma57 = 20;
+    g_alarm_duration_ma57 = 25;
     g_max_memory_ma27 = 1700;
-    g_alarm_duration_ma27 = 25;
+    g_alarm_duration_ma27 = 30;
   } else if(data.N_Bus.size()>12000) {
     g_max_memory_ma57 = 1000;
     g_alarm_duration_ma57 = 15;
@@ -1656,11 +1660,12 @@ bool MyCode1::do_phase2_evaluator_part(int& switchToSolver)
 	}
 
 	while(scacopf_pass_from_Kidxreq > phase3_scacopf_pass_solution) {
-	  printf("[comm] [warning] Evaluator Rank %d basecase solution is from scacopf_pass %d "
-		 "while the request K_idx=%d requires sol from scacopf_pass %d at global time %g. will idle\n", 
-		 my_rank, scacopf_pass_of_solution, K_phase2[K_idx], scacopf_pass_from_Kidxreq, 
-		 glob_timer.measureElapsedTime());
-	  
+	  if(phase3_scacopf_pass_solution!=-1) {
+	    printf("[comm] [warning] Evaluator Rank %d basecase solution is from scacopf_pass %d "
+		   "while the request K_idx=%d requires sol from scacopf_pass %d at global time %g. will idle\n", 
+		   my_rank, scacopf_pass_of_solution, K_phase2[K_idx], scacopf_pass_from_Kidxreq, 
+		   glob_timer.measureElapsedTime());
+	  }	  
 	  
 	  if(req_recv_base_sol.is_done()) {
 	    scacopf_pass_of_solution = req_recv_base_sol.update_prob_variables(scacopf_prob);
@@ -1682,7 +1687,7 @@ bool MyCode1::do_phase2_evaluator_part(int& switchToSolver)
 #endif
 	      break;
 	    }
-	    std::this_thread::sleep_for(std::chrono::milliseconds(500));
+	    std::this_thread::sleep_for(std::chrono::milliseconds(1250));
 	  }
 	}	    
 	
@@ -2479,12 +2484,16 @@ double MyCode1::phase3_solve_scacopf(std::vector<int>& K_idxs,
   scacopf_prob->use_nlp_solver("ipopt"); 
   scacopf_prob->set_solver_option("linear_solver", "ma57"); 
   scacopf_prob->set_solver_option("mu_init", 1e-4);
-  scacopf_prob->set_solver_option("print_frequency_iter", 5);
+  if(data.N_Bus.size() > 25000)
+    scacopf_prob->set_solver_option("print_frequency_iter", 1);
+  else
+    scacopf_prob->set_solver_option("print_frequency_iter", 5);
+
   scacopf_prob->set_solver_option("print_level", 5);
 
-  scacopf_prob->set_solver_option("acceptable_tol", 1e-7);
+  scacopf_prob->set_solver_option("acceptable_tol", 5e-8);
   scacopf_prob->set_solver_option("acceptable_constr_viol_tol", 1e-8);
-  scacopf_prob->set_solver_option("acceptable_iter", 10);
+  scacopf_prob->set_solver_option("acceptable_iter", 5);
     
   // if(!blarge_prob) {
   //   scacopf_prob->set_solver_option("mu_target", 1e-9);
@@ -2505,16 +2514,20 @@ double MyCode1::phase3_solve_scacopf(std::vector<int>& K_idxs,
   scacopf_prob->set_solver_option("mu_superlinear_decrease_power", 1.25);     
   
   scacopf_prob->monitor.is_active=true;
-  scacopf_prob->monitor.timeout = (ScoringMethod==1 || ScoringMethod==3) ? 596-glob_timer.measureElapsedTime() : 700;
+  scacopf_prob->monitor.emergency = false;
+  //scacopf_prob->monitor.timeout = (ScoringMethod==1 || ScoringMethod==3) ? 596-glob_timer.measureElapsedTime() : 700;
+  scacopf_prob->monitor.timeout = 600;
+
+  if(data.N_Bus.size() > 40000) scacopf_prob->monitor.timeout = 1000;
+
   scacopf_prob->monitor.timer.restart();
 //this will disable writing the sol files in the callback
   scacopf_prob->iter_sol_written=1000000; 
   scacopf_prob->best_known_iter.obj_value = 1e+20;
+
+  //reoptimize
   //bool bret = scacopf_prob->optimize("ipopt");
   bool bret = scacopf_prob->reoptimize(OptProblem::primalDualRestart);
-
-  //if(scacopf_prob->data_K.size()>0)
-  //  scacopf_prob->print_p_g_with_coupling_info(*scacopf_prob->data_K[0]);
 
   phase3_scacopf_passes_solver++;
   req_send_base_sols.post_new_sol(scacopf_prob, Tag7, my_rank, comm_world, phase3_scacopf_passes_solver);

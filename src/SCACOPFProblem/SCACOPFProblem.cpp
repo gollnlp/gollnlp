@@ -3421,6 +3421,7 @@ bool SCACOPFProblem::iterate_callback(int iter, const double& obj_value,
     } else {
       if(mode==RestorationPhaseMode) {
 	monitor.emergency = true;
+	printf("[stop solver][warning] restauration at iter %d optimiz at %.2f sec\n", iter, monitor.timer.measureElapsedTime());
 	//do not set monitor.user_stopped=true; since doing so will look like the last solution is ok
 	return false;
       }
@@ -3448,16 +3449,11 @@ bool SCACOPFProblem::iterate_callback(int iter, const double& obj_value,
     }
 
     if(monitor.timer.measureElapsedTime() > monitor.timeout) {
+      printf("[stop solver] timeout at iter %d optimiz at %.2f sec\n", iter, monitor.timer.measureElapsedTime());
       monitor.emergency = true;
       monitor.user_stopped=true;
       return false;
     }
-
-    //if(inf_pr_orig_pr<=1e-6 && inf_du<=1e-6 && mu<=2e-8) {
-    //  monitor.user_stopped = true;
-    //  monitor.emergency = false;
-    //  return false;
-    //}
   }
 
   return true;
