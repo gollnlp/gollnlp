@@ -585,7 +585,12 @@ bool MyCode2::_guts_of_solve_contingency(ContingencyProblemWithFixing& prob, int
   double timeout = 1200; // contingency solves will switch to emergency mode after this limit is reached
 
   double tm_percentage = glob_timer.measureElapsedTime()/(2.0*data.K_Contingency.size());
-  double avgtm = 1.5; //average time per contingency in seconds
+  //double avgtm = 1.5; //average time per contingency in seconds
+  double avgtm = glob_timer.measureElapsedTime() / std::max(num_K_done,1);
+
+  if(20*( (my_rank-1)/20 ) == my_rank-1)
+    printf("rank %d avgtm=%.2f perK at %.2f percent of time glob_time=%g\n", my_rank, avgtm, 100.*tm_percentage, glob_timer.measureElapsedTime());
+
   if(tm_percentage<0.075) {
     if(data.N_Bus.size()<31000) { //tm_percentage in [0%,7.5%]
       pen_accept = pen_accept_inipt = pen_accept_solve1 = 1.;
