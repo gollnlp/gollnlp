@@ -307,7 +307,14 @@ bool MyCode1::do_phase1()
   scacopf_prob->set_solver_option("acceptable_constr_viol_tol", 1e-8);
   scacopf_prob->set_solver_option("acceptable_iter", 5);
 
-  if(false) {  
+  bool fixedgen = false;
+  auto pg0 = scacopf_prob->variable("p_g", data);
+  if(pg0) 
+    for(int ig=0; ig<pg0->n; ig++) if(fabs(pg0->lb[ig]-pg0->ub[ig]) < 1e-12) fixedgen=true;
+
+  if(fixedgen) { 
+    if(iAmMaster)
+      printf("[warning] detected fixed generators\n");
     scacopf_prob->set_solver_option("fixed_variable_treatment", "relax_bounds");
     scacopf_prob->set_solver_option("honor_original_bounds", "yes");
   }

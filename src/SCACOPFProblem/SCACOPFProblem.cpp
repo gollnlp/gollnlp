@@ -1147,22 +1147,26 @@ void SCACOPFProblem::add_variables(SCACOPFData& d, bool SysCond_BaseCase)
   append_variables(b_s);
   //append_objterm(new DummySingleVarQuadrObjTerm("b_s_sq", b_s));
 
+  //for(auto& b : d.G_Plb) b -=1e-8;
+  //for(auto& b : d.G_Pub) b +=1e-8;
+  //printf("!!!!!!!!!!!!!! touched it\n");
+
   auto p_g = new OptVariablesBlock(d.G_Generator.size(), var_name("p_g",d), 
 				   d.G_Plb.data(), d.G_Pub.data());
 
   append_variables(p_g); 
   p_g->set_start_to(d.G_p0.data());
 
-  auto Qlb = d.G_Qlb, Qub = d.G_Qub;
-  
+  //auto Qlb = d.G_Qlb, Qub = d.G_Qub;
   //if(SysCond_BaseCase==true)  
   //  for(auto& v: Qlb) v+= 0.49*fabs(v);
   
   //if(SysCond_BaseCase==true)  
   //  for(auto& v: Qub) v-= 0.49*fabs(v);
 
+
   auto q_g = new OptVariablesBlock(d.G_Generator.size(), var_name("q_g",d), 
-  				   Qlb.data(), Qub.data());
+  				   d.G_Qlb.data(), d.G_Qub.data());
   q_g->set_start_to(d.G_q0.data());
   append_variables(q_g); 
   //append_objterm(new DummySingleVarQuadrObjTerm("q_g_sq", q_g));
