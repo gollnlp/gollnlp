@@ -317,7 +317,15 @@ bool MyCode1::do_phase1()
     scacopf_prob->set_solver_option("fixed_variable_treatment", "relax_bounds");
     scacopf_prob->set_solver_option("honor_original_bounds", "yes");
   }
+
   if(false) {  
+    scacopf_prob->set_solver_option("fixed_variable_treatment", "relax_bounds");
+    scacopf_prob->set_solver_option("honor_original_bounds", "yes");
+  }
+  if(false) {
+    scacopf_prob->set_solver_option("ma57_automatic_scaling", "yes");
+    scacopf_prob->set_solver_option("ma57_small_pivot_flag", 1);
+
     double relax_factor = 1e-8;//std::min(1e-8, pow(10., 3*n_solves-16));
     scacopf_prob->set_solver_option("bound_relax_factor", relax_factor);
     double bound_push = 1e-2;//std::min(1e-2, pow(10., 3*n_solves-12));
@@ -327,9 +335,12 @@ bool MyCode1::do_phase1()
     scacopf_prob->set_solver_option("bound_frac", bound_frac);
     scacopf_prob->set_solver_option("slack_bound_frac", bound_frac);
   }
-  scacopf_prob->set_solver_option("mu_init", 0.1);
+  double mu_init = 0.1;
+  if(ScoringMethod==2 || ScoringMethod==4) mu_init=1.;
+  scacopf_prob->set_solver_option("mu_init", mu_init);
   scacopf_prob->set_solver_option("tol", 1e-7);
   scacopf_prob->set_solver_option("mu_target", 5e-9);
+
   
   scacopf_prob->set_solver_option("mu_linear_decrease_factor", 0.5);
   scacopf_prob->set_solver_option("mu_superlinear_decrease_power", 1.2);
@@ -374,7 +385,7 @@ bool MyCode1::do_phase1()
 
   if(iAmSolver) {    assert(my_rank==rank_solver_rank0);
     scacopf_prob->monitor.is_active=true;
-    scacopf_prob->monitor.timeout = (ScoringMethod==1 || ScoringMethod==3) ? 450 : 700;
+    scacopf_prob->monitor.timeout = (ScoringMethod==1 || ScoringMethod==3) ? 450 : 2250;
     scacopf_prob->set_solver_option("print_level", 5);
     scacopf_prob->set_solver_option("max_iter", 1000);
 
@@ -444,7 +455,7 @@ bool MyCode1::do_phase1()
 	scacopf_prob->set_solver_option("bound_frac", bound_frac);
 	scacopf_prob->set_solver_option("slack_bound_frac", bound_frac);
 	
-	scacopf_prob->set_solver_option("mu_init", 1.);
+	scacopf_prob->set_solver_option("mu_init", 10.);
 	scacopf_prob->set_solver_option("tol", 1e-6);
 	scacopf_prob->set_solver_option("mu_target", 1e-8);
   
@@ -557,6 +568,7 @@ bool MyCode1::do_phase1()
       scacopf_prob->set_solver_option("mu_init", 5e-9);
       scacopf_prob->set_solver_option("tol", 1e-8);
       scacopf_prob->set_solver_option("mu_target", 1e-9);
+      //scacopf_prob->set_solver_option("mu_target", 0.);
 
       //scacopf_prob->set_solver_option("fixed_variable_treatment", "relax_bounds");
       //scacopf_prob->set_solver_option("honor_original_bounds", "yes");
@@ -573,7 +585,7 @@ bool MyCode1::do_phase1()
     }
 
     scacopf_prob->monitor.is_active=true;
-    scacopf_prob->monitor.timeout = (ScoringMethod==1 || ScoringMethod==3) ? 590-glob_timer.measureElapsedTime() : 700;
+    scacopf_prob->monitor.timeout = (ScoringMethod==1 || ScoringMethod==3) ? 610-glob_timer.measureElapsedTime() : 900;
     scacopf_prob->monitor.timer.restart();
     scacopf_prob->iter_sol_written=-10;
     bool bret = scacopf_prob->reoptimize(OptProblem::primalDualRestart);
@@ -737,9 +749,10 @@ void MyCode1::phase2_initial_contingency_distribution()
       if(!K_high_prio_phase2.empty()) {
 
 	if(false && r==2){
-	  int kk = 11763;//11971;//11763;
+	  //K_idx=4202
+	  int kk = 4644;//11763;//11971;//11763;
 	  if(kk>=data.K_Contingency.size())
-	    kk=4916;
+	    kk=1;
 	  K_idx_phase2 = kk;
 
 	  K_on_rank[r].push_back(kk);
@@ -2483,7 +2496,7 @@ double MyCode1::phase3_solve_scacopf(std::vector<int>& K_idxs,
 
   scacopf_prob->use_nlp_solver("ipopt"); 
   scacopf_prob->set_solver_option("linear_solver", "ma57"); 
-  scacopf_prob->set_solver_option("mu_init", 1e-4);
+  scacopf_prob->set_solver_option("mu_init", 1e-5);
   if(data.N_Bus.size() > 25000)
     scacopf_prob->set_solver_option("print_frequency_iter", 1);
   else
@@ -2505,7 +2518,12 @@ double MyCode1::phase3_solve_scacopf(std::vector<int>& K_idxs,
   //   scacopf_prob->set_solver_option("mu_superlinear_decrease_power", 1.4); 
   // }
   scacopf_prob->set_solver_option("mu_target", 1e-9);
-  scacopf_prob->set_solver_option("tol", 1e-10);
+  if(data.N_Bus.size() > 45000) scacopf_prob->set_solver_option("mu_target", 5e-9);
+
+  scacopf_prob->set_solver_option("tol", 1e-9);
+  if(data.N_Bus.size() > 19000) scacopf_prob->set_solver_option("tol", 5e-9);
+  if(data.N_Bus.size() > 45000) scacopf_prob->set_solver_option("tol", 1e-8);
+
   scacopf_prob->set_solver_option("max_iter", 500);
   scacopf_prob->set_solver_option("bound_relax_factor", 1e-8);
   scacopf_prob->set_solver_option("bound_push", 1e-8);
@@ -2518,7 +2536,7 @@ double MyCode1::phase3_solve_scacopf(std::vector<int>& K_idxs,
   //scacopf_prob->monitor.timeout = (ScoringMethod==1 || ScoringMethod==3) ? 596-glob_timer.measureElapsedTime() : 700;
   scacopf_prob->monitor.timeout = 600;
 
-  if(data.N_Bus.size() > 40000) scacopf_prob->monitor.timeout = 1000;
+  if(data.N_Bus.size() > 40000) scacopf_prob->monitor.timeout = 900;
 
   scacopf_prob->monitor.timer.restart();
 //this will disable writing the sol files in the callback
