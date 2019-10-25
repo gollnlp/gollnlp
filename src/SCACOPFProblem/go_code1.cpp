@@ -2567,9 +2567,10 @@ double MyCode1::phase3_solve_scacopf(std::vector<int>& K_idxs,
 
   //write solution
   if(!bret) {
-    printf("[warning] Solver rank %d: scacopf solve failed; solution1 NOT written\n",
+    printf("[warning]write Solver rank %d: scacopf solve failed; solution1.txt NOT written\n",
 	   my_rank);
   } else {
+    printf("Solver rank %d: write solution1.txt after scacopf solve\n", my_rank);
     scacopf_prob->write_solution_basecase();
     scacopf_prob->write_pridua_solution_basecase();
 #ifdef DEBUG
