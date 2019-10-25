@@ -19,7 +19,7 @@ using namespace gollnlp;
 #include "SCACOPFIO.hpp"
 
 //#define DEBUG_COMM 1
-#define DEBUG_SCHED 1
+//#define DEBUG_SCHED 1
 
 ostream& operator<<(ostream& os, const MyCode1::ContingInfo& o)
 {
@@ -771,7 +771,7 @@ void MyCode1::phase2_initial_contingency_distribution()
       }
     }
   }
-  printvecvec(K_on_rank);
+  //printvecvec(K_on_rank);
 
   if(K_on_rank[1].size()==0) K_on_rank[1].push_back(-2);
 
@@ -2936,10 +2936,6 @@ void MyCode1::get_high_priority_Ktransm(int Kmax, std::vector<int>& K_high_prio,
 	    [&](const KTransmInfo& a, const KTransmInfo& b) { return a.priority > b.priority; });
   std::sort(ktransf_info.begin(), ktransf_info.end(), 
 	    [&](const KTransmInfo& a, const KTransmInfo& b) { return a.priority > b.priority; });
-
-
-  //printvec(kline_info, "Klines in order");
-  //printvec(ktransf_info, "Ktransf in order");
 #endif
   kline_info.insert(kline_info.end(), ktransf_info.begin(), ktransf_info.end());
   std::sort(kline_info.begin(), kline_info.end(), 

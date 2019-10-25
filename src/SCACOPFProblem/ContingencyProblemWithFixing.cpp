@@ -974,17 +974,17 @@ namespace gollnlp {
     
     if(this->obj_value>acceptable_penalty && !skip_2nd_solve) {
 
- #ifdef BE_VERBOSE
-      print_objterms_evals();
+      // #ifdef BE_VERBOSE
+      //print_objterms_evals();
       //print_p_g_with_coupling_info(*data_K[0], pg0);
-      printf("ContProbWithFixing K_idx=%d first pass resulted in high pen; delta=%g\n", K_idx, solv1_delta_optim);
-#endif
+      //printf("ContProbWithFixing K_idx=%d first pass resulted in high pen; delta=%g\n", K_idx, solv1_delta_optim);
+      //#endif
 
       double pplus, pminus, poverall;
       estimate_active_power_deficit(pplus, pminus, poverall);
 #ifdef BE_VERBOSE
-      printf("ContProbWithFixing K_idx=%d (after solv1) act pow imbalances p+ p- poveral %g %g %g\n",
-	     K_idx, pplus, pminus, poverall);
+      printf("ContProbWithFixing K_idx=%d (after solv1) act pow imbalances p+ p- poveral %g %g %g;  delta=%g\n",
+	     K_idx, pplus, pminus, poverall, solv1_delta_optim);
 #endif
 
       bool one_more_push_and_fix=false; double gen_K_diff=0.;
@@ -1150,7 +1150,7 @@ namespace gollnlp {
 	double delta_optim = 0.;//
 	if(variable("delta", d)) delta_optim = variable("delta", d)->x[0];
 #ifdef BE_VERBOSE
-	print_objterms_evals();
+	//print_objterms_evals();
 	//print_p_g_with_coupling_info(*data_K[0], pg0);
 	printf("ContProbWithFixing K_idx=%d opt1 opt2 resulted in high pen delta=%g\n", K_idx, delta_optim);
 #endif
@@ -1315,7 +1315,7 @@ namespace gollnlp {
     }
     
 #ifdef BE_VERBOSE
-    printf("push_and_fix_AGCgen K_idx=%d P_in=%g delta_in=%g rank=%d\n", K_idx, P_in, delta_in, my_rank);
+    //printf("push_and_fix_AGCgen K_idx=%d P_in=%g delta_in=%g rank=%d\n", K_idx, P_in, delta_in, my_rank);
 #endif
     if(!Pispos && delta_in>0) printf("K_idx=%d !!!!!!!!\n", K_idx);
 

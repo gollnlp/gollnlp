@@ -88,17 +88,17 @@ namespace gollnlp {
     
     if(this->obj_value>acceptable_penalty && !skip_2nd_solve) {
 
- #ifdef BE_VERBOSE
-      print_objterms_evals();
+      //#ifdef BE_VERBOSE
+      //print_objterms_evals();
       //print_p_g_with_coupling_info(*data_K[0], pg0);
-      printf("ContProb_wfix K_idx=%d first pass resulted in high pen; delta=%g\n", K_idx, solv1_delta_optim);
-#endif
+      //printf("ContProb_wfix K_idx=%d first pass resulted in high pen; delta=%g\n", K_idx, solv1_delta_optim);
+      //#endif
 
       double pplus, pminus, poverall;
       estimate_active_power_deficit(pplus, pminus, poverall);
 #ifdef BE_VERBOSE
-      printf("ContProb_wfix K_idx=%d (after solv1) act pow imbalances p+ p- poveral %g %g %g\n",
-	     K_idx, pplus, pminus, poverall);
+      printf("ContProb_wfix K_idx=%d (after solv1) act pow imbalances p+ p- poveral %g %g %g; delta=%g\n",
+	     K_idx, pplus, pminus, poverall, solv1_delta_optim);
 #endif
 
       bool one_more_push_and_fix=false; double gen_K_diff=0.;
@@ -269,7 +269,7 @@ namespace gollnlp {
 	double delta_optim = 0.;//
 	if(variable("delta", d)) delta_optim = variable("delta", d)->x[0];
 #ifdef BE_VERBOSE
-	print_objterms_evals();
+	//print_objterms_evals();
 	//print_line_limits_info(*data_K[0]);
 	//print_active_power_balance_info(*data_K[0]);
 	//print_reactive_power_balance_info(*data_K[0]);
@@ -381,8 +381,6 @@ namespace gollnlp {
 	info_out[1]=1e8*delta + fabs(p_li10->x[idx]);
 	info_out[3]=1e8*delta + fabs(p_li20->x[idx]);
 
-	//printf("!!!!!!!!!!! delta = %16.8e info1=%.16f  info3=%.16f\n", delta, info_out[1], info_out[3]);
-
 	msg += "pli ";
       }
       if(pen_q_balance>5e4) {
@@ -462,7 +460,7 @@ namespace gollnlp {
 	 [&](const int& a, const int& b) { return fabs(vnk_duals_lb->x[a]) > fabs(vnk_duals_lb->x[b]); } );
     sort(dualsidx_vnk_ub.begin(), dualsidx_vnk_ub.end(), 
 	 [&](const int& a, const int& b) { return fabs(vnk_duals_ub->x[a]) > fabs(vnk_duals_ub->x[b]); } );
-#ifdef BE_VERBOSE
+#ifdef BE_VERBOSE2
     printf("ContingencyProblem_wfix largest duals for K_idx=%d recourse_%s outidx=%d busidxs from=%d to %d\n",
 	   K_idx, isLine ? "line" : "transf", outidx, NidxFrom, NidxTo);
 
