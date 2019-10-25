@@ -2520,9 +2520,9 @@ double MyCode1::phase3_solve_scacopf(std::vector<int>& K_idxs,
   scacopf_prob->set_solver_option("mu_target", 1e-9);
   if(data.N_Bus.size() > 45000) scacopf_prob->set_solver_option("mu_target", 5e-9);
 
-  scacopf_prob->set_solver_option("tol", 1e-9);
-  if(data.N_Bus.size() > 19000) scacopf_prob->set_solver_option("tol", 5e-9);
-  if(data.N_Bus.size() > 45000) scacopf_prob->set_solver_option("tol", 1e-8);
+  scacopf_prob->set_solver_option("tol", 1e-8);
+  //if(data.N_Bus.size() > 19000) scacopf_prob->set_solver_option("tol", 5e-9);
+  if(data.N_Bus.size() > 45000) scacopf_prob->set_solver_option("tol", 5e-8);
 
   scacopf_prob->set_solver_option("max_iter", 500);
   scacopf_prob->set_solver_option("bound_relax_factor", 1e-8);
@@ -2536,11 +2536,14 @@ double MyCode1::phase3_solve_scacopf(std::vector<int>& K_idxs,
   //scacopf_prob->monitor.timeout = (ScoringMethod==1 || ScoringMethod==3) ? 596-glob_timer.measureElapsedTime() : 700;
   scacopf_prob->monitor.timeout = 600;
 
+  scacopf_prob->monitor.feasibtol_for_write = 5e-8;
+  scacopf_prob->monitor.write_every = 1;
+
   if(data.N_Bus.size() > 40000) scacopf_prob->monitor.timeout = 900;
 
   scacopf_prob->monitor.timer.restart();
-//this will disable writing the sol files in the callback
-  scacopf_prob->iter_sol_written=1000000; 
+
+  scacopf_prob->iter_sol_written=-10;//1000000; 
   scacopf_prob->best_known_iter.obj_value = 1e+20;
 
   //reoptimize

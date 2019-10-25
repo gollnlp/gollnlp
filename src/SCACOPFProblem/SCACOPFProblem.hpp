@@ -275,7 +275,8 @@ namespace gollnlp {
     struct ConvMonitor
     {
       ConvMonitor() : is_active(false), user_stopped(false), emergency(false),
-		      pen_accept(1.), pen_accept_emer(1000.), timeout(500), bcast_done(false)
+		      pen_accept(1.), pen_accept_emer(1000.), timeout(500), bcast_done(false),
+		      feasibtol_for_write(1e-6), write_every(3)
       {
 	timer.start();
       };
@@ -288,6 +289,8 @@ namespace gollnlp {
       goTimer timer;
       std::vector<double> hist_tm;
       bool bcast_done;
+      double feasibtol_for_write;
+      int write_every;
     };
     ConvMonitor monitor;
   public:
@@ -398,6 +401,7 @@ namespace gollnlp {
       int iter;
       OptimizationMode mode;
       OptVariables *vars_duals_cons, *vars_duals_bounds_L, *vars_duals_bounds_U;
+
       int my_rank;
     };
     IterInfo best_known_iter;

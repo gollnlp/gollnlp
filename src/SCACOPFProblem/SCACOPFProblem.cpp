@@ -3402,12 +3402,12 @@ bool SCACOPFProblem::iterate_callback(int iter, const double& obj_value,
     assert(duals_con); assert(duals_lb); assert(duals_ub); 
 
     if(primals && mode!=RestorationPhaseMode) {
-      if(inf_pr_orig_pr<=1e-6 && best_known_iter.obj_value>=obj_value) {
+      if(inf_pr_orig_pr<=monitor.feasibtol_for_write && best_known_iter.obj_value>=obj_value) {
 	best_known_iter.copy_primal_vars_from(primals, vars_primal);
 	best_known_iter.copy_dual_vars_from(duals_con, duals_lb, duals_ub);
 	best_known_iter.set_iter_stats( iter, obj_value, inf_pr, inf_pr_orig_pr, inf_du, mu, mode);
 
-	if(iter-iter_sol_written>5) {
+	if(iter-iter_sol_written>=monitor.write_every) {
 	  printf("[ph1] rank %d  phase 1 writes solution1.txt from call_back iter=%d\n", 
 		 my_rank, iter);
 	  write_solution_basecase(best_known_iter.vars_primal);
