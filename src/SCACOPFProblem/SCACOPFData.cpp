@@ -463,7 +463,10 @@ readinstance(const std::string& raw, const std::string& rop, const std::string& 
       trim(generatordsp[GDGENID][i]);
       string&sid=generatordsp[GDGENID][i];
       sid.erase(remove(sid.begin(), sid.end(),'\''), sid.end());
-      vBGEN[i] = generatordsp[GDBUS][i] + ":" + sid;
+      //!
+      string sid2 = sid;
+      trim(sid2);
+      vBGEN[i] = generatordsp[GDBUS][i] + ":" + sid2;
     }
     auto gdspix = indexin(vBBUN, vBGEN);
 
