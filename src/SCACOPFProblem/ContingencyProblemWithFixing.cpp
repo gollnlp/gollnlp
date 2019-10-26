@@ -161,7 +161,7 @@ namespace gollnlp {
 	pgK->x[solv1_pgK_partic_idxs[it]] = pg0->x[i0]+data_sc.G_alpha[i0] * solv1_delta_out;
       }
 #ifdef BE_VERBOSE
-      printf("ContProbWithFixing K_idx=%d (gener) %.8f gen missing; fixed %lu gens; deltas out=%g needed=%g blocking=%g "
+      printf("ContProbWithFixing K_idx=%d def_ass (extra gener) %.8f gen missing; fixed %lu gens; delta out=%g needed=%g blocking=%g "
 	     "residualPg=%g feasib=%d\n",
 	     K_idx, gen_K_diff, pg0_partic_idxs.size()-solv1_pg0_partic_idxs.size(),
 	     solv1_delta_out, solv1_delta_needed, solv1_delta_blocking, residual_Pg, solv1_Pg_was_enough);
@@ -1000,16 +1000,17 @@ namespace gollnlp {
 	double rpa = fabs(pplus) / fabs(poverall);
 	double rma = fabs(pminus) / fabs(poverall);
 
-	//solv1_delta_optim=0.;//!
-
 	if( (rpa>0.85 && rpa<1.15) || (rma>0.85 && rma <1.15) ) {
 	  one_more_push_and_fix = true;
 	  gen_K_diff = 1.2*poverall;
 
-	  //ignore small delta for transmission contingencies since they're really optimization noise
-	  if(d.K_ConType[0]!=SCACOPFData::kGenerator && fabs(solv1_delta_optim)<1e-6) {
-	    solv1_delta_optim=0.;
-	  }
+	  // DO NOT - this will make solv1_delta_optim sign-less and it may end up in ramping down gen in the second
+	  //push_and_fix despite the fact the first push_and_fix ramped up
+	  //DO NOT do
+	  // //ignore small delta for transmission contingencies since they're really optimization noise
+	  // if(d.K_ConType[0]!=SCACOPFData::kGenerator && fabs(solv1_delta_optim)<1e-6) {
+	  //   //solv1_delta_optim=5e-16;
+	  // }
 
 	  //if our first attempt to ramp up resulted in a active power balance deficit, then be more agressive this time
 	  if(d.K_ConType[0]==SCACOPFData::kGenerator) {
@@ -1046,7 +1047,8 @@ namespace gollnlp {
 
 	if(fabs(gen_K_diff)>1e-6) {
 	  //solv1_delta_optim and gen_K_diff must have same sign at this point
-	  if(solv1_delta_optim * gen_K_diff < 0) gen_K_diff=0.;
+	  //printf("!!!! %.8e %.8e \n", solv1_delta_optim, gen_K_diff);
+	  if(solv1_delta_optim * gen_K_diff <= 0) gen_K_diff=0.;
 	  bfeasib = push_and_fix_AGCgen(d, gen_K_diff, solv1_delta_optim, 
 					pg0_partic_idxs_u, pgK_partic_idxs_u, pg0_nonpartic_idxs_u, pgK_nonpartic_idxs_u,
 					pg0, pgK, 
@@ -1059,7 +1061,7 @@ namespace gollnlp {
 	    pgK->x[pgK_partic_idxs_u[it]] = pg0->x[i0]+data_sc.G_alpha[i0]*delta_out;
 	  }
 #ifdef BE_VERBOSE
-	  printf("ContProbWithFixing K_idx=%d (gener)(after solv1) fixed %lu gens; adtl deltas out=%g needed=%g blocking=%g "
+	  printf("ContProbWithFixing K_idx=%d after solv1 (extra gener) fixed %lu gens; adtl deltas out=%g needed=%g blocking=%g "
 		 "residualPg=%g feasib=%d\n",
 		 K_idx, solv1_pg0_partic_idxs.size()-pg0_partic_idxs_u.size(),
 		 delta_out, delta_needed, delta_blocking, residual_Pg, bfeasib);
