@@ -22,6 +22,7 @@ namespace gollnlp {
       : data_sc(d_in), 
 	useQPen(false), slacks_scale(1.),  PVPQSmoothing(0.01), AGCSmoothing(1e-2),
 	AGC_as_nonanticip(false), AGC_simplified(false), PVPQ_as_nonanticip(false),
+	slacks_initially_to_zero(false), slacks_initially_recomputed(true),
 	linear_prod_cost(false), quadr_penalty_qg0(false)
     {
       L_rate_reduction = T_rate_reduction = 1.;
@@ -95,6 +96,11 @@ namespace gollnlp {
     inline void set_basecase_T_rate_reduction(const double& rate) { T_rate_reduction = rate; }
 
     inline void set_quadr_penalty_qg0(bool onOrOff) { quadr_penalty_qg0 = onOrOff; }
+
+    inline void set_flag_slacks_initially_to_zero(bool onOrOff) 
+    { slacks_initially_to_zero = onOrOff; }
+    inline void set_flag_slacks_initially_recomputed(bool onOrOff) 
+    { slacks_initially_recomputed = onOrOff; }
 
     // void add_quadr_conting_penalty_pg0(const int& idx_gen, const double& p0, const double& f_pen);
     // void remove_quadr_conting_penalty_pg0(const int& idx_gen);
@@ -181,6 +187,7 @@ namespace gollnlp {
     bool quadr_penalty_qg0;
   public:
     bool AGC_as_nonanticip, AGC_simplified, PVPQ_as_nonanticip;
+    bool slacks_initially_to_zero, slacks_initially_recomputed;
     bool linear_prod_cost;
     double L_rate_reduction, T_rate_reduction;
   public:
