@@ -26,7 +26,7 @@ SCACOPFProblem::~SCACOPFProblem()
 bool SCACOPFProblem::default_assembly()
 {
   useQPen = true;
-  //slacks_scale = 128.;
+  slacks_scale = 1.;//128.;
 
   SCACOPFData& d = data_sc; //shortcut
 
@@ -47,8 +47,6 @@ bool SCACOPFProblem::default_assembly()
   for(int it=0; it<sz; it++) {
     r_emer = L_rate_reduction * d.L_RateEmer[it];
     r_base =                    d.L_RateBase[it];
-
-    rate[it] = r_emer < r_base ? r_emer : r_base;
   }
   add_cons_thermal_li_lims(d, rate);
 
@@ -57,15 +55,12 @@ bool SCACOPFProblem::default_assembly()
   for(int it=0; it<sz; it++) {
     r_emer = T_rate_reduction * d.T_RateEmer[it];
     r_base =                    d.T_RateBase[it];
-    rate[it] = r_emer < r_base ? r_emer : r_base;
   }
-
-
   add_cons_thermal_ti_lims(d, rate);
 
   add_obj_prod_cost(d);
 
-  if(quadr_penalty_qg0) {
+    if(quadr_penalty_qg0) {
     OptVariablesBlock* q_g0 = variable("q_g", d); assert(q_g0);
     append_objterm(new QuadrAwayFromBoundsObjTerm(string("qg0_quadr_pen")+q_g0->id,
   						  q_g0, 1., d.G_Qlb.data(), d.G_Qub.data()));
@@ -96,8 +91,11 @@ bool SCACOPFProblem::default_assembly()
 
   append_objterm(new VoltageKPenaltyObjTerm("penalty_voltage_from_conting", variable("v_n", d)));
 
-  add_agc_reserves_for_max_Lloss_Ugain();
-  add_agc_reserves();
+  //if(d.N_Bus.size()<=52000) 
+  {
+    add_agc_reserves_for_max_Lloss_Ugain();
+    add_agc_reserves();
+  }
   return true;
 }
 
@@ -3397,25 +3395,42 @@ bool SCACOPFProblem::iterate_callback(int iter, const double& obj_value,
     //finish initialization if needed
     if(iter==0) {
       best_known_iter.initialize(vars_primal, vars_duals_cons, vars_duals_bounds_L, vars_duals_bounds_U);
+      monitor.objvalue_initial=obj_value; //reset
+      monitor.objvalue_last_written=1e+20;
+    } else {
+
     }
 
     assert(duals_con); assert(duals_lb); assert(duals_ub); 
 
+    assert(monitor.acceptable_tol_feasib>=monitor.tol_feasib_for_write);
+    if(monitor.acceptable_tol_feasib<monitor.tol_feasib_for_write) {
+      
+      printf("[warning] setting acceptable_tol_feasib==tol_feasib_for_write (was %g < %g)\n", monitor.acceptable_tol_feasib, monitor.tol_feasib_for_write);
+      monitor.tol_feasib_for_write = monitor.acceptable_tol_feasib;
+    }
+
     if(primals && mode!=RestorationPhaseMode) {
-      if(inf_pr_orig_pr<=monitor.feasibtol_for_write && best_known_iter.obj_value>=obj_value) {
+      if(inf_pr_orig_pr<=monitor.acceptable_tol_feasib && best_known_iter.obj_value>=obj_value) {
 	best_known_iter.copy_primal_vars_from(primals, vars_primal);
 	best_known_iter.copy_dual_vars_from(duals_con, duals_lb, duals_ub);
 	best_known_iter.set_iter_stats( iter, obj_value, inf_pr, inf_pr_orig_pr, inf_du, mu, mode);
 
 	if(iter-iter_sol_written>=monitor.write_every) {
-	  printf("[ph1] rank %d  phase 1 writes solution1.txt from call_back iter=%d\n", 
-		 my_rank, iter);
-	  write_solution_basecase(best_known_iter.vars_primal);
-	  write_pridua_solution_basecase(best_known_iter.vars_primal,
-					 best_known_iter.vars_duals_cons,
-					 best_known_iter.vars_duals_bounds_L,
-					 best_known_iter.vars_duals_bounds_U);
-	  iter_sol_written = iter;
+	  if(inf_pr_orig_pr <= monitor.tol_feasib_for_write &&
+	     inf_du <= monitor.tol_optim_for_write &&
+	     mu <= monitor.tol_mu_for_write &&
+	     obj_value <= monitor.objvalue_last_written) {
+	    printf("[ph1] rank %d  phase 1 writes solution1.txt from call_back iter=%d\n", 
+		   my_rank, iter);
+	    write_solution_basecase(best_known_iter.vars_primal);
+	    write_pridua_solution_basecase(best_known_iter.vars_primal,
+					   best_known_iter.vars_duals_cons,
+					   best_known_iter.vars_duals_bounds_L,
+					   best_known_iter.vars_duals_bounds_U);
+	    iter_sol_written = iter;
+	    monitor.objvalue_last_written = obj_value;
+	  }
 	}
       }
     } else {

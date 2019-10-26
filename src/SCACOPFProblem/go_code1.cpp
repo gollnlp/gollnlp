@@ -301,7 +301,6 @@ bool MyCode1::do_phase1()
   scacopf_prob->set_solver_option("linear_solver", "ma57"); 
 
   scacopf_prob->set_solver_option("print_frequency_iter", 5);
-  scacopf_prob->set_solver_option("max_iter", 2000);    
   scacopf_prob->set_solver_option("acceptable_tol", 1e-5);
   scacopf_prob->set_solver_option("acceptable_constr_viol_tol", 1e-8);
   scacopf_prob->set_solver_option("acceptable_iter", 5);
@@ -309,7 +308,7 @@ bool MyCode1::do_phase1()
   bool fixedgen = false;
   auto pg0 = scacopf_prob->variable("p_g", data);
   if(pg0) 
-    for(int ig=0; ig<pg0->n; ig++) if(fabs(pg0->lb[ig]-pg0->ub[ig]) < 1e-12) fixedgen=true;
+    for(int ig=0; ig<pg0->n; ig++) if(fabs(pg0->lb[ig]-pg0->ub[ig]) < 1e-8) fixedgen=true;
 
   if(fixedgen) { 
     if(iAmMaster)
@@ -318,20 +317,27 @@ bool MyCode1::do_phase1()
     scacopf_prob->set_solver_option("honor_original_bounds", "yes");
   }
 
+
+  //scacopf_prob->set_solver_option("ma57_small_pivot_flag", 1);
+  //scacopf_prob->set_solver_option("ma57_automatic_scaling", "yes");
+  //scacopf_prob->set_solver_option("linear_system_scaling", "slack-based");
+
   if(false) {  
     scacopf_prob->set_solver_option("fixed_variable_treatment", "relax_bounds");
     scacopf_prob->set_solver_option("honor_original_bounds", "yes");
+    double relax_factor = 1e-8;//std::min(1e-8, pow(10., 3*n_solves-16));
+    scacopf_prob->set_solver_option("bound_relax_factor", relax_factor);
   }
   if(false) {
     scacopf_prob->set_solver_option("ma57_automatic_scaling", "yes");
     scacopf_prob->set_solver_option("ma57_small_pivot_flag", 1);
 
-    double relax_factor = 1e-8;//std::min(1e-8, pow(10., 3*n_solves-16));
+    double relax_factor = 1e-18;//std::min(1e-8, pow(10., 3*n_solves-16));
     scacopf_prob->set_solver_option("bound_relax_factor", relax_factor);
-    double bound_push = 1e-2;//std::min(1e-2, pow(10., 3*n_solves-12));
+    double bound_push = 1e-20;//std::min(1e-2, pow(10., 3*n_solves-12));
     scacopf_prob->set_solver_option("bound_push", bound_push);
     scacopf_prob->set_solver_option("slack_bound_push", bound_push); 
-    double bound_frac = 1e-2;//std::min(1e-2, pow(10., 3*n_solves-10));
+    double bound_frac = 1e-20;//std::min(1e-2, pow(10., 3*n_solves-10));
     scacopf_prob->set_solver_option("bound_frac", bound_frac);
     scacopf_prob->set_solver_option("slack_bound_frac", bound_frac);
   }
@@ -582,6 +588,17 @@ bool MyCode1::do_phase1()
       scacopf_prob->set_solver_option("warm_start_slack_bound_frac", 1e-12);
       //scacopf_prob->set_solver_option("ma57_small_pivot_flag", 1); //particularly efficient if the matrix is highly rank deficient
       //scacopf_prob->set_solver_option("ma57_pivtol", 1e-6);
+
+      scacopf_prob->monitor.acceptable_tol_feasib = 1e-6; 
+      scacopf_prob->monitor.tol_feasib_for_write = 5e-8;
+      scacopf_prob->monitor.tol_optim_for_write = 1e-6; 
+      scacopf_prob->monitor.tol_mu_for_write = 2e-8;
+      if(data.N_Bus.size() > 39000) {
+      scacopf_prob->monitor.acceptable_tol_feasib = 1e-5; 
+	scacopf_prob->monitor.tol_feasib_for_write = 1e-7;
+	scacopf_prob->monitor.tol_optim_for_write = 1e-5; 
+	scacopf_prob->monitor.tol_mu_for_write = 5e-8;
+      }
     }
 
     scacopf_prob->monitor.is_active=true;
@@ -2504,9 +2521,15 @@ double MyCode1::phase3_solve_scacopf(std::vector<int>& K_idxs,
 
   scacopf_prob->set_solver_option("print_level", 5);
 
-  scacopf_prob->set_solver_option("acceptable_tol", 5e-8);
-  scacopf_prob->set_solver_option("acceptable_constr_viol_tol", 1e-8);
-  scacopf_prob->set_solver_option("acceptable_iter", 5);
+  if(data.N_Bus.size()>25000) {
+    scacopf_prob->set_solver_option("acceptable_tol", 1e-7);
+    scacopf_prob->set_solver_option("acceptable_constr_viol_tol", 9e-8);
+    scacopf_prob->set_solver_option("acceptable_iter", 3);
+  } else {
+    scacopf_prob->set_solver_option("acceptable_tol", 5e-8);
+    scacopf_prob->set_solver_option("acceptable_constr_viol_tol", 1e-8);
+    scacopf_prob->set_solver_option("acceptable_iter", 5);
+  }
     
   // if(!blarge_prob) {
   //   scacopf_prob->set_solver_option("mu_target", 1e-9);
@@ -2518,11 +2541,11 @@ double MyCode1::phase3_solve_scacopf(std::vector<int>& K_idxs,
   //   scacopf_prob->set_solver_option("mu_superlinear_decrease_power", 1.4); 
   // }
   scacopf_prob->set_solver_option("mu_target", 1e-9);
-  if(data.N_Bus.size() > 45000) scacopf_prob->set_solver_option("mu_target", 5e-9);
+  if(data.N_Bus.size() > 39000) scacopf_prob->set_solver_option("mu_target", 5e-9);
 
   scacopf_prob->set_solver_option("tol", 1e-8);
   //if(data.N_Bus.size() > 19000) scacopf_prob->set_solver_option("tol", 5e-9);
-  if(data.N_Bus.size() > 45000) scacopf_prob->set_solver_option("tol", 5e-8);
+  if(data.N_Bus.size() > 39000) scacopf_prob->set_solver_option("tol", 5e-8);
 
   scacopf_prob->set_solver_option("max_iter", 500);
   scacopf_prob->set_solver_option("bound_relax_factor", 1e-8);
@@ -2536,10 +2559,20 @@ double MyCode1::phase3_solve_scacopf(std::vector<int>& K_idxs,
   //scacopf_prob->monitor.timeout = (ScoringMethod==1 || ScoringMethod==3) ? 596-glob_timer.measureElapsedTime() : 700;
   scacopf_prob->monitor.timeout = 600;
 
-  scacopf_prob->monitor.feasibtol_for_write = 5e-8;
+  scacopf_prob->monitor.acceptable_tol_feasib = 1e-6;
+  scacopf_prob->monitor.tol_feasib_for_write = 5e-8;
+  scacopf_prob->monitor.tol_optim_for_write = 1e-6; 
+  scacopf_prob->monitor.tol_mu_for_write = 2e-8;
+  if(data.N_Bus.size() > 39000) {
+    scacopf_prob->monitor.tol_feasib_for_write = 1e-7;
+    scacopf_prob->monitor.tol_optim_for_write = 1e-5; 
+    scacopf_prob->monitor.tol_mu_for_write = 5e-8;
+  }
+
+  //scacopf_prob->monitor.feasibtol_for_write = 5e-8;
   scacopf_prob->monitor.write_every = 1;
 
-  if(data.N_Bus.size() > 40000) scacopf_prob->monitor.timeout = 900;
+  if(data.N_Bus.size() > 39000) scacopf_prob->monitor.timeout = 900;
 
   scacopf_prob->monitor.timer.restart();
 

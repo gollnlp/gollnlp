@@ -276,7 +276,10 @@ namespace gollnlp {
     {
       ConvMonitor() : is_active(false), user_stopped(false), emergency(false),
 		      pen_accept(1.), pen_accept_emer(1000.), timeout(500), bcast_done(false),
-		      feasibtol_for_write(1e-6), write_every(3)
+		      acceptable_tol_feasib(1e-6), 
+		      tol_feasib_for_write(1e-6), tol_optim_for_write(1e-1), tol_mu_for_write(1e-2), 
+		      objvalue_last_written(-1.), objvalue_initial(-1.), 
+		      write_every(3)
       {
 	timer.start();
       };
@@ -289,7 +292,8 @@ namespace gollnlp {
       goTimer timer;
       std::vector<double> hist_tm;
       bool bcast_done;
-      double feasibtol_for_write;
+      double acceptable_tol_feasib;
+      double tol_feasib_for_write, tol_optim_for_write, tol_mu_for_write, objvalue_last_written, objvalue_initial;
       int write_every;
     };
     ConvMonitor monitor;
