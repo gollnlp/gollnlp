@@ -3502,7 +3502,9 @@ bool SCACOPFProblem::iterate_callback(int iter, const double& obj_value,
       }
     }
 
-    if(!monitor.bcast_done && inf_pr_orig_pr<=1e-8 && inf_du<=1e-6 && mu<=1e-8 && my_rank==1) {
+    if(!monitor.bcast_done && inf_pr_orig_pr<=1e-8 && inf_du<=1e-6 && mu<=1e-8 &&
+       my_rank==1 &&
+       primals && mode!=RestorationPhaseMode) {
 
       IterInfo v;
       v.initialize(vars_primal, vars_duals_cons, vars_duals_bounds_L, vars_duals_bounds_U);
