@@ -136,7 +136,7 @@ namespace gollnlp {
     //find AGC generators that are "blocking" and fix them; update particip and non-particip indexes
     solv1_pg0_partic_idxs=pg0_partic_idxs; solv1_pgK_partic_idxs=pgK_partic_idxs;
     solv1_pgK_nonpartic_idxs=pgK_nonpartic_idxs; solv1_pg0_nonpartic_idxs=pg0_nonpartic_idxs;
-    double gen_K_diff=0.0;//default for transmission contingencies; surplus or deficit of generation
+    double gen_K_diff=0.01;//default for transmission contingencies; surplus or deficit of generation
     double residual_Pg;
     solv1_delta_out=0.; solv1_delta_lb=-1e+20; solv1_delta_ub=1e+20; 
     solv1_delta_blocking=0.; solv1_delta_needed=0.; solv1_gens_pushed = 0.;
