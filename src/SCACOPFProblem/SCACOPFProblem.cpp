@@ -3511,6 +3511,10 @@ bool SCACOPFProblem::iterate_callback(int iter, const double& obj_value,
       v.copy_dual_vars_from(duals_con, duals_lb, duals_ub);
       v.set_iter_stats( iter, obj_value, inf_pr, inf_pr_orig_pr, inf_du, mu, mode);
 
+      printf("[ph1] rank %d  phase 1 BEFORE basecase bcast at iter %d\n", 
+	     my_rank, iter);
+
+
       v.vars_primal->MPI_Bcast_x(rank_solver_rank0, comm_world, my_rank);
       v.vars_duals_bounds_L->MPI_Bcast_x(rank_solver_rank0, comm_world, my_rank);
       v.vars_duals_bounds_U->MPI_Bcast_x(rank_solver_rank0, comm_world, my_rank);
