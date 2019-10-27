@@ -3461,8 +3461,6 @@ bool SCACOPFProblem::iterate_callback(int iter, const double& obj_value,
 
     }
 
-    assert(duals_con); assert(duals_lb); assert(duals_ub); 
-
     assert(monitor.acceptable_tol_feasib>=monitor.tol_feasib_for_write);
     if(monitor.acceptable_tol_feasib<monitor.tol_feasib_for_write) {
       
@@ -3471,6 +3469,8 @@ bool SCACOPFProblem::iterate_callback(int iter, const double& obj_value,
     }
 
     if(primals && mode!=RestorationPhaseMode) {
+      assert(duals_con); assert(duals_lb); assert(duals_ub); 
+
       if(inf_pr_orig_pr<=monitor.acceptable_tol_feasib && best_known_iter.obj_value>=obj_value) {
 	best_known_iter.copy_primal_vars_from(primals, vars_primal);
 	best_known_iter.copy_dual_vars_from(duals_con, duals_lb, duals_ub);
@@ -3502,7 +3502,7 @@ bool SCACOPFProblem::iterate_callback(int iter, const double& obj_value,
       }
     }
 
-    if(!monitor.bcast_done && inf_pr_orig_pr<=1e-8 && inf_du<=1e-6 && mu<=1e-8) {
+    if(!monitor.bcast_done && inf_pr_orig_pr<=1e-8 && inf_du<=1e-6 && mu<=1e-8 && my_rank==1) {
 
       IterInfo v;
       v.initialize(vars_primal, vars_duals_cons, vars_duals_bounds_L, vars_duals_bounds_U);
