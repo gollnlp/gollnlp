@@ -93,6 +93,7 @@ namespace gollnlp {
     std::vector<int> solv1_pg0_partic_idxs, solv1_pgK_partic_idxs, solv1_pgK_nonpartic_idxs, solv1_pg0_nonpartic_idxs;
     double solv1_delta_out, solv1_delta_needed, solv1_delta_blocking, solv1_delta_lb, solv1_delta_ub, solv1_delta_optim;
     bool solv1_Pg_was_enough;
+    int solv1_gens_pushed;
     bool safe_mode; //true if ContingencyProblemWithFixing::optimize went AWOL on a different rank
     std::vector<double> sln_solve1, sln_solve2;
     double obj_solve1, obj_solve2;

@@ -1372,7 +1372,17 @@ void SCACOPFProblem::add_cons_active_powbal(SCACOPFData& d)
 
   //pslackm_n and pslackp_n
   OptVariablesBlock* pslacks_n = pf_p_bal->slacks();
-  pf_p_bal->compute_slacks(pslacks_n); pslacks_n->providesStartingPoint=true;
+
+  assert( ( slacks_initially_recomputed && !slacks_initially_to_zero) ||
+	  (!slacks_initially_recomputed &&  slacks_initially_to_zero) );
+  if(slacks_initially_recomputed) {
+    pf_p_bal->compute_slacks(pslacks_n); 
+    pslacks_n->providesStartingPoint=true;
+  } else {
+    if(slacks_initially_to_zero)
+      pslacks_n->set_start_to(0.0);
+  }
+  assert(pslacks_n->providesStartingPoint);
 
   if(useQPenActiveBalance) {
     append_objterm( new PFPenaltyQuadrApproxObjTerm("quadr_pen_" + pslacks_n->id, pslacks_n, 
@@ -1412,8 +1422,18 @@ void SCACOPFProblem::add_cons_reactive_powbal(SCACOPFData& d)
 					d.Lidxn1, d.Lidxn2, d.Tidxn1, d.Tidxn2,
 					slacks_scale);
   append_constraints(pf_q_bal);
+
   OptVariablesBlock* qslacks_n = pf_q_bal->slacks();
-  pf_q_bal->compute_slacks(qslacks_n); qslacks_n->providesStartingPoint=true;
+  assert( ( slacks_initially_recomputed && !slacks_initially_to_zero) ||
+	  (!slacks_initially_recomputed &&  slacks_initially_to_zero) );
+  if(slacks_initially_recomputed) {
+    pf_q_bal->compute_slacks(qslacks_n); 
+    qslacks_n->providesStartingPoint=true;
+  } else {
+    if(slacks_initially_to_zero)
+      qslacks_n->set_start_to(0.0);
+  }
+  assert(qslacks_n->providesStartingPoint);
 
   if(useQPenReactiveBalance) {
     append_objterm( new PFPenaltyQuadrApproxObjTerm("quadr_pen_" + qslacks_n->id,
@@ -1459,7 +1479,17 @@ void SCACOPFProblem::add_cons_thermal_li_lims(SCACOPFData& d,
     
     //sslack_li1
     OptVariablesBlock* sslack_li1 = pf_line_lim1->slacks();
-    pf_line_lim1->compute_slacks(sslack_li1); sslack_li1->providesStartingPoint=true;
+    assert( ( slacks_initially_recomputed && !slacks_initially_to_zero) ||
+	    (!slacks_initially_recomputed &&  slacks_initially_to_zero) );
+    if(slacks_initially_recomputed) {
+      pf_line_lim1->compute_slacks(sslack_li1); 
+      sslack_li1->providesStartingPoint=true;
+    } else {
+      if(slacks_initially_to_zero) {
+	sslack_li1->set_start_to(0.);
+      }
+    }
+    assert(sslack_li1->providesStartingPoint);
 
     if(useQPenLi1) {
       append_objterm( new PFPenaltyQuadrApproxObjTerm("quadr_pen_" + sslack_li1->id,
@@ -1488,7 +1518,17 @@ void SCACOPFProblem::add_cons_thermal_li_lims(SCACOPFData& d,
     append_constraints(pf_line_lim2);
     //sslack_li2
     OptVariablesBlock* sslack_li2 = pf_line_lim2->slacks();
-    pf_line_lim2->compute_slacks(sslack_li2); sslack_li2->providesStartingPoint=true;
+    assert( ( slacks_initially_recomputed && !slacks_initially_to_zero) ||
+	    (!slacks_initially_recomputed &&  slacks_initially_to_zero) );
+    if(slacks_initially_recomputed) {
+      pf_line_lim2->compute_slacks(sslack_li2); 
+      sslack_li2->providesStartingPoint=true;
+    } else {
+      if(slacks_initially_to_zero) {
+	sslack_li2->set_start_to(0.);
+      }
+    }
+    assert(sslack_li2->providesStartingPoint);
 
     if(useQPenLi2) {
       append_objterm( new PFPenaltyQuadrApproxObjTerm("quadr_pen_" + sslack_li2->id,
@@ -1532,7 +1572,18 @@ void SCACOPFProblem::add_cons_thermal_li_lims(SCACOPFData& d,
     append_constraints(pf_trans_lim1);
     //sslack_ti1
     OptVariablesBlock* sslack_ti1 = pf_trans_lim1->slacks();
-    pf_trans_lim1->compute_slacks(sslack_ti1); sslack_ti1->providesStartingPoint=true;
+
+    assert( ( slacks_initially_recomputed && !slacks_initially_to_zero) ||
+	    (!slacks_initially_recomputed &&  slacks_initially_to_zero) );
+    if(slacks_initially_recomputed) {
+      pf_trans_lim1->compute_slacks(sslack_ti1); 
+      sslack_ti1->providesStartingPoint=true;
+    } else {
+      if(slacks_initially_to_zero) {
+	sslack_ti1->set_start_to(0.);
+      }
+    }
+    assert(sslack_ti1->providesStartingPoint);
 
     if(useQPenTi1) {
       append_objterm( new PFPenaltyQuadrApproxObjTerm("quadr_pen_" + sslack_ti1->id,
@@ -1560,8 +1611,17 @@ void SCACOPFProblem::add_cons_thermal_li_lims(SCACOPFData& d,
     append_constraints(pf_trans_lim2);
     //sslack_ti2
     OptVariablesBlock* sslack_ti2 = pf_trans_lim2->slacks();
-
-    pf_trans_lim2->compute_slacks(sslack_ti2); sslack_ti2->providesStartingPoint=true;
+    assert( ( slacks_initially_recomputed && !slacks_initially_to_zero) ||
+	    (!slacks_initially_recomputed &&  slacks_initially_to_zero) );
+    if(slacks_initially_recomputed) {
+      pf_trans_lim2->compute_slacks(sslack_ti2); 
+      sslack_ti2->providesStartingPoint=true;
+    } else {
+      if(slacks_initially_to_zero) {
+	sslack_ti2->set_start_to(0.);
+      }
+    }
+    assert(sslack_ti2->providesStartingPoint);
 
     if(useQPenTi2) {
         append_objterm( new PFPenaltyQuadrApproxObjTerm("quadr_pen_" + sslack_ti2->id,
@@ -3262,7 +3322,7 @@ void SCACOPFProblem::write_pridua_solution_basecase(OptVariables* primal_vars,
 
 void SCACOPFProblem::build_pd_vars_dict(std::unordered_map<std::string, gollnlp::OptVariablesBlock*>& dict)
 {
-  for(auto& v : vars_primal->vblocks) 
+  for(auto& v : vars_primal->vblocks)
     dict.insert({v->id, v});
   for(auto& v : vars_duals_bounds_L->vblocks) 
     dict.insert({v->id, v});
@@ -3401,8 +3461,6 @@ bool SCACOPFProblem::iterate_callback(int iter, const double& obj_value,
 
     }
 
-    assert(duals_con); assert(duals_lb); assert(duals_ub); 
-
     assert(monitor.acceptable_tol_feasib>=monitor.tol_feasib_for_write);
     if(monitor.acceptable_tol_feasib<monitor.tol_feasib_for_write) {
       
@@ -3411,6 +3469,8 @@ bool SCACOPFProblem::iterate_callback(int iter, const double& obj_value,
     }
 
     if(primals && mode!=RestorationPhaseMode) {
+      assert(duals_con); assert(duals_lb); assert(duals_ub); 
+
       if(inf_pr_orig_pr<=monitor.acceptable_tol_feasib && best_known_iter.obj_value>=obj_value) {
 	best_known_iter.copy_primal_vars_from(primals, vars_primal);
 	best_known_iter.copy_dual_vars_from(duals_con, duals_lb, duals_ub);
@@ -3442,7 +3502,7 @@ bool SCACOPFProblem::iterate_callback(int iter, const double& obj_value,
       }
     }
 
-    if(!monitor.bcast_done && inf_pr_orig_pr<=1e-8 && inf_du<=1e-6 && mu<=1e-8) {
+    if(!monitor.bcast_done && inf_pr_orig_pr<=1e-8 && inf_du<=1e-6 && mu<=1e-8 && my_rank==1) {
 
       IterInfo v;
       v.initialize(vars_primal, vars_duals_cons, vars_duals_bounds_L, vars_duals_bounds_U);

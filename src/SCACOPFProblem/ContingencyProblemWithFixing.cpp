@@ -55,6 +55,7 @@ namespace gollnlp {
 			       bool safe_mode_)
     : ContingencyProblem(d_in, K_idx_, my_rank),  comm_size(comm_size_),
       dict_basecase_vars(dict_basecase_vars_), solv1_Pg_was_enough(true),
+      solv1_gens_pushed(0), 
       num_K_done(num_K_done_), time_so_far(time_so_far_), safe_mode(safe_mode_)
     { 
       obj_solve1 = obj_solve2 = 1e+20; 
@@ -135,10 +136,10 @@ namespace gollnlp {
     //find AGC generators that are "blocking" and fix them; update particip and non-particip indexes
     solv1_pg0_partic_idxs=pg0_partic_idxs; solv1_pgK_partic_idxs=pgK_partic_idxs;
     solv1_pgK_nonpartic_idxs=pgK_nonpartic_idxs; solv1_pg0_nonpartic_idxs=pg0_nonpartic_idxs;
-    double gen_K_diff=0.001;//default for transmission contingencies; surplus or deficit of generation
+    double gen_K_diff=0.0;//default for transmission contingencies; surplus or deficit of generation
     double residual_Pg;
     solv1_delta_out=0.; solv1_delta_lb=-1e+20; solv1_delta_ub=1e+20; 
-    solv1_delta_blocking=0.; solv1_delta_needed=0.;
+    solv1_delta_blocking=0.; solv1_delta_needed=0.; solv1_gens_pushed = 0.;
     if(dK.K_ConType[0]==SCACOPFData::kGenerator || gen_K_diff>0.) {
       
       if(dK.K_ConType[0]==SCACOPFData::kGenerator) {
@@ -160,6 +161,7 @@ namespace gollnlp {
 	const int& i0 = solv1_pg0_partic_idxs[it]; 
 	pgK->x[solv1_pgK_partic_idxs[it]] = pg0->x[i0]+data_sc.G_alpha[i0] * solv1_delta_out;
       }
+      solv1_gens_pushed = pg0_partic_idxs.size()-solv1_pg0_partic_idxs.size();
 #ifdef BE_VERBOSE
       printf("ContProbWithFixing K_idx=%d def_ass (extra gener) %.8f gen missing; fixed %lu gens; delta out=%g needed=%g blocking=%g "
 	     "residualPg=%g feasib=%d\n",
@@ -178,6 +180,7 @@ namespace gollnlp {
 
     add_cons_pg_nonanticip_using(pg0, solv1_pg0_nonpartic_idxs, solv1_pgK_nonpartic_idxs);
     //add_cons_AGC_using(pg0);
+
     if(solv1_pg0_partic_idxs.size() > 0) {
       add_cons_AGC_simplified(dK, solv1_pg0_partic_idxs, solv1_pgK_partic_idxs, pg0);
       auto deltav = variable("delta", dK); assert(deltav);
@@ -185,7 +188,7 @@ namespace gollnlp {
 	deltav->set_start_to(solv1_delta_out);
 	deltav->lb[0] = solv1_delta_lb; deltav->ub[0] = solv1_delta_ub; 
       } 
-    } else {
+    } else { 
       //all AGC gens were fixed; add fixed variable delta 
       OptVariablesBlock* deltaK = new OptVariablesBlock(1, var_name("delta", dK)); 
       append_variables(deltaK);
@@ -952,6 +955,14 @@ namespace gollnlp {
     if(variable("delta", d)) solv1_delta_optim = variable("delta", d)->x[0];
     else                     solv1_delta_optim = 0.;
 
+    //roundoff or bounds relaxation can creep in
+    if(solv1_delta_optim<solv1_delta_lb) solv1_delta_optim = solv1_delta_lb;
+    if(solv1_delta_optim>solv1_delta_ub) solv1_delta_optim = solv1_delta_ub;
+
+    if(solv1_delta_lb <= -1e+20 && solv1_delta_ub >= +1e+20)
+      if(solv1_gens_pushed==0 && solv1_delta_out==0.)
+	if(fabs(solv1_delta_optim)<1e-8) solv1_delta_optim = 0.;
+
     bool skip_2nd_solve = false;
     
     if(!bFirstSolveOK) skip_2nd_solve=false;
@@ -974,62 +985,79 @@ namespace gollnlp {
     
     if(this->obj_value>acceptable_penalty && !skip_2nd_solve) {
 
-      // #ifdef BE_VERBOSE
-      //print_objterms_evals();
-      //print_p_g_with_coupling_info(*data_K[0], pg0);
-      //printf("ContProbWithFixing K_idx=%d first pass resulted in high pen; delta=%g\n", K_idx, solv1_delta_optim);
-      //#endif
-
       double pplus, pminus, poverall;
       estimate_active_power_deficit(pplus, pminus, poverall);
 #ifdef BE_VERBOSE
-      printf("ContProbWithFixing K_idx=%d (after solv1) act pow imbalances p+ p- poveral %g %g %g;  delta=%g\n",
+      printf("ContProbWithFixing K_idx=%d (after solv1) act pow imbalances p+ p- poveral %g %g %g;  delta=%12.5e\n",
 	     K_idx, pplus, pminus, poverall, solv1_delta_optim);
 #endif
 
       bool one_more_push_and_fix=false; double gen_K_diff=0.;
-      if(fabs(solv1_delta_optim-solv1_delta_blocking)<1e-2 && 
+
+      if(fabs(solv1_delta_optim-solv1_delta_blocking)<=2e-3 && 
 	 d.K_ConType[0]==SCACOPFData::kGenerator && solv1_Pg_was_enough) {
+
 	one_more_push_and_fix = true;
-	if(pg0->x[data_sc.K_outidx[K_idx]]>1e-6 )  gen_K_diff = std::max(0., 1.2*poverall);
-	else if(pg0->x[data_sc.K_outidx[K_idx]]<-1e-6)  gen_K_diff = std::min(0., poverall);
-	else one_more_push_and_fix = false;
+	if(pg0->x[data_sc.K_outidx[K_idx]]>1e-6 )  {
+	  gen_K_diff = std::max(0., 1.2*poverall);
+	} else if(pg0->x[data_sc.K_outidx[K_idx]]<-1e-6) {
+	  gen_K_diff = std::min(0., poverall);
+	} else {
+	  one_more_push_and_fix = false;
+	}
+
+      }
+      if(solv1_delta_optim>=0) assert(gen_K_diff>=0);
+      if(solv1_delta_optim<=0) assert(gen_K_diff<=0);
+
+      if(solv1_delta_optim * gen_K_diff<0) {
+	one_more_push_and_fix = false;
+	gen_K_diff=0.;
       }
 
-      if(fabs(poverall)>1e-4) {// && d.K_ConType[0]!=SCACOPFData::kGenerator) {
+      if(fabs(poverall)>=0.0001) {// && d.K_ConType[0]!=SCACOPFData::kGenerator) {
 	double rpa = fabs(pplus) / fabs(poverall);
 	double rma = fabs(pminus) / fabs(poverall);
 
 	if( (rpa>0.85 && rpa<1.15) || (rma>0.85 && rma <1.15) ) {
-	  one_more_push_and_fix = true;
-	  gen_K_diff = 1.2*poverall;
+	  //if(poverall*solv1_delta_optim>=0 && poverall*solv1_delta_lb>=0 && poverall*solv1_delta_ub>=0 && poverall*solv1_delta_out>=0) {
+	  if(poverall*solv1_delta_optim>=0 && poverall*solv1_delta_out>=0) {
 
-	  // DO NOT - this will make solv1_delta_optim sign-less and it may end up in ramping down gen in the second
-	  //push_and_fix despite the fact the first push_and_fix ramped up
-	  //DO NOT do
-	  // //ignore small delta for transmission contingencies since they're really optimization noise
-	  // if(d.K_ConType[0]!=SCACOPFData::kGenerator && fabs(solv1_delta_optim)<1e-6) {
-	  //   //solv1_delta_optim=5e-16;
-	  // }
+	    gen_K_diff = 0.;
+	    one_more_push_and_fix = true;
+	    if(poverall<0)
+	      gen_K_diff = poverall;
+	    else if(poverall>0)
+	      gen_K_diff = 1.2*poverall;
+	    else one_more_push_and_fix = false;
 
-	  //if our first attempt to ramp up resulted in a active power balance deficit, then be more agressive this time
-	  if(d.K_ConType[0]==SCACOPFData::kGenerator) {
-	    double pen_p_balance, pen_q_balance, pen_line_limits, pen_trans_limits;
-	    get_objective_penalties(pen_p_balance, pen_q_balance, pen_line_limits, pen_trans_limits);
-	    if(pen_p_balance > 100.*pen_q_balance && 
-	       pen_p_balance > 100.*pen_line_limits && 
-	       pen_p_balance > 100.*pen_trans_limits) {
-
-	      if(pg0->x[data_sc.K_outidx[K_idx]] < -1e-6) assert(false);
-
-	      //double gen_deficit = pg0->x[data_sc.K_outidx[K_idx]];
-	      if(pen_p_balance > 2e5)
-		gen_K_diff = 3*poverall;
-	      else if(pen_p_balance > 5e4)
-		gen_K_diff = 2*poverall;
-	      else 
-		gen_K_diff = 1.5*poverall;
-	    }
+	    //if our first attempt to ramp up resulted in an active power balance deficit, then be more agressive this time
+	    if(d.K_ConType[0]==SCACOPFData::kGenerator) {
+	      double pen_p_balance, pen_q_balance, pen_line_limits, pen_trans_limits;
+	      get_objective_penalties(pen_p_balance, pen_q_balance, pen_line_limits, pen_trans_limits);
+	      if(pen_p_balance > 100.*pen_q_balance && 
+		 pen_p_balance > 100.*pen_line_limits && 
+		 pen_p_balance > 100.*pen_trans_limits) {
+		
+		double gK = pg0->x[data_sc.K_outidx[K_idx]];
+		if(gK < -1e-6) assert(false); //would love to run into this case to double check things
+		
+		//double gen_deficit = pg0->x[data_sc.K_outidx[K_idx]];
+		if(pen_p_balance > 3e5) {
+		  if(poverall<0 && gK<=-1e-6) gen_K_diff = poverall;
+		  else if(poverall>0 && gK>=+1e-6) gen_K_diff = 2.75*poverall;
+		  else { gen_K_diff = 0.; one_more_push_and_fix = false; }
+		} else if(pen_p_balance > 5e4) {
+		  if(poverall<0 && gK<=-1e-6) gen_K_diff = poverall;
+		  else if(poverall>0 && gK>=+1e-6) gen_K_diff = 1.75*poverall; 
+		  else { gen_K_diff = 0.; one_more_push_and_fix = false; }
+		} else { 
+		  if(poverall<0 && gK<=-1e-6) gen_K_diff = poverall; 
+		  else if(poverall>0 && gK>=+1e-6) gen_K_diff = 1.25*poverall;
+		  else { gen_K_diff = 0.; one_more_push_and_fix = false; }
+		}
+	      }
+	    } // end of if(d.K_ConType[0]==SCACOPFData::kGenerator) {  
 	  }
 	}
       }
@@ -1047,8 +1075,12 @@ namespace gollnlp {
 
 	if(fabs(gen_K_diff)>1e-6) {
 	  //solv1_delta_optim and gen_K_diff must have same sign at this point
-	  //printf("!!!! %.8e %.8e \n", solv1_delta_optim, gen_K_diff);
-	  if(solv1_delta_optim * gen_K_diff <= 0) gen_K_diff=0.;
+	  if(poverall*solv1_delta_optim<0 || poverall*solv1_delta_out<0) {
+	    assert(false);
+	    //last moment bail out
+	    gen_K_diff=0.; //push_and_fix will do nothing 
+	  } 
+
 	  bfeasib = push_and_fix_AGCgen(d, gen_K_diff, solv1_delta_optim, 
 					pg0_partic_idxs_u, pgK_partic_idxs_u, pg0_nonpartic_idxs_u, pgK_nonpartic_idxs_u,
 					pg0, pgK, 
@@ -1325,7 +1357,7 @@ namespace gollnlp {
     else { 
       delta_lb=-1e+20; delta_ub=0.;    
       if(P_in<0) assert(delta_in<=0); 
-  }
+    }
 
     if(idxs0_AGCparticip.size()==0) P_out=0.; //force exit
 

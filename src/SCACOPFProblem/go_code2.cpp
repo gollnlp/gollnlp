@@ -111,6 +111,9 @@ int MyCode2::initialize(int argc, char *argv[])
   //K_Cont = {913, 4286}; for(int i=0; i<4900; i++) K_Cont.push_back(3180+i);
   //K_Cont = {11971};//, 776}; //for(int i=0; i<4900; i++) K_Cont.push_back(3180+i);
   //K_Cont = {5085, 0};//2223, 136, 10112, 482,0 };
+  //K_Cont = {4178, 9716, 10268, 9690, 3320, 3393};
+  //K_Cont = { 0, 7, 17, 35};
+  //K_Cont = {9716};
   for(auto& id : K_Cont) 
     K_Contingency.push_back(Kinfo(id));
 
@@ -762,8 +765,14 @@ void MyCode2::read_solution1()
 
   assert(theta_n00->n == theta_n0()->n);
 #ifdef DEBUG
-  if(diff_two_norm(theta_n00->n, theta_n0()->x, theta_n00->x)>1e-12)
-    printf("[warning] difference between read_variables read_solution1 in theta\n");
+  double diff=0.;
+  if( (diff=diff_two_norm(theta_n00->n, theta_n0()->x, theta_n00->x))>1e-12) {
+    //for(int i=0; i<theta_n00->n; i++)
+    //  if(fabs(theta_n0()->x[i] - theta_n00->x[i])>1e-18) printf("[%d %12.5e %12.5e]",
+    //								i, theta_n0()->x[i],theta_n00->x[i]);	 
+    printf("[warning] difference [%12.5e] between read_variables read_solution1 in theta\n", diff);
+
+  }
 #endif
   delete theta_n00;
 

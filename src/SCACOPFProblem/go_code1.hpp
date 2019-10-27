@@ -614,7 +614,7 @@ private: //data members
   // communication
   //
   bool iAmMaster;    //master rank that deals with centralizing the communication
-  bool iAmSolver;    //rank(s) that solve SC-ACOPF problem
+  bool iAmSolver, iAmSolverBackup;    //rank(s) that solve SC-ACOPF problem
   bool iAmEvaluator; //ranks that evaluate recourse given SC-ACOPF base case solution
 
   int my_rank, comm_size;

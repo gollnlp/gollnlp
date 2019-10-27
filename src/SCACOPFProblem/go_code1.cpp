@@ -53,7 +53,7 @@ MyCode1::MyCode1(const std::string& InFile1_, const std::string& InFile2_,
 {
   glob_timer.start();
 
-  iAmMaster=iAmSolver=iAmEvaluator=false;
+  iAmMaster=iAmSolver=iAmEvaluator=iAmSolverBackup=false;
   scacopf_prob = NULL;
   my_rank = comm_size = -1; 
 
@@ -152,7 +152,7 @@ int MyCode1::initialize(int argc, char *argv[])
 }
 void MyCode1::phase1_ranks_allocation()
 {
-  iAmMaster=iAmSolver=iAmEvaluator=false;
+  iAmMaster=iAmSolver=iAmEvaluator=iAmSolverBackup=false;
   assert(comm_world != MPI_COMM_NULL);
 
   rank_master = 0;
@@ -167,6 +167,8 @@ void MyCode1::phase1_ranks_allocation()
       iAmSolver=true;
       iAmEvaluator=false;
     } else {
+      if(my_rank==rank_solver_rank0+1) 
+	iAmSolverBackup=true;
       //ranks 0, 2, 3, 4, ...
       iAmEvaluator=true;
       //no need to have master as an evaluator since evaluators do not do much
@@ -185,7 +187,7 @@ void MyCode1::phase2_ranks_allocation()
 
   //solver is rank_solver_rank0
   iAmSolver = my_rank==rank_solver_rank0;
-
+  iAmSolverBackup =  (my_rank==rank_solver_rank0+1);
   if(my_rank == rank_master) {assert(iAmMaster); iAmMaster = true;}
   if(comm_size==1) {
     iAmEvaluator=true;
@@ -274,6 +276,11 @@ bool MyCode1::do_phase1()
   scacopf_prob->update_AGC_smoothing_param(1e-2);
   scacopf_prob->update_PVPQ_smoothing_param(1e-2);
 
+  if(iAmSolverBackup) {
+    scacopf_prob->set_flag_slacks_initially_recomputed(false);
+    scacopf_prob->set_flag_slacks_initially_to_zero(true);
+  }
+
   //reduce T and L rates to min(RateBase, TL_rate_reduction*RateEmer)
   TL_rate_reduction = 0.999;
   scacopf_prob->set_basecase_L_rate_reduction(TL_rate_reduction);
@@ -300,7 +307,11 @@ bool MyCode1::do_phase1()
   scacopf_prob->set_solver_option("sb","yes");
   scacopf_prob->set_solver_option("linear_solver", "ma57"); 
 
-  scacopf_prob->set_solver_option("print_frequency_iter", 5);
+  if(!iAmSolverBackup)
+    scacopf_prob->set_solver_option("print_frequency_iter", 5);
+  else 
+    scacopf_prob->set_solver_option("print_frequency_iter", 7);
+
   scacopf_prob->set_solver_option("acceptable_tol", 1e-5);
   scacopf_prob->set_solver_option("acceptable_constr_viol_tol", 1e-8);
   scacopf_prob->set_solver_option("acceptable_iter", 5);
@@ -391,23 +402,33 @@ bool MyCode1::do_phase1()
 
   if(iAmSolver) {    assert(my_rank==rank_solver_rank0);
     scacopf_prob->monitor.is_active=true;
-    scacopf_prob->monitor.timeout = (ScoringMethod==1 || ScoringMethod==3) ? 450 : 2250;
+    scacopf_prob->monitor.timeout = (ScoringMethod==1 || ScoringMethod==3) ? 620 : 2250;
     scacopf_prob->set_solver_option("print_level", 5);
     scacopf_prob->set_solver_option("max_iter", 1000);
 
   } else {
-    scacopf_prob->monitor.is_active=false;
-    //master and evaluators do not solve, but we call optimize to force an
-    //allocation of the internals, such as the dual variables
-    scacopf_prob->set_solver_option("print_level", 1);
-    scacopf_prob->set_solver_option("max_iter", 1);
+
+    if(iAmSolverBackup) {     assert(my_rank==rank_solver_rank0+1);
+      scacopf_prob->monitor.is_active=true;
+      scacopf_prob->monitor.timeout = (ScoringMethod==1 || ScoringMethod==3) ? 620 : 2250;
+      scacopf_prob->set_solver_option("print_level", 5);
+      scacopf_prob->set_solver_option("max_iter", 1000);
+    } else {
+
+      scacopf_prob->monitor.is_active=false;
+      //master and evaluators do not solve, but we call optimize to force an
+      //allocation of the internals, such as the dual variables
+      scacopf_prob->set_solver_option("print_level", 1);
+      scacopf_prob->set_solver_option("max_iter", 1);
+    }
   }
 
   printf("[ph1] rank %d  starts scacopf solve phase 1 global time %g\n", 
 	   my_rank, glob_timer.measureElapsedTime());
 
-
   bool bret = scacopf_prob->optimize("ipopt");
+
+  if(iAmSolver) scacopf_prob->print_objterms_evals();
 
   bool emergency = false;
   if(iAmSolver) {
@@ -430,7 +451,7 @@ bool MyCode1::do_phase1()
     if(emergency) {
       if(scacopf_prob->best_known_iter.inf_pr_orig_pr <= 1e-5) {
 	//we have some form of acceptable solution
-	printf("[ph1][emergency] rank %d  phase 1 writes solution1.txt obj_val=%.5e at global time %g\n", 
+	printf("[ph1][emergency] rank %d  phase 1 writes bestknown solution1.txt obj_val=%.5e at global time %g\n", 
 	       my_rank, scacopf_prob->best_known_iter.obj_value, glob_timer.measureElapsedTime());
 	scacopf_prob->write_solution_basecase(scacopf_prob->best_known_iter.vars_primal);
 	scacopf_prob->write_pridua_solution_basecase(scacopf_prob->best_known_iter.vars_primal,
@@ -475,7 +496,7 @@ bool MyCode1::do_phase1()
 	if(!bret) {
 	  //if(scacopf_prob->best_known_iter.inf_pr_orig_pr <= 1e-5) {
 	  emergency = true;
-	  printf("[ph1][extreme emergency] rank %d  phase 1 writes solution1.txt obj_val=%.5e at global time %g\n", 
+	  printf("[ph1][extreme emergency] rank %d  phase 1 writes bestknown solution1.txt obj_val=%.5e at global time %g\n", 
 		 my_rank, scacopf_prob->best_known_iter.obj_value, glob_timer.measureElapsedTime());
 	  scacopf_prob->write_solution_basecase(scacopf_prob->best_known_iter.vars_primal);
 	  scacopf_prob->write_pridua_solution_basecase(scacopf_prob->best_known_iter.vars_primal,
@@ -541,7 +562,7 @@ bool MyCode1::do_phase1()
   //force a have_start set
   if(!iAmSolver) {
     scacopf_prob->set_have_start();
-  } else {
+  } else { //iAmSolver
     K_SCACOPF_phase3 = K_SCACOPF_phase1;
     if(!emergency) 
       attempt_write_solutions(scacopf_prob, true);
@@ -602,14 +623,14 @@ bool MyCode1::do_phase1()
     }
 
     scacopf_prob->monitor.is_active=true;
-    scacopf_prob->monitor.timeout = (ScoringMethod==1 || ScoringMethod==3) ? 610-glob_timer.measureElapsedTime() : 900;
+    scacopf_prob->monitor.timeout = (ScoringMethod==1 || ScoringMethod==3) ? 620-glob_timer.measureElapsedTime() : 900;
     scacopf_prob->monitor.timer.restart();
     scacopf_prob->iter_sol_written=-10;
     bool bret = scacopf_prob->reoptimize(OptProblem::primalDualRestart);
     if(bret) {
       attempt_write_solutions(scacopf_prob, bret);
     } else {
-      printf("[ph1][emergency]222 rank %d  phase 1 writes solution1.txt obj_val=%.5e at global time %g\n", 
+      printf("[ph1][emergency]222 rank %d  phase 1 writes bestknown solution1.txt obj_val=%.5e at global time %g\n", 
 	     my_rank, scacopf_prob->best_known_iter.obj_value, glob_timer.measureElapsedTime());
       scacopf_prob->write_solution_basecase(scacopf_prob->best_known_iter.vars_primal);
       scacopf_prob->write_pridua_solution_basecase(scacopf_prob->best_known_iter.vars_primal,
