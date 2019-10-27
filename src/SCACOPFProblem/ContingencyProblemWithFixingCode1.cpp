@@ -62,6 +62,14 @@ namespace gollnlp {
     if(variable("delta", d)) solv1_delta_optim = variable("delta", d)->x[0];
     else                     solv1_delta_optim = 0.;
 
+    //roundoff or bounds relaxation can creep in
+    if(solv1_delta_optim<solv1_delta_lb) solv1_delta_optim = solv1_delta_lb;
+    if(solv1_delta_optim>solv1_delta_ub) solv1_delta_optim = solv1_delta_ub;
+    
+    if(solv1_delta_lb <= -1e+20 && solv1_delta_ub >= +1e+20)
+      if(solv1_gens_pushed==0 && solv1_delta_out==0.)
+	if(fabs(solv1_delta_optim)<1e-8) solv1_delta_optim = 0.;
+
     double acceptable_penalty = safe_mode ?  pen_accept_safemode : pen_accept_solve1;
 
     bool skip_2nd_solve = false;
@@ -110,6 +118,14 @@ namespace gollnlp {
 	else one_more_push_and_fix = false;
       }
 
+      if(solv1_delta_optim>=0) assert(gen_K_diff>=0);
+      if(solv1_delta_optim<=0) assert(gen_K_diff<=0);
+      
+      if(solv1_delta_optim * gen_K_diff<0) {
+	one_more_push_and_fix = false;
+	gen_K_diff=0.;
+      }
+      
       if(fabs(poverall)>1e-4) {// && d.K_ConType[0]!=SCACOPFData::kGenerator) {
 	double rpa = fabs(pplus) / fabs(poverall);
 	double rma = fabs(pminus) / fabs(poverall);
@@ -117,36 +133,56 @@ namespace gollnlp {
 	//solv1_delta_optim=0.;//!
 
 	if( (rpa>0.85 && rpa<1.15) || (rma>0.85 && rma <1.15) ) {
-	  one_more_push_and_fix = true;
-	  gen_K_diff = 1.2*poverall;
+	  if(poverall*solv1_delta_optim>=0 && poverall*solv1_delta_out>=0) {
+	    gen_K_diff = 0.;
+	    one_more_push_and_fix = true;
+	    if(poverall<0)
+	      gen_K_diff = poverall;
+	    else if(poverall>0)
+	      gen_K_diff = 1.2*poverall;
+	    else one_more_push_and_fix = false;
 
-	  //ignore small delta for transmission contingencies since they're really optimization noise
-	  if(d.K_ConType[0]!=SCACOPFData::kGenerator && fabs(solv1_delta_optim)<1e-6) {
-	    solv1_delta_optim=0.;
-	  }
-
-	  //if our first attempt to ramp up resulted in a active power balance deficit, then be more agressive this time
-	  if(d.K_ConType[0]==SCACOPFData::kGenerator) {
-	    double pen_p_balance, pen_q_balance, pen_line_limits, pen_trans_limits;
-	    get_objective_penalties(pen_p_balance, pen_q_balance, pen_line_limits, pen_trans_limits);
-	    if(pen_p_balance > 100.*pen_q_balance && 
-	       pen_p_balance > 100.*pen_line_limits && 
-	       pen_p_balance > 100.*pen_trans_limits) {
-
-	      if(pg0->x[data_sc.K_outidx[K_idx]] < -1e-6) assert(false);
-
-	      //double gen_deficit = pg0->x[data_sc.K_outidx[K_idx]];
-	      if(pen_p_balance > 2e5)
-		gen_K_diff = 3*poverall;
-	      else if(pen_p_balance > 5e4)
-		gen_K_diff = 2*poverall;
-	      else 
-		gen_K_diff = 1.5*poverall;
+	    
+	    //if our first attempt to ramp up resulted in a active power balance deficit, then be more agressive this time
+	    if(d.K_ConType[0]==SCACOPFData::kGenerator) {
+	      double pen_p_balance, pen_q_balance, pen_line_limits, pen_trans_limits;
+	      get_objective_penalties(pen_p_balance, pen_q_balance, pen_line_limits, pen_trans_limits);
+	      if(pen_p_balance > 100.*pen_q_balance && 
+		 pen_p_balance > 100.*pen_line_limits && 
+		 pen_p_balance > 100.*pen_trans_limits) {
+		
+		double gK = pg0->x[data_sc.K_outidx[K_idx]];
+		if(gK < -1e-6) assert(false); //would love to run into this case to double check things
+		
+		//double gen_deficit = pg0->x[data_sc.K_outidx[K_idx]];
+		if(pen_p_balance > 3e5) {
+		  if(poverall<0 && gK<=-1e-6) gen_K_diff = poverall;
+		  else if(poverall>0 && gK>=+1e-6) gen_K_diff = 2.75*poverall;
+		  else { gen_K_diff = 0.; one_more_push_and_fix = false; }
+		} else if(pen_p_balance > 5e4) {
+		  if(poverall<0 && gK<=-1e-6) gen_K_diff = poverall;
+		  else if(poverall>0 && gK>=+1e-6) gen_K_diff = 1.75*poverall; 
+		  else { gen_K_diff = 0.; one_more_push_and_fix = false; }
+		} else { 
+		  if(poverall<0 && gK<=-1e-6) gen_K_diff = poverall; 
+		  else if(poverall>0 && gK>=+1e-6) gen_K_diff = 1.25*poverall;
+		  else { gen_K_diff = 0.; one_more_push_and_fix = false; }
+		}
+		//if(pg0->x[data_sc.K_outidx[K_idx]] < -1e-6) assert(false);
+		
+		//double gen_deficit = pg0->x[data_sc.K_outidx[K_idx]];
+		//if(pen_p_balance > 2e5)
+		//  gen_K_diff = 3*poverall;
+		//else if(pen_p_balance > 5e4)
+		//  gen_K_diff = 2*poverall;
+		//else 
+		//  gen_K_diff = 1.5*poverall;
+	      }
 	    }
 	  }
 	}
       }
-
+      
       if(one_more_push_and_fix) {
  	//apparently we need to further unblock generation
  	auto pgK = variable("p_g", d); assert(pgK!=NULL);
@@ -159,9 +195,13 @@ namespace gollnlp {
  	bool bfeasib;
 
 	if(fabs(gen_K_diff)>1e-6) {
-	  //if(K_idx==11827) printf("!!!!K_idx=%d gen_K_diff=%g solv1_delta_optim=%g\n", K_idx, gen_K_diff, solv1_delta_optim);
 	  //solv1_delta_optim and gen_K_diff must have same sign at this point
-	  if(solv1_delta_optim * gen_K_diff < 0) gen_K_diff=0.;
+	  if(poverall*solv1_delta_optim<0 || poverall*solv1_delta_out<0) {
+	    assert(false);
+	    //last moment bail out
+	    gen_K_diff=0.; //push_and_fix will do nothing 
+	  } 
+
 	  bfeasib = push_and_fix_AGCgen(d, gen_K_diff, solv1_delta_optim, 
 					pg0_partic_idxs_u, pgK_partic_idxs_u, pg0_nonpartic_idxs_u, pgK_nonpartic_idxs_u,
 					pg0, pgK, 
