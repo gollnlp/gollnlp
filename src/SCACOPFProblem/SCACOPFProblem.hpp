@@ -466,7 +466,8 @@ namespace gollnlp {
     }
     inline bool lock() 
     {
-      if(-1==::flock(fid, LOCK_EX)) {
+      //if(-1==::flock(fid, LOCK_EX)) {
+      if(-1==lockf(fid, F_LOCK, 0)) {
 	printf("FileLocker: error [%d] lock file\n", errno);
 	return false;
       }
@@ -475,7 +476,8 @@ namespace gollnlp {
     }
     inline bool unlock() 
     {
-      if(-1==::flock(fid, LOCK_EX)) {
+      //if(-1==::flock(fid, LOCK_EX)) {
+      if(-1==lockf(fid, F_ULOCK,0)) {
 	printf("FileLocker: error [%d] unlock file\n", errno);
 	return false;
       }
