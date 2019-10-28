@@ -99,8 +99,19 @@ int MyCode1::initialize(int argc, char *argv[])
   rank_solver_rank0 = 1;
   if(my_rank == rank_master) iAmMaster=true;
 
-  if(my_rank!=rank_solver_rank0 && my_rank!=rank_master)  
+  //if(my_rank!=rank_solver_rank0 && my_rank!=rank_master)  
+  if(my_rank>=2)
     std::this_thread::sleep_for(std::chrono::milliseconds(500));
+
+  //empty the file if any
+  if(my_rank==0) {
+    FILE* file = fopen("gollnlp_optim.txt", "w+");
+    if(NULL==file) {
+      printf("[warning[ could not file [gollnlp_optim.txt] \n");
+    } else {
+      fclose(file);
+    }
+  }
 
   data.my_rank = my_rank;
 
@@ -275,6 +286,8 @@ bool MyCode1::do_phase1()
   scacopf_prob->comm_world = comm_world;
   scacopf_prob->update_AGC_smoothing_param(1e-2);
   scacopf_prob->update_PVPQ_smoothing_param(1e-2);
+
+  scacopf_prob->use_filelocks_when_writing=true;
 
   if(iAmSolverBackup) {
     scacopf_prob->set_flag_slacks_initially_recomputed(false);
@@ -453,11 +466,18 @@ bool MyCode1::do_phase1()
 	//we have some form of acceptable solution
 	printf("[ph1][emergency] rank %d  phase 1 writes bestknown solution1.txt obj_val=%.5e at global time %g\n", 
 	       my_rank, scacopf_prob->best_known_iter.obj_value, glob_timer.measureElapsedTime());
-	scacopf_prob->write_solution_basecase(scacopf_prob->best_known_iter.vars_primal);
-	scacopf_prob->write_pridua_solution_basecase(scacopf_prob->best_known_iter.vars_primal,
-						     scacopf_prob->best_known_iter.vars_duals_cons,
-						     scacopf_prob->best_known_iter.vars_duals_bounds_L,
-						     scacopf_prob->best_known_iter.vars_duals_bounds_U);
+
+
+	scacopf_prob->attempt_write_solutions(scacopf_prob->best_known_iter.vars_primal,
+					      scacopf_prob->best_known_iter.vars_duals_cons,
+					      scacopf_prob->best_known_iter.vars_duals_bounds_L,
+					      scacopf_prob->best_known_iter.vars_duals_bounds_U,
+					      true);
+	// scacopf_prob->write_solution_basecase(scacopf_prob->best_known_iter.vars_primal);
+	// scacopf_prob->write_pridua_solution_basecase(scacopf_prob->best_known_iter.vars_primal,
+	// 					     scacopf_prob->best_known_iter.vars_duals_cons,
+	// 					     scacopf_prob->best_known_iter.vars_duals_bounds_L,
+	// 					     scacopf_prob->best_known_iter.vars_duals_bounds_U);
 	if(!scacopf_prob->monitor.user_stopped) {
 	  scacopf_prob->primal_variables()->set_start_to(*scacopf_prob->best_known_iter.vars_primal);
 	  scacopf_prob->duals_constraints()->set_start_to(*scacopf_prob->best_known_iter.vars_duals_cons);
@@ -498,6 +518,8 @@ bool MyCode1::do_phase1()
 	  emergency = true;
 	  printf("[ph1][extreme emergency] rank %d  phase 1 writes bestknown solution1.txt obj_val=%.5e at global time %g\n", 
 		 my_rank, scacopf_prob->best_known_iter.obj_value, glob_timer.measureElapsedTime());
+
+	  //aaa
 	  scacopf_prob->write_solution_basecase(scacopf_prob->best_known_iter.vars_primal);
 	  scacopf_prob->write_pridua_solution_basecase(scacopf_prob->best_known_iter.vars_primal,
 						       scacopf_prob->best_known_iter.vars_duals_cons,
@@ -541,6 +563,8 @@ bool MyCode1::do_phase1()
     MPI_Bcast(&cost_basecase, 1, MPI_DOUBLE, rank_solver_rank0, comm_world);
     printf("[ph1] rank %d  phase 1 basecase bcasts obj=%.6f done at global time %g\n", 
 	   my_rank, cost_basecase, glob_timer.measureElapsedTime());
+
+    scacopf_prob->use_filelocks_when_writing=false;
   } else {
     if(!scacopf_prob->monitor.bcast_done) {
       SCACOPFProblem::IterInfo& v = scacopf_prob->best_known_iter; //shortcut
@@ -557,6 +581,8 @@ bool MyCode1::do_phase1()
 	     my_rank, glob_timer.measureElapsedTime());
       scacopf_prob->monitor.bcast_done = true;
     }
+
+    scacopf_prob->use_filelocks_when_writing=false;
   }
 
   //force a have_start set
@@ -564,8 +590,10 @@ bool MyCode1::do_phase1()
     scacopf_prob->set_have_start();
   } else { //iAmSolver
     K_SCACOPF_phase3 = K_SCACOPF_phase1;
-    if(!emergency) 
-      attempt_write_solutions(scacopf_prob, true);
+    if(!emergency) {
+      scacopf_prob->attempt_write_solutions(NULL, NULL, NULL, NULL, true);
+      //attempt_write_solutions(scacopf_prob, true);
+    }
 
     double bound_push = 1e-18;//std::min(1e-2, pow(10., 3*n_solves-12));
     scacopf_prob->set_solver_option("bound_push", bound_push);
@@ -628,15 +656,24 @@ bool MyCode1::do_phase1()
     scacopf_prob->iter_sol_written=-10;
     bool bret = scacopf_prob->reoptimize(OptProblem::primalDualRestart);
     if(bret) {
-      attempt_write_solutions(scacopf_prob, bret);
+      scacopf_prob->attempt_write_solutions(NULL, NULL, NULL, NULL, bret);
+      //attempt_write_solutions(scacopf_prob, bret);
+
     } else {
-      printf("[ph1][emergency]222 rank %d  phase 1 writes bestknown solution1.txt obj_val=%.5e at global time %g\n", 
+      printf("[ph1][emergency]222 rank %d  phase 1 attempt write bestknown solution1.txt obj_val=%.5e at global time %g\n", 
 	     my_rank, scacopf_prob->best_known_iter.obj_value, glob_timer.measureElapsedTime());
-      scacopf_prob->write_solution_basecase(scacopf_prob->best_known_iter.vars_primal);
-      scacopf_prob->write_pridua_solution_basecase(scacopf_prob->best_known_iter.vars_primal,
-						   scacopf_prob->best_known_iter.vars_duals_cons,
-						   scacopf_prob->best_known_iter.vars_duals_bounds_L,
-						   scacopf_prob->best_known_iter.vars_duals_bounds_U);
+
+      
+      scacopf_prob->attempt_write_solutions(scacopf_prob->best_known_iter.vars_primal,
+					    scacopf_prob->best_known_iter.vars_duals_cons,
+					    scacopf_prob->best_known_iter.vars_duals_bounds_L,
+					    scacopf_prob->best_known_iter.vars_duals_bounds_U,
+					    true);
+      // scacopf_prob->write_solution_basecase(scacopf_prob->best_known_iter.vars_primal);
+      // scacopf_prob->write_pridua_solution_basecase(scacopf_prob->best_known_iter.vars_primal,
+      // 						   scacopf_prob->best_known_iter.vars_duals_cons,
+      // 						   scacopf_prob->best_known_iter.vars_duals_bounds_L,
+      // 						   scacopf_prob->best_known_iter.vars_duals_bounds_U);
     }
   }
 
@@ -688,29 +725,6 @@ bool MyCode1::do_phase1()
 	   my_rank, glob_timer.measureElapsedTime());
 
   return true;
-}
-
-void MyCode1::attempt_write_solutions(gollnlp::SCACOPFProblem* prob, bool opt_success)
-{
-  printf("[ph1] rank %d  phase 1 writes solution1.txt at global time %g\n", 
-	 my_rank, glob_timer.measureElapsedTime());
-  
-  //write solution
-  prob->write_solution_basecase();
-  prob->write_pridua_solution_basecase();
-  if(!opt_success) {
-    printf("[warning] Solver rank %d: initial basecase solve failed; solution1 was written though at global time=%g\n",
-	   my_rank, glob_timer.measureElapsedTime());
-  }
-  
-#ifdef DEBUG
-  //write solution extras
-  prob->write_solution_extras_basecase();
-  if(!opt_success) {
-    printf("[warning] Solver rank %d: initial basecase solve failed; solution1 extras were written though\n",
-	   my_rank);
-  }
-#endif  
 }
 
 vector<int> MyCode1::phase1_SCACOPF_contingencies()
@@ -2528,6 +2542,7 @@ double MyCode1::phase3_solve_scacopf(std::vector<int>& K_idxs,
   scacopf_prob->set_basecase_L_rate_reduction(TL_rate_reduction);
   scacopf_prob->set_basecase_T_rate_reduction(TL_rate_reduction);
 
+  assert(scacopf_prob->use_filelocks_when_writing == false);
   //scacopf_prob->set_quadr_penalty_qg0(true);
 
   bool blarge_prob = true;//data.N_Bus.size() > 20000;
@@ -2624,12 +2639,15 @@ double MyCode1::phase3_solve_scacopf(std::vector<int>& K_idxs,
     printf("[warning]write Solver rank %d: scacopf solve failed; solution1.txt NOT written\n",
 	   my_rank);
   } else {
-    printf("Solver rank %d: write solution1.txt after scacopf solve\n", my_rank);
-    scacopf_prob->write_solution_basecase();
-    scacopf_prob->write_pridua_solution_basecase();
-#ifdef DEBUG
-    scacopf_prob->write_solution_extras_basecase();
-#endif
+    printf("Solver rank %d: write solution1.txt after scacopf solve at global time %.2\n", 
+	   my_rank, glob_timer.measureElapsedTime());
+    //scacopf_prob->write_solution_basecase();
+    //scacopf_prob->write_pridua_solution_basecase();
+    scacopf_prob->attempt_write_solutions(NULL, NULL, NULL, NULL, true);
+    //attempt_write_solutions(scacopf_prob, true);
+    //#ifdef DEBUG
+    //    scacopf_prob->write_solution_extras_basecase();
+    //#endif
   }
 
   //let solver rank touch the MPI buffers a couple of times

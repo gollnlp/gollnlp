@@ -10,7 +10,8 @@
 #include "goTimer.hpp"
 //this class is for ACOPF base case and is inherited by ACOPFContingencyProblem
 #include <unistd.h>
-
+#include <fcntl.h>
+#include <sys/file.h>
 #include <unordered_map>
 
 namespace gollnlp {
@@ -29,6 +30,8 @@ namespace gollnlp {
       my_rank=-1; rank_solver_rank0 = 1;
       comm_world = MPI_COMM_NULL;
       iter_sol_written=-10;
+      optim_obj_value = optim_inf_pr = optim_inf_pr_orig_pr = optim_inf_du = optim_mu = 1000.;
+      use_filelocks_when_writing = true;
     }
     virtual ~SCACOPFProblem();
 
@@ -261,6 +264,15 @@ namespace gollnlp {
 
     void print_line_limits_info(SCACOPFData& dB);
     void print_transf_limits_info(SCACOPFData& dB);
+
+    bool use_filelocks_when_writing;
+
+    void attempt_write_solutions(OptVariables* primal_vars,
+				 OptVariables* dual_con_vars,
+				 OptVariables* dual_lb_vars,
+				 OptVariables* dual_ub_vars,
+				 bool opt_success);
+
     void write_solution_basecase(OptVariables* primal_vars=NULL);
     void write_pridua_solution_basecase(OptVariables* primal_vars=NULL,
 					OptVariables* dual_con_vars=NULL,
@@ -268,6 +280,7 @@ namespace gollnlp {
 					OptVariables* dual_ub_vars=NULL);
     void write_solution_extras_basecase(OptVariables* primal_vars=NULL);
 
+    double optim_obj_value, optim_inf_pr, optim_inf_pr_orig_pr, optim_inf_du, optim_mu;
   public:
     virtual bool iterate_callback(int iter, const double& obj_value,
 				  const double* primals,
@@ -419,8 +432,125 @@ namespace gollnlp {
     int iter_sol_written;
   }; // end of SCACOPFProblem
 
+  class SolFileLocker
+  {
+  public:
+    SolFileLocker() 
+      : fid(-1)
+    { 
+    };
+    virtual ~SolFileLocker() 
+    {
+      if(-1 != fid)
+	close();
+    };
+    
+    inline bool open(const char* filename="gollnlp_optim.txt")
+    {
+      fid = ::open(filename, O_RDWR | O_CREAT, 0666);
+      if(-1==fid) {
+	printf("FileLocker: error [%d] open file\n", errno);
+	return false;
+      }
+      return true;
+    }
+    inline bool close()
+    {
+      if(-1!= fid && ::close(fid)==-1) {
+	printf("FileLocker: error [%d] closing file\n", errno);
+	fid = -1;
+	return false;
+      }
+      fid = -1;
+      return true;
+    }
+    inline bool lock() 
+    {
+      if(-1==::flock(fid, LOCK_EX)) {
+	printf("FileLocker: error [%d] lock file\n", errno);
+	return false;
+      }
+      //printf("FileLocker: file locked!\n", errno);
+      return true;
+    }
+    inline bool unlock() 
+    {
+      if(-1==::flock(fid, LOCK_EX)) {
+	printf("FileLocker: error [%d] unlock file\n", errno);
+	return false;
+      }
+      //printf("FileLocker: file unlocked!\n", errno);
+      return true;
+    }
 
-
-}
+    inline bool is_my_solution_better(const double& my_obj, 
+				      const double& my_pr_inf, 
+				      const double& my_du_inf, 
+				      const double& my_mu)
+    {
+      if(fid < 0) {
+	printf("FileLocker: error file not opened\n");
+	return true;
+      }
+      const int sz=1000; char s[sz];
+      
+      size_t nread = ::read(fid, s, sz);
+      if(nread>=0) {
+	s[nread]='\0';
+	//printf("read %d bytes -> [%s]\n", nread, s);
+	
+	double cobj=1e+20, cpr_inf=1., cdu_inf=1., cmu=1.;
+	char *pend, *pbeg=&s[0];
+	cobj    = strtod(pbeg, &pend); pbeg=pend;
+	cpr_inf = strtod(pbeg, &pend); pbeg=pend;
+	cdu_inf = strtod(pbeg, &pend); pbeg=pend;
+	cmu     = strtod(pbeg, NULL); 
+	//printf("got: %20.16f %20.16f %20.16f %20.16f\n", cobj, cpr_inf, cdu_inf, cmu);
+	
+	if(nread>0) {
+	  if(my_mu<=1.01*cmu && my_pr_inf<=1.01*cpr_inf) {
+	    if(my_obj < cobj) return true;
+	  } else {
+	    return false;
+	  }
+	} else {
+	  //no file was there
+	  return true;
+	}
+      } else {
+	printf("FileLocker: error [%d] read file\n", errno);
+	return true;
+      }
+      
+      return false;
+    }
+    inline bool write(const double& obj, 
+		      const double& pr_inf, 
+		      const double& du_inf, 
+		      const double& mu)
+    {
+      //we assume we're at the beginning of the file
+      char s[1000];
+      sprintf(s, "%.16f %.16f %.16f %.16f\n", obj, pr_inf, du_inf, mu);
+      
+      if(-1==::ftruncate(fid, 0)) {
+	printf("[warning] FileLocker error[%d] could not truncate file\n", errno);
+      }
+      
+      if(-1==::lseek(fid, 0, SEEK_SET)) {
+	printf("[warning] FileLocker error[%d] could not lseek in file\n", errno);
+      }
+      
+      if(-1==::write(fid, s, strlen(s))) {
+	printf("FileLocker: error [%d] write file\n", errno);
+	return false;
+      }
+      return true;
+    }
+  private:
+    int fid; 
+  };
+  
+} // end of namespace
 
 #endif

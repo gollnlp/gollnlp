@@ -3450,6 +3450,13 @@ bool SCACOPFProblem::iterate_callback(int iter, const double& obj_value,
 				      const double* duals_con,
 				      const double* duals_lb, const double* duals_ub)
 {
+
+  optim_obj_value =  obj_value;
+  optim_inf_pr = inf_pr;
+  optim_inf_pr_orig_pr = inf_pr_orig_pr;
+  optim_inf_du = inf_du;
+  optim_mu = mu;
+
   if(monitor.is_active) {
 
     //finish initialization if needed
@@ -3481,13 +3488,20 @@ bool SCACOPFProblem::iterate_callback(int iter, const double& obj_value,
 	     inf_du <= monitor.tol_optim_for_write &&
 	     mu <= monitor.tol_mu_for_write &&
 	     obj_value <= monitor.objvalue_last_written) {
-	    printf("[ph1] rank %d  phase 1 writes solution1.txt from call_back iter=%d\n", 
+	    printf("[ph1] rank %d  phase 1 attempt write solution1.txt from call_back iter=%d\n", 
 		   my_rank, iter);
-	    write_solution_basecase(best_known_iter.vars_primal);
-	    write_pridua_solution_basecase(best_known_iter.vars_primal,
-					   best_known_iter.vars_duals_cons,
-					   best_known_iter.vars_duals_bounds_L,
-					   best_known_iter.vars_duals_bounds_U);
+
+
+	    this->attempt_write_solutions(best_known_iter.vars_primal,
+					  best_known_iter.vars_duals_cons,
+					  best_known_iter.vars_duals_bounds_L,
+					  best_known_iter.vars_duals_bounds_U,
+					  true);
+	    // write_solution_basecase(best_known_iter.vars_primal);
+	    // write_pridua_solution_basecase(best_known_iter.vars_primal,
+	    // 				   best_known_iter.vars_duals_cons,
+	    // 				   best_known_iter.vars_duals_bounds_L,
+	    // 				   best_known_iter.vars_duals_bounds_U);
 	    iter_sol_written = iter;
 	    monitor.objvalue_last_written = obj_value;
 	  }
@@ -3538,6 +3552,93 @@ bool SCACOPFProblem::iterate_callback(int iter, const double& obj_value,
   }
 
   return true;
+}
+
+
+void SCACOPFProblem::attempt_write_solutions(OptVariables* primal_vars,
+					     OptVariables* dual_con_vars,
+					     OptVariables* dual_lb_vars,
+					     OptVariables* dual_ub_vars,
+					     bool opt_success)
+{
+  SCACOPFProblem*prob = this;
+  if(prob->use_filelocks_when_writing==false) {
+    //	
+    // write solution1
+    //
+    prob->write_solution_basecase(primal_vars);
+    prob->write_pridua_solution_basecase(primal_vars,
+					 dual_con_vars,
+					 dual_lb_vars,
+					 dual_ub_vars);
+    
+    if(!opt_success) {
+      printf("[warning] Solver rank %d: initial basecase solve failed; solution1 was written write (lock disabled)\n", my_rank);
+    } else {
+      printf("Solver rank %d write solution1 (lock disabled)\n", my_rank);
+    }
+  } else {
+
+    bool locking_failed = false;
+
+    {
+      SolFileLocker sol_file;
+      if(!sol_file.open()) {
+	printf("[warning] Solver rank %d: could not open optim file (lock)\n", my_rank); 
+	locking_failed = true;
+      }
+      if(!sol_file.lock()) {
+	printf("[warning] Solver rank %d: could not lock optim file (lock)\n", my_rank); 
+	locking_failed = true;
+      }
+    
+      if(!locking_failed && sol_file.is_my_solution_better(prob->optim_obj_value, prob->optim_inf_pr_orig_pr,  prob->optim_inf_du,  prob->optim_mu)) {
+	if(sol_file.write(prob->optim_obj_value, prob->optim_inf_pr_orig_pr,  prob->optim_inf_du,  prob->optim_mu)) {
+
+	  //	
+	  // write solution1
+	  //
+	  prob->write_solution_basecase(primal_vars);
+	  prob->write_pridua_solution_basecase(primal_vars,
+					       dual_con_vars,
+					       dual_lb_vars,
+					       dual_ub_vars);
+
+	  if(!opt_success) {
+	    printf("[warning] Solver rank %d: initial basecase solve failed; solution1 was written write (lock on)\n", my_rank);
+	  } else {
+	    printf("Solver rank %d write solution1 (lock on)\n", my_rank);
+	  }
+	} else {
+	  printf("[warning] Solver rank %d: could not write optim file (lock)\n", my_rank); 
+	  locking_failed = true;
+	}
+      } else {
+	printf("Solver rank %d did not write solution1 b/c one better was already written (lock on)\n", my_rank);
+      }
+    
+      if(!sol_file.unlock()) {
+	printf("[warning] Solver rank %d: could not unlock optim file (lock)\n", my_rank); 
+	locking_failed = true;
+      }
+      sol_file.close();
+    }
+
+    //if locking didn't work take a shot -> better than writing no solution
+    if(locking_failed) {
+      //write solution
+      prob->write_solution_basecase(primal_vars);
+      prob->write_pridua_solution_basecase(primal_vars,
+					   dual_con_vars,
+					   dual_lb_vars,
+					   dual_ub_vars);
+      if(!opt_success) {
+	printf("[warning] Solver rank %d: initial basecase solve failed; solution1 was written though (also lock failed)\n", my_rank);
+      } else {
+	printf("Solver rank %d write solution1 (lock failed)\n", my_rank);
+      }
+    }
+  }
 }
 
 } //end namespace

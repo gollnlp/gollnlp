@@ -50,7 +50,7 @@ private: //methods
   // respective solutions (Bcast)
   gollnlp::SCACOPFProblem *scacopf_prob;
 
-  void attempt_write_solutions(gollnlp::SCACOPFProblem* prob, bool opt_success);
+  //void attempt_write_solutions(gollnlp::SCACOPFProblem* prob, bool opt_success);
 
   /////////////////////////////////////////////////////////////////////////////////
   // phase 2 - evaluate contingencies using phase 1 solution
