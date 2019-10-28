@@ -585,7 +585,9 @@ bool MyCode2::_guts_of_solve_contingency(ContingencyProblemWithFixing& prob, int
 {
   double pen_accept=1., pen_accept_inipt=1., pen_accept_solve1=1.,
     pen_accept_emer=1000., pen_accept_safemode=10000.;
-  double timeout = 1200; // contingency solves will switch to emergency mode after this limit is reached
+  //max time to spend in the contingency evaluation
+  //it is NOT hard enforced
+  double timeout = 1700.; 
 
   double tm_percentage = glob_timer.measureElapsedTime()/(2.0*data.K_Contingency.size());
   //double avgtm = 1.5; //average time per contingency in seconds
@@ -596,28 +598,36 @@ bool MyCode2::_guts_of_solve_contingency(ContingencyProblemWithFixing& prob, int
 
   if(tm_percentage<0.075) {
     if(data.N_Bus.size()<31000) { //tm_percentage in [0%,7.5%]
-      pen_accept = pen_accept_inipt = pen_accept_solve1 = 1.;
+      pen_accept = 1.;
+      pen_accept_inipt = 100.;
+      pen_accept_solve1 = 50.;
       pen_accept_emer = 1000.;
       pen_accept_safemode=10000.;
     } else {
-      pen_accept = pen_accept_inipt = pen_accept_solve1 = 1000.;
+      pen_accept = 1000.;
+      pen_accept_inipt = 2500.;
+      pen_accept_solve1 = 1500.;
       pen_accept_emer = 10000.;
       pen_accept_safemode=100000.;
     }
   } else if(tm_percentage<0.20) {
     if(avgtm<2.25) {
       if(data.N_Bus.size()<31000) {
-	pen_accept = pen_accept_inipt = pen_accept_solve1 = 1.;
-	pen_accept_emer = 1000.;
+	pen_accept =  1.;
+	pen_accept_solve1 = 100.;
+	pen_accept_inipt = 50.;
+	pen_accept_emer = 2000.;
 	pen_accept_safemode=10000.;
       } else {
-	pen_accept = pen_accept_inipt = pen_accept_solve1 = 1000.;
+	pen_accept = 1000.;
+	pen_accept_inipt = 2500;
+	pen_accept_solve1 = 1500.;
 	pen_accept_emer = 10000.;
 	pen_accept_safemode=100000.;
       }
     } else if(avgtm<3.0) { //avgtm in [2.25, 3]
-      pen_accept = 500.; pen_accept_inipt = 2000.; pen_accept_solve1 = 1000.;
-      pen_accept_emer = 10000.;
+      pen_accept = 1000.; pen_accept_inipt = 4000.; pen_accept_solve1 = 2500.;
+      pen_accept_emer = 12000.;
       pen_accept_safemode=50000.;
     } else { //avgtm > 3
       pen_accept = 2000.; pen_accept_inipt = 10000.; pen_accept_solve1 = 5000.;
@@ -626,11 +636,13 @@ bool MyCode2::_guts_of_solve_contingency(ContingencyProblemWithFixing& prob, int
     }
   } else if(tm_percentage<0.70) { //tm_percentage in [20%,70%]
     if(avgtm<2.0) {
-      pen_accept = pen_accept_inipt = pen_accept_solve1 = 1.;
+      pen_accept = 1.;
+      pen_accept_inipt = 100.;
+      pen_accept_solve1 = 50.;
       pen_accept_emer = 1000.;
       pen_accept_safemode=10000.; 
     } else if(avgtm<2.5) { //avgtm in [2, 2.5]
-      pen_accept = 1000.; pen_accept_inipt = 2000.; pen_accept_solve1 = 2000.;
+      pen_accept = 1000.; pen_accept_inipt = 4000.; pen_accept_solve1 = 2500.;
       pen_accept_emer = 10000.;
       pen_accept_safemode=50000.;
     } else if(avgtm<5) { //avgtm in [2.5, 5]
@@ -644,26 +656,30 @@ bool MyCode2::_guts_of_solve_contingency(ContingencyProblemWithFixing& prob, int
     }
   } else if(tm_percentage<0.85) {//tm_percentage in [70%,85%]
     if(avgtm<1.9) {
-      pen_accept = pen_accept_inipt = 100.; pen_accept_solve1 = 1000;
-      pen_accept_emer = 2000.;
+      pen_accept = 1000;
+      pen_accept_inipt = 2500.; 
+      pen_accept_solve1 = 2000;
+      pen_accept_emer = 4000.;
       pen_accept_safemode=50000.;
     } else if(avgtm<2.25) { //avgtm in [1.9, 2.25]
-      pen_accept = 1000.; pen_accept_inipt = 4000.; pen_accept_solve1 = 2000.;
-      pen_accept_emer = 20000.;
-      pen_accept_safemode=200000.;
+      pen_accept = 1500.; 
+      pen_accept_inipt = 4000.;
+      pen_accept_solve1 = 3000.;
+      pen_accept_emer = 25000.;
+      pen_accept_safemode=250000.;
     } else { //avgtm >2.25
-      pen_accept = 20000.; pen_accept_inipt = 50000.; pen_accept_solve1 = 30000.;
+      pen_accept = 20000.; pen_accept_inipt = 50000.; pen_accept_solve1 = 35000.;
       pen_accept_emer = 100000.;
       pen_accept_safemode=2000000.;//2M
     } 
   } else if(tm_percentage<0.93) { //tm_percentage in [85%,93%]
     if(avgtm<1.90) {
-      pen_accept = 5000.; pen_accept_inipt = 20000.; pen_accept_solve1 = 20000.;
-      pen_accept_emer = 50000.; //50K
+      pen_accept = 5000.; pen_accept_inipt = 20000.; pen_accept_solve1 = 15000.;
+      pen_accept_emer = 75000.; //75K
       pen_accept_safemode=10000000.;//10M
       timeout = 400;
     } else  { //avgtm > 1.9
-      pen_accept = 50000.; pen_accept_inipt = 100000.; pen_accept_solve1 = 100000.;
+      pen_accept = 75000.; pen_accept_inipt = 150000.; pen_accept_solve1 = 100000.;
       pen_accept_emer = 1000000.; //1M
       pen_accept_safemode=1e+20;//infinity
       timeout = 200;
@@ -679,7 +695,7 @@ bool MyCode2::_guts_of_solve_contingency(ContingencyProblemWithFixing& prob, int
   prob.pen_accept_solve1=pen_accept_solve1;
   prob.pen_accept_emer=pen_accept_emer;
   prob.pen_accept_safemode=pen_accept_safemode;
-
+  prob.timeout = timeout;
   //if(data.N_Bus.size()>8999)
   {
     ContingencyProblemWithFixing::g_bounds_abuse = 0.000095;
