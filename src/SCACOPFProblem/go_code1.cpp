@@ -415,7 +415,7 @@ bool MyCode1::do_phase1()
 
   if(iAmSolver) {    assert(my_rank==rank_solver_rank0);
     scacopf_prob->monitor.is_active=true;
-    scacopf_prob->monitor.timeout = (ScoringMethod==1 || ScoringMethod==3) ? 620 : 2250;
+    scacopf_prob->monitor.timeout = (ScoringMethod==1 || ScoringMethod==3) ? 595 : 2250;
     scacopf_prob->set_solver_option("print_level", 5);
     scacopf_prob->set_solver_option("max_iter", 1000);
 
@@ -423,7 +423,7 @@ bool MyCode1::do_phase1()
 
     if(iAmSolverBackup) {     assert(my_rank==rank_solver_rank0+1);
       scacopf_prob->monitor.is_active=true;
-      scacopf_prob->monitor.timeout = (ScoringMethod==1 || ScoringMethod==3) ? 620 : 2250;
+      scacopf_prob->monitor.timeout = (ScoringMethod==1 || ScoringMethod==3) ? 595 : 2250;
       scacopf_prob->set_solver_option("print_level", 5);
       scacopf_prob->set_solver_option("max_iter", 1000);
     } else {
@@ -651,7 +651,7 @@ bool MyCode1::do_phase1()
     }
 
     scacopf_prob->monitor.is_active=true;
-    scacopf_prob->monitor.timeout = (ScoringMethod==1 || ScoringMethod==3) ? 620-glob_timer.measureElapsedTime() : 900;
+    scacopf_prob->monitor.timeout = (ScoringMethod==1 || ScoringMethod==3) ? 596-glob_timer.measureElapsedTime() : 2696-glob_timer.measureElapsedTime();
     scacopf_prob->monitor.timer.restart();
     scacopf_prob->iter_sol_written=-10;
     bool bret = scacopf_prob->reoptimize(OptProblem::primalDualRestart);
@@ -2592,8 +2592,8 @@ double MyCode1::phase3_solve_scacopf(std::vector<int>& K_idxs,
   
   scacopf_prob->monitor.is_active=true;
   scacopf_prob->monitor.emergency = false;
-  //scacopf_prob->monitor.timeout = (ScoringMethod==1 || ScoringMethod==3) ? 596-glob_timer.measureElapsedTime() : 700;
-  scacopf_prob->monitor.timeout = 600;
+  scacopf_prob->monitor.timeout = (ScoringMethod==1 || ScoringMethod==3) ? 596-glob_timer.measureElapsedTime() : 2696 - glob_timer.measureElapsedTime();
+  //scacopf_prob->monitor.timeout = 600;
 
   scacopf_prob->monitor.acceptable_tol_feasib = 1e-6;
   scacopf_prob->monitor.tol_feasib_for_write = 5e-8;
@@ -2608,7 +2608,7 @@ double MyCode1::phase3_solve_scacopf(std::vector<int>& K_idxs,
   //scacopf_prob->monitor.feasibtol_for_write = 5e-8;
   scacopf_prob->monitor.write_every = 1;
 
-  if(data.N_Bus.size() > 39000) scacopf_prob->monitor.timeout = 900;
+  //if(data.N_Bus.size() > 39000) scacopf_prob->monitor.timeout = 900;
 
   scacopf_prob->monitor.timer.restart();
 
