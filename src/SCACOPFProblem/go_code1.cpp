@@ -178,7 +178,8 @@ void MyCode1::phase1_ranks_allocation()
       iAmSolver=true;
       iAmEvaluator=false;
     } else {
-      if(my_rank==rank_solver_rank0+1) 
+      //if(my_rank==rank_solver_rank0+1) 
+      if(my_rank==comm_size-1)
 	iAmSolverBackup=true;
       //ranks 0, 2, 3, 4, ...
       iAmEvaluator=true;
@@ -198,7 +199,8 @@ void MyCode1::phase2_ranks_allocation()
 
   //solver is rank_solver_rank0
   iAmSolver = my_rank==rank_solver_rank0;
-  iAmSolverBackup =  (my_rank==rank_solver_rank0+1);
+  //iAmSolverBackup =  (my_rank==rank_solver_rank0+1);
+  iAmSolverBackup =  (my_rank==comm_size-1);
   if(my_rank == rank_master) {assert(iAmMaster); iAmMaster = true;}
   if(comm_size==1) {
     iAmEvaluator=true;
