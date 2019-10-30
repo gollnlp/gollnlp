@@ -423,7 +423,9 @@ bool MyCode1::do_phase1()
 
   } else {
 
-    if(iAmSolverBackup) {     assert(my_rank==rank_solver_rank0+1);
+    if(iAmSolverBackup) {     
+      //assert(my_rank==rank_solver_rank0+1);
+      assert(my_rank==comm_size-1);
       scacopf_prob->monitor.is_active=true;
       scacopf_prob->monitor.timeout = (ScoringMethod==1 || ScoringMethod==3) ? 595 : 2250;
       scacopf_prob->set_solver_option("print_level", 5);
