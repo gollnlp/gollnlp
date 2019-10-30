@@ -676,6 +676,7 @@ int OptVariables::MPI_Bcast_x(int root,
 			      MPI_Comm comm,
 			      int my_rank, double* buffer)
 {
+
   int dealloc=false;
   if(NULL == buffer) {
     buffer = new double[this->n()];
@@ -688,8 +689,9 @@ int OptVariables::MPI_Bcast_x(int root,
       memcpy(buffer+b->index, b->x, b->n*sizeof(double));
     }
   }
-
+  printf(" RRank %d bcastbeginn\n", my_rank);
   int ierr = MPI_Bcast(buffer, this->n(), MPI_DOUBLE, root, comm);
+  printf(" RRank %d bcasted\n", my_rank);
   assert(MPI_SUCCESS==ierr);
   
   //unpack
@@ -705,6 +707,9 @@ int OptVariables::MPI_Bcast_x(int root,
     delete[] buffer;
     buffer = NULL;
   }
+
+  printf(" RRank %d bcastdone-x\n", my_rank);
+  
   return ierr;
 }
 

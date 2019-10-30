@@ -3534,13 +3534,38 @@ bool SCACOPFProblem::iterate_callback(int iter, const double& obj_value,
 	     my_rank, iter, glob_time_to_string().c_str());
 
 
-      v.vars_primal->MPI_Bcast_x(rank_solver_rank0, comm_world, my_rank);
-      v.vars_duals_bounds_L->MPI_Bcast_x(rank_solver_rank0, comm_world, my_rank);
-      v.vars_duals_bounds_U->MPI_Bcast_x(rank_solver_rank0, comm_world, my_rank);
-      v.vars_duals_cons->MPI_Bcast_x(rank_solver_rank0, comm_world, my_rank);
+      if(true) {
+	
+	int sz=v.vars_primal->n();
+	double* arr = new double[sz]; for(int i=0; i<sz; i++) arr[0]=0.;
+	v.vars_primal->copy_to(arr);
+	//MPI_Bcast(arr, sz, MPI_DOUBLE, rank_solver_rank0, comm_world);
+	delete[] arr;
 
+	sz=v.vars_duals_bounds_L->n(); for(int i=0; i<sz; i++) arr[0]=0.;
+	v.vars_duals_bounds_L->copy_to(arr); 
+	//MPI_Bcast(arr, sz, MPI_DOUBLE, rank_solver_rank0, comm_world);
+	delete[] arr;
+
+	sz=v.vars_duals_bounds_U->n(); for(int i=0; i<sz; i++) arr[0]=0.;
+	v.vars_duals_bounds_U->copy_to(arr);
+	//MPI_Bcast(arr, sz, MPI_DOUBLE, rank_solver_rank0, comm_world);
+	delete[] arr;
+
+	sz=v.vars_duals_cons->n(); for(int i=0; i<sz; i++) arr[0]=0.;
+	v.vars_duals_cons->copy_to(arr);
+	//MPI_Bcast(arr, sz, MPI_DOUBLE, rank_solver_rank0, comm_world);
+	delete[] arr;
+	
+      } else {
+	v.vars_primal->MPI_Bcast_x(rank_solver_rank0, comm_world, my_rank);
+	v.vars_duals_bounds_L->MPI_Bcast_x(rank_solver_rank0, comm_world, my_rank);
+	v.vars_duals_bounds_U->MPI_Bcast_x(rank_solver_rank0, comm_world, my_rank);
+	v.vars_duals_cons->MPI_Bcast_x(rank_solver_rank0, comm_world, my_rank);
+      }	
       double cost_basecase=obj_value;
       MPI_Bcast(&cost_basecase, 1, MPI_DOUBLE, rank_solver_rank0, comm_world);
+      
       printf("[ph1] rank %d  phase 1 basecase bcasts done at iter %d glob_time=%s\n", 
 	     my_rank, iter, glob_time_to_string().c_str());
       monitor.bcast_done = true;

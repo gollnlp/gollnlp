@@ -579,14 +579,36 @@ bool MyCode1::do_phase1()
   //
   //communication -> solver rank0 bcasts basecase solutions
   //
-
   if(!iAmSolver) {
 
     //printf("Rank %d before xxxprimal\n", my_rank);
-    
+    if(true) {
+      int sz=scacopf_prob->primal_variables()->n();
+      double* arr = new double[sz]; for(int i=0; i<sz; i++) arr[0]=0.;
+	
+      scacopf_prob->primal_variables()->copy_to(arr);
+      //MPI_Bcast(arr, sz, MPI_DOUBLE, rank_solver_rank0, comm_world);
+      delete[] arr;
+
+      sz=scacopf_prob->duals_bounds_lower()->n(); for(int i=0; i<sz; i++) arr[0]=0.;
+      scacopf_prob->duals_bounds_lower()->copy_to(arr); 
+      //MPI_Bcast(arr, sz, MPI_DOUBLE, rank_solver_rank0, comm_world);
+      delete[] arr;
+
+      sz=scacopf_prob->duals_bounds_upper()->n(); for(int i=0; i<sz; i++) arr[0]=0.;
+      scacopf_prob->duals_bounds_upper()->copy_to(arr);
+      //MPI_Bcast(arr, sz, MPI_DOUBLE, rank_solver_rank0, comm_world);
+      delete[] arr;
+
+      scacopf_prob->duals_constraints()->n(); for(int i=0; i<sz; i++) arr[0]=0.;
+      scacopf_prob->duals_constraints()->copy_to(arr);
+      //MPI_Bcast(arr, sz, MPI_DOUBLE, rank_solver_rank0, comm_world);
+      delete[] arr;
+    } else {
+      
     scacopf_prob->primal_variables()->
       MPI_Bcast_x(rank_solver_rank0, comm_world, my_rank);
-
+    
     //printf("Rank %d before xxxlower time=%.2f\n", my_rank, glob_timer.measureElapsedTime());
     scacopf_prob->duals_bounds_lower()->
       MPI_Bcast_x(rank_solver_rank0, comm_world, my_rank);
@@ -598,7 +620,9 @@ bool MyCode1::do_phase1()
     //printf("Rank %d before xxxcons time=%.2f\n", my_rank, glob_timer.measureElapsedTime());
     scacopf_prob->duals_constraints()->
       MPI_Bcast_x(rank_solver_rank0, comm_world, my_rank);
+    }
     
+
     //printf("Rank %d before xxxcost time=%.2f\n", my_rank, glob_timer.measureElapsedTime());
     MPI_Bcast(&cost_basecase, 1, MPI_DOUBLE, rank_solver_rank0, comm_world);
     printf("[ph1] rank %d  phase 1 basecase bcasts obj=%.6f done at global time %g\n", 
@@ -609,11 +633,34 @@ bool MyCode1::do_phase1()
     if(!scacopf_prob->monitor.bcast_done) {
       SCACOPFProblem::IterInfo& v = scacopf_prob->best_known_iter; //shortcut
 
-      v.vars_primal->MPI_Bcast_x(rank_solver_rank0, comm_world, my_rank);
-      v.vars_duals_bounds_L->MPI_Bcast_x(rank_solver_rank0, comm_world, my_rank);
-      v.vars_duals_bounds_U->MPI_Bcast_x(rank_solver_rank0, comm_world, my_rank);
-      v.vars_duals_cons->MPI_Bcast_x(rank_solver_rank0, comm_world, my_rank);
+      if(true) {
+	int sz=v.vars_primal->n();
+	double* arr = new double[sz]; for(int i=0; i<sz; i++) arr[0]=0.;
+	v.vars_primal->copy_to(arr);
+	//MPI_Bcast(arr, sz, MPI_DOUBLE, rank_solver_rank0, comm_world);
+	delete[] arr;
+
+	sz=v.vars_duals_bounds_L->n(); for(int i=0; i<sz; i++) arr[0]=0.;
+	v.vars_duals_bounds_L->copy_to(arr); 
+	//MPI_Bcast(arr, sz, MPI_DOUBLE, rank_solver_rank0, comm_world);
+	delete[] arr;
+
+	sz=v.vars_duals_bounds_U->n(); for(int i=0; i<sz; i++) arr[0]=0.;
+	v.vars_duals_bounds_U->copy_to(arr);
+	//MPI_Bcast(arr, sz, MPI_DOUBLE, rank_solver_rank0, comm_world);
+	delete[] arr;
+
+	sz=v.vars_duals_cons->n(); for(int i=0; i<sz; i++) arr[0]=0.;
+	v.vars_duals_cons->copy_to(arr);
+	//MPI_Bcast(arr, sz, MPI_DOUBLE, rank_solver_rank0, comm_world);
+	delete[] arr;
 	
+      } else {
+	v.vars_primal->MPI_Bcast_x(rank_solver_rank0, comm_world, my_rank);
+	v.vars_duals_bounds_L->MPI_Bcast_x(rank_solver_rank0, comm_world, my_rank);
+	v.vars_duals_bounds_U->MPI_Bcast_x(rank_solver_rank0, comm_world, my_rank);
+	v.vars_duals_cons->MPI_Bcast_x(rank_solver_rank0, comm_world, my_rank);
+      }
       cost_basecase=v.obj_value;
       MPI_Bcast(&cost_basecase, 1, MPI_DOUBLE, rank_solver_rank0, comm_world);
       printf("[ph1] rank %d  phase 1 basecase bcasts done [outside] at global time %g\n", 
@@ -624,6 +671,8 @@ bool MyCode1::do_phase1()
     // done later-> scacopf_prob->use_filelocks_when_writing=false;
   }
 
+  sleep(20);
+  
   //force a have_start set
   if(!iAmSolver) {
     scacopf_prob->set_have_start();

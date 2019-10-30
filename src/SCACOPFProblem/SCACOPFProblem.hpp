@@ -394,25 +394,35 @@ namespace gollnlp {
       inline void set_objective(const double& obj) { obj_value = obj; }
       
       inline void copy_primal_vars_from(const double* opt_vars_values, OptVariables* primal_vars_template) {
-	if(NULL!=vars_primal) 
+	if(NULL!=vars_primal) {
+	  //vars_primal->set_start_to(0.);
 	  vars_primal->copy_from(opt_vars_values);
-	else 
+	  
+	}
+	else {
 	  assert(false);
+	}
       }
       inline void copy_dual_vars_from(const double* duals_con, 
 				      const double* duals_lb,
 				      const double* duals_ub) {
-	if(NULL!=vars_duals_cons) 
+	if(NULL!=vars_duals_cons) {
 	  vars_duals_cons->copy_from(duals_con);
-	else 
+	  //vars_duals_cons->set_start_to(0.);
+	}
+	else { 
 	  assert(false);
+	}
 
 	if(NULL!=vars_duals_bounds_L) {
+	  //vars_duals_bounds_L->set_start_to(0.);
 	  vars_duals_bounds_L->copy_from(duals_lb);
 	  vars_duals_bounds_L->set_inactive_duals_lb_to(0., *vars_primal);
 	}else assert(false);
 
 	if(NULL!=vars_duals_bounds_U) {
+	  //vars_duals_bounds_U->set_start_to(0.);
+	  
 	  vars_duals_bounds_U->copy_from(duals_ub);
 	  vars_duals_bounds_U->set_inactive_duals_ub_to(0., *vars_primal);
 	} else assert(false);
