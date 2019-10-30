@@ -581,19 +581,29 @@ bool MyCode1::do_phase1()
   //
 
   if(!iAmSolver) {
+
+    //printf("Rank %d before xxxprimal\n", my_rank);
+    
     scacopf_prob->primal_variables()->
       MPI_Bcast_x(rank_solver_rank0, comm_world, my_rank);
+
+    //printf("Rank %d before xxxlower time=%.2f\n", my_rank, glob_timer.measureElapsedTime());
     scacopf_prob->duals_bounds_lower()->
       MPI_Bcast_x(rank_solver_rank0, comm_world, my_rank);
+
+    //printf("Rank %d before xxxupper time=%.2f\n", my_rank, glob_timer.measureElapsedTime());
     scacopf_prob->duals_bounds_upper()->
       MPI_Bcast_x(rank_solver_rank0, comm_world, my_rank);
+
+    //printf("Rank %d before xxxcons time=%.2f\n", my_rank, glob_timer.measureElapsedTime());
     scacopf_prob->duals_constraints()->
       MPI_Bcast_x(rank_solver_rank0, comm_world, my_rank);
     
+    //printf("Rank %d before xxxcost time=%.2f\n", my_rank, glob_timer.measureElapsedTime());
     MPI_Bcast(&cost_basecase, 1, MPI_DOUBLE, rank_solver_rank0, comm_world);
     printf("[ph1] rank %d  phase 1 basecase bcasts obj=%.6f done at global time %g\n", 
 	   my_rank, cost_basecase, glob_timer.measureElapsedTime());
-
+    
     scacopf_prob->use_filelocks_when_writing=false;
   } else {
     if(!scacopf_prob->monitor.bcast_done) {
@@ -604,8 +614,7 @@ bool MyCode1::do_phase1()
       v.vars_duals_bounds_U->MPI_Bcast_x(rank_solver_rank0, comm_world, my_rank);
       v.vars_duals_cons->MPI_Bcast_x(rank_solver_rank0, comm_world, my_rank);
 	
-
-      double cost_basecase=v.obj_value;
+      cost_basecase=v.obj_value;
       MPI_Bcast(&cost_basecase, 1, MPI_DOUBLE, rank_solver_rank0, comm_world);
       printf("[ph1] rank %d  phase 1 basecase bcasts done [outside] at global time %g\n", 
 	     my_rank, glob_timer.measureElapsedTime());
