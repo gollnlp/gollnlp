@@ -3539,22 +3539,25 @@ bool SCACOPFProblem::iterate_callback(int iter, const double& obj_value,
 	int sz=v.vars_primal->n();
 	double* arr = new double[sz]; for(int i=0; i<sz; i++) arr[0]=0.;
 	v.vars_primal->copy_to(arr);
-	//MPI_Bcast(arr, sz, MPI_DOUBLE, rank_solver_rank0, comm_world);
+	MPI_Bcast(arr, sz, MPI_DOUBLE, rank_solver_rank0, comm_world);
 	delete[] arr;
 
-	sz=v.vars_duals_bounds_L->n(); for(int i=0; i<sz; i++) arr[0]=0.;
+	sz=v.vars_duals_bounds_L->n(); 
+	arr = new double[sz]; for(int i=0; i<sz; i++) arr[0]=0.;
 	v.vars_duals_bounds_L->copy_to(arr); 
-	//MPI_Bcast(arr, sz, MPI_DOUBLE, rank_solver_rank0, comm_world);
+	MPI_Bcast(arr, sz, MPI_DOUBLE, rank_solver_rank0, comm_world);
 	delete[] arr;
 
-	sz=v.vars_duals_bounds_U->n(); for(int i=0; i<sz; i++) arr[0]=0.;
+	sz=v.vars_duals_bounds_U->n(); 
+	arr = new double[sz]; for(int i=0; i<sz; i++) arr[0]=0.;
 	v.vars_duals_bounds_U->copy_to(arr);
-	//MPI_Bcast(arr, sz, MPI_DOUBLE, rank_solver_rank0, comm_world);
+	MPI_Bcast(arr, sz, MPI_DOUBLE, rank_solver_rank0, comm_world);
 	delete[] arr;
 
-	sz=v.vars_duals_cons->n(); for(int i=0; i<sz; i++) arr[0]=0.;
+	sz=v.vars_duals_cons->n(); 
+	arr = new double[sz]; for(int i=0; i<sz; i++) arr[0]=0.;
 	v.vars_duals_cons->copy_to(arr);
-	//MPI_Bcast(arr, sz, MPI_DOUBLE, rank_solver_rank0, comm_world);
+	MPI_Bcast(arr, sz, MPI_DOUBLE, rank_solver_rank0, comm_world);
 	delete[] arr;
 	
       } else {

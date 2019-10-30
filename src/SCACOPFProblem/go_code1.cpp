@@ -587,22 +587,25 @@ bool MyCode1::do_phase1()
       double* arr = new double[sz]; for(int i=0; i<sz; i++) arr[0]=0.;
 	
       scacopf_prob->primal_variables()->copy_to(arr);
-      //MPI_Bcast(arr, sz, MPI_DOUBLE, rank_solver_rank0, comm_world);
+      MPI_Bcast(arr, sz, MPI_DOUBLE, rank_solver_rank0, comm_world);
       delete[] arr;
 
-      sz=scacopf_prob->duals_bounds_lower()->n(); for(int i=0; i<sz; i++) arr[0]=0.;
+      sz=scacopf_prob->duals_bounds_lower()->n(); 
+      arr = new double[sz]; for(int i=0; i<sz; i++) arr[0]=0.;
       scacopf_prob->duals_bounds_lower()->copy_to(arr); 
-      //MPI_Bcast(arr, sz, MPI_DOUBLE, rank_solver_rank0, comm_world);
+      MPI_Bcast(arr, sz, MPI_DOUBLE, rank_solver_rank0, comm_world);
       delete[] arr;
 
-      sz=scacopf_prob->duals_bounds_upper()->n(); for(int i=0; i<sz; i++) arr[0]=0.;
+      sz=scacopf_prob->duals_bounds_upper()->n(); 
+      arr = new double[sz]; for(int i=0; i<sz; i++) arr[0]=0.;
       scacopf_prob->duals_bounds_upper()->copy_to(arr);
-      //MPI_Bcast(arr, sz, MPI_DOUBLE, rank_solver_rank0, comm_world);
+      MPI_Bcast(arr, sz, MPI_DOUBLE, rank_solver_rank0, comm_world);
       delete[] arr;
 
-      scacopf_prob->duals_constraints()->n(); for(int i=0; i<sz; i++) arr[0]=0.;
+      scacopf_prob->duals_constraints()->n(); 
+      arr = new double[sz]; for(int i=0; i<sz; i++) arr[0]=0.;
       scacopf_prob->duals_constraints()->copy_to(arr);
-      //MPI_Bcast(arr, sz, MPI_DOUBLE, rank_solver_rank0, comm_world);
+      MPI_Bcast(arr, sz, MPI_DOUBLE, rank_solver_rank0, comm_world);
       delete[] arr;
     } else {
       
@@ -637,22 +640,25 @@ bool MyCode1::do_phase1()
 	int sz=v.vars_primal->n();
 	double* arr = new double[sz]; for(int i=0; i<sz; i++) arr[0]=0.;
 	v.vars_primal->copy_to(arr);
-	//MPI_Bcast(arr, sz, MPI_DOUBLE, rank_solver_rank0, comm_world);
+	MPI_Bcast(arr, sz, MPI_DOUBLE, rank_solver_rank0, comm_world);
 	delete[] arr;
 
-	sz=v.vars_duals_bounds_L->n(); for(int i=0; i<sz; i++) arr[0]=0.;
+	sz=v.vars_duals_bounds_L->n(); 
+	arr = new double[sz]; for(int i=0; i<sz; i++) arr[0]=0.;
 	v.vars_duals_bounds_L->copy_to(arr); 
-	//MPI_Bcast(arr, sz, MPI_DOUBLE, rank_solver_rank0, comm_world);
+	MPI_Bcast(arr, sz, MPI_DOUBLE, rank_solver_rank0, comm_world);
 	delete[] arr;
 
-	sz=v.vars_duals_bounds_U->n(); for(int i=0; i<sz; i++) arr[0]=0.;
+	sz=v.vars_duals_bounds_U->n(); 
+	arr = new double[sz]; for(int i=0; i<sz; i++) arr[0]=0.;
 	v.vars_duals_bounds_U->copy_to(arr);
-	//MPI_Bcast(arr, sz, MPI_DOUBLE, rank_solver_rank0, comm_world);
+	MPI_Bcast(arr, sz, MPI_DOUBLE, rank_solver_rank0, comm_world);
 	delete[] arr;
 
-	sz=v.vars_duals_cons->n(); for(int i=0; i<sz; i++) arr[0]=0.;
+	sz=v.vars_duals_cons->n(); 
+	arr = new double[sz]; for(int i=0; i<sz; i++) arr[0]=0.;
 	v.vars_duals_cons->copy_to(arr);
-	//MPI_Bcast(arr, sz, MPI_DOUBLE, rank_solver_rank0, comm_world);
+	MPI_Bcast(arr, sz, MPI_DOUBLE, rank_solver_rank0, comm_world);
 	delete[] arr;
 	
       } else {
@@ -671,8 +677,6 @@ bool MyCode1::do_phase1()
     // done later-> scacopf_prob->use_filelocks_when_writing=false;
   }
 
-  sleep(20);
-  
   //force a have_start set
   if(!iAmSolver) {
     scacopf_prob->set_have_start();
