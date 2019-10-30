@@ -3471,14 +3471,15 @@ bool SCACOPFProblem::iterate_callback(int iter, const double& obj_value,
     assert(monitor.acceptable_tol_feasib>=monitor.tol_feasib_for_write);
     if(monitor.acceptable_tol_feasib<monitor.tol_feasib_for_write) {
       
-      printf("[warning] setting acceptable_tol_feasib==tol_feasib_for_write (was %g < %g)\n", monitor.acceptable_tol_feasib, monitor.tol_feasib_for_write);
+      printf("[warning] setting acceptable_tol_feasib==tol_feasib_for_write (was %g < %g)\n", 
+	     monitor.acceptable_tol_feasib, monitor.tol_feasib_for_write);
       monitor.tol_feasib_for_write = monitor.acceptable_tol_feasib;
     }
 
     if(primals && mode!=RestorationPhaseMode) {
       assert(duals_con); assert(duals_lb); assert(duals_ub); 
 
-      if(inf_pr_orig_pr<=monitor.acceptable_tol_feasib && best_known_iter.obj_value>=obj_value) {
+      if(inf_pr_orig_pr<=monitor.acceptable_tol_feasib && 1.01*best_known_iter.obj_value>=obj_value) {
 	best_known_iter.copy_primal_vars_from(primals, vars_primal);
 	best_known_iter.copy_dual_vars_from(duals_con, duals_lb, duals_ub);
 	best_known_iter.set_iter_stats( iter, obj_value, inf_pr, inf_pr_orig_pr, inf_du, mu, mode);
@@ -3487,9 +3488,10 @@ bool SCACOPFProblem::iterate_callback(int iter, const double& obj_value,
 	  if(inf_pr_orig_pr <= monitor.tol_feasib_for_write &&
 	     inf_du <= monitor.tol_optim_for_write &&
 	     mu <= monitor.tol_mu_for_write &&
-	     obj_value <= monitor.objvalue_last_written) {
-	    printf("[ph1] rank %d  phase 1 attempt write solution1.txt from call_back iter=%d\n", 
-		   my_rank, iter);
+	     obj_value <= monitor.objvalue_last_written*1.01 &&
+	     iter>0) {
+	    printf("[ph1] rank %d  phase 1 attempt write solution1.txt from call_back iter=%d glob_time=%s\n", 
+		   my_rank, iter, glob_time_to_string().c_str());
 
 
 	    this->attempt_write_solutions(best_known_iter.vars_primal,
@@ -3510,7 +3512,8 @@ bool SCACOPFProblem::iterate_callback(int iter, const double& obj_value,
     } else {
       if(mode==RestorationPhaseMode) {
 	monitor.emergency = true;
-	printf("[stop solver][warning] restauration at iter %d optimiz at %.2f sec\n", iter, monitor.timer.measureElapsedTime());
+	printf("[stop solver][warning] restauration at iter %d optimiz at %.2f sec glob_time=%s\n", 
+	       iter, monitor.timer.measureElapsedTime(), glob_time_to_string().c_str());
 	//do not set monitor.user_stopped=true; since doing so will look like the last solution is ok
 	return false;
       }
@@ -3527,8 +3530,8 @@ bool SCACOPFProblem::iterate_callback(int iter, const double& obj_value,
       v.copy_dual_vars_from(duals_con, duals_lb, duals_ub);
       v.set_iter_stats( iter, obj_value, inf_pr, inf_pr_orig_pr, inf_du, mu, mode);
 
-      printf("[ph1] rank %d  phase 1 BEFORE basecase bcast at iter %d\n", 
-	     my_rank, iter);
+      printf("[ph1] rank %d  phase 1 BEFORE basecase bcast at iter %d glob_time=%s\n", 
+	     my_rank, iter, glob_time_to_string().c_str());
 
 
       v.vars_primal->MPI_Bcast_x(rank_solver_rank0, comm_world, my_rank);
@@ -3538,13 +3541,14 @@ bool SCACOPFProblem::iterate_callback(int iter, const double& obj_value,
 
       double cost_basecase=obj_value;
       MPI_Bcast(&cost_basecase, 1, MPI_DOUBLE, rank_solver_rank0, comm_world);
-      printf("[ph1] rank %d  phase 1 basecase bcasts done at iter %d\n", 
-	     my_rank, iter);
+      printf("[ph1] rank %d  phase 1 basecase bcasts done at iter %d glob_time=%s\n", 
+	     my_rank, iter, glob_time_to_string().c_str());
       monitor.bcast_done = true;
     }
 
     if(monitor.timer.measureElapsedTime() > monitor.timeout) {
-      printf("[stop solver] timeout at iter %d optimiz at %.2f sec\n", iter, monitor.timer.measureElapsedTime());
+      printf("[stop solver] timeout at iter %d optimiz at %.2f sec glob_time=%s\n", 
+	     iter, monitor.timer.measureElapsedTime(), glob_time_to_string().c_str());
       monitor.emergency = true;
       monitor.user_stopped=true;
       return false;
@@ -3573,9 +3577,10 @@ void SCACOPFProblem::attempt_write_solutions(OptVariables* primal_vars,
 					 dual_ub_vars);
     
     if(!opt_success) {
-      printf("[warning] Solver rank %d: initial basecase solve failed; solution1 was written write (lock disabled)\n", my_rank);
+      printf("[warning] Solver rank %d: initial basecase solve failed; solution1 was written write (lock disabled) glob_time=%s\n", 
+	     my_rank, glob_time_to_string().c_str());
     } else {
-      printf("Solver rank %d write solution1 (lock disabled)\n", my_rank);
+      printf("Solver rank %d write solution1 (lock disabled) glob_time=%s\n", my_rank, glob_time_to_string().c_str());
     }
   } else {
 
@@ -3592,8 +3597,16 @@ void SCACOPFProblem::attempt_write_solutions(OptVariables* primal_vars,
 	locking_failed = true;
       }
     
-      if(!locking_failed && sol_file.is_my_solution_better(prob->optim_obj_value, prob->optim_inf_pr_orig_pr,  prob->optim_inf_du,  prob->optim_mu)) {
+      if(!locking_failed && 
+	 sol_file.is_my_solution_better(prob->optim_obj_value, 
+					prob->optim_inf_pr_orig_pr,  
+					prob->optim_inf_du,  
+					prob->optim_mu)) {
 	if(sol_file.write(prob->optim_obj_value, prob->optim_inf_pr_orig_pr,  prob->optim_inf_du,  prob->optim_mu)) {
+	  
+	  printf("Solver rank %d will write solution1 (lock on) glob_time=%s [%12.5e %12.5e %12.5e %12.5e]\n", 
+		 my_rank, glob_time_to_string().c_str(),
+		 prob->optim_obj_value, prob->optim_inf_pr_orig_pr,  prob->optim_inf_du,  prob->optim_mu);
 
 	  //	
 	  // write solution1
@@ -3605,20 +3618,25 @@ void SCACOPFProblem::attempt_write_solutions(OptVariables* primal_vars,
 					       dual_ub_vars);
 
 	  if(!opt_success) {
-	    printf("[warning] Solver rank %d: initial basecase solve failed; solution1 was written write (lock on)\n", my_rank);
+	    printf("[warning] Solver rank %d: initial basecase solve failed; solution1 was written write (lock on) glob_time=%s\n", 
+		   my_rank, glob_time_to_string().c_str());
 	  } else {
-	    printf("Solver rank %d write solution1 (lock on)\n", my_rank);
+	    printf("Solver rank %d write solution1 (lock on) glob_time=%s\n", my_rank, glob_time_to_string().c_str());
 	  }
 	} else {
-	  printf("[warning] Solver rank %d: could not write optim file (lock)\n", my_rank); 
+	  printf("[warning] Solver rank %d: could not write optim file (lock) glob_time=%s\n", my_rank, glob_time_to_string().c_str()); 
 	  locking_failed = true;
 	}
       } else {
-	printf("Solver rank %d did not write solution1 b/c one better was already written (lock on)\n", my_rank);
+	printf("Solver rank %d did not write solution1 b/c one better was already written "
+	       "(lock on) glob_time=%s  [%12.5e %12.5e %12.5e %12.5e]\n",
+	       my_rank, glob_time_to_string().c_str(),
+	       prob->optim_obj_value, prob->optim_inf_pr_orig_pr,  prob->optim_inf_du,  prob->optim_mu);
       }
     
       if(!sol_file.unlock()) {
-	printf("[warning] Solver rank %d: could not unlock optim file (lock)\n", my_rank); 
+	printf("[warning] Solver rank %d: could not unlock optim file (lock) glob_time=%s\n", 
+	       my_rank, glob_time_to_string().c_str()); 
 	locking_failed = true;
       }
       sol_file.close();
@@ -3633,9 +3651,10 @@ void SCACOPFProblem::attempt_write_solutions(OptVariables* primal_vars,
 					   dual_lb_vars,
 					   dual_ub_vars);
       if(!opt_success) {
-	printf("[warning] Solver rank %d: initial basecase solve failed; solution1 was written though (also lock failed)\n", my_rank);
+	printf("[warning] Solver rank %d: initial basecase solve failed; solution1 was written though (also lock failed) glob_time=%s\n", 
+	       my_rank, glob_time_to_string().c_str());
       } else {
-	printf("Solver rank %d write solution1 (lock failed)\n", my_rank);
+	printf("Solver rank %d write solution1 (lock failed)  glob_time=%s\n", my_rank, glob_time_to_string().c_str());
       }
     }
   }
