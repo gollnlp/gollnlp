@@ -626,11 +626,11 @@ bool MyCode2::_guts_of_solve_contingency(ContingencyProblemWithFixing& prob, int
 	pen_accept_safemode=100000.;
       }
     } else if(avgtm<3.0) { //avgtm in [2.25, 3]
-      pen_accept = 1000.; pen_accept_inipt = 4000.; pen_accept_solve1 = 2500.;
+      pen_accept = 2000.; pen_accept_inipt = 4000.; pen_accept_solve1 = 3500.;
       pen_accept_emer = 12000.;
       pen_accept_safemode=50000.;
     } else { //avgtm > 3
-      pen_accept = 2000.; pen_accept_inipt = 10000.; pen_accept_solve1 = 5000.;
+      pen_accept = 5000.; pen_accept_inipt = 10000.; pen_accept_solve1 = 8000.;
       pen_accept_emer = 25000.;
       pen_accept_safemode=50000.;
     }
@@ -640,17 +640,17 @@ bool MyCode2::_guts_of_solve_contingency(ContingencyProblemWithFixing& prob, int
       pen_accept_inipt = 100.;
       pen_accept_solve1 = 50.;
       pen_accept_emer = 1000.;
-      pen_accept_safemode=10000.; 
+      pen_accept_safemode=20000.; 
     } else if(avgtm<2.5) { //avgtm in [2, 2.5]
-      pen_accept = 1000.; pen_accept_inipt = 4000.; pen_accept_solve1 = 2500.;
+      pen_accept = 2500.; pen_accept_inipt = 8000.; pen_accept_solve1 = 5000.;
       pen_accept_emer = 10000.;
       pen_accept_safemode=50000.;
-    } else if(avgtm<5) { //avgtm in [2.5, 5]
-      pen_accept = 2000.; pen_accept_inipt = 10000.; pen_accept_solve1 = 5000.;
-      pen_accept_emer = 25000.;
+    } else if(avgtm<4) { //avgtm in [2.5, 4]
+      pen_accept = 5000.; pen_accept_inipt = 15000.; pen_accept_solve1 = 10000.;
+      pen_accept_emer = 50000.;
       pen_accept_safemode=100000.;
-    } else { //avgtm>5
-      pen_accept = 20000.; pen_accept_inipt = 50000.; pen_accept_solve1 = 30000.;
+    } else { //avgtm>4
+      pen_accept = 25000.; pen_accept_inipt = 75000.; pen_accept_solve1 = 50000.;
       pen_accept_emer = 100000.;
       pen_accept_safemode=500000.;
     }
@@ -668,7 +668,7 @@ bool MyCode2::_guts_of_solve_contingency(ContingencyProblemWithFixing& prob, int
       pen_accept_emer = 25000.;
       pen_accept_safemode=250000.;
     } else { //avgtm >2.25
-      pen_accept = 20000.; pen_accept_inipt = 50000.; pen_accept_solve1 = 35000.;
+      pen_accept = 25000.; pen_accept_inipt = 75000.; pen_accept_solve1 = 50000.;
       pen_accept_emer = 100000.;
       pen_accept_safemode=2000000.;//2M
     } 
