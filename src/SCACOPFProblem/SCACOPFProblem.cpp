@@ -3519,7 +3519,7 @@ bool SCACOPFProblem::iterate_callback(int iter, const double& obj_value,
       }
     }
 
-    if(!monitor.bcast_done && inf_pr_orig_pr<=1e-8 && inf_du<=1e-6 && mu<=1e-8 &&
+    if(false && !monitor.bcast_done && inf_pr_orig_pr<=1e-8 && inf_du<=1e-6 && mu<=1e-8 &&
        my_rank==1 &&
        primals && mode!=RestorationPhaseMode) {
 
@@ -3537,25 +3537,25 @@ bool SCACOPFProblem::iterate_callback(int iter, const double& obj_value,
       if(true) {
 	
 	int sz=v.vars_primal->n();
-	double* arr = new double[sz]; for(int i=0; i<sz; i++) arr[0]=0.;
+	double* arr = new double[sz]; for(int i=0; i<sz; i++) arr[i]=0.;
 	v.vars_primal->copy_to(arr);
 	MPI_Bcast(arr, sz, MPI_DOUBLE, rank_solver_rank0, comm_world);
 	delete[] arr;
 
 	sz=v.vars_duals_bounds_L->n(); 
-	arr = new double[sz]; for(int i=0; i<sz; i++) arr[0]=0.;
+	arr = new double[sz]; for(int i=0; i<sz; i++) arr[i]=0.;
 	v.vars_duals_bounds_L->copy_to(arr); 
 	MPI_Bcast(arr, sz, MPI_DOUBLE, rank_solver_rank0, comm_world);
 	delete[] arr;
 
 	sz=v.vars_duals_bounds_U->n(); 
-	arr = new double[sz]; for(int i=0; i<sz; i++) arr[0]=0.;
+	arr = new double[sz]; for(int i=0; i<sz; i++) arr[i]=0.;
 	v.vars_duals_bounds_U->copy_to(arr);
 	MPI_Bcast(arr, sz, MPI_DOUBLE, rank_solver_rank0, comm_world);
 	delete[] arr;
 
 	sz=v.vars_duals_cons->n(); 
-	arr = new double[sz]; for(int i=0; i<sz; i++) arr[0]=0.;
+	arr = new double[sz]; for(int i=0; i<sz; i++) arr[i]=0.;
 	v.vars_duals_cons->copy_to(arr);
 	MPI_Bcast(arr, sz, MPI_DOUBLE, rank_solver_rank0, comm_world);
 	delete[] arr;
