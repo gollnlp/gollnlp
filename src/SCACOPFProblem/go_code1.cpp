@@ -582,21 +582,21 @@ bool MyCode1::do_phase1()
   if(!iAmSolver) {
 
     if(true) {
-      //printf("Rank %d before xxxprimal  root %d\n", my_rank, rank_solver_rank0);
+      printf("Rank %d before xxxprimal  root %d\n", my_rank, rank_solver_rank0);
       int sz=scacopf_prob->primal_variables()->n();
       double* arr = new double[sz]; for(int i=0; i<sz; i++) arr[i]=0.;
       MPI_Bcast(arr, sz, MPI_DOUBLE, rank_solver_rank0, comm_world);
       scacopf_prob->primal_variables()->copy_from(arr);
       delete[] arr;
 
-      //printf("Rank %d before xxxlower\n", my_rank);
+      printf("Rank %d before xxxlower\n", my_rank);
       sz=scacopf_prob->duals_bounds_lower()->n(); 
       arr = new double[sz]; for(int i=0; i<sz; i++) arr[i]=0.;
       MPI_Bcast(arr, sz, MPI_DOUBLE, rank_solver_rank0, comm_world);
-      scacopf_prob->duals_bounds_lower()->copy_from(arr); 
+      scacopf_prob->duals_bounds_lower()->copy_from(arr);
       delete[] arr;
 
-      //printf("Rank %d before xxxupper\n", my_rank);
+      printf("Rank %d before xxxupper\n", my_rank);
       sz=scacopf_prob->duals_bounds_upper()->n(); 
       arr = new double[sz]; for(int i=0; i<sz; i++) arr[i]=0.;
       MPI_Bcast(arr, sz, MPI_DOUBLE, rank_solver_rank0, comm_world);
@@ -604,7 +604,7 @@ bool MyCode1::do_phase1()
       delete[] arr;
 
 
-      //sz = scacopf_prob->duals_constraints()->n(); 
+      sz=scacopf_prob->duals_constraints()->n(); 
       arr = new double[sz]; for(int i=0; i<sz; i++) arr[i]=0.;
       printf("Rank %d before xxxconstr size=%d \n", my_rank, sz);
       MPI_Bcast(arr, sz, MPI_DOUBLE, rank_solver_rank0, comm_world);
@@ -673,34 +673,34 @@ bool MyCode1::do_phase1()
 	}
 	cost_basecase=v.obj_value;
 	MPI_Bcast(&cost_basecase, 1, MPI_DOUBLE, rank_solver_rank0, comm_world);
-	printf("[ph1] rank %d  phase 1 basecase bcasts done [outside] at global time %g\n", 
+	printf("[ph1] rank %d  phase 1 basecase bcasts done [outside][emergency] at global time %g\n", 
 	       my_rank, glob_timer.measureElapsedTime());
-      } else { //no emergency , solver rank
+      } else { //no emergency, solver rank
 
-	int sz=scacopf_prob->primal_variables()->n();
+	int sz=1000000; //! scacopf_prob->primal_variables()->n();
 	double* arr = new double[sz]; for(int i=0; i<sz; i++) arr[i]=0.;
 	scacopf_prob->primal_variables()->copy_to(arr);
 	MPI_Bcast(arr, sz, MPI_DOUBLE, rank_solver_rank0, comm_world);
 	delete[] arr;
 
-	//printf("Rank %d before xxxlower\n", my_rank);
-	sz=scacopf_prob->duals_bounds_lower()->n(); 
+	printf("Rank %d before xxxlower\n", my_rank);
+	sz=1000000; //!=scacopf_prob->duals_bounds_lower()->n(); 
 	arr = new double[sz]; for(int i=0; i<sz; i++) arr[i]=0.;
 	scacopf_prob->duals_bounds_lower()->copy_to(arr); 
 	MPI_Bcast(arr, sz, MPI_DOUBLE, rank_solver_rank0, comm_world);
 	delete[] arr;
 
-	//printf("Rank %d before xxxupper\n", my_rank);
-	sz=scacopf_prob->duals_bounds_upper()->n(); 
+	printf("Rank %d before xxxupper\n", my_rank);
+	sz=1000000; //!=scacopf_prob->duals_bounds_upper()->n(); 
 	arr = new double[sz]; for(int i=0; i<sz; i++) arr[i]=0.;
 	scacopf_prob->duals_bounds_upper()->copy_to(arr);
 	MPI_Bcast(arr, sz, MPI_DOUBLE, rank_solver_rank0, comm_world);
 	delete[] arr;
 
 
-	sz = scacopf_prob->duals_constraints()->n(); 
+	sz=1000000; //! = scacopf_prob->duals_constraints()->n(); 
 	arr = new double[sz]; for(int i=0; i<sz; i++) arr[i]=0.;
-	//printf("Rank %d before xxxconstr size=%d \n", my_rank, sz);
+	printf("Rank %d before xxxconstr size=%d \n", my_rank, sz);
 	scacopf_prob->duals_constraints()->copy_to(arr);
 	MPI_Bcast(arr, sz, MPI_DOUBLE, rank_solver_rank0, comm_world);
 	delete[] arr;
