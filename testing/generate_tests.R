@@ -78,7 +78,7 @@ write_submit_myexe1 <- function(fname, division, jobname){
 	con <- file(fname, "w")
 	printf("#!/bin/sh\n#SBATCH --account=gridopt\n#SBATCH --partition=pbatch\n#SBATCH --nodes=4\n#SBATCH --tasks-per-node=36\n", file=con)
 	printf("#SBATCH --time=%s\n#SBATCH --job-name=%s\n\n", timelimithms, jobname, file=con)
-	#printf("module load intel/19.0.4\nmodule load mkl/2019.0\nmodule load impi/2019.0\nexport LD_LIBRARY_PATH=${LD_LIBRARY_PATH}:/usr/tce/packages/impi/impi-2019.0-intel-19.0.4/lib/release\n\n", file=con)
+	printf("module load intel/19.0.4\nmodule load mkl/2019.0\nmodule load impi/2019.0\nexport LD_LIBRARY_PATH=${LD_LIBRARY_PATH}:/usr/tce/packages/impi/impi-2019.0-intel-19.0.4/lib/release\n\n", file=con)
 	printf("srun %s case.con case.inl case.raw case.rop %d %d SomeNetwork", MYEXE1, timelimitsec, divcode, file=con)
 	close(con)
 }
@@ -95,7 +95,7 @@ write_submit_myexe2 <- function(fname, confile, division, jobname){
 	con <- file(fname, "w")
 	printf("#!/bin/sh\n#SBATCH --account=gridopt\n#SBATCH --partition=pbatch\n#SBATCH --nodes=4\n#SBATCH --tasks-per-node=36\n", file=con)
 	printf("#SBATCH --time=%s\n#SBATCH --job-name=%s\n\n", timelimithms, jobname, file=con)
-	#printf("module load intel/19.0.4\nmodule load mkl/2019.0\nmodule load impi/2019.0\nexport LD_LIBRARY_PATH=${LD_LIBRARY_PATH}:/usr/tce/packages/impi/impi-2019.0-intel-19.0.4/lib/release\n\n", file=con)
+	printf("module load intel/19.0.4\nmodule load mkl/2019.0\nmodule load impi/2019.0\nexport LD_LIBRARY_PATH=${LD_LIBRARY_PATH}:/usr/tce/packages/impi/impi-2019.0-intel-19.0.4/lib/release\n\n", file=con)
 	printf("srun %s case.con case.inl case.raw case.rop %d %d SomeNetwork", MYEXE2, timelimitsec, divcode, file=con)
 	close(con)
 }
