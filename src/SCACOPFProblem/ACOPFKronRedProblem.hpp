@@ -21,7 +21,7 @@ namespace gollnlp {
     virtual ~ACOPFKronRedProblem();
     
     /* initialization method: performs Kron reduction and builds the OptProblem */
-    virtual bool assembly();
+    virtual bool assemble();
     
   protected: 
     void add_variables();
