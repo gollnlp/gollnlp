@@ -18,8 +18,16 @@ namespace gollnlp
 class goTimer
 {
 public:
-  goTimer() : tmElapsed(0.0), tmStart(0.0) {};
-
+  enum TimerAction { tStop, tStart };
+  goTimer(/*TimerAction act=tStop*/) : tmElapsed(0.0), tmStart(0.0) {};
+  goTimer(TimerAction action)
+    : tmElapsed(0.0)
+  {
+    if(action == tStart)
+      start();
+    else
+      tmStart=0.0;
+  }
   //returns the elapsed time (accumulated between start/stop) in seconds
   inline double getElapsedTime() const { return tmElapsed; }
 
@@ -68,6 +76,7 @@ public:
     this->reset(); 
     return *this;
   }
+  
 private:
   double tmElapsed; //in seconds
   double tmStart;
