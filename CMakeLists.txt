@@ -26,6 +26,8 @@ option(GOLLNLP_FAULT_HANDLING "Using handlers for select signals" ON)
 #with testing drivers capable of 'selfchecking' (-selfcheck)
 option(GOLLNLP_WITH_MAKETEST "Enable 'make test'" ON)
 
+option(GOLLNLP_WITH_KRON_REDUCTION "Building Kron Reduction code (requires addtl. dependencies)" OFF)
+
 if(GOLLNLP_USE_MPI)
   if(NOT DEFINED MPI_CXX_COMPILER)
     set(CMAKE_PREFIX_PATH "${CMAKE_PREFIX_PATH} /usr/lib64/openmpi")
@@ -63,10 +65,13 @@ include_directories("${IPOPT_DIR}/include/coin")
 #link_directories("${IPOPT_DIR}/lib")
 #set (CMAKE_SHARED_LINKER_FLAGS "${CMAKE_SHARED_LINKER_FLAGS} -Wl,--rpath -Wl,${IPOPT_DIR}/lib")
 #set(IPOPT_LIBS "-lgfortran -lipopt -lm  -ldl")
+
 add_library(coinmetis STATIC IMPORTED GLOBAL)
 set_target_properties(coinmetis PROPERTIES IMPORTED_LOCATION "${IPOPT_DIR}/lib/libcoinmetis.a")
+
 add_library(coinhsl STATIC IMPORTED GLOBAL)
 set_target_properties(coinhsl PROPERTIES IMPORTED_LOCATION "${IPOPT_DIR}/lib/libcoinhsl.a")
+
 add_library(ipopt STATIC IMPORTED GLOBAL)
 set_target_properties(ipopt PROPERTIES IMPORTED_LOCATION "${IPOPT_DIR}/lib/libipopt.a")
 
@@ -79,7 +84,6 @@ include_directories(src/Utils)
 include_directories(src/NlpSolver)
 include_directories(src/Ex1OptProblem)
 
-
 add_subdirectory(src/GeneralOptProblem)
 
 add_subdirectory(src/Utils)
@@ -90,15 +94,14 @@ add_library(gollnlp STATIC $<TARGET_OBJECTS:goSCACOPF> $<TARGET_OBJECTS:goUtils>
 
 #set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${CMAKE_HOME_DIRECTORY})
 
-#
+#########################################################
 # competition executables
-#
+#########################################################
 add_executable(MyExe1 MyCpp1.cpp)
 target_link_libraries(MyExe1 gollnlp ${FORTRAN_LIB} ipopt coinhsl coinmetis ${LAPACK_LIBRARIES})
 
 add_executable(MyExe2 MyCpp2.cpp)
 target_link_libraries(MyExe2 gollnlp ${FORTRAN_LIB} ipopt coinhsl coinmetis ${LAPACK_LIBRARIES})
-
 
 ##########################################################
 # CMake Tests
@@ -107,3 +110,9 @@ if (GOLLNLP_WITH_MAKETEST)
   enable_testing()
   add_test(NAME SCACOPFData COMMAND $<TARGET_FILE:test_scacopfdata.exe>   ${PROJECT_SOURCE_DIR}/test_instanceslist.txt )
 endif(GOLLNLP_WITH_MAKETEST)
+
+##########################################################
+# Examples of cmake-ing
+##########################################################
+# export IPOPT_PATH=/home/petra1/work/projects/gocompet/Ipopt-gollnlp/build
+# rm -rf *; cmake -DGOLLNLP_FAULT_HANDLING=OFF -DGOLLNLP_WITH_KRON_REDUCTION=ON .. && make -j
