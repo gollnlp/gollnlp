@@ -1,0 +1,1 @@
+add_library(goLinAlg OBJECT MatrixSparseTripletStorage.cpp)
