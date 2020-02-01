@@ -7,14 +7,15 @@ target_link_libraries(test_scacopfdata.exe gollnlp ${FORTRAN_LIB} ipopt coinhsl 
 add_library(goSCACOPF OBJECT SCACOPFData.cpp go_code1.cpp go_code2.cpp OPFConstraints.cpp OPFObjectiveTerms.cpp CouplingConstraints.cpp SCACOPFProblem.cpp ContingencyProblem.cpp SCACOPFIO.cpp ContingencyProblemWithFixing.cpp ContingencyProblemWithFixingCode1.cpp)
 #SCMasterProblem.cpp SCRecourseProblem.cpp 
 
-add_library(goKronRed ACOPFKronRedProblem.cpp)
 
 #
 # other utilities such as Kron reduction ACOPF
 #
 if(GOLLNLP_WITH_KRON_REDUCTION)
+add_library(goKronRed ACOPFKronRedProblem.cpp $<TARGET_OBJECTS:goLinAlg>)
+
 add_executable(acopf_kron_driver.exe ACOPFKronRedDriver.cpp)
-target_link_libraries(acopf_kron_driver.exe gollnlp goKronRed ${FORTRAN_LIB} ipopt coinhsl coinmetis ${LAPACK_LIBRARIES})
+target_link_libraries(acopf_kron_driver.exe gollnlp goKronRed ${FORTRAN_LIB} ipopt coinhsl coinmetis ${ME57_LIB} ${LAPACK_LIBRARIES})
 endif(GOLLNLP_WITH_KRON_REDUCTION)
 
 #add_executable(acopf_driver.exe ACOPFDriver.cpp)

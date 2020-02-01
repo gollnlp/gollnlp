@@ -75,6 +75,16 @@ set_target_properties(coinhsl PROPERTIES IMPORTED_LOCATION "${IPOPT_DIR}/lib/lib
 add_library(ipopt STATIC IMPORTED GLOBAL)
 set_target_properties(ipopt PROPERTIES IMPORTED_LOCATION "${IPOPT_DIR}/lib/libipopt.a")
 
+#set(ME57_DIR "/home/petra1/work/installs/hsl_me57-1.1.0")
+if(GOLLNLP_WITH_KRON_REDUCTION)
+  find_library(ME57_LIB NAMES hsl_me57 me57 HINTS "${ME57_DIR}")
+  if(ME57_LIB)
+    message("Using HSL ME57 lib ${ME57_LIB}")
+  else()
+    message(FATAL_ERROR "Could not find HSL ME57 needed for the kron reduction. You can pass ME57_DIR to cmake with '-D'; currently, ME57_DIR='${ME57_DIR}'")
+  endif(ME57_LIB)
+endif(GOLLNLP_WITH_KRON_REDUCTION)
+
 # include build directory for Fortran name mangling header
 include_directories(${CMAKE_BINARY_DIR})
 
@@ -83,12 +93,13 @@ include_directories(src/SCACOPFProblem)
 include_directories(src/Utils)
 include_directories(src/NlpSolver)
 include_directories(src/Ex1OptProblem)
-
+include_directories(src/LinAlg)
 add_subdirectory(src/GeneralOptProblem)
 
 add_subdirectory(src/Utils)
 add_subdirectory(src/SCACOPFProblem)
 add_subdirectory(src/Ex1OptProblem)
+add_subdirectory(src/LinAlg)
 
 add_library(gollnlp STATIC $<TARGET_OBJECTS:goSCACOPF> $<TARGET_OBJECTS:goUtils> $<TARGET_OBJECTS:goOptimiz>)
 
