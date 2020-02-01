@@ -473,7 +473,7 @@ public:
 				const double* duals_con=NULL,
 				const double* duals_lb=NULL, const double* duals_ub=NULL) 
   { return true; }
-  inline bool enable_intermediate_duals() { need_intermediate_duals=true; }
+  inline void enable_intermediate_duals() { need_intermediate_duals=true; }
   inline bool requests_intermediate_duals() const { return need_intermediate_duals; }
   virtual bool iterate_finalize()
   {
