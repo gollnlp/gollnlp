@@ -36,15 +36,19 @@ if(GOLLNLP_USE_MPI)
   endif(NOT DEFINED MPI_CXX_COMPILER)
 endif(GOLLNLP_USE_MPI)
 
-find_package(OpenMP)
+# libdl not found on Ubuntu (?!?)
+set(GOLLNLP_LIBS_EXTRA "-l${CMAKE_DL_LIBS}")
 
+find_package(OpenMP)
+message("OpenMP libraries: ${OpenMP_CXX_LIBRARIES}")
 
 if(${CMAKE_Fortran_COMPILER_ID} STREQUAL "Intel")
   set(FORTRAN_LIB "-lifcore")	
   else()
-    set(FORTRAN_LIB "-lgfortran"	)
+    set(FORTRAN_LIB "-lgfortran")
 endif(${CMAKE_Fortran_COMPILER_ID} STREQUAL "Intel")
 message("Using Fortran library flag ${FORTRAN_LIB}")
+set(GOLLNLP_LIBS_EXTRA "${GOLLNLP_LIBS_EXTRA} ${FORTRAN_LIB}")
 
 if(GOLLNLP_FAULT_HANDLING)
   add_definitions(-DGOLLNLP_FAULT_HANDLING)
@@ -105,14 +109,17 @@ add_library(gollnlp STATIC $<TARGET_OBJECTS:goSCACOPF> $<TARGET_OBJECTS:goUtils>
 
 #set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${CMAKE_HOME_DIRECTORY})
 
+
 #########################################################
 # competition executables
 #########################################################
+
+message(${GOLLNLP_LIBS_EXTRA})
 add_executable(MyExe1 MyCpp1.cpp)
-target_link_libraries(MyExe1 gollnlp ${FORTRAN_LIB} ipopt coinhsl coinmetis ${LAPACK_LIBRARIES})
+target_link_libraries(MyExe1 gollnlp ipopt coinhsl coinmetis ${GOLLNLP_LIBS_EXTRA} ${OpenMP_CXX_LIBRARIES} ${LAPACK_LIBRARIES})
 
 add_executable(MyExe2 MyCpp2.cpp)
-target_link_libraries(MyExe2 gollnlp ${FORTRAN_LIB} ipopt coinhsl coinmetis ${LAPACK_LIBRARIES})
+target_link_libraries(MyExe2 gollnlp ipopt coinhsl coinmetis ${GOLLNLP_LIBS_EXTRA} ${OpenMP_CXX_LIBRARIES} ${LAPACK_LIBRARIES})
 
 ##########################################################
 # CMake Tests
