@@ -8,6 +8,10 @@
 #include "blasdefs.hpp"
 #include "goTimer.hpp"
 
+#include "MatrixSparseTripletStorage.hpp"
+typedef std::complex<double> dcomplex;
+typedef MatrixSparseTripletStorage<int, dcomplex > MatrixSpTComplex;
+
 namespace gollnlp {
 
   /* ACOPF with Kron reduction */
@@ -15,7 +19,7 @@ namespace gollnlp {
   {
   public:
     ACOPFKronRedProblem(SCACOPFData& d_in) 
-      : data_sc(d_in)
+      : data_sc_(d_in)
     {
     }
     virtual ~ACOPFKronRedProblem();
@@ -27,11 +31,14 @@ namespace gollnlp {
     void add_variables();
     void add_cons_pf();
     void add_obj_prod_cost();
+
+    MatrixSpTComplex* construct_YBus_matrix();
   protected:
     //utilities
   protected: 
     //members
-    SCACOPFData& data_sc;
+    SCACOPFData& data_sc_;
+    MatrixSpTComplex* YBus_;
   };
 
 } //end namespace

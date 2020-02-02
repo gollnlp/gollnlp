@@ -1,7 +1,10 @@
 #ifndef MATRIX_SSTRIP_COMPLEX
 #define MATRIX_SSTRIP_COMPLEX
 
+#include <vector>
 #include <complex>
+
+#include <algorithm>
 
 //container for sparse matrices in triplet format; implements minimal functionality for matrix ops
 template <class Tidx, class Tval>
@@ -26,6 +29,21 @@ public:
     if(values_) delete[] values_;
     if(jcol_) delete[] jcol_;
     if(irow_) delete[] irow_;
+  }
+
+  //sorts the (i,j) in increasing order of 'i' and for equal 'i's in increasing order of 'j'
+  //Complexity: n*log(n)
+  void sort_indexes() {
+    std::vector<Tidx> vIdx(nnz);
+    std::iota(vIdx.begin(), vIdx.end(), 0);
+    sort(vIdx.begin(), vIdx.end(), 
+	 [&](const int& i1, const int& i2) { 
+	   if(irow_[i1]<irow_[i2]) return true;
+	   if(irow_[i1]>irow_[i2]) return false;
+	   return jcol_[i1]<jcol_[i2];
+	 });
+
+    //for(int itnz=0; itnz
   }
 
   Tidx n() const { return nrows_; }
