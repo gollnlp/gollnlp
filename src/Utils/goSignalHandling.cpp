@@ -16,7 +16,7 @@ static int sz_msg_fault = 0;
 // !!! use only "safe" functions in this function
 extern "C" void gollnlp_fault_handler(int nsignum)
 {
-  write(2, msg_fault, sz_msg_fault);
+  size_t dummy = write(2, msg_fault, sz_msg_fault);
   sleep(30000);
   sleep(30000);
 }
