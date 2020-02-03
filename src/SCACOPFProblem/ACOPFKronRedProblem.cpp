@@ -55,7 +55,7 @@ namespace gollnlp {
 
     //alocate Matrix
     auto Ybus = new MatrixSparseTripletStorage<int, std::complex<double> >(N, N, nnz);
-    int *Ii=Ybus->i(), *Ji=Ybus->j(); dcomplex *M=Ybus->M();
+    int *Ii=Ybus->i_row(), *Ji=Ybus->j_col(); dcomplex *M=Ybus->M();
 
     for(int busidx=0; busidx<N; busidx++) {
       Ii[busidx] = Ji[busidx] = busidx;
