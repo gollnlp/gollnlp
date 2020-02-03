@@ -85,8 +85,17 @@ if(GOLLNLP_WITH_KRON_REDUCTION)
   if(ME57_LIB)
     message("Using HSL ME57 lib ${ME57_LIB}")
   else()
-    message(FATAL_ERROR "Could not find HSL ME57 needed for the kron reduction. You can pass ME57_DIR to cmake with '-D'; currently, ME57_DIR='${ME57_DIR}'")
+    message(FATAL_ERROR "Could not find HSL ME57 needed by kron reduction. Please cmake with '-DME57_DIR=/path/to/me57_dir'; currently, ME57_DIR='${ME57_DIR}'")
   endif(ME57_LIB)
+
+  #warn if HiOp is not present
+  find_library(HIOP_LIB NAMES hiop HINTS "${HIOP_DIR}/lib")
+  if(HIOP_LIB)
+    include_directories("${HIOP_DIR}/include")
+    message("Using HiOp lib ${HIOP_LIB}")
+  else()
+    message(FATAL_ERROR "Could not find HiOp library needed by kron reduction. Please cmake with '-DHIOP_DIR=/path/to/hiop_dist_dir'; currently HIOP_DIR='${HIOP_DIR}'")
+  endif(HIOP_LIB)
 endif(GOLLNLP_WITH_KRON_REDUCTION)
 
 # include build directory for Fortran name mangling header
