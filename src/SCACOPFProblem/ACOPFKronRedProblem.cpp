@@ -1,6 +1,7 @@
 #include "ACOPFKronRedProblem.hpp"
 
-#include "MatrixSparseTripletStorage.hpp"
+using namespace hiop;
+using namespace std;
 
 namespace gollnlp {
 
@@ -10,8 +11,11 @@ namespace gollnlp {
   bool ACOPFKronRedProblem::assemble()
   {
     
-    YBus_ = construct_YBus_matrix();
+    hiopMatrixComplexSparseTriplet* YBus_ = construct_YBus_matrix();
+    hiopMatrixComplexDense Ybus_red(2,2);
 
+    hiopKronReduction reduction;
+    reduction.go(vector<int>(), vector<int>(), *YBus_, Ybus_red);
     
 
     return true;
@@ -29,7 +33,7 @@ namespace gollnlp {
   {
   }
 
-  MatrixSpTComplex* ACOPFKronRedProblem::construct_YBus_matrix()
+  hiopMatrixComplexSparseTriplet* ACOPFKronRedProblem::construct_YBus_matrix()
   {
     //
     // details at 
@@ -54,14 +58,15 @@ namespace gollnlp {
 
 
     //alocate Matrix
-    auto Ybus = new MatrixSparseTripletStorage<int, std::complex<double> >(N, N, nnz);
-    int *Ii=Ybus->i_row(), *Ji=Ybus->j_col(); dcomplex *M=Ybus->M();
+    auto Ybus = new hiopMatrixComplexSparseTriplet(N, N, nnz);
+    int *Ii=Ybus->storage()->i_row(), *Ji=Ybus->storage()->j_col(); 
+    complex<double> *M=Ybus->storage()->M();
 
     for(int busidx=0; busidx<N; busidx++) {
       Ii[busidx] = Ji[busidx] = busidx;
 
       // shunt contribution to Ybus
-      M[busidx] = dcomplex(data_sc_.N_Gsh[busidx], data_sc_.N_Bsh[busidx]);
+      M[busidx] = complex<double>(data_sc_.N_Gsh[busidx], data_sc_.N_Bsh[busidx]);
     }
     int nnz_count = N;
     
@@ -71,10 +76,10 @@ namespace gollnlp {
     for(int l=0; l<data_sc_.L_Nidx[0].size(); l++) {
       const int& Nidxfrom=data_sc_.L_Nidx[0][l], Nidxto=data_sc_.L_Nidx[1][l];
 
-      dcomplex ye(data_sc_.L_G[l], data_sc_.L_B[l]);
+      complex<double> ye(data_sc_.L_G[l], data_sc_.L_B[l]);
       {
 	//yCHe = L[:Bch][l]*im;
-	dcomplex res(0.0, data_sc_.L_Bch[l]/2); //this is yCHe/2
+	complex<double> res(0.0, data_sc_.L_Bch[l]/2); //this is yCHe/2
 	res += ye; 
 
 	//Ybus(Nidxfrom,Nidxfrom) = ye + yCHe/2
@@ -96,8 +101,8 @@ namespace gollnlp {
     //
     for(int t=0; t<data_sc_.T_Nidx[0].size(); t++) {
       const int& Nidxfrom=data_sc_.T_Nidx[0][t], Nidxto=data_sc_.L_Nidx[1][t];
-      dcomplex yf(data_sc_.T_G[t], data_sc_.T_B[t]);
-      dcomplex yMf(data_sc_.T_Gm[t], data_sc_.T_Bm[t]);
+      complex<double> yf(data_sc_.T_G[t], data_sc_.T_B[t]);
+      complex<double> yMf(data_sc_.T_Gm[t], data_sc_.T_Bm[t]);
       const double& tauf = data_sc_.T_Tau[t];
       
       M[Nidxfrom] += yf/(tauf*tauf) + yMf;

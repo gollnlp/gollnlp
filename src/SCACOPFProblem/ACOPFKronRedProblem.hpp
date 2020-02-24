@@ -8,9 +8,7 @@
 #include "blasdefs.hpp"
 #include "goTimer.hpp"
 
-#include "MatrixSparseTripletStorage.hpp"
-typedef std::complex<double> dcomplex;
-typedef MatrixSparseTripletStorage<int, dcomplex > MatrixSpTComplex;
+#include "hiopKronReduction.hpp"
 
 namespace gollnlp {
 
@@ -32,13 +30,12 @@ namespace gollnlp {
     void add_cons_pf();
     void add_obj_prod_cost();
 
-    MatrixSpTComplex* construct_YBus_matrix();
+    hiop::hiopMatrixComplexSparseTriplet* construct_YBus_matrix();
   protected:
     //utilities
   protected: 
     //members
     SCACOPFData& data_sc_;
-    MatrixSpTComplex* YBus_;
   };
 
 } //end namespace

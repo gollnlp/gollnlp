@@ -81,18 +81,18 @@ set_target_properties(ipopt PROPERTIES IMPORTED_LOCATION "${IPOPT_DIR}/lib/libip
 
 #set(ME57_DIR "/home/petra1/work/installs/hsl_me57-1.1.0")
 if(GOLLNLP_WITH_KRON_REDUCTION)
-  find_library(ME57_LIB NAMES hsl_me57 me57 HINTS "${ME57_DIR}")
-  if(ME57_LIB)
-    message("Using HSL ME57 lib ${ME57_LIB}")
-  else()
-    message(FATAL_ERROR "Could not find HSL ME57 needed by kron reduction. Please cmake with '-DME57_DIR=/path/to/me57_dir'; currently, ME57_DIR='${ME57_DIR}'")
-  endif(ME57_LIB)
-
+#  find_library(ME57_LIB NAMES hsl_me57 me57 HINTS "${ME57_DIR}")
+#  if(ME57_LIB)
+#    message("Using HSL ME57 lib ${ME57_LIB}")
+#  else()
+#    message(FATAL_ERROR "Could not find HSL ME57 needed by kron reduction. Please cmake with '-DME57_DIR=/path/to/me57_dir'; currently, ME57_DIR='${ME57_DIR}'")
+#  endif(ME57_LIB)
+#
   #warn if HiOp is not present
   find_library(HIOP_LIB NAMES hiop HINTS "${HIOP_DIR}/lib")
   if(HIOP_LIB)
     include_directories("${HIOP_DIR}/include")
-    message("Using HiOp lib ${HIOP_LIB}")
+    message("Using HiOp include '${HIOP_DIR}/include' and lib '${HIOP_LIB}'")
   else()
     message(FATAL_ERROR "Could not find HiOp library needed by kron reduction. Please cmake with '-DHIOP_DIR=/path/to/hiop_dist_dir'; currently HIOP_DIR='${HIOP_DIR}'")
   endif(HIOP_LIB)
@@ -133,7 +133,7 @@ target_link_libraries(MyExe2 gollnlp ipopt coinhsl coinmetis ${GOLLNLP_LIBS_EXTR
 ##########################################################
 if (GOLLNLP_WITH_MAKETEST)
   enable_testing()
-  add_test(NAME SCACOPFData COMMAND $<TARGET_FILE:test_scacopfdata.exe>   ${PROJECT_SOURCE_DIR}/test_instanceslist.txt )
+  add_test(NAME SCACOPFData COMMAND $<TARGET_FILE:test_scacopfdata.exe> ${PROJECT_SOURCE_DIR}/test_instanceslist.txt )
 endif(GOLLNLP_WITH_MAKETEST)
 
 ##########################################################
