@@ -106,13 +106,11 @@ include_directories(src/SCACOPFProblem)
 include_directories(src/Utils)
 include_directories(src/NlpSolver)
 include_directories(src/Ex1OptProblem)
-include_directories(src/LinAlg)
 add_subdirectory(src/GeneralOptProblem)
 
 add_subdirectory(src/Utils)
 add_subdirectory(src/SCACOPFProblem)
 add_subdirectory(src/Ex1OptProblem)
-add_subdirectory(src/LinAlg)
 
 add_library(gollnlp STATIC $<TARGET_OBJECTS:goSCACOPF> $<TARGET_OBJECTS:goUtils> $<TARGET_OBJECTS:goOptimiz>)
 
