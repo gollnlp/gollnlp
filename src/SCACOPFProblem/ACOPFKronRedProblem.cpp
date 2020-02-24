@@ -1,5 +1,7 @@
 #include "ACOPFKronRedProblem.hpp"
 
+#include "goUtils.hpp"
+
 using namespace hiop;
 using namespace std;
 
@@ -9,13 +11,17 @@ namespace gollnlp {
   
   /* initialization method: performs Kron reduction and builds the OptProblem */
   bool ACOPFKronRedProblem::assemble()
-  {
-    
+  {   
     hiopMatrixComplexSparseTriplet* YBus_ = construct_YBus_matrix();
+
+    std::vector<int> idxs_nonaux, idxs_aux;
+    construct_buses_idxs(idxs_nonaux, idxs_aux);
+
+
     hiopMatrixComplexDense Ybus_red(2,2);
 
     hiopKronReduction reduction;
-    reduction.go(vector<int>(), vector<int>(), *YBus_, Ybus_red);
+    reduction.go(idxs_nonaux, idxs_aux, *YBus_, Ybus_red);
     
 
     return true;
@@ -31,6 +37,26 @@ namespace gollnlp {
     
   void ACOPFKronRedProblem::add_obj_prod_cost()
   {
+
+  }
+
+  void ACOPFKronRedProblem::construct_buses_idxs(std::vector<int>& idxs_nonaux, std::vector<int>& idxs_aux)
+  {
+    const double SMALL=1e-8;
+
+    idxs_nonaux.clear(); idxs_aux.clear();
+
+    for(int n=0; n<data_sc_.N_Pd.size(); n++) {
+      if(data_sc_.Gn[n].size()>0 || data_sc_.SShn[n].size()>0 || 
+	 magnitude(data_sc_.N_Pd[n], data_sc_.N_Qd[n])>SMALL) {
+
+	idxs_nonaux.push_back(n);
+      } else {
+	idxs_aux.push_back(n);
+      }
+    }
+
+    assert(data_sc_.Gn.size() == idxs_nonaux.size()+idxs_aux.size());
   }
 
   hiopMatrixComplexSparseTriplet* ACOPFKronRedProblem::construct_YBus_matrix()

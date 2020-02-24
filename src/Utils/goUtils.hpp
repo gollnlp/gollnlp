@@ -220,6 +220,11 @@ inline int uppertr_swap(const int& i, int& j, int& aux) {
   if(i>j) { aux=j; j=i; return aux; } return i;
 }  
 
+inline double magnitude(const double& a, const double& b)
+{
+  return sqrt(a*a+b*b);
+}
+
 #ifdef DEBUG
 static double diff_two_norm(int n, const double* v1, const double* v2)
 {

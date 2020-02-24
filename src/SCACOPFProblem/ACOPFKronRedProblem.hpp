@@ -4,11 +4,12 @@
 #include "OptProblem.hpp"
 #include "SCACOPFData.hpp"
 
-#include <cstring>
-#include "blasdefs.hpp"
 #include "goTimer.hpp"
 
 #include "hiopKronReduction.hpp"
+
+#include <vector>
+#include <cstring>
 
 namespace gollnlp {
 
@@ -31,6 +32,7 @@ namespace gollnlp {
     void add_obj_prod_cost();
 
     hiop::hiopMatrixComplexSparseTriplet* construct_YBus_matrix();
+    void construct_buses_idxs(std::vector<int>& idxs_nonaux, std::vector<int>& idxs_aux);
   protected:
     //utilities
   protected: 
