@@ -10,9 +10,12 @@ using namespace gollnlp;
 #include <iostream>
 #include <cassert>
 
-// INST_DIR=/home/petra1/work/projects/gocompet/goinstances/trial1/T1S3_Offline/Network_01O-3; 
-// CON=$INST_DIR/scenario_1/case.con; INL=$INST_DIR/case.inl; RAW=$INST_DIR/scenario_1/case.raw; ROP=$INST_DIR/case.rop
-// ./src/SCACOPFProblem/acopf_kron_driver.exe $CON $INL $RAW $ROP
+/*
+INST_DIR=/home/petra1/work/projects/gocompet/goinstances/trial1/T1S3_Offline/Network_01O-3; 
+CON=$INST_DIR/scenario_1/case.con; INL=$INST_DIR/case.inl; RAW=$INST_DIR/scenario_1/case.raw; ROP=$INST_DIR/case.rop
+./src/SCACOPFProblem/acopf_kron_driver.exe $CON $INL $RAW $ROP
+*/
+
 
 int main(int argc, char *argv[])
 {
