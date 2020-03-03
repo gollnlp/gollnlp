@@ -19,7 +19,7 @@ if(GOLLNLP_WITH_KRON_REDUCTION)
 add_library(goKronRed ACOPFKronRedProblem.cpp)
 
 add_executable(acopf_kron_driver.exe ACOPFKronRedDriver.cpp)
-target_link_libraries(acopf_kron_driver.exe gollnlp goKronRed ipopt coinhsl coinmetis ${HIOP_LIB} ${LAPACK_LIBRARIES} ${GOLLNLP_LIBS_EXTRA} ${OpenMP_CXX_LIBRARIES})
+target_link_libraries(acopf_kron_driver.exe gollnlp goKronRed ipopt coinhsl coinmetis ${HIOP_LIB} ${MA86_LIB} ${LAPACK_LIBRARIES} ${GOLLNLP_LIBS_EXTRA} ${OpenMP_CXX_LIBRARIES})
 endif(GOLLNLP_WITH_KRON_REDUCTION)
 
 #add_executable(acopf_driver.exe ACOPFDriver.cpp)

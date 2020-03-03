@@ -79,15 +79,7 @@ set_target_properties(coinhsl PROPERTIES IMPORTED_LOCATION "${IPOPT_DIR}/lib/lib
 add_library(ipopt STATIC IMPORTED GLOBAL)
 set_target_properties(ipopt PROPERTIES IMPORTED_LOCATION "${IPOPT_DIR}/lib/libipopt.a")
 
-#set(ME57_DIR "/home/petra1/work/installs/hsl_me57-1.1.0")
 if(GOLLNLP_WITH_KRON_REDUCTION)
-#  find_library(ME57_LIB NAMES hsl_me57 me57 HINTS "${ME57_DIR}")
-#  if(ME57_LIB)
-#    message("Using HSL ME57 lib ${ME57_LIB}")
-#  else()
-#    message(FATAL_ERROR "Could not find HSL ME57 needed by kron reduction. Please cmake with '-DME57_DIR=/path/to/me57_dir'; currently, ME57_DIR='${ME57_DIR}'")
-#  endif(ME57_LIB)
-#
   #warn if HiOp is not present
   find_library(HIOP_LIB NAMES hiop HINTS "${HIOP_DIR}/lib")
   if(HIOP_LIB)
@@ -96,6 +88,14 @@ if(GOLLNLP_WITH_KRON_REDUCTION)
   else()
     message(FATAL_ERROR "Could not find HiOp library needed by kron reduction. Please cmake with '-DHIOP_DIR=/path/to/hiop_dist_dir'; currently HIOP_DIR='${HIOP_DIR}'")
   endif(HIOP_LIB)
+
+  #ma86
+  find_library(MA86_LIB NAMES hsl_ma86 ma86 HINTS ${MA86_DIR} "${MA86_DIR}/lib" )
+  if(MA86_LIB)
+    message("Using HSL MA86 lib '${MA86_LIB}'")
+  else()
+    message(FATAL_ERROR "Could not find HSL MA86 needed by kron reduction. Please cmake with '-DMA86_DIR=/path/to/ma86_dir'; currently, MA86_DIR='${MA86_DIR}'")
+  endif(MA86_LIB)
 endif(GOLLNLP_WITH_KRON_REDUCTION)
 
 # include build directory for Fortran name mangling header
