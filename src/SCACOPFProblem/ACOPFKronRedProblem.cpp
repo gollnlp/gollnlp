@@ -13,8 +13,7 @@ namespace gollnlp {
   bool ACOPFKronRedProblem::assemble()
   {   
     hiopMatrixComplexSparseTriplet* YBus_ = construct_YBus_matrix();
-
-    YBus_->print();
+    //YBus_->print();
 
 
     std::vector<int> idxs_nonaux, idxs_aux;
@@ -24,8 +23,9 @@ namespace gollnlp {
     hiopMatrixComplexDense Ybus_red(idxs_nonaux.size(),idxs_nonaux.size());
 
     hiopKronReduction reduction;
-    reduction.go(idxs_nonaux, idxs_aux, *YBus_, Ybus_red);
-    
+    if(!reduction.go(idxs_nonaux, idxs_aux, *YBus_, Ybus_red)) {
+      return false;
+    }
     return true;
   }
   
