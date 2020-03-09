@@ -1,5 +1,6 @@
 #include "ACOPFKronRedProblem.hpp"
 
+#include "SCACOPFUtils.hpp"
 #include "goUtils.hpp"
 
 using namespace hiop;
@@ -14,23 +15,44 @@ namespace gollnlp {
   {   
     hiopMatrixComplexSparseTriplet* YBus_ = construct_YBus_matrix();
     //YBus_->print();
+    construct_buses_idxs(idxs_buses_nonaux, idxs_buses_aux);
 
-
-    std::vector<int> idxs_nonaux, idxs_aux;
-    construct_buses_idxs(idxs_nonaux, idxs_aux);
-
-
-    hiopMatrixComplexDense Ybus_red(idxs_nonaux.size(),idxs_nonaux.size());
+    hiopMatrixComplexDense Ybus_red(idxs_buses_nonaux.size(),idxs_buses_aux.size());
 
     hiopKronReduction reduction;
-    if(!reduction.go(idxs_nonaux, idxs_aux, *YBus_, Ybus_red)) {
+    if(!reduction.go(idxs_buses_nonaux, idxs_buses_aux, *YBus_, Ybus_red)) {
       return false;
     }
+
+    add_variables(data_sc);
+
     return true;
   }
   
-  void ACOPFKronRedProblem::add_variables()
+  void ACOPFKronRedProblem::add_variables(SCACOPFData& d, bool SysCond_BaseCase/* = true*/)
   {
+    { //voltages
+      vector<double>& vlb = SysCond_BaseCase==true ?  data_sc.N_Vlb : data_sc.N_EVlb;
+      vector<double>& vub = SysCond_BaseCase==true ?  data_sc.N_Vub : data_sc.N_EVub;
+      
+      vector<double> vlb_na, vub_na, v0_na;
+      selectfrom(vlb, idxs_buses_nonaux, vlb_na);
+      selectfrom(vub, idxs_buses_nonaux, vub_na);
+      selectfrom(data_sc.N_v0, idxs_buses_nonaux, v0_na);
+      
+      auto v_n = new OptVariablesBlock(idxs_buses_nonaux.size(), var_name("v_n",d), vlb_na.data(), vub_na.data());
+      append_variables(v_n);
+      v_n->set_start_to(v0_na.data());
+    }
+
+    { //theta
+      auto theta_n = new OptVariablesBlock(idxs_buses_nonaux.size(), var_name("v_n",d));
+      append_variables(theta_n);
+      
+      vector<double> theta0_n;
+      selectfrom(data_sc.N_theta0, idxs_buses_nonaux, theta0_n);
+      theta_n->set_start_to(theta0_n.data());
+    }
   }
     
   void ACOPFKronRedProblem::add_cons_pf()
@@ -48,9 +70,9 @@ namespace gollnlp {
 
     idxs_nonaux.clear(); idxs_aux.clear();
 
-    for(int n=0; n<data_sc_.N_Pd.size(); n++) {
-      if(data_sc_.Gn[n].size()>0 || data_sc_.SShn[n].size()>0 || 
-	 magnitude(data_sc_.N_Pd[n], data_sc_.N_Qd[n])>SMALL) {
+    for(int n=0; n<data_sc.N_Pd.size(); n++) {
+      if(data_sc.Gn[n].size()>0 || data_sc.SShn[n].size()>0 || 
+	 magnitude(data_sc.N_Pd[n], data_sc.N_Qd[n])>SMALL) {
 
 	idxs_nonaux.push_back(n);
       } else {
@@ -58,7 +80,7 @@ namespace gollnlp {
       }
     }
 
-    assert(data_sc_.Gn.size() == idxs_nonaux.size()+idxs_aux.size());
+    assert(data_sc.Gn.size() == idxs_nonaux.size()+idxs_aux.size());
   }
 
   hiopMatrixComplexSparseTriplet* ACOPFKronRedProblem::construct_YBus_matrix()
@@ -68,19 +90,19 @@ namespace gollnlp {
     //  https://gitlab.pnnl.gov/exasgd/frameworks/hiop-framework/blob/master/modules/DenseACOPF.jl
     //
 
-    const int& N = data_sc_.N_Bus.size();
+    const int& N = data_sc.N_Bus.size();
 
     int nnz=N;
     // go over (L_Nidx1, L_Nidx2) and increase nnz when idx1>idx2
-    assert(data_sc_.L_Nidx[0].size() == data_sc_.L_Nidx[1].size());
-    for(int it=0; it<data_sc_.L_Nidx[0].size(); it++) {
-      if(data_sc_.L_Nidx[0][it]!=data_sc_.L_Nidx[1][it]) 
+    assert(data_sc.L_Nidx[0].size() == data_sc.L_Nidx[1].size());
+    for(int it=0; it<data_sc.L_Nidx[0].size(); it++) {
+      if(data_sc.L_Nidx[0][it]!=data_sc.L_Nidx[1][it]) 
 	nnz++;
     }
     //same for transformers
-    assert(data_sc_.T_Nidx[0].size() == data_sc_.T_Nidx[1].size());
-    for(int it=0; it<data_sc_.T_Nidx[0].size(); it++) {
-      if(data_sc_.T_Nidx[0][it]!=data_sc_.T_Nidx[1][it]) 
+    assert(data_sc.T_Nidx[0].size() == data_sc.T_Nidx[1].size());
+    for(int it=0; it<data_sc.T_Nidx[0].size(); it++) {
+      if(data_sc.T_Nidx[0][it]!=data_sc.T_Nidx[1][it]) 
 	nnz++;
     }
 
@@ -93,20 +115,20 @@ namespace gollnlp {
       Ii[busidx] = Ji[busidx] = busidx;
 
       // shunt contribution to Ybus
-      M[busidx] = complex<double>(data_sc_.N_Gsh[busidx], data_sc_.N_Bsh[busidx]);
+      M[busidx] = complex<double>(data_sc.N_Gsh[busidx], data_sc.N_Bsh[busidx]);
     }
 
     int nnz_count = N;
     //
     // go over (L_Nidx1, L_Nidx2) and populate the matrix
     //
-    for(int l=0; l<data_sc_.L_Nidx[0].size(); l++) {
-      const int& Nidxfrom=data_sc_.L_Nidx[0][l], Nidxto=data_sc_.L_Nidx[1][l];
+    for(int l=0; l<data_sc.L_Nidx[0].size(); l++) {
+      const int& Nidxfrom=data_sc.L_Nidx[0][l], Nidxto=data_sc.L_Nidx[1][l];
 
-      complex<double> ye(data_sc_.L_G[l], data_sc_.L_B[l]);
+      complex<double> ye(data_sc.L_G[l], data_sc.L_B[l]);
       {
 	//yCHe = L[:Bch][l]*im;
-	complex<double> res(0.0, data_sc_.L_Bch[l]/2); //this is yCHe/2
+	complex<double> res(0.0, data_sc.L_Bch[l]/2); //this is yCHe/2
 	res += ye; 
 
 	//Ybus(Nidxfrom,Nidxfrom) = ye + yCHe/2
@@ -128,11 +150,11 @@ namespace gollnlp {
     //
     //same as above but for (T_Nidx1, T_Nidx2)
     //
-    for(int t=0; t<data_sc_.T_Nidx[0].size(); t++) {
-      const int& Nidxfrom=data_sc_.T_Nidx[0][t], Nidxto=data_sc_.T_Nidx[1][t];
-      complex<double> yf(data_sc_.T_G[t], data_sc_.T_B[t]);
-      complex<double> yMf(data_sc_.T_Gm[t], data_sc_.T_Bm[t]);
-      const double& tauf = data_sc_.T_Tau[t];
+    for(int t=0; t<data_sc.T_Nidx[0].size(); t++) {
+      const int& Nidxfrom=data_sc.T_Nidx[0][t], Nidxto=data_sc.T_Nidx[1][t];
+      complex<double> yf(data_sc.T_G[t], data_sc.T_B[t]);
+      complex<double> yMf(data_sc.T_Gm[t], data_sc.T_Bm[t]);
+      const double& tauf = data_sc.T_Tau[t];
       
       M[Nidxfrom] += yf/(tauf*tauf) + yMf;
       M[Nidxto]   += yf;

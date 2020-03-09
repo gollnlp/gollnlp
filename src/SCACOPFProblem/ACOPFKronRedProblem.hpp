@@ -18,7 +18,7 @@ namespace gollnlp {
   {
   public:
     ACOPFKronRedProblem(SCACOPFData& d_in) 
-      : data_sc_(d_in)
+      : data_sc(d_in)
     {
     }
     virtual ~ACOPFKronRedProblem();
@@ -27,7 +27,7 @@ namespace gollnlp {
     virtual bool assemble();
     
   protected: 
-    void add_variables();
+    void add_variables(SCACOPFData& dB, bool SysCond_BaseCase = true);
     void add_cons_pf();
     void add_obj_prod_cost();
 
@@ -37,7 +37,8 @@ namespace gollnlp {
     //utilities
   protected: 
     //members
-    SCACOPFData& data_sc_;
+    SCACOPFData& data_sc;
+    std::vector<int> idxs_buses_nonaux, idxs_buses_aux;
   };
 
 } //end namespace
