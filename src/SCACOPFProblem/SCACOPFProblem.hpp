@@ -4,6 +4,7 @@
 #include "OptProblem.hpp"
 
 #include "SCACOPFData.hpp"
+#include "SCACOPFUtils.hpp"
 
 #include <cstring>
 #include "blasdefs.hpp"
@@ -194,29 +195,12 @@ namespace gollnlp {
     bool linear_prod_cost;
     double L_rate_reduction, T_rate_reduction;
   public:
-    //variables and constraints accessers
-    inline static std::string var_name(const std::string& prefix, const SCACOPFData& d) { 
-      return var_name(prefix, d.id); 
-    }
-    inline static std::string var_name(const std::string& prefix, int Kid) { 
-      return prefix+"_"+std::to_string(Kid); 
-    }
     inline OptVariablesBlock* variable(const std::string& prefix, const SCACOPFData& d) { 
       return vars_block(var_name(prefix, d));
     }
     inline OptVariablesBlock* variable(const std::string& prefix, int Kid) { 
       return vars_block(var_name(prefix, Kid));
     }
-    inline static std::string con_name(const std::string& prefix, int Kid) { 
-      return prefix+"_"+std::to_string(Kid); 
-    }
-    inline static std::string con_name(const std::string& prefix, const SCACOPFData& d) { 
-      return con_name(prefix, d.id);
-    }
-    inline static std::string objterm_name(const std::string& prefix, const SCACOPFData& d) { 
-      return prefix+"_"+std::to_string(d.id); 
-    }
-
     inline OptConstraintsBlock* constraint(const std::string& prefix, const SCACOPFData& d) { 
       return constraints_block(con_name(prefix, d));
     }

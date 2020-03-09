@@ -1,5 +1,6 @@
 #include "SCACOPFIO.hpp"
 
+#include "SCACOPFUtils.hpp"
 #include "goUtils.hpp"
 
 #include <numeric>
@@ -208,9 +209,9 @@ namespace gollnlp {
     assert(v_n.size()==data.N_Bus.size());
     assert(theta_n.size()==data.N_Bus.size());
 
-    *v_n0 = new OptVariablesBlock(data.N_Bus.size(), SCACOPFProblem::var_name("v_n",data), 
+    *v_n0 = new OptVariablesBlock(data.N_Bus.size(), var_name("v_n",data), 
 				  data.N_Vlb.data(), data.N_Vub.data()); 
-    *theta_n0= new OptVariablesBlock(data.N_Bus.size(), SCACOPFProblem::var_name("theta_n",data));
+    *theta_n0= new OptVariablesBlock(data.N_Bus.size(), var_name("theta_n",data));
     (*v_n0)->set_xref_to_x(); (*theta_n0)->set_xref_to_x();
 
     for(int i=0; i<(*v_n0)->n; i++) {
@@ -223,7 +224,7 @@ namespace gollnlp {
       (*theta_n0)->x[i] = theta_n[Nidx[i]] * piover180;
     }
 
-    *b_s0 = new OptVariablesBlock(data.SSh_SShunt.size(), SCACOPFProblem::var_name("b_s",data), 
+    *b_s0 = new OptVariablesBlock(data.SSh_SShunt.size(), var_name("b_s",data), 
 				  data.SSh_Blb.data(), data.SSh_Bub.data());
     (*b_s0)->set_xref_to_x(); 
 
@@ -254,9 +255,9 @@ namespace gollnlp {
     //
     // p_g and q_q
     //
-    *p_g0 = new OptVariablesBlock(data.G_Generator.size(), SCACOPFProblem::var_name("p_g",data), 
+    *p_g0 = new OptVariablesBlock(data.G_Generator.size(), var_name("p_g",data), 
 				  data.G_Plb.data(), data.G_Pub.data());
-    *q_g0 = new OptVariablesBlock(data.G_Generator.size(), SCACOPFProblem::var_name("q_g",data), 
+    *q_g0 = new OptVariablesBlock(data.G_Generator.size(), var_name("q_g",data), 
 				  data.G_Qlb.data(), data.G_Qub.data());
     (*p_g0)->set_xref_to_x(); (*q_g0)->set_xref_to_x();
 
