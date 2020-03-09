@@ -179,16 +179,14 @@ int OptProblem::get_nnzJaccons()
   return nnz_Jac;
 }
 
-  // we assume that eval_Jaccons is called after get_nnzJaccons
-bool OptProblem::eval_Jaccons (const double* x, bool new_x, const int& nnz, int* i, int* j, double* M)
+// we assume that eval_Jaccons is called after get_nnzJaccons
+bool OptProblem::eval_Jaccons(const double* x, bool new_x, const int& nnz, int* i, int* j, double* M)
 {
   if(new_x) {
     new_x_fgradf=true;
     vars_primal->attach_to(x);
   }
   if(M==NULL) {
-
-
     for(auto& con: cons->vblocks) {
       if(!con->eval_Jac(*vars_primal, new_x, nnz, i,j,M)) {
 	assert(false && "eval_Jaccons should be called after get_nnzJaccons");
@@ -203,14 +201,37 @@ bool OptProblem::eval_Jaccons (const double* x, bool new_x, const int& nnz, int*
   for(auto& con: cons->vblocks) {
     if(!con->eval_Jac(*vars_primal, new_x, nnz, i,j,M))
       return false;
-#ifdef DEBUG
-    //double maxmag=0.;
-    //for(int ii=0; ii<nnz; ii++) if(fabs(M[ii]) > maxmag) maxmag=fabs(M[ii]);
-    //printf("Jacob entries max mag is %g after evaluating constraints %s.\n", maxmag, con->id.c_str());
-#endif    
   }
   return true;
 }
+
+bool OptProblem::eval_Jaccons(const double* x, bool new_x, 
+			      const int& nxsparse, const int& nxdense,
+			      const int& nnzJacS, int* iJacS, int* jJacS, double* MJacS, 
+			      double** JacD)
+{
+  if(new_x) {
+    new_x_fgradf=true;
+    vars_primal->attach_to(x);
+  }
+  if(MJacS==NULL) {
+    for(auto& con: cons->vblocks) {
+      if(!con->eval_Jac(*vars_primal, new_x, nxsparse, nxdense, nnzJacS, iJacS, jJacS, MJacS, JacD)) {
+	assert(false && "eval_Jaccons should be called after get_nnzJaccons");
+      }
+    }
+    return true;
+  }
+
+  // case of M!=NULL > just fill in the values
+  //for(int i=0; i<nnz; i++) M[i]=0.;
+  for(auto& con: cons->vblocks) {
+    if(!con->eval_Jac(*vars_primal, new_x, nxsparse, nxdense, nnzJacS, iJacS, jJacS, MJacS, JacD))
+      return false;
+  }
+  return true;
+}
+
 
 #ifdef DEBUG
 static bool check_is_upper(const vector<OptSparseEntry>& ij)
@@ -291,6 +312,62 @@ bool OptProblem::eval_HessLagr(const double* x, bool new_x,
   }
   return true;
 }
+bool OptProblem::eval_HessLagr(const double* x, bool new_x, 
+			       const double& obj_factor, 
+			       const double* lambda, bool new_lambda, 
+			       const int& nxsparse, const int& nxdense, 
+			       const int& nnzHSS, int* iHSS, int* jHSS, double* MHSS, 
+			       double** HDD,
+			       int& nnzHSD, int* iHSD, int* jHSD, double* MHSD)
+{
+  if(new_x) {
+    new_x_fgradf=true; 
+    vars_primal->attach_to(x);
+  }
+  if(new_lambda) vars_duals_cons->attach_to(lambda);
+
+  if(NULL==MHSS) {
+    for(auto& ot: obj->vterms) {
+      if(!ot->eval_HessLagr(*vars_primal, new_x, obj_factor, 
+			    nxsparse, nxdense,
+			    nnzHSS, iHSS, jHSS, MHSS,
+			    HDD,
+			    nnzHSD, iHSD, jHSD, MHSD)) {
+	assert(false && "eval_HessLagr should be called after get_nnzHessLagr");
+      }
+    }
+    for(auto& con: cons->vblocks) {
+      if(!con->eval_HessLagr(*vars_primal, new_x, *vars_duals_cons, new_lambda, 
+			     nxsparse, nxdense,
+			     nnzHSS, iHSS, jHSS, MHSS,
+			     HDD,
+			     nnzHSD, iHSD, jHSD, MHSD)) {
+	assert(false && "eval_HessLagr should be called after get_nnzHessLagr");
+      }
+    }
+  } else {
+    // case of M!=NULL > just fill in the values
+    //for(int it=0; it<nnz; it++) M[it]=0.;
+    
+    for(auto& ot: obj->vterms)
+      if(!ot->eval_HessLagr(*vars_primal, new_x, obj_factor, 
+			    nxsparse, nxdense,
+			    nnzHSS, iHSS, jHSS, MHSS,
+			    HDD,
+			    nnzHSD, iHSD, jHSD, MHSD))
+	return false;
+    
+    for(auto& con: cons->vblocks)
+      if(!con->eval_HessLagr(*vars_primal, new_x, *vars_duals_cons, new_lambda, 
+			     nxsparse, nxdense,
+			     nnzHSS, iHSS, jHSS, MHSS,
+			     HDD,
+			     nnzHSD, iHSD, jHSD, MHSD))
+	return false;
+  }
+  return true;
+}
+
 
 void OptProblem::fill_primal_vars(double* x) 
 { 

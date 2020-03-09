@@ -187,6 +187,13 @@ public:
 			     const double& obj_factor,
 			     const int& nnz, int* i, int* j, double* M)
   { return true; }
+  virtual bool eval_HessLagr(const OptVariables& x, bool new_x, 
+			     const double& obj_factor,
+			     const int& nxsparse, const int& nxdense, 
+			     const int& nnzHSS, int* iHSS, int* jHSS, double* MHSS, 
+			     double** HDD,
+			     int& nnzHSD, int* iHSD, int* jHSD, double* MHSD)
+  { return false; }
 
   // methods that need to be implemented to specify the sparsity pattern of the 
   // implementer's contribution to the sparse derivatives
@@ -203,22 +210,54 @@ public:
   // all these functions 
   //  - should add their contribution to the output
   //  - return false if an error occurs in the evaluation
+  //Notes 
+  // 1. eval_Jac and eval_Hess_Lagr should be called after get_Jacob_nnz and
+  // get_HessLagr_nnz
+
   virtual bool eval_body (const OptVariables& x, bool new_x, double* body) = 0;
   virtual bool eval_Jac(const OptVariables& x, bool new_x, 
 			const int& nnz, int* i, int* j, double* M) = 0;
+  virtual bool eval_Jac(const OptVariables& x, bool new_x, 
+			const int& nxsparse, const int& nxdense,
+			const int& nnzJacS, int* iJacS, int* jJacS, double* MJacS, 
+			double** JacD) 
+  {
+    //this needs to be implemented only if dense blocks are present
+    return false;
+  }
+
+
   virtual bool eval_HessLagr(const OptVariables& x, bool new_x, 
 			     const OptVariables& lambda, bool new_lambda,
 			     const int& nnz, int* i, int* j, double* M) 
   { return true; }
 
+  virtual bool eval_HessLagr(const OptVariables& x, bool new_x, 
+			      const OptVariables& lambda, bool new_lambda,
+			      const int& nxsparse, const int& nxdense, 
+			      const int& nnzHSS, int* iHSS, int* jHSS, double* MHSS, 
+			      double** HDD,
+			      int& nnzHSD, int* iHSD, int* jHSD, double* MHSD)
+  {
+    //this needs to be implemented only if dense blocks are present
+    return false;
+  }
+
   // methods that need to be implemented to specify the sparsity pattern of the 
   // implementer's contribution to the sparse derivatives
+  // Note 1: for MDS problems, these methods are only called for the sparse part of 
+  // the derivative
+  // Note 2: for MDS problems, 'get_HessLagr_nnz' is called for the sparse (1,1)
+  // block. TODO: addtl methods may be needed for the other sparse blocks
   virtual int get_HessLagr_nnz() { return 0; }
   virtual int get_Jacob_nnz() = 0; 
 
-  // (i,j) entries in the HessLagr to which the implementer's contributes to
-  // this is only called once
-  // push_back in vij 
+  // (i,j) entries in the sparse HessLagr to which the implementer's contributes to.
+  // These methods are only called called once
+  // Internally, they 'push_back' in vij stored for (sparse parts of) Hess of 
+  // the Lagr or for the Jacob
+  // Note 1: For MDS problems, these methods should contain only entries in the 
+  // sparse part(s) of the of the derivatives
   virtual bool get_HessLagr_ij(std::vector<OptSparseEntry>& vij) { return true; }
   virtual bool get_Jacob_ij(std::vector<OptSparseEntry>& vij) = 0; 
 };
@@ -493,10 +532,22 @@ public:
   bool eval_gradobj (const double* x, bool new_x, double* grad);
   bool eval_Jaccons (const double* x, bool new_x, 
 		     const int& nnz, int* i, int* j, double* M);
+  bool eval_Jaccons (const double* x, bool new_x, 
+		     const int& nxsparse, const int& nxdense,
+		     const int& nnzJacS, int* iJacS, int* jJacS, double* MJacS, 
+		     double** JacD);
+
   bool eval_HessLagr(const double* x, bool new_x, 
 		     const double& obj_factor, 
 		     const double* lambda, bool new_lambda,
 		     const int& nnz, int* i, int* j, double* M);
+  bool eval_HessLagr(const double* x, bool new_x, 
+		     const double& obj_factor, 
+		     const double* lambda, bool new_lambda, 
+		     const int& nxsparse, const int& nxdense, 
+		     const int& nnzHSS, int* iHSS, int* jHSS, double* MHSS, 
+		     double** HDD,
+		     int& nnzHSD, int* iHSD, int* jHSD, double* MHSD);
   //getters -> copy to x; x is expected to be allocated
   void fill_primal_vars(double* x);
   void fill_vars_lower_bounds(double* lb);
@@ -555,7 +606,8 @@ protected:
 
   void reallocate_nlp_solver();
 
-  //these two vectors have limited storage lifetime
+  // Temporary storage for the entries of the sparse parts of the derivatives
+  // these two vectors have limited storage lifetime
   std::vector<OptSparseEntry> ij_Jac, ij_Hess;
 
   bool new_x_fgradf;
