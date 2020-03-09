@@ -215,6 +215,16 @@ template<class T> std::vector<T> selectfrom(const T* v, int v_size, const std::v
   return ret;
 }
 
+template<class T> void selectfrom(const std::vector<T>& vsrc, const std::vector<int>& idxs, std::vector<T>& vdest)
+{
+  vdest.clear();
+  for(auto& keep: idxs) {
+    assert(keep>=0);
+    assert(keep<vsrc.size());
+    vdest.push_back(vsrc[keep]);
+  }
+}
+
 //j=max(i,j) and returns min(i,j)
 inline int uppertr_swap(const int& i, int& j, int& aux) {
   if(i>j) { aux=j; j=i; return aux; } return i;
