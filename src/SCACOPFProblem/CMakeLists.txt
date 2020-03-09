@@ -1,9 +1,6 @@
 add_executable(test_scacopfdata.exe SCACOPFData_test.cpp)
 target_link_libraries(test_scacopfdata.exe gollnlp ipopt coinhsl coinmetis ${GOLLNLP_LIBS_EXTRA} ${OpenMP_CXX_LIBRARIES} ${LAPACK_LIBRARIES})
 
-#add_executable(recourse_sandbox.exe go_recourse_sandbox.cpp)
-#target_link_libraries(recourse_sandbox.exe gollnlp ${LAPACK_LIBRARIES} ${IPOPT_LIBS})
-
 add_library(goSCACOPF OBJECT 
 		      SCACOPFData.cpp go_code1.cpp go_code2.cpp 
 		      OPFConstraints.cpp OPFObjectiveTerms.cpp CouplingConstraints.cpp 
@@ -15,11 +12,15 @@ add_library(goSCACOPF OBJECT
 #
 # other utilities such as Kron reduction ACOPF
 #
-if(GOLLNLP_WITH_KRON_REDUCTION)
-add_library(goKronRed ACOPFKronRedProblem.cpp)
 
-add_executable(acopf_kron_driver.exe ACOPFKronRedDriver.cpp)
-target_link_libraries(acopf_kron_driver.exe gollnlp goKronRed ipopt coinhsl coinmetis ${HIOP_LIB} ${MA86_LIB} ${LAPACK_LIBRARIES} ${GOLLNLP_LIBS_EXTRA} ${OpenMP_CXX_LIBRARIES})
+if(GOLLNLP_WITH_KRON_REDUCTION)
+  add_library(goKronRed ACOPFKronRedProblem.cpp)
+
+  add_executable(acopf_kron_driver.exe ACOPFKronRedDriver.cpp)
+  target_link_libraries(acopf_kron_driver.exe 
+                        goKronRed gollnlp ipopt coinhsl coinmetis 
+			${HIOP_LIB} ${MA86_LIB} ${LAPACK_LIBRARIES} ${OpenMP_CXX_LIBRARIES}
+			${GOLLNLP_LIBS_EXTRA} )
 endif(GOLLNLP_WITH_KRON_REDUCTION)
 
 #add_executable(acopf_driver.exe ACOPFDriver.cpp)

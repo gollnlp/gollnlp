@@ -29,7 +29,7 @@ namespace gollnlp {
   protected: 
     void add_variables(SCACOPFData& dB, bool SysCond_BaseCase = true);
     void add_cons_pf();
-    void add_obj_prod_cost();
+    void add_obj_prod_cost(SCACOPFData& d);
 
     hiop::hiopMatrixComplexSparseTriplet* construct_YBus_matrix();
     void construct_buses_idxs(std::vector<int>& idxs_nonaux, std::vector<int>& idxs_aux);

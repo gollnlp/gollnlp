@@ -1100,7 +1100,7 @@ void SCACOPFProblem::add_variables(SCACOPFData& d, bool SysCond_BaseCase)
       assert( theta_n->x[b] >= theta_n->lb[b]);
       assert( theta_n->x[b] <= theta_n->ub[b]);
     }
-    //! TODO : fix bug -> when N_theta0[RefBus]==0, lb and ub are not set to 0 !!!
+    //! TODO : fix bug -> when N_theta0[RefBus]==0, lb and ub are not set to zero
     theta_n->lb[RefBus] = theta_n->ub[RefBus] = 0.;
     assert(theta_n->x[RefBus]==0.);
     //printf("We should set theta at RefBus to 0");
