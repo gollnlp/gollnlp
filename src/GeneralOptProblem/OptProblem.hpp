@@ -233,11 +233,11 @@ public:
   { return true; }
 
   virtual bool eval_HessLagr(const OptVariables& x, bool new_x, 
-			      const OptVariables& lambda, bool new_lambda,
-			      const int& nxsparse, const int& nxdense, 
-			      const int& nnzHSS, int* iHSS, int* jHSS, double* MHSS, 
-			      double** HDD,
-			      int& nnzHSD, int* iHSD, int* jHSD, double* MHSD)
+			     const OptVariables& lambda, bool new_lambda,
+			     const int& nxsparse, const int& nxdense, 
+			     const int& nnzHSS, int* iHSS, int* jHSS, double* MHSS, 
+			     double** HDD,
+			     int& nnzHSD, int* iHSD, int* jHSD, double* MHSD)
   {
     //this needs to be implemented only if dense blocks are present
     return false;

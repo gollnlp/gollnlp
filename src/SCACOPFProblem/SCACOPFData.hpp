@@ -21,7 +21,11 @@ namespace gollnlp {
     //'nCont' refers to the total # of contingencies considered
     void rebuild_for_conting(int K_id, int nCont);
 
+    //
     //utilities
+    //
+
+    // index of the bus/node having the largest generator
     int bus_with_largest_gen() const;
 
     //void compute_largest_pg_loss_contingency();

@@ -52,6 +52,55 @@ namespace gollnlp {
       vector<double> theta0_n;
       selectfrom(data_sc.N_theta0, idxs_buses_nonaux, theta0_n);
       theta_n->set_start_to(theta0_n.data());
+
+      int RefBusIdx = data_sc.bus_with_largest_gen(), RefBusIdx_nonaux;
+      auto it = std::find(idxs_buses_nonaux.begin(),  idxs_buses_nonaux.end(), RefBusIdx);
+      if(it==idxs_buses_nonaux.end()) {
+	assert(false && "check this");
+	RefBusIdx_nonaux=0;
+      } else {
+	RefBusIdx_nonaux = std::distance(idxs_buses_nonaux.begin(), it);
+      }
+
+      const double& theta0_ref = data_sc.N_theta0[RefBusIdx];
+      if(theta0_ref!=0.) {
+	//check indexing again
+	assert(theta_n->x[RefBusIdx_nonaux] == theta0_ref);
+
+	for(int b=0; b<theta_n->n; b++) {
+	  theta_n->x[b] -= theta0_ref;
+	  assert( theta_n->x[b] >= theta_n->lb[b]);
+	  assert( theta_n->x[b] <= theta_n->ub[b]);
+	}
+      }
+      theta_n->lb[RefBusIdx_nonaux] = theta_n->ub[RefBusIdx_nonaux] = 0.;
+      assert(theta_n->x[RefBusIdx_nonaux]==0.);
+    }
+
+    { //b_s
+      vector<double> lb, ub, x0;
+      selectfrom(data_sc.SSh_Blb, idxs_buses_nonaux, lb);
+      selectfrom(data_sc.SSh_Bub, idxs_buses_nonaux, ub);
+
+      auto b_s = new OptVariablesBlock(idxs_buses_nonaux.size(), var_name("b_s",d), lb.data(), ub.data());
+
+      selectfrom(data_sc.SSh_B0, idxs_buses_nonaux, x0);
+      b_s->set_start_to(x0.data());
+
+      append_variables(b_s);
+    }
+
+    { // generation p_g and q_g
+      auto p_g = new OptVariablesBlock(d.G_Generator.size(), var_name("p_g",d), 
+				       d.G_Plb.data(), d.G_Pub.data());
+      append_variables(p_g); 
+      p_g->set_start_to(d.G_p0.data());
+
+
+      auto q_g = new OptVariablesBlock(d.G_Generator.size(), var_name("q_g",d), 
+				       d.G_Qlb.data(), d.G_Qub.data());
+      q_g->set_start_to(d.G_q0.data());
+      append_variables(q_g); 
     }
   }
     
