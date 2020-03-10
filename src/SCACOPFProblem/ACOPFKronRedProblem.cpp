@@ -2,6 +2,7 @@
 
 #include "OPFObjectiveTerms.hpp"
 #include "OPFConstraints.hpp"
+#include "OPFConstraintsKron.hpp"
 
 #include "SCACOPFUtils.hpp"
 #include "goUtils.hpp"
@@ -11,7 +12,10 @@ using namespace std;
 
 namespace gollnlp {
 
-  ACOPFKronRedProblem::~ACOPFKronRedProblem() {}
+  ACOPFKronRedProblem::~ACOPFKronRedProblem() 
+  {
+    delete Ybus_red;
+  }
   
   /* initialization method: performs Kron reduction and builds the OptProblem */
   bool ACOPFKronRedProblem::assemble()
@@ -20,10 +24,12 @@ namespace gollnlp {
     //YBus_->print();
     construct_buses_idxs(idxs_buses_nonaux, idxs_buses_aux);
 
-    hiopMatrixComplexDense Ybus_red(idxs_buses_nonaux.size(),idxs_buses_aux.size());
+    if(Ybus_red) delete Ybus_red;
+
+    Ybus_red = new hiopMatrixComplexDense(idxs_buses_nonaux.size(),idxs_buses_aux.size());
 
     hiopKronReduction reduction;
-    if(!reduction.go(idxs_buses_nonaux, idxs_buses_aux, *YBus_, Ybus_red)) {
+    if(!reduction.go(idxs_buses_nonaux, idxs_buses_aux, *YBus_, *Ybus_red)) {
       return false;
     }
 
@@ -107,8 +113,20 @@ namespace gollnlp {
     }
   }
     
-  void ACOPFKronRedProblem::add_cons_pf()
+  void ACOPFKronRedProblem::add_cons_pf(SCACOPFData& d)
   {
+    auto p_g = vars_block(var_name("p_g",d)), 
+      v_n = vars_block(var_name("v_n",d)), 
+      theta_n = vars_block(var_name("theta_n",d));
+    {
+      //active power balance
+      auto pf_p_bal = new PFActiveBalanceKron(con_name("p_balance_kron",d), 
+					      idxs_buses_nonaux.size(),
+					      p_g, v_n, theta_n,
+					      idxs_buses_nonaux,
+					      d.Gn, *Ybus_red, data_sc.N_Pd);
+      append_constraints(pf_p_bal);
+    }
   }
     
   void ACOPFKronRedProblem::add_obj_prod_cost(SCACOPFData& d)

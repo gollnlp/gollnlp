@@ -18,7 +18,7 @@ namespace gollnlp {
   {
   public:
     ACOPFKronRedProblem(SCACOPFData& d_in) 
-      : data_sc(d_in)
+      : data_sc(d_in), Ybus_red(NULL)
     {
     }
     virtual ~ACOPFKronRedProblem();
@@ -28,7 +28,7 @@ namespace gollnlp {
     
   protected: 
     void add_variables(SCACOPFData& dB, bool SysCond_BaseCase = true);
-    void add_cons_pf();
+    void add_cons_pf(SCACOPFData& d);
     void add_obj_prod_cost(SCACOPFData& d);
 
     hiop::hiopMatrixComplexSparseTriplet* construct_YBus_matrix();
@@ -39,6 +39,7 @@ namespace gollnlp {
     //members
     SCACOPFData& data_sc;
     std::vector<int> idxs_buses_nonaux, idxs_buses_aux;
+    hiop::hiopMatrixComplexDense* Ybus_red;
   };
 
 } //end namespace
