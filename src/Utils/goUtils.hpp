@@ -32,6 +32,18 @@ static inline void trim(std::string &s) {
     rtrim(s);
 }
 
+static inline std::string tolower(const std::string& str_in)
+{
+  auto str_out = str_in;
+  std::transform(str_out.begin(), str_out.end(), str_out.begin(), ::tolower);
+  return str_out;
+}
+
+static inline void tolower(std::string& str_in)
+{
+  std::transform(str_in.begin(), str_in.end(), str_in.begin(), ::tolower);
+}
+
 static std::vector<std::string> split(const std::string &s, char delim) {
   std::vector<std::string> result;
   std::stringstream ss(s);
