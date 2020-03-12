@@ -281,7 +281,7 @@ namespace gollnlp {
   //
   // Dense part of the Jacobian w.r.t. v(=v_n) and theta(=theta_n)
   // d a_i
-  // ----- = - v_i * (Gred[i,k]*cos(theta_i-theta_k)+Bred[i,k]*sin(theta_i-theta_k))  [[[ i!=k ]]]
+  // ----- = - v_i * (Gred[i,k]*cos(theta_i-theta_k) + Bred[i,k]*sin(theta_i-theta_k))  [[[ i!=k ]]]
   // d v_k
   //
   // d a_i        n
@@ -300,25 +300,56 @@ namespace gollnlp {
   //
   // k>i all d2 a_i/dv_k dv_j = 0 (j>=k)
   // ****************************************************
+  // ****************************************************
   // Dense part of the Hessian of a_i w.r.t. v_k, theta_j
   // k=1,...,i-1 all zeros except
-  // d2 a_i/dv_k dtheta_k = - v_i*[Gred[i,k]*sin(theta_i-theta_k)-Bred[i,k]*sin(theta_i-theta_k)]
-  // d2 a_i/dv_k dtheta_i =   v_i*[Gred[i,k]*sin(theta_i-theta_k)+Bred[i,k]*sin(theta_i-theta_k)]
+  // d2 a_i/dv_k dtheta_k = - v_i*[ Gred[i,k]*sin(theta_i-theta_k) - Bred[i,k]*cos(theta_i-theta_k)]
+  // d2 a_i/dv_k dtheta_i = - v_i*[-Gred[i,k]*sin(theta_i-theta_k) + Bred[i,k]*cos(theta_i-theta_k)]
   //
   // k=i 
-  // d2 a_i/dv_i dtheta_i = 
+  //                             n
+  // d2 a_i/dv_i dtheta_i = -   sum    v_j*[-Gred[i,j]*sin(theta_i-theta_j) + Bred[i,j]*cos(theta_i-theta_j)]
+  //                         j=1, j!=i
+  // d2 a_i/dv_i dtheta_j = -  v_j*[Gred[i,j]*sin(theta_i-theta_j) - Bred[i,j]*cos(theta_i-theta_j)]
+  //
+  // k>i
+  // d2 a_i/dv_k dtheta_k = - v_i*[Gred[i,k]*sin(theta_i-theta_k) - Bred[i,k]*cos(theta_i-theta_k)]
+  // d2 a_i/dv_k dtheta_j = 0 (j>k)
+  // ****************************************************
   //   d a_i
-  // --------- = - v_i*v_k *(Gred[i,k]*sin(theta_i-theta_k) - Bred*cos(theta_i-theta_k))  [[[ i!=k ]]]
+  // --------- = - v_i*v_k *(Gred[i,k]*sin(theta_i-theta_k) - Bred[i,k]*cos(theta_i-theta_k))  [[[ i!=k ]]]
   // d theta_k
   //
   //  d a_i            n
-  // --------- = -    sum    v_i*v_j *( - Gred[i,j]*sin(theta_i-theta_k) + Bred[i,j]*cos(theta_i-theta_j))
+  // --------- = -    sum    v_i*v_j *( - Gred[i,j]*sin(theta_i-theta_j) + Bred[i,j]*cos(theta_i-theta_j))
   // d theta_i     j=1, j!=i
+  // ****************************************************
+  // Dense part of the Hessian of a_i w.r.t theta_k, theta_j
+  // k<i
+  // d2 a_i / dtheta_k dtheta_k = - v_i*v_k*[-Gred[i,k]*cos(theta_i-theta_k) - Bred[i,k]*sin(theta_i-theta_k)]
+  // d2 a_i / dtheta_k dtheta_i = - v_i*v_k*[ Gred[i,k]*cos(theta_i-theta_k) + Bred[i,k]*sin(theta_i-theta_k)]
   //
-  //             
+  // k=i
+  // d2 a_i / dtheta_i dtheta_i = - sum{j!=i} v_i*v_j*[-Gred[i,j]*cos(theta_i-theta_j)-Bred[i,j]*sin(theta_i-theta_j)]
+  // d2 a_i / dtheta_i dtheta_j = - v_i*v_j*[ Gred[i,j]*cos(theta_i-theta_j) + Bred[i,j]*sin(theta_i-theta_j)]
   //
-  // Note: cos and sin can be computed only once for d a_i/d v_k and d a_k/d_v_i (same for 
-  //partials w.r.t. theta
+  // k>i
+  // d2 a_i / dtheta_k dtheta_k = - v_i*v_k*[-Gred[i,k]*cos(theta_i-theta_k) - Bred[i,k]*sin(theta_i-theta_k)]
+  // d2 a_i / dtheta_k dtheta_j = 0 (j>k)
+  // ****************************************************
+  // ****************************************************
+  // Dense part of the Hessian of a_i w.r.t theta_k, v_j (just to check)
+  // k<i
+  // d2 a_i / dtheta_k dv_k = - v_i*[Gred[i,k]*sin(theta_i-theta_k) - Bred[i,k]*cos(theta_i-theta_k)]
+  // d2 a_i / dtheta_k dv_i = - v_k*[Gred[i,k]*sin(theta_i-theta_k) - Bred[i,k]*cos(theta_i-theta_k)]
+  //
+  // k=i
+  // d2 a_i / dtheta_i dv_i = - sum v_j*[- Gred[i,j]*sin(theta_i-theta_j) + Bred[i,j]*cos(theta_i-theta_j)]
+  // d2 a_i / dtheta_i dv_j = - v_i*[- Gred[i,j]*sin(theta_i-theta_j) + Bred[i,j]*cos(theta_i-theta_j)]
+  //
+  // k>i
+  // d2 a_i / dtheta_k dv_k = - v_i*[Gred[i,k]*sin(theta_i-theta_k) - Bred[i,k]*cos(theta_i-theta_k)]
+  // d2 a_i / dtheta_k dv_j = 0
   bool PFActiveBalanceKron::eval_HessLagr(const OptVariables& x, bool new_x, 
 					  const OptVariables& lambda_vars, bool new_lambda,
 					  const int& nxsparse, const int& nxdense, 
@@ -338,6 +369,125 @@ namespace gollnlp {
       const OptVariablesBlock* lambda = lambda_vars.get_block(std::string("duals_") + this->id);
       assert(lambda!=NULL);
       assert(lambda->n==n);
+      std::complex<double>** YredM = Ybus_red.local_data();
+      double theta_diff, aux_G_sin, aux_B_cos, res;
+
+      //loop over constraints/lambdas
+      for(int i=0; i<n; i++) {
+	const double& lambda_i = lambda->xref[i];
+	int k,j;
+	//
+	//Dense part of Hessian of a_i w.r.t v_k,v_j  (j>=k)
+	//
+	
+	//! YredM is upper triangle
+
+	//---> k=1,...,i-1 all zeros except d2 a_i/dv_k dv_i
+	for(k=0; k<i; k++) {
+	  //v_k has index k in dense part of Hessian; v_i has index i
+	  theta_diff = theta_n->xref[i]-theta_n->xref[k];
+	  HDD[k][i] -= lambda_i * (YredM[k][i].real()*cos(theta_diff) + YredM[k][i].imag()*sin(theta_diff));
+	}
+	//---> k=i
+	k=i;
+	// d2 a_i/dv_i dv_i and d2 a_i/dv_i dv_j (j>i)
+	HDD[i][i] -= lambda_i * 2 * YredM[i][i].real();
+	for(j=k+1; j<n; j++) {
+	  theta_diff = theta_n->xref[i]-theta_n->xref[j];
+	  HDD[i][i] -= lambda_i * (YredM[k][i].real()*cos(theta_diff) + YredM[k][i].imag()*sin(theta_diff));
+	}
+	//---> k>i all zeros
+
+	//
+	// Dense part of the Hessian of a_i w.r.t. v_k, theta_j
+	//
+	// ----> k=1,...,i-1 all zeros except d2 a_i/dv_k dtheta_k  and  d2 a_i/dv_k dtheta_i
+
+	// index of theta_k in dense part of the Hessian is v_n->n+k	
+
+	for(k=0; k<i; k++) {
+	  theta_diff = theta_n->xref[i]-theta_n->xref[k];
+	  aux_G_sin = YredM[k][i].real()*sin(theta_diff);
+	  aux_B_cos = YredM[k][i].imag()*cos(theta_diff);
+	  res = lambda_i * v_n->xref[i] * (aux_G_sin - aux_B_cos);
+	  //d2 a_i/dv_k dtheta_k
+	  assert(k<v_n->n+k);
+	  HDD[k][v_n->n+k] -= res;
+	  
+	  //d2 a_i/dv_k dtheta_i
+	  assert(k<v_n->n+i);
+	  HDD[k][v_n->n+i] += res;
+	}
+	// ---> k=i
+	k=i;
+	//                             n
+	// d2 a_i/dv_i dtheta_i = -   sum    v_j*[-Gred[i,j]*sin(theta_i-theta_j) + Bred[i,j]*cos(theta_i-theta_j)]
+	//                         j=1, j!=i
+	double sum=0.; 
+	for(j=0; j<i; j++) {
+	  theta_diff = theta_n->xref[i]-theta_n->xref[j];
+	  sum += v_n->xref[j]*(-YredM[j][i].real()*sin(theta_diff) + YredM[j][i].imag()*cos(theta_diff));
+	}
+	for(j=i+1; j<n; j++) {
+	  theta_diff = theta_n->xref[i]-theta_n->xref[j];
+	  sum += v_n->xref[j]*(-YredM[i][j].real()*sin(theta_diff) + YredM[i][j].imag()*cos(theta_diff));
+	}
+	HDD[i][v_n->n+i] -= lambda_i*sum;
+
+	//TODO merge the loop above with the one below maybe
+	// d2 a_i/dv_i dtheta_j = -  v_j*[Gred[i,j]*sin(theta_i-theta_j) - Bred[i,j]*cos(theta_i-theta_j)]
+	for(int j=i+1; j<n; j++) {
+	  theta_diff = theta_n->xref[i]-theta_n->xref[j];
+	  HDD[i][v_n->n+j] -= lambda_i*(YredM[i][j].real()*sin(theta_diff) - YredM[i][j].imag()*cos(theta_diff));
+	}
+
+	// ---> k=i+1, ..., n -> only d2 a_i/dv_k dtheta_k is nonzero
+	HDD[k][v_n->n+k] -= lambda_i*v_n->xref[i]*(YredM[i][j].real()*sin(theta_diff) - YredM[i][j].imag()*cos(theta_diff));
+
+	//
+	// Dense part of the Hessian of a_i w.r.t theta_k, theta_j
+	//
+	// ---> k<i : only d2 a_i / dtheta_k dtheta_k and d2 a_i / dtheta_k dtheta_i are nonzeros
+	const int idx_of_theta_i = v_n->n+i;
+	for(k=0; k<i; k++) {
+	  theta_diff = theta_n->xref[i]-theta_n->xref[k];
+	  res = v_n->xref[i]*v_n->xref[k]*
+	    (YredM[k][i].real()*cos(theta_diff) + YredM[k][i].imag()*sin(theta_diff));
+	  const int idx_of_theta_k = v_n->n+k;
+	  HDD[idx_of_theta_k][idx_of_theta_k] += lambda_i * res;
+	  HDD[idx_of_theta_k][idx_of_theta_i] -= lambda_i * res;
+	}
+	// ---> k=i
+	k=i; 
+	// d2 a_i / dtheta_i dtheta_i
+	sum = 0;
+	for(j=0; j<i; j++) {
+	  theta_diff = theta_n->xref[i]-theta_n->xref[j];
+	  sum += v_n->xref[i]*v_n->xref[j]*
+	    (-YredM[j][i].real()*cos(theta_diff) - YredM[j][i].imag()*sin(theta_diff));
+	}
+	for(j=i+1; j<n; j++) {
+	  theta_diff = theta_n->xref[i]-theta_n->xref[j];
+	  sum += v_n->xref[i]*v_n->xref[j]*
+	    (-YredM[i][j].real()*cos(theta_diff) - YredM[i][j].imag()*sin(theta_diff));
+	}
+	HDD[idx_of_theta_i][idx_of_theta_i] -= lambda_i*sum;
+	// d2 a_i / dtheta_i dtheta_j  (k=i)
+	for(j=i+1; j<n; j++) {
+	  theta_diff = theta_n->xref[i]-theta_n->xref[j];
+
+	  HDD[idx_of_theta_i][v_n->n+j] -= lambda_i * v_n->xref[i] * v_n->xref[j] *
+	    (YredM[i][j].real()*cos(theta_diff) + YredM[i][j].imag()*sin(theta_diff));
+	}
+
+	// ---> k>i : only d2 a_i / dtheta_k dtheta_k is nonzero
+	for(k=i+1; k<n; k++) {
+	  const int idx_of_theta_k = v_n->n+k;
+	  theta_diff = theta_n->xref[i]-theta_n->xref[k];
+	  HDD[idx_of_theta_k][idx_of_theta_k] -= lambda_i * v_n->xref[i] * v_n->xref[k] *
+	    (-YredM[i][k].real()*cos(theta_diff) - YredM[i][k].imag()*sin(theta_diff));
+	}
+      } // end of for over i=1,..,n
     }
     return true;
 }
