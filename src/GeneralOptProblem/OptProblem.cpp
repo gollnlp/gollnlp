@@ -1,12 +1,13 @@
 #include "OptProblem.hpp"
 #include "IpoptSolver.hpp"
+#include "HiopSolver.hpp"
 #include <iostream>
 
 #include "blasdefs.hpp"
 #include "goUtils.hpp"
 #include "goTimer.hpp"
 
-#include <string.h> //for memcpy
+#include <string.h> //for memcpy, stricmp
 
 using namespace std;
 
@@ -555,8 +556,14 @@ void OptProblem::set_duals_vars_cons(const double* lambda)
 void OptProblem::use_nlp_solver(const std::string& name)
 {
   if(NULL == nlp_solver) {
-    nlp_solver = new IpoptSolver(this);
-    nlp_solver->initialize();
+    if(gollnlp::tolower(name) == "ipopt") {
+      nlp_solver = new IpoptSolver(this);
+      nlp_solver->initialize();
+    } else {
+      assert(gollnlp::tolower(name) == "hiop");
+      nlp_solver = new HiopSolver(this);
+      nlp_solver->initialize();
+    }
   }
 }
 

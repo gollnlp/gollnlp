@@ -34,6 +34,7 @@ namespace gollnlp {
     }
 
     add_variables(data_sc);
+    add_cons_pf(data_sc);
 
     return true;
   }

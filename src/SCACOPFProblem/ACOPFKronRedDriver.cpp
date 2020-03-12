@@ -40,8 +40,8 @@ int main(int argc, char *argv[])
     prob.assemble();
 
     
-    //prob.use_nlp_solver("ipopt");
-    //bool bret = prob.optimize("ipopt");
+    prob.use_nlp_solver("ipopt");
+    bool bret = prob.optimize("ipopt");
     //if(!bret) retcode=-3;
 
   } else {
