@@ -1,5 +1,6 @@
 add_executable(test_scacopfdata.exe SCACOPFData_test.cpp)
-target_link_libraries(test_scacopfdata.exe gollnlp ipopt coinhsl coinmetis ${GOLLNLP_LIBS_EXTRA} ${OpenMP_CXX_LIBRARIES} ${LAPACK_LIBRARIES})
+target_link_libraries(test_scacopfdata.exe gollnlp ipopt coinhsl coinmetis 
+                      ${HIOP_LIB} ${GOLLNLP_LIBS_EXTRA} ${OpenMP_CXX_LIBRARIES} ${LAPACK_LIBRARIES})
 
 add_library(goSCACOPF OBJECT 
 		      SCACOPFData.cpp go_code1.cpp go_code2.cpp 

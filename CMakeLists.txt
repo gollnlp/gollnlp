@@ -79,16 +79,16 @@ set_target_properties(coinhsl PROPERTIES IMPORTED_LOCATION "${IPOPT_DIR}/lib/lib
 add_library(ipopt STATIC IMPORTED GLOBAL)
 set_target_properties(ipopt PROPERTIES IMPORTED_LOCATION "${IPOPT_DIR}/lib/libipopt.a")
 
-if(GOLLNLP_WITH_KRON_REDUCTION)
-  #warn if HiOp is not present
-  find_library(HIOP_LIB NAMES hiop HINTS "${HIOP_DIR}/lib")
-  if(HIOP_LIB)
-    include_directories("${HIOP_DIR}/include")
-    message("Using HiOp include '${HIOP_DIR}/include' and lib '${HIOP_LIB}'")
-  else()
-    message(FATAL_ERROR "Could not find HiOp library needed by kron reduction. Please cmake with '-DHIOP_DIR=/path/to/hiop_dist_dir'; currently HIOP_DIR='${HIOP_DIR}'")
-  endif(HIOP_LIB)
+#warn if HiOp is not present
+find_library(HIOP_LIB NAMES hiop HINTS "${HIOP_DIR}/lib")
+if(HIOP_LIB)
+  include_directories("${HIOP_DIR}/include")
+  message("Using HiOp include '${HIOP_DIR}/include' and lib '${HIOP_LIB}'")
+else()
+  message(FATAL_ERROR "Could not find HiOp library needed by kron reduction. Please cmake with '-DHIOP_DIR=/path/to/hiop_dist_dir'; currently HIOP_DIR='${HIOP_DIR}'")
+endif(HIOP_LIB)
 
+if(GOLLNLP_WITH_KRON_REDUCTION)
   #ma86
   find_library(MA86_LIB NAMES hsl_ma86 ma86 HINTS ${MA86_DIR} "${MA86_DIR}/lib" )
   if(MA86_LIB)
@@ -123,10 +123,14 @@ add_library(gollnlp STATIC $<TARGET_OBJECTS:goSCACOPF> $<TARGET_OBJECTS:goUtils>
 
 message(${GOLLNLP_LIBS_EXTRA})
 add_executable(MyExe1 MyCpp1.cpp)
-target_link_libraries(MyExe1 gollnlp ipopt coinhsl coinmetis ${GOLLNLP_LIBS_EXTRA} ${OpenMP_CXX_LIBRARIES} ${LAPACK_LIBRARIES})
+target_link_libraries(MyExe1 gollnlp ipopt coinhsl coinmetis 
+                      ${HIOP_LIB} ${GOLLNLP_LIBS_EXTRA} 
+		      ${OpenMP_CXX_LIBRARIES} ${LAPACK_LIBRARIES})
 
 add_executable(MyExe2 MyCpp2.cpp)
-target_link_libraries(MyExe2 gollnlp ipopt coinhsl coinmetis ${GOLLNLP_LIBS_EXTRA} ${OpenMP_CXX_LIBRARIES} ${LAPACK_LIBRARIES})
+target_link_libraries(MyExe2 gollnlp ipopt coinhsl coinmetis 
+                      ${HIOP_LIB} ${GOLLNLP_LIBS_EXTRA} 
+		      ${OpenMP_CXX_LIBRARIES} ${LAPACK_LIBRARIES})
 
 ##########################################################
 # CMake Tests
