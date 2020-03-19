@@ -63,6 +63,8 @@ public:
 
   bool eval_f(const long long& n, const double* x, bool new_x, double& obj_value)
   {
+    assert(prob->get_num_variables() == n);
+    return prob->eval_obj(x, new_x, obj_value);
     return true;
   }
 
@@ -70,11 +72,14 @@ public:
 		 const long long& num_cons, const long long* idx_cons,  
 		 const double* x, bool new_x, double* cons)
   {
-    return true;
+    if(num_cons==0) return true;
+    assert(num_cons==n);
+    return prob->eval_cons(x, new_x, cons);
   }
 
   bool eval_grad_f(const long long& n, const double* x, bool new_x, double* gradf)
   {
+    return prob->eval_gradobj(x, new_x, gradf);
     return true;
   }
 
