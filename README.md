@@ -28,5 +28,5 @@ To build with support for kron reduction
 
 ```shell
 $> export IPOPT_PATH=/home/petra1/work/projects/gocompet/Ipopt-gollnlp/build
-$> rm -rf *; cmake -DGOLLNLP_WITH_KRON_REDUCTION=ON -DME57_DIR=/home/petra1/work/installs/hsl_me57-1.1.0 -DHIOP_DIR=/home/petra1/work/projects/hiop/_dist-default-build .. && make -j
+$> rm -rf *; cmake -DGOLLNLP_WITH_KRON_REDUCTION=ON  -DHIOP_DIR=/Users/petra1/work/projects/hiop/_dist-DEBUG/ -DMA86_DIR=/Users/petra1/work/installs/hsl_ma86-1.6.0/_install .. && make -j
 ```
