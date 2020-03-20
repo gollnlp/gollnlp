@@ -13,7 +13,7 @@ namespace gollnlp {
 					   const hiop::hiopMatrixComplexDense& Ybus_red_,
 					   const std::vector<double>& N_Pd_full_space_)
     : OptConstraintsBlock(id_, numcons), p_g(p_g_), v_n(v_n_), theta_n(theta_n_),
-      bus_nonaux_idxs(bus_nonaux_idxs_), Gn_fs(Gn_full_space_), Ybus_red(Ybus_red), 
+      bus_nonaux_idxs(bus_nonaux_idxs_), Gn_fs(Gn_full_space_), Ybus_red(Ybus_red_), 
       J_nz_idxs(NULL), H_nz_idxs(NULL)
   {
     assert(numcons==bus_nonaux_idxs_.size());
