@@ -37,7 +37,7 @@ if(GOLLNLP_USE_MPI)
 endif(GOLLNLP_USE_MPI)
 
 # libdl not found on Ubuntu (?!?)
-set(GOLLNLP_LIBS_EXTRA "-l${CMAKE_DL_LIBS}")
+#! set(GOLLNLP_LIBS_EXTRA "-l${CMAKE_DL_LIBS} ")
 
 find_package(OpenMP)
 message("OpenMP libraries: ${OpenMP_CXX_LIBRARIES}")
@@ -45,10 +45,11 @@ message("OpenMP libraries: ${OpenMP_CXX_LIBRARIES}")
 if(${CMAKE_Fortran_COMPILER_ID} STREQUAL "Intel")
   set(FORTRAN_LIB "-lifcore")	
   else()
-    set(FORTRAN_LIB "-lgfortran")
+    #!set(FORTRAN_LIB "-lgfortran")
+    set(FORTRAN_LIB "-L/usr/local/gfortran/lib -lgfortran")
 endif(${CMAKE_Fortran_COMPILER_ID} STREQUAL "Intel")
 message("Using Fortran library flag ${FORTRAN_LIB}")
-set(GOLLNLP_LIBS_EXTRA "${GOLLNLP_LIBS_EXTRA} ${FORTRAN_LIB}")
+set(GOLLNLP_LIBS_EXTRA "${GOLLNLP_LIBS_EXTRA}${FORTRAN_LIB}")
 
 if(GOLLNLP_FAULT_HANDLING)
   add_definitions(-DGOLLNLP_FAULT_HANDLING)
@@ -66,7 +67,8 @@ message("LAPACK/BLAS libs: ${LAPACK_LIBRARIES}")
 set(IPOPT_DIR $ENV{IPOPT_PATH} CACHE PATH "path to ipopt directory")
 message("Using Ipopt dir ${IPOPT_DIR}")
 include_directories("${IPOPT_DIR}/include/coin")
-#link_directories("${IPOPT_DIR}/lib")
+#!link_directories("${IPOPT_DIR}/lib")
+link_directories("${IPOPT_DIR}/lib")
 #set (CMAKE_SHARED_LINKER_FLAGS "${CMAKE_SHARED_LINKER_FLAGS} -Wl,--rpath -Wl,${IPOPT_DIR}/lib")
 #set(IPOPT_LIBS "-lgfortran -lipopt -lm  -ldl")
 
@@ -89,13 +91,36 @@ else()
 endif(HIOP_LIB)
 
 if(GOLLNLP_WITH_KRON_REDUCTION)
-  #ma86
-  find_library(MA86_LIB NAMES hsl_ma86 ma86 HINTS ${MA86_DIR} "${MA86_DIR}/lib" )
-  if(MA86_LIB)
-    message("Using HSL MA86 lib '${MA86_LIB}'")
+  find_library(UMFPACK_LIB NAMES umfpack HINTS ${UMFPACK_DIR} "${UMFPACK_DIR}/lib" )
+  if(UMFPACK_LIB)
+    message("Using UMFPACK lib '${UMFPACK_LIB}'")
+
+    find_path(UMFPACK_INCL NAMES "umfpack.h" HINTS ${UMFPACK_DIR} "${UMFPACK_DIR}/include")
+    if(UMFPACK_INCL)
+      include_directories(${UMFPACK_INCL})
+      message("Using UMFPACK include '${UMFPACK_INCL}'")
+    else() 
+      message(FATAL_ERROR "Could not find UMFPACK header needed by the kron reduction. Please cmake with '-DUMFPACK_DIR=/path/to/umfpack_dir'; currently, UMFPACK_DIR='${UMFPACK_DIR}'")
+    endif(UMFPACK_INCL)
   else()
-    message(FATAL_ERROR "Could not find HSL MA86 needed by kron reduction. Please cmake with '-DMA86_DIR=/path/to/ma86_dir'; currently, MA86_DIR='${MA86_DIR}'")
-  endif(MA86_LIB)
+    message(FATAL_ERROR "Could not find UMFPACK needed by the kron reduction. Please cmake with '-DUMFPACK_DIR=/path/to/umfpack_dir'; currently, UMFPACK_DIR='${UMFPACK_DIR}'")
+  endif(UMFPACK_LIB)
+
+  # metis needed (5.x needed by umfpack)
+  #find_library(METIS_LIB NAMES metis HINTS ${METIS_DIR} "${METIS_DIR}/lib" "${METIS_DIR}/src/")
+  #if(METIS_LIB)
+  #  message("Using METIS lib '${METIS_LIB}'")
+  #else()
+  #  message(FATAL_ERROR "Could not find METIS lib needed by UMFPACK. Please cmake with '-DMETIS_DIR=/path/to/metis/lib'; currently, METIS_DIR='${METIS_DIR}'")
+  #endif(METIS_LIB)
+
+  #ma86
+  #find_library(MA86_LIB NAMES hsl_ma86 ma86 HINTS ${MA86_DIR} "${MA86_DIR}/lib" )
+  #if(MA86_LIB)
+  #  message("Using HSL MA86 lib '${MA86_LIB}'")
+  #else()
+  #  message(FATAL_ERROR "Could not find HSL MA86 needed by kron reduction. Please cmake with '-DMA86_DIR=/path/to/ma86_dir'; currently, MA86_DIR='${MA86_DIR}'")
+  #endif(MA86_LIB)
 endif(GOLLNLP_WITH_KRON_REDUCTION)
 
 # include build directory for Fortran name mangling header
@@ -121,7 +146,7 @@ add_library(gollnlp STATIC $<TARGET_OBJECTS:goSCACOPF> $<TARGET_OBJECTS:goUtils>
 # competition executables
 #########################################################
 
-message(${GOLLNLP_LIBS_EXTRA})
+#message(${GOLLNLP_LIBS_EXTRA})
 add_executable(MyExe1 MyCpp1.cpp)
 target_link_libraries(MyExe1 gollnlp ipopt coinhsl coinmetis 
                       ${HIOP_LIB} ${GOLLNLP_LIBS_EXTRA} 
