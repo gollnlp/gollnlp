@@ -172,17 +172,17 @@ namespace gollnlp {
     const int& N = data_sc.N_Bus.size();
 
     int nnz=N;
-    // go over (L_Nidx1, L_Nidx2) and increase nnz when idx1>idx2
+    // go over (L_Nidx1, L_Nidx2) and count nnz 
     assert(data_sc.L_Nidx[0].size() == data_sc.L_Nidx[1].size());
     for(int it=0; it<data_sc.L_Nidx[0].size(); it++) {
       if(data_sc.L_Nidx[0][it]!=data_sc.L_Nidx[1][it]) 
-	nnz++;
+	nnz+=2;
     }
     //same for transformers
     assert(data_sc.T_Nidx[0].size() == data_sc.T_Nidx[1].size());
     for(int it=0; it<data_sc.T_Nidx[0].size(); it++) {
       if(data_sc.T_Nidx[0][it]!=data_sc.T_Nidx[1][it]) 
-	nnz++;
+	nnz+=2;
     }
 
     //alocate Matrix
@@ -216,12 +216,21 @@ namespace gollnlp {
 	M[Nidxto] += res;
 
       }
-      //M[i,j] -= ye
+      //M[i,j] -= ye  and M[j,i] -= ye
       assert(Nidxfrom!=Nidxto);
       //if(Nidxfrom>Nidxto) 
       {
-	Ji[nnz_count] = std::max(Nidxfrom, Nidxto);
-	Ii[nnz_count] = std::min(Nidxfrom, Nidxto);
+	//Ji[nnz_count] = std::max(Nidxfrom, Nidxto);
+	//Ii[nnz_count] = std::min(Nidxfrom, Nidxto);
+	//M [nnz_count] = -ye;
+
+	Ji[nnz_count] = Nidxfrom;
+	Ii[nnz_count] = Nidxto;
+	M [nnz_count] = -ye;
+	nnz_count++;
+
+	Ji[nnz_count] = Nidxto;
+	Ii[nnz_count] = Nidxfrom;
 	M [nnz_count] = -ye;
 	nnz_count++;
       }
@@ -241,11 +250,20 @@ namespace gollnlp {
       assert(Nidxfrom!=Nidxto);
       //if(Nidxfrom>Nidxto) 
       {
-	Ji[nnz_count] = std::max(Nidxfrom, Nidxto);
-	Ii[nnz_count] = std::min(Nidxfrom, Nidxto);
+	//Ji[nnz_count] = std::max(Nidxfrom, Nidxto);
+	//Ii[nnz_count] = std::min(Nidxfrom, Nidxto);
+	//M[nnz_count] = -yf/tauf;
+
+	Ji[nnz_count] = Nidxfrom;
+	Ii[nnz_count] = Nidxto;
 	M[nnz_count] = -yf/tauf;
 	nnz_count++;
-      }
+
+      	Ji[nnz_count] = Nidxto;
+	Ii[nnz_count] = Nidxfrom;
+	M[nnz_count] = -yf/tauf;
+	nnz_count++;
+}
     }
     assert(nnz_count==nnz);
     Ybus->storage()->sort_indexes();
