@@ -12,7 +12,12 @@ using namespace gollnlp;
 
 /*
 INST_DIR=/home/petra1/work/projects/gocompet/goinstances/trial1/T1S3_Offline/Network_01O-3; 
-CON=$INST_DIR/scenario_1/case.con; INL=$INST_DIR/case.inl; RAW=$INST_DIR/scenario_1/case.raw; ROP=$INST_DIR/case.rop
+CON=$INST_DIR/scenario_1/case.con; INL=$INST_DIR/case.inl; RAW=$INST_DIR/scenario_1/case.raw; ROP=$INST_DIR/case.rop;
+./src/SCACOPFProblem/acopf_kron_driver.exe $CON $INL $RAW $ROP
+
+# on mac
+export INST_DIR=/Users/petra1/work/projects/kron_gitlab_pnnl/hiop-framework/instances/Network_01R-3/;
+CON=$INST_DIR/scenario_1/case.con; INL=$INST_DIR/case.inl; RAW=$INST_DIR/scenario_1/case.raw; ROP=$INST_DIR/case.rop;
 ./src/SCACOPFProblem/acopf_kron_driver.exe $CON $INL $RAW $ROP
 */
 
