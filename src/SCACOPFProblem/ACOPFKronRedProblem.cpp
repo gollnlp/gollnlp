@@ -26,7 +26,7 @@ namespace gollnlp {
 
     if(Ybus_red) delete Ybus_red;
 
-    Ybus_red = new hiopMatrixComplexDense(idxs_buses_nonaux.size(),idxs_buses_aux.size());
+    Ybus_red = new hiopMatrixComplexDense(idxs_buses_nonaux.size(),idxs_buses_nonaux.size());
 
     hiopKronReduction reduction;
     if(!reduction.go(idxs_buses_nonaux, idxs_buses_aux, *YBus_, *Ybus_red)) {
