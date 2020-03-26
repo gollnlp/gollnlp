@@ -33,17 +33,24 @@ namespace gollnlp {
       return false;
     }
 
+    if(Ybus_red->assertSymmetry(1e-12))
+      printf("!!!!! matrix is symmetric\n");
+    else
+      printf("!!!!! matrix is NOT symmetric\n");
+    
     add_variables(data_sc);
     add_cons_pf(data_sc);
 
+    print_summary();
+    
     return true;
   }
   
   void ACOPFKronRedProblem::add_variables(SCACOPFData& d, bool SysCond_BaseCase/* = true*/)
   {
     { //voltages
-      vector<double>& vlb = SysCond_BaseCase==true ?  data_sc.N_Vlb : data_sc.N_EVlb;
-      vector<double>& vub = SysCond_BaseCase==true ?  data_sc.N_Vub : data_sc.N_EVub;
+      vector<double>& vlb = SysCond_BaseCase==true ? data_sc.N_Vlb : data_sc.N_EVlb;
+      vector<double>& vub = SysCond_BaseCase==true ? data_sc.N_Vub : data_sc.N_EVub;
       
       vector<double> vlb_na, vub_na, v0_na;
       selectfrom(vlb, idxs_buses_nonaux, vlb_na);
@@ -56,7 +63,7 @@ namespace gollnlp {
     }
 
     { //theta
-      auto theta_n = new OptVariablesBlock(idxs_buses_nonaux.size(), var_name("v_n",d));
+      auto theta_n = new OptVariablesBlock(idxs_buses_nonaux.size(), var_name("theta_n",d));
       append_variables(theta_n);
       
       vector<double> theta0_n;
@@ -64,7 +71,7 @@ namespace gollnlp {
       theta_n->set_start_to(theta0_n.data());
 
       int RefBusIdx = data_sc.bus_with_largest_gen(), RefBusIdx_nonaux;
-      auto it = std::find(idxs_buses_nonaux.begin(),  idxs_buses_nonaux.end(), RefBusIdx);
+      auto it = std::find(idxs_buses_nonaux.begin(), idxs_buses_nonaux.end(), RefBusIdx);
       if(it==idxs_buses_nonaux.end()) {
 	assert(false && "check this");
 	RefBusIdx_nonaux=0;
@@ -88,14 +95,12 @@ namespace gollnlp {
     }
 
     { //b_s
-      vector<double> lb, ub, x0;
-      selectfrom(data_sc.SSh_Blb, idxs_buses_nonaux, lb);
-      selectfrom(data_sc.SSh_Bub, idxs_buses_nonaux, ub);
-
-      auto b_s = new OptVariablesBlock(idxs_buses_nonaux.size(), var_name("b_s",d), lb.data(), ub.data());
-
-      selectfrom(data_sc.SSh_B0, idxs_buses_nonaux, x0);
-      b_s->set_start_to(x0.data());
+      
+      auto b_s = new OptVariablesBlock(data_sc.SSh_Blb.size(),
+				       var_name("b_s",d),
+				       data_sc.SSh_Blb.data(),
+				       data_sc.SSh_Bub.data());
+      b_s->set_start_to(data_sc.SSh_B0.data());
 
       append_variables(b_s);
     }
