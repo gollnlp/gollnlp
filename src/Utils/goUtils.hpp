@@ -230,7 +230,8 @@ template<class T> std::vector<T> selectfrom(const T* v, int v_size, const std::v
   return ret;
 }
 
-template<class T> void selectfrom(const std::vector<T>& vsrc, const std::vector<int>& idxs, std::vector<T>& vdest)
+template<class T> void selectfrom(const std::vector<T>& vsrc, const std::vector<int>& idxs,
+				  std::vector<T>& vdest)
 {
   vdest.clear();
   for(auto& keep: idxs) {
