@@ -180,6 +180,31 @@ int OptProblem::get_nnzJaccons()
   return nnz_Jac;
 }
 
+int OptProblem::get_num_variables_sparse() const
+{
+  int nsparse=0;
+  for(auto& var_block: vars_primal->vblocks)
+    if(var_block->areVarsSparse)
+      nsparse += var_block->n;
+  return nsparse;
+}
+int OptProblem::get_num_variables_dense() const
+{
+  int ndense=0;
+  for(auto& var_block: vars_primal->vblocks)
+    if(false==var_block->areVarsSparse)
+      ndense += var_block->n;
+  return ndense;
+}
+bool OptProblem::get_num_variables_dense_sparse(int& ndense, int& nsparse) const
+{
+  for(auto& var_block: vars_primal->vblocks)
+    if(var_block->areVarsSparse)
+      nsparse += var_block->n;
+    else
+      ndense += var_block->n;
+  return true;
+}
 // we assume that eval_Jaccons is called after get_nnzJaccons
 bool OptProblem::eval_Jaccons(const double* x, bool new_x, const int& nnz, int* i, int* j, double* M)
 {
@@ -403,7 +428,6 @@ void OptProblem::set_primal_vars(const double* x)
 
 void OptProblem::fill_vars_lower_bounds(double* lb)
 {
-  
   for(auto b: vars_primal->vblocks) {
     //cout << "----fill_vars_lower_bounds: " << b->id << endl;
     // if(b->id == "pslack_n_p_balance_1") {
@@ -898,7 +922,8 @@ void OptVariables::delete_block(const std::string& id)
 }
 
 OptVariablesBlock::OptVariablesBlock(const int& n_, const std::string& id_)
-  : n(n_), id(id_), index(-1), xref(NULL), providesStartingPoint(false)
+  : n(n_), id(id_), index(-1), xref(NULL),
+    providesStartingPoint(false), areVarsSparse(true)
 {
   assert(n>=0);
   int i;
@@ -913,7 +938,7 @@ OptVariablesBlock::OptVariablesBlock(const int& n_, const std::string& id_)
 }
 
 OptVariablesBlock::OptVariablesBlock(const int& n_, const std::string& id_, double* lb_, double* ub_)
-  : n(n_), id(id_), index(-1), xref(NULL), providesStartingPoint(false)
+  : n(n_), id(id_), index(-1), xref(NULL), providesStartingPoint(false), areVarsSparse(true)
 {
   assert(n>=0);
 
@@ -933,7 +958,7 @@ OptVariablesBlock::OptVariablesBlock(const int& n_, const std::string& id_, doub
     for(i=0; i<n; i++) ub[i] = +1e+20;
 }
 OptVariablesBlock::OptVariablesBlock(const int& n_, const std::string& id_, double lb_, double ub_)
-  : n(n_), id(id_), index(-1), xref(NULL), providesStartingPoint(false)
+  : n(n_), id(id_), index(-1), xref(NULL), providesStartingPoint(false), areVarsSparse(true)
 {
   assert(n>=0);
 

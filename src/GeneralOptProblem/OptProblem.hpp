@@ -37,9 +37,9 @@ public:
   void inline set_xref_to_x() { xref=x; }
   //number of vars in the block
   int n; 
-  // index at which the block starts within OptVariables
+  //index at which the block starts within OptVariables
   int index;
-  // identifier, unique within OptVariables; is maintained by OptVariables
+  //identifier, unique within OptVariables; is maintained by OptVariables
   std::string id; 
   //array that holds the solution; maintained by this class
   double* x;
@@ -48,8 +48,12 @@ public:
   //pointer/reference to the first elem in NLP solver's "x" that corresponds to this block
   //handled by attach_to
   const double* xref;
+  //starting point provided?
   bool providesStartingPoint;
-
+  //dense or sparse variables. All variables in a block have the same type.
+  //Sparse is the default.
+  bool areVarsSparse;
+  
   inline OptVariablesBlock* new_copy() 
   {
     auto b = new OptVariablesBlock(n, id, lb, ub);
@@ -248,7 +252,7 @@ public:
   // Note 1: for MDS problems, these methods are only called for the sparse part of 
   // the derivative
   // Note 2: for MDS problems, 'get_HessLagr_nnz' is called for the sparse (1,1)
-  // block. TODO: addtl methods may be needed for the other sparse blocks
+  // block. TODO: addtl methods may be needed for the other sparse block, i.e. (2,1)
   virtual int get_HessLagr_nnz() { return 0; }
   virtual int get_Jacob_nnz() = 0; 
 
@@ -385,6 +389,13 @@ public:
 
   inline int get_num_constraints() const { return cons->m(); }
   inline int get_num_variables() const { return vars_primal->n(); }
+
+  int get_num_variables_sparse() const;
+  int get_num_variables_dense() const;
+  bool get_num_variables_dense_sparse(int& ndense, int& nsparse) const;
+  
+  int get_nnzJaccons();
+  int get_nnzHessLagr();
 public:
   inline OptVariables* primal_variables() { return vars_primal; }
   inline OptVariables* duals_bounds_lower() { return vars_duals_bounds_L; }
@@ -579,12 +590,6 @@ public:
   virtual OptVariables* new_duals_cons();
   virtual OptVariables* new_duals_lower_bounds();
   virtual OptVariables* new_duals_upper_bounds();
-
-  //OptVariables* new_copy_of_primal_vars();
-  
-  int get_nnzJaccons();
-  int get_nnzHessLagr();
-
 
 public:
   //utilities
