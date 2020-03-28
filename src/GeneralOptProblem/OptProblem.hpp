@@ -180,8 +180,14 @@ private:
   OptSparseEntry() {};
 };
 
-class OptObjectiveEvaluator {
+// holds one objective term to be minimized
+class OptObjectiveTerm {
 public:
+  OptObjectiveTerm(const std::string& id_) : id(id_) {};
+  virtual ~OptObjectiveTerm() {};
+  int index;
+  std::string id;
+
   // all these functions 
   //  - should add their contribution to the result (obj_val, grad, or M)
   //  - return false if an error occurs in the evaluation
@@ -192,11 +198,11 @@ public:
 			     const int& nnz, int* i, int* j, double* M)
   { return true; }
   virtual bool eval_HessLagr(const OptVariables& x, bool new_x, 
-			     const double& obj_factor,
-			     const int& nxsparse, const int& nxdense, 
-			     const int& nnzHSS, int* iHSS, int* jHSS, double* MHSS, 
-			     double** HDD,
-			     int& nnzHSD, int* iHSD, int* jHSD, double* MHSD)
+			       const double& obj_factor,
+			       const int& nxsparse, const int& nxdense, 
+			       const int& nnzHSS, int* iHSS, int* jHSS, double* MHSS, 
+			       double** HDD,
+			       int& nnzHSD, int* iHSD, int* jHSD, double* MHSD)
   { return false; }
 
   // methods that need to be implemented to specify the sparsity pattern of the 
@@ -209,9 +215,55 @@ public:
   virtual bool get_HessLagr_ij(std::vector<OptSparseEntry>& vij) { return true; }
 };
 
-class OptConstraintsEvaluator {
+///////////////////////////////////////////////////////////////
+//OptConstraintsBlock
+///////////////////////////////////////////////////////////////
+class OptConstraintsBlock {
 public:
-  // all these functions 
+  OptConstraintsBlock(const std::string& id_, int num) 
+    : n(num), index(-1), id(id_), lb(NULL), ub(NULL)
+  {
+    if(n>0) {
+      lb = new double[n];
+      ub = new double[n];
+    }
+  }
+  virtual ~OptConstraintsBlock() 
+  {
+    delete[] lb;
+    delete[] ub;
+  };
+
+  // Some constraints create additional variables (e.g., slacks).
+  // This method is called by OptProblem (in 'append_constraints') to get and add
+  // the additional variables block that OptConstraintsBlock may need to add.
+  // NULL should be returned when the OptConstraintsBlock need not create a vars block
+  virtual OptVariablesBlock* create_varsblock() { return NULL; }
+  
+  // Use the following method when the constraints blocks needs to create multiple 
+  // variables (e.g., introduce multiple and/or different types of slacks).
+  // Both create_XXX_varsblock(s) methods can be implemented to return 
+  // non-null/empty variable blocks.
+  virtual std::vector<OptVariablesBlock*> create_multiple_varsblocks()
+  {
+    return std::vector<OptVariablesBlock*>();
+  }
+
+  //same as above. OptProblem calls this (in 'append_constraints') to add an objective 
+  //term (e.g., penalization) that OptConstraintsBlock may need
+  virtual OptObjectiveTerm* create_objterm() { return NULL; }
+
+public: 
+  // number of constraints
+  int n;
+  //index where the block starts in the constraints
+  int index;
+  // identifier - 
+  std::string id;
+
+  double *lb, *ub;
+
+    // all these functions 
   //  - should add their contribution to the output
   //  - return false if an error occurs in the evaluation
   //Notes 
@@ -266,65 +318,10 @@ public:
   virtual bool get_Jacob_ij(std::vector<OptSparseEntry>& vij) = 0; 
 };
 
-// holds one objective terms to be minimized
-class OptObjectiveTerm : public OptObjectiveEvaluator {
-public:
-  OptObjectiveTerm(const std::string& id_) : id(id_) {};
-  virtual ~OptObjectiveTerm() {};
-  int index;
-  std::string id;
-};
-
-///////////////////////////////////////////////////////////////
-//OptConstraintsBlock
-///////////////////////////////////////////////////////////////
-class OptConstraintsBlock : public OptConstraintsEvaluator {
-public:
-  OptConstraintsBlock(const std::string& id_, int num) 
-    : n(num), index(-1), id(id_), lb(NULL), ub(NULL)
-  {
-    if(n>0) {
-      lb = new double[n];
-      ub = new double[n];
-    }
-  }
-  virtual ~OptConstraintsBlock() 
-  {
-    delete[] lb;
-    delete[] ub;
-  };
-
-  // Some constraints create additional variables (e.g., slacks).
-  // This method is called by OptProblem (in 'append_constraints') to get and add
-  // the additional variables block that OptConstraintsBlock may need to add.
-  // NULL should be returned when the OptConstraintsBlock need not create a vars block
-  virtual OptVariablesBlock* create_varsblock() { return NULL; }
-  // Use the following method when the constraints blocks needs to create multiple 
-  // variables (e.g., introduce multiple and/or different types of slacks).
-  // Both create_XXX_varsblock(s) methods can be implemented to return 
-  // non-null/empty variable blocks.
-  virtual std::vector<OptVariablesBlock*> create_multiple_varsblocks() { return std::vector<OptVariablesBlock*>(); }
-
-  //same as above. OptProblem calls this (in 'append_constraints') to add an objective 
-  //term (e.g., penalization) that OptConstraintsBlock may need
-  virtual OptObjectiveTerm* create_objterm() { return NULL; }
-
-public: 
-  // number of constraints
-  int n;
-  //index where the block starts in the constraints
-  int index;
-  // identifier - 
-  std::string id;
-
-  double *lb, *ub;
-};
-
 //////////////////////////////////////////////////////
 // OptObjective
 //
 // A collection of (summable) OptObjTerms
-// This class needs NOT be specialized/derived.
 //////////////////////////////////////////////////////
 class OptObjective {
 public:
@@ -340,7 +337,7 @@ public:
     return NULL;
   }
   friend class OptProblem;
-private:
+protected:
   // appends a new obj term and sets his 'index'
   bool append_objterm(OptObjectiveTerm* term);
   // "list" of pointers to terms
@@ -369,7 +366,7 @@ class OptConstraints
   void delete_block(const std::string& id);
 
   friend class OptProblem;
-private:
+protected:
   // appends a new constraints block and sets his 'index'
   bool append_consblock(OptConstraintsBlock* b);
   // "list" of pointers to blocks
@@ -424,8 +421,10 @@ public:
   inline void append_duals_constraint(const std::string& constraint_id)
   {
     OptConstraintsBlock* con_block = constraints_block(constraint_id); assert(con_block);
-    if(con_block) 
-      vars_duals_cons->append_varsblock(new OptVariablesBlock(con_block->n, std::string("duals_") + con_block->id));
+    if(con_block) {
+      std::string strVarName = std::string("duals_") + con_block->id;
+      vars_duals_cons->append_varsblock(new OptVariablesBlock(con_block->n, strVarName));
+    }
   }
 
   inline OptConstraintsBlock* constraints_block(const std::string& id)
@@ -434,14 +433,6 @@ public:
   }
   inline OptVariablesBlock* vars_block(const std::string& id)
   {
-//     auto it = vars_primal->mblocks.find(id);
-//     if(it != vars_primal->mblocks.end())
-//       return it->second;
-// #ifdef DEBUG
-//     printf("inquiry for vars_block '%s' failed.\n", id.c_str());
-//     assert(false);
-// #endif    
-//     return NULL;
     return vars_primal->vars_block(id, "vars_primal");
   }
   inline OptVariablesBlock* vars_block_duals_bounds_lower(const std::string& id)
@@ -475,6 +466,7 @@ public:
   // optimization and NLP solver related stuff
   //
   virtual void use_nlp_solver(const std::string& name);
+  
   //these setters return false if the option is not recognized by the NLP solver
   virtual bool set_solver_option(const std::string& name, int value);
   virtual bool set_solver_option(const std::string& name, double value);
