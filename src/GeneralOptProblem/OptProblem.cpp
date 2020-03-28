@@ -1,6 +1,5 @@
 #include "OptProblem.hpp"
 #include "IpoptSolver.hpp"
-#include "HiopSolver.hpp"
 #include <iostream>
 
 #include "blasdefs.hpp"
@@ -180,31 +179,6 @@ int OptProblem::get_nnzJaccons()
   return nnz_Jac;
 }
 
-int OptProblem::get_num_variables_sparse() const
-{
-  int nsparse=0;
-  for(auto& var_block: vars_primal->vblocks)
-    if(var_block->areVarsSparse)
-      nsparse += var_block->n;
-  return nsparse;
-}
-int OptProblem::get_num_variables_dense() const
-{
-  int ndense=0;
-  for(auto& var_block: vars_primal->vblocks)
-    if(false==var_block->areVarsSparse)
-      ndense += var_block->n;
-  return ndense;
-}
-bool OptProblem::get_num_variables_dense_sparse(int& ndense, int& nsparse) const
-{
-  for(auto& var_block: vars_primal->vblocks)
-    if(var_block->areVarsSparse)
-      nsparse += var_block->n;
-    else
-      ndense += var_block->n;
-  return true;
-}
 // we assume that eval_Jaccons is called after get_nnzJaccons
 bool OptProblem::eval_Jaccons(const double* x, bool new_x, const int& nnz, int* i, int* j, double* M)
 {
@@ -231,34 +205,6 @@ bool OptProblem::eval_Jaccons(const double* x, bool new_x, const int& nnz, int* 
   return true;
 }
 
-bool OptProblem::eval_Jaccons(const double* x, bool new_x, 
-			      const int& nxsparse, const int& nxdense,
-			      const int& nnzJacS, int* iJacS, int* jJacS, double* MJacS, 
-			      double** JacD)
-{
-  if(new_x) {
-    new_x_fgradf=true;
-    vars_primal->attach_to(x);
-  }
-  if(MJacS==NULL) {
-    for(auto& con: cons->vblocks) {
-      if(!con->eval_Jac(*vars_primal, new_x, nxsparse, nxdense, nnzJacS, iJacS, jJacS, MJacS, JacD)) {
-	assert(false && "eval_Jaccons should be called after get_nnzJaccons");
-      }
-    }
-    return true;
-  }
-
-  // case of M!=NULL > just fill in the values
-  //for(int i=0; i<nnz; i++) M[i]=0.;
-  for(auto& con: cons->vblocks) {
-    if(!con->eval_Jac(*vars_primal, new_x, nxsparse, nxdense, nnzJacS, iJacS, jJacS, MJacS, JacD))
-      return false;
-  }
-  return true;
-}
-
-
 #ifdef DEBUG
 static bool check_is_upper(const vector<OptSparseEntry>& ij)
 {
@@ -276,7 +222,8 @@ int OptProblem::get_nnzHessLagr()
       ot->get_HessLagr_ij(ij_Hess);
 #ifdef DEBUG
       if(false==check_is_upper(ij_Hess)) {
-	printf("[Warning] Objective term %s returned nonzero elements in the lower triangular part of the Hessian.", ot->id.c_str());
+	printf("[Warning] Objective term %s returned nonzero elements in the lower triangular "
+	       "part of the Hessian.", ot->id.c_str());
 	//assert(false);
       }
 #endif
@@ -285,7 +232,8 @@ int OptProblem::get_nnzHessLagr()
       con->get_HessLagr_ij(ij_Hess);
 #ifdef DEBUG
       if(false==check_is_upper(ij_Hess)) {
-	printf("[Warning] Constraint term %s returned nonzero elements in the lower triangular part of the Hessian.", con->id.c_str());
+	printf("[Warning] Constraint term %s returned nonzero elements in the lower triangular "
+	       "part of the Hessian.", con->id.c_str());
 	//assert(false);
       }
 #endif      
@@ -338,62 +286,8 @@ bool OptProblem::eval_HessLagr(const double* x, bool new_x,
   }
   return true;
 }
-bool OptProblem::eval_HessLagr(const double* x, bool new_x, 
-			       const double& obj_factor, 
-			       const double* lambda, bool new_lambda, 
-			       const int& nxsparse, const int& nxdense, 
-			       const int& nnzHSS, int* iHSS, int* jHSS, double* MHSS, 
-			       double** HDD,
-			       int& nnzHSD, int* iHSD, int* jHSD, double* MHSD)
-{
-  if(new_x) {
-    new_x_fgradf=true; 
-    vars_primal->attach_to(x);
-  }
-  if(new_lambda) vars_duals_cons->attach_to(lambda);
-
-  if(NULL==MHSS) {
-    for(auto& ot: obj->vterms) {
-      if(!ot->eval_HessLagr(*vars_primal, new_x, obj_factor, 
-			    nxsparse, nxdense,
-			    nnzHSS, iHSS, jHSS, MHSS,
-			    HDD,
-			    nnzHSD, iHSD, jHSD, MHSD)) {
-	assert(false && "eval_HessLagr should be called after get_nnzHessLagr");
-      }
-    }
-    for(auto& con: cons->vblocks) {
-      if(!con->eval_HessLagr(*vars_primal, new_x, *vars_duals_cons, new_lambda, 
-			     nxsparse, nxdense,
-			     nnzHSS, iHSS, jHSS, MHSS,
-			     HDD,
-			     nnzHSD, iHSD, jHSD, MHSD)) {
-	assert(false && "eval_HessLagr should be called after get_nnzHessLagr");
-      }
-    }
-  } else {
-    // case of M!=NULL > just fill in the values
-    //for(int it=0; it<nnz; it++) M[it]=0.;
-    
-    for(auto& ot: obj->vterms)
-      if(!ot->eval_HessLagr(*vars_primal, new_x, obj_factor, 
-			    nxsparse, nxdense,
-			    nnzHSS, iHSS, jHSS, MHSS,
-			    HDD,
-			    nnzHSD, iHSD, jHSD, MHSD))
-	return false;
-    
-    for(auto& con: cons->vblocks)
-      if(!con->eval_HessLagr(*vars_primal, new_x, *vars_duals_cons, new_lambda, 
-			     nxsparse, nxdense,
-			     nnzHSS, iHSS, jHSS, MHSS,
-			     HDD,
-			     nnzHSD, iHSD, jHSD, MHSD))
-	return false;
-  }
-  return true;
-}
-
+/* MDS
+*/
 
 void OptProblem::fill_primal_vars(double* x) 
 { 
@@ -401,7 +295,6 @@ void OptProblem::fill_primal_vars(double* x)
     DCOPY(&(b->n), b->x, &ione, x + b->index, &ione);
   }
 }
-
 
 void OptProblem::set_obj_value(const double& f)
 {
@@ -429,20 +322,6 @@ void OptProblem::set_primal_vars(const double* x)
 void OptProblem::fill_vars_lower_bounds(double* lb)
 {
   for(auto b: vars_primal->vblocks) {
-    //cout << "----fill_vars_lower_bounds: " << b->id << endl;
-    // if(b->id == "pslack_n_p_balance_1") {
-    //   //printf("\n");
-    //   //for(int i=0; i<b->n; i++) {printf("%12.5e ", b->x[i]); b->x[i]=0.;}
-    //   //printf("\n");
-
-    //   int size=b->n;
-    //   double buf1[size], buf2[size];
-    //   for(int i=0; i<size; i++) buf1[i]=10.;
-      
-    //   DCOPY(&size, buf1, &ione, buf2, &ione);
-
-    //   printf("---%g %d\n", buf2[size/2], b->n);
-    // }
     DCOPY(&(b->n), b->lb, &ione, lb + b->index, &ione);
   }
 }
@@ -585,8 +464,9 @@ void OptProblem::use_nlp_solver(const std::string& name)
       nlp_solver->initialize();
     } else {
       assert(gollnlp::tolower(name) == "hiop");
-      nlp_solver = new HiopSolver(this);
-      nlp_solver->initialize();
+      assert(false && "no HiOp solver class for general OptProblem(s) is available");
+      //nlp_solver = new HiopSolver(this);
+      //nlp_solver->initialize();
     }
   }
 }
@@ -679,8 +559,6 @@ void OptProblem::set_have_start()
   for(auto b: vars_duals_bounds_U->vblocks) b->providesStartingPoint=true;
   for(auto b: vars_duals_cons->vblocks) b->providesStartingPoint=true;
 }
-
-
 
 void  OptProblem::print_summary() const
 {

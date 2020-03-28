@@ -146,12 +146,13 @@ public:
   std::vector<OptVariablesBlock*> vblocks;
   // "dict" with the pointers for quick lookups by name
   std::map<std::string, OptVariablesBlock*> mblocks;
-friend class OptProblem;
+  friend class OptProblem;
+  friend class OptProblemMDS;
 
 public: //MPI_Helpers
   //broadcasts 'this'; if non-null, 'buffer' will be used to pack/unpack variables blocks
   int MPI_Bcast_x(int root, MPI_Comm comm, int my_rank, double* buffer=NULL);
-private:
+protected:
   // appends b to list of blocks; updates this->n and b->index
   bool append_varsblock(OptVariablesBlock* b);
   bool append_varsblocks(std::vector<OptVariablesBlock*> vVarBlocks);
@@ -197,21 +198,13 @@ public:
 			     const double& obj_factor,
 			     const int& nnz, int* i, int* j, double* M)
   { return true; }
-  virtual bool eval_HessLagr(const OptVariables& x, bool new_x, 
-			       const double& obj_factor,
-			       const int& nxsparse, const int& nxdense, 
-			       const int& nnzHSS, int* iHSS, int* jHSS, double* MHSS, 
-			       double** HDD,
-			       int& nnzHSD, int* iHSD, int* jHSD, double* MHSD)
-  { return false; }
 
   // methods that need to be implemented to specify the sparsity pattern of the 
   // implementer's contribution to the sparse derivatives
   virtual int get_HessLagr_nnz() { return 0; }
 
   // (i,j) entries in the HessLagr to which the implementer's contributes to
-  // this is only called once
-  // push_back in vij 
+  // this is only called once and is supposed to push_back in vij
   virtual bool get_HessLagr_ij(std::vector<OptSparseEntry>& vij) { return true; }
 };
 
@@ -263,7 +256,8 @@ public:
 
   double *lb, *ub;
 
-    // all these functions 
+public:
+  // all these functions 
   //  - should add their contribution to the output
   //  - return false if an error occurs in the evaluation
   //Notes 
@@ -273,31 +267,12 @@ public:
   virtual bool eval_body (const OptVariables& x, bool new_x, double* body) = 0;
   virtual bool eval_Jac(const OptVariables& x, bool new_x, 
 			const int& nnz, int* i, int* j, double* M) = 0;
-  virtual bool eval_Jac(const OptVariables& x, bool new_x, 
-			const int& nxsparse, const int& nxdense,
-			const int& nnzJacS, int* iJacS, int* jJacS, double* MJacS, 
-			double** JacD) 
-  {
-    //this needs to be implemented only if dense blocks are present
-    return false;
-  }
-
 
   virtual bool eval_HessLagr(const OptVariables& x, bool new_x, 
 			     const OptVariables& lambda, bool new_lambda,
 			     const int& nnz, int* i, int* j, double* M) 
   { return true; }
 
-  virtual bool eval_HessLagr(const OptVariables& x, bool new_x, 
-			     const OptVariables& lambda, bool new_lambda,
-			     const int& nxsparse, const int& nxdense, 
-			     const int& nnzHSS, int* iHSS, int* jHSS, double* MHSS, 
-			     double** HDD,
-			     int& nnzHSD, int* iHSD, int* jHSD, double* MHSD)
-  {
-    //this needs to be implemented only if dense blocks are present
-    return false;
-  }
 
   // methods that need to be implemented to specify the sparsity pattern of the 
   // implementer's contribution to the sparse derivatives
@@ -337,6 +312,7 @@ public:
     return NULL;
   }
   friend class OptProblem;
+  friend class OptProblemMDS;
 protected:
   // appends a new obj term and sets his 'index'
   bool append_objterm(OptObjectiveTerm* term);
@@ -366,6 +342,7 @@ class OptConstraints
   void delete_block(const std::string& id);
 
   friend class OptProblem;
+  friend class OptProblemMDS;
 protected:
   // appends a new constraints block and sets his 'index'
   bool append_consblock(OptConstraintsBlock* b);
@@ -386,10 +363,6 @@ public:
 
   inline int get_num_constraints() const { return cons->m(); }
   inline int get_num_variables() const { return vars_primal->n(); }
-
-  int get_num_variables_sparse() const;
-  int get_num_variables_dense() const;
-  bool get_num_variables_dense_sparse(int& ndense, int& nsparse) const;
   
   int get_nnzJaccons();
   int get_nnzHessLagr();
@@ -544,13 +517,6 @@ public:
 		     const double& obj_factor, 
 		     const double* lambda, bool new_lambda,
 		     const int& nnz, int* i, int* j, double* M);
-  bool eval_HessLagr(const double* x, bool new_x, 
-		     const double& obj_factor, 
-		     const double* lambda, bool new_lambda, 
-		     const int& nxsparse, const int& nxdense, 
-		     const int& nnzHSS, int* iHSS, int* jHSS, double* MHSS, 
-		     double** HDD,
-		     int& nnzHSD, int* iHSD, int* jHSD, double* MHSD);
   //getters -> copy to x; x is expected to be allocated
   void fill_primal_vars(double* x);
   void fill_vars_lower_bounds(double* lb);
