@@ -1,1 +1,1 @@
-add_library(goOptimiz OBJECT OptProblem.cpp OptObjTerms.cpp)
+add_library(goOptimiz OBJECT OptProblem.cpp OptObjTerms.cpp OptProblemMDS.cpp)
