@@ -1,7 +1,7 @@
 #ifndef ACOPF_KRON_PROBLEM
 #define ACOPF_KRON_PROBLEM
 
-#include "OptProblem.hpp"
+#include "OptProblemMDS.hpp"
 #include "SCACOPFData.hpp"
 
 #include "goTimer.hpp"
@@ -14,7 +14,7 @@
 namespace gollnlp {
 
   /* ACOPF with Kron reduction */
-  class ACOPFKronRedProblem : public OptProblem
+  class ACOPFKronRedProblem : public OptProblemMDS
   {
   public:
     ACOPFKronRedProblem(SCACOPFData& d_in) 

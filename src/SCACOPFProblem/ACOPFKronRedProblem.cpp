@@ -58,6 +58,7 @@ namespace gollnlp {
       selectfrom(data_sc.N_v0, idxs_buses_nonaux, v0_na);
       
       auto v_n = new OptVariablesBlock(idxs_buses_nonaux.size(), var_name("v_n",d), vlb_na.data(), vub_na.data());
+      v_n->sparseBlock = false;
       append_variables(v_n);
       v_n->set_start_to(v0_na.data());
     }
@@ -65,7 +66,7 @@ namespace gollnlp {
     { //theta
       auto theta_n = new OptVariablesBlock(idxs_buses_nonaux.size(), var_name("theta_n",d));
       append_variables(theta_n);
-      
+      theta_n->sparseBlock = false;
       vector<double> theta0_n;
       selectfrom(data_sc.N_theta0, idxs_buses_nonaux, theta0_n);
       theta_n->set_start_to(theta0_n.data());
