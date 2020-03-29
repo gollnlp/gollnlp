@@ -52,7 +52,7 @@ public:
   bool providesStartingPoint;
   //dense or sparse variables. All variables in a block have the same type.
   //Sparse is the default.
-  bool areVarsSparse;
+  bool sparseBlock;
   
   inline OptVariablesBlock* new_copy() 
   {
@@ -548,7 +548,6 @@ public:
   virtual OptVariables* new_duals_cons();
   virtual OptVariables* new_duals_lower_bounds();
   virtual OptVariables* new_duals_upper_bounds();
-
 public:
   //utilities
   void print_summary() const;
@@ -557,6 +556,8 @@ public:
   //returns new nnz, sorts ij, and updates ij[k].idx with the idx of k-th entry
   //in the (virtual) sorted vector of (i,j)s 
   static int uniquely_indexise_spTripletIdxs(std::vector<OptSparseEntry>& ij);
+
+  bool check_is_upper(const std::vector<OptSparseEntry>& ij);
 protected:
   OptVariables*    vars_primal;
   OptConstraints*  cons;

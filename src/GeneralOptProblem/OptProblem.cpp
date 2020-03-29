@@ -206,7 +206,7 @@ bool OptProblem::eval_Jaccons(const double* x, bool new_x, const int& nnz, int* 
 }
 
 #ifdef DEBUG
-static bool check_is_upper(const vector<OptSparseEntry>& ij)
+bool OptProblem::check_is_upper(const vector<OptSparseEntry>& ij)
 {
   for(auto& e: ij) if(e.j<e.i) return false;
   return true;
@@ -801,7 +801,7 @@ void OptVariables::delete_block(const std::string& id)
 
 OptVariablesBlock::OptVariablesBlock(const int& n_, const std::string& id_)
   : n(n_), id(id_), index(-1), xref(NULL),
-    providesStartingPoint(false), areVarsSparse(true)
+    providesStartingPoint(false), sparseBlock(true)
 {
   assert(n>=0);
   int i;
@@ -816,7 +816,7 @@ OptVariablesBlock::OptVariablesBlock(const int& n_, const std::string& id_)
 }
 
 OptVariablesBlock::OptVariablesBlock(const int& n_, const std::string& id_, double* lb_, double* ub_)
-  : n(n_), id(id_), index(-1), xref(NULL), providesStartingPoint(false), areVarsSparse(true)
+  : n(n_), id(id_), index(-1), xref(NULL), providesStartingPoint(false), sparseBlock(true)
 {
   assert(n>=0);
 
@@ -836,7 +836,7 @@ OptVariablesBlock::OptVariablesBlock(const int& n_, const std::string& id_, doub
     for(i=0; i<n; i++) ub[i] = +1e+20;
 }
 OptVariablesBlock::OptVariablesBlock(const int& n_, const std::string& id_, double lb_, double ub_)
-  : n(n_), id(id_), index(-1), xref(NULL), providesStartingPoint(false), areVarsSparse(true)
+  : n(n_), id(id_), index(-1), xref(NULL), providesStartingPoint(false), sparseBlock(true)
 {
   assert(n>=0);
 
