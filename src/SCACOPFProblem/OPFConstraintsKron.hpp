@@ -1,7 +1,7 @@
 #ifndef GO_OPF_CONSTRAINTS_KRON
 #define GO_OPF_CONSTRAINTS_KRON
 
-#include "OptProblem.hpp"
+#include "OptProblemMDS.hpp"
 #include "SCACOPFData.hpp"
 
 #include "blasdefs.hpp"
@@ -26,7 +26,7 @@ namespace gollnlp {
   //      + Bred[i,j]*sin(theta_n[i]-theta_n[j])) for j=1:length(nonaux))
   // ==  N[:Pd][nonaux[i]]
   ///////////////////////////////////////////////////////////////////////////////
-  class PFActiveBalanceKron : public OptConstraintsBlock
+  class PFActiveBalanceKron : public OptConstraintsBlockMDS
   {
   public:
     PFActiveBalanceKron(const std::string& id_, int numcons,
@@ -41,35 +41,41 @@ namespace gollnlp {
 
     virtual bool eval_body (const OptVariables& vars_primal, bool new_x, double* body);
 
-    virtual bool eval_Jac(const OptVariables& primal_vars, bool new_x, 
-			  const int& nnz, int* i, int* j, double* M) 
+    virtual bool eval_Jac_eq(const OptVariables& x, bool new_x, 
+			     const int& nxsparse, const int& nxdense,
+			     const int& nnzJacS, int* iJacS, int* jJacS, double* MJacS, 
+			     double** JacD);
+
+    virtual bool eval_Jac_ineq(const OptVariables& x, bool new_x, 
+			       const int& nxsparse, const int& nxdense,
+			       const int& nnzJacS, int* iJacS, int* jJacS, double* MJacS, 
+			       double** JacD)
     {
       return false;
     }
 
-    virtual bool eval_Jac(const OptVariables& x, bool new_x, 
-			  const int& nxsparse, const int& nxdense,
-			  const int& nnzJacS, int* iJacS, int* jJacS, double* MJacS, 
-			  double** JacD);
-
-    virtual int get_Jacob_nnz();
-    virtual bool get_Jacob_ij(std::vector<OptSparseEntry>& vij);
-    virtual bool eval_HessLagr(const OptVariables& vars_primal, bool new_x, 
-			       const OptVariables& lambda_vars, bool new_lambda,
-			       const int& nnz, int* ia, int* ja, double* M)
+    virtual int get_spJacob_eq_nnz();
+    virtual int get_spJacob_ineq_nnz()
+    {
+      assert(false);
+      return 0;
+    }
+    virtual bool get_spJacob_eq_ij(std::vector<OptSparseEntry>& vij);
+    virtual bool get_spJacob_ineq_ij(std::vector<OptSparseEntry>& vij)
     {
       return false;
     }
+
     virtual bool eval_HessLagr(const OptVariables& x, bool new_x, 
 			       const OptVariables& lambda, bool new_lambda,
 			       const int& nxsparse, const int& nxdense, 
 			       const int& nnzHSS, int* iHSS, int* jHSS, double* MHSS, 
 			       double** HDD,
-			       int& nnzHSD, int* iHSD, int* jHSD, double* MHSD);
+			       const int& nnzHSD, int* iHSD, int* jHSD, double* MHSD);
     //nnz for sparse part (all zeros)
-    virtual int get_HessLagr_nnz() { return 0; }
+    virtual int get_HessLagr_SSblock_nnz() { return 0; }
 
-    virtual bool get_HessLagr_ij(std::vector<OptSparseEntry>& vij) { return true; }
+    virtual bool get_HessLagr_SSblock_ij(std::vector<OptSparseEntry>& vij) { return true; }
   protected:
     OptVariablesBlock *p_g, *v_n, *theta_n;
     const std::vector<int> &bus_nonaux_idxs;

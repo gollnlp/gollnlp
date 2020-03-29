@@ -12,7 +12,7 @@ namespace gollnlp {
 					   const std::vector<std::vector<int> >& Gn_full_space_,
 					   const hiop::hiopMatrixComplexDense& Ybus_red_,
 					   const std::vector<double>& N_Pd_full_space_)
-    : OptConstraintsBlock(id_, numcons), p_g(p_g_), v_n(v_n_), theta_n(theta_n_),
+    : OptConstraintsBlockMDS(id_, numcons), p_g(p_g_), v_n(v_n_), theta_n(theta_n_),
       bus_nonaux_idxs(bus_nonaux_idxs_), Gn_fs(Gn_full_space_), Ybus_red(Ybus_red_), 
       J_nz_idxs(NULL), H_nz_idxs(NULL)
   {
@@ -24,6 +24,10 @@ namespace gollnlp {
     //!memcpy(lb, d.N_Pd.data(), n*sizeof(double));
     for(int i=0; i<n; i++) lb[i]=0.;
     DCOPY(&n, lb, &ione, ub, &ione);
+
+    assert(p_g->sparseBlock==true);
+    assert(v_n->sparseBlock==false);
+    assert(theta_n->sparseBlock==false);
   }
   PFActiveBalanceKron::~PFActiveBalanceKron()
   {
@@ -116,7 +120,7 @@ namespace gollnlp {
   //
   // Note: cos and sin can be computed only once for d a_i/d v_k and d a_k/d_v_i (same for 
   //partials w.r.t. theta
-  bool PFActiveBalanceKron::eval_Jac(const OptVariables& x, bool new_x, 
+  bool PFActiveBalanceKron::eval_Jac_eq(const OptVariables& x, bool new_x, 
 				     const int& nxsparse, const int& nxdense,
 				     const int& nnzJacS, int* iJacS, int* jJacS, double* MJacS, 
 				     double** JacD)
@@ -126,7 +130,7 @@ namespace gollnlp {
     //
     assert(nxsparse+nxdense == n);
 #ifdef DEBUG
-    int nnz_loc=get_Jacob_nnz();
+    int nnz_loc=get_spJacob_eq_nnz();
 #endif
     int row, *itnz=J_nz_idxs;
     if(NULL==MJacS) {
@@ -235,18 +239,18 @@ namespace gollnlp {
     return true;
   }
 
-  int PFActiveBalanceKron::get_Jacob_nnz(){ 
+  int PFActiveBalanceKron::get_spJacob_eq_nnz(){ 
     int nnz = 0; 
     for(auto& i : bus_nonaux_idxs)
       nnz += Gn_fs[i].size();
     return nnz; 
   }
   
-  bool PFActiveBalanceKron::get_Jacob_ij(std::vector<OptSparseEntry>& vij)
+  bool PFActiveBalanceKron::get_spJacob_eq_ij(std::vector<OptSparseEntry>& vij)
   {
     if(n<=0) return true;
     
-    int nnz = get_Jacob_nnz();
+    int nnz = get_spJacob_eq_nnz();
     if(!J_nz_idxs) 
       J_nz_idxs = new int[nnz];
 #ifdef DEBUG
@@ -355,7 +359,7 @@ namespace gollnlp {
 					  const int& nxsparse, const int& nxdense, 
 					  const int& nnzHSS, int* iHSS, int* jHSS, double* MHSS, 
 					  double** HDD,
-					  int& nnzHSD, int* iHSD, int* jHSD, double* MHSD)
+					  const int& nnzHSD, int* iHSD, int* jHSD, double* MHSD)
   {
     //
     // sparse part is empty
@@ -490,22 +494,7 @@ namespace gollnlp {
       } // end of for over i=1,..,n
     }
     return true;
-}
-
-
-  // bool PFActiveBalanceKron::get_HessLagr_ij(std::vector<OptSparseEntry>& vij)  
-  // {
-  //   if(n==0) return true;
-    
-  //   if(NULL==H_nz_idxs) {
-  //     H_nz_idxs = new int[get_HessLagr_nnz()];
-  //   }
-    
-  //   int *itnz=H_nz_idxs, nend=v_n->index+n;
-  //   for(int it=v_n->index; it<nend; it++) vij.push_back(OptSparseEntry(it,it, itnz++));
-    
-  //   return true;
-  // }
+  }
 
 
 
