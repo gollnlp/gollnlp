@@ -364,8 +364,8 @@ public:
   inline int get_num_constraints() const { return cons->m(); }
   inline int get_num_variables() const { return vars_primal->n(); }
   
-  int get_nnzJaccons();
-  int get_nnzHessLagr();
+  int compute_nnzJaccons();
+  int compute_nnzHessLagr();
 public:
   inline OptVariables* primal_variables() { return vars_primal; }
   inline OptVariables* duals_bounds_lower() { return vars_duals_bounds_L; }
@@ -553,6 +553,10 @@ public:
   //utilities
   void print_summary() const;
   void print_objterms_evals();
+
+  //returns new nnz, sorts ij, and updates ij[k].idx with the idx of k-th entry
+  //in the (virtual) sorted vector of (i,j)s 
+  static int uniquely_indexise_spTripletIdxs(std::vector<OptSparseEntry>& ij);
 protected:
   OptVariables*    vars_primal;
   OptConstraints*  cons;

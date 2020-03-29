@@ -59,8 +59,8 @@ public:
   {
     n = prob->get_num_variables();
     m = prob->get_num_constraints();
-    nnz_jac_g = prob->get_nnzJaccons();
-    nnz_h_lag = prob->get_nnzHessLagr();
+    nnz_jac_g = prob->compute_nnzJaccons();
+    nnz_h_lag = prob->compute_nnzHessLagr();
     index_style = C_STYLE;
     return true;
   }

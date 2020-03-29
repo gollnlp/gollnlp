@@ -140,7 +140,7 @@ bool OptProblem::eval_gradobj (const double* x, bool new_x, double* grad)
 //   assert(nnz_unique<=nnz);
 //   assert(it_nz_unique==nnz_unique);
 // }
-static int inline uniquely_indexise(vector<OptSparseEntry>& ij)
+int OptProblem::uniquely_indexise_spTripletIdxs(std::vector<OptSparseEntry>& ij)
 {
   int nnz = ij.size();
   if(nnz==0) return 0;
@@ -163,7 +163,7 @@ static int inline uniquely_indexise(vector<OptSparseEntry>& ij)
   return nnz_unique+1;
 }
 
-int OptProblem::get_nnzJaccons()
+int OptProblem::compute_nnzJaccons()
 {
   if(nnz_Jac<0) {
     //goTimer tm; tm.start();
@@ -171,7 +171,7 @@ int OptProblem::get_nnzJaccons()
     for(auto& con: cons->vblocks)
       con->get_Jacob_ij(ij_Jac);
 
-    nnz_Jac = uniquely_indexise(ij_Jac);
+    nnz_Jac = uniquely_indexise_spTripletIdxs(ij_Jac);
 
     //tm.stop();
     //printf("Jacobian structure took %g sec\n", tm.getElapsedTime());
@@ -179,7 +179,7 @@ int OptProblem::get_nnzJaccons()
   return nnz_Jac;
 }
 
-// we assume that eval_Jaccons is called after get_nnzJaccons
+// we assume that eval_Jaccons is called after compute_nnzJaccons
 bool OptProblem::eval_Jaccons(const double* x, bool new_x, const int& nnz, int* i, int* j, double* M)
 {
   if(new_x) {
@@ -189,7 +189,7 @@ bool OptProblem::eval_Jaccons(const double* x, bool new_x, const int& nnz, int* 
   if(M==NULL) {
     for(auto& con: cons->vblocks) {
       if(!con->eval_Jac(*vars_primal, new_x, nnz, i,j,M)) {
-	assert(false && "eval_Jaccons should be called after get_nnzJaccons");
+	assert(false && "eval_Jaccons should be called after compute_nnzJaccons");
       }
     }
     return true;
@@ -213,7 +213,7 @@ static bool check_is_upper(const vector<OptSparseEntry>& ij)
 }
 #endif
   
-int OptProblem::get_nnzHessLagr()
+int OptProblem::compute_nnzHessLagr()
 {
   if(nnz_Hess<0) {
     //goTimer tm; tm.start();
@@ -238,7 +238,7 @@ int OptProblem::get_nnzHessLagr()
       }
 #endif      
     }
-    nnz_Hess = uniquely_indexise(ij_Hess);
+    nnz_Hess = uniquely_indexise_spTripletIdxs(ij_Hess);
 
     //tm.stop();
     //printf("Hessian structure %g sec\n", tm.getElapsedTime());
@@ -260,12 +260,12 @@ bool OptProblem::eval_HessLagr(const double* x, bool new_x,
   if(M==NULL) {
     for(auto& ot: obj->vterms) {
       if(!ot->eval_HessLagr(*vars_primal, new_x, obj_factor, nnz,i,j,M)) {
-	assert(false && "eval_HessLagr should be called after get_nnzHessLagr");
+	assert(false && "eval_HessLagr should be called after compute_nnzHessLagr");
       }
     }
     for(auto& con: cons->vblocks) {
       if(!con->eval_HessLagr(*vars_primal, new_x, *vars_duals_cons, new_lambda, nnz,i,j,M)) {
-	assert(false && "eval_HessLagr should be called after get_nnzHessLagr");
+	assert(false && "eval_HessLagr should be called after compute_nnzHessLagr");
       }
     }
     //printnnz(nnz,i,j,M);
