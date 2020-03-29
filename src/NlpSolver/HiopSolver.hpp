@@ -61,15 +61,17 @@ namespace gollnlp {
       int n = prob->get_num_variables();
       int m = prob->get_num_constraints();
     
-      prob->get_num_variables_dense_sparse(nx_dense, nx_sparse);
+      prob->compute_num_variables_dense_sparse(nx_dense, nx_sparse);
       assert(n == nx_dense+nx_sparse);
     
-      //int nnz_jac_g = prob->get_nnzJaccons();
-      //int nnz_h_lag = prob->get_nnzHessLagr();
+      nnz_sparse_Jace = prob->compute_nnzJac_eq();
+      printf("nx_sparse=%d  nx_dense=%d\n", nx_dense, nx_sparse);
+      fflush(stdout);
 
- 
-    
-      return false;
+      nnz_sparse_Jaci = prob->compute_nnzJac_ineq();
+      nnz_sparse_Hess_Lagr_SS = prob->compute_nnzHessLagr_SSblock();
+      nnz_sparse_Hess_Lagr_SD = 0;
+      return true;
     }
 
     bool eval_f(const long long& n, const double* x, bool new_x, double& obj_value)
@@ -100,7 +102,11 @@ namespace gollnlp {
 		       const int& nnzJacS, int* iJacS, int* jJacS, double* MJacS, 
 		       double** JacD)
     {
-      return true;
+      if(num_cons==0) return true;
+      assert(num_cons==m);
+      return prob->eval_Jaccons_eq(x, new_x, nsparse, ndense,
+				   nnzJacS, iJacS, jJacS, MJacS,
+				   JacD);
     }
 
     bool eval_Hess_Lagr(const long long& n, const long long& m, 
@@ -111,7 +117,11 @@ namespace gollnlp {
 			double** HDD,
 			int& nnzHSD, int* iHSD, int* jHSD, double* MHSD)
     {
-      return true;
+      return prob->eval_HessLagr(x, new_x, obj_factor, lambda, new_lambda,
+				 nsparse, ndense,
+				 nnzHSS, iHSS, jHSS, MHSS,
+				 HDD,
+				 nnzHSD, iHSD, jHSD, MHSD);
     }
 
     bool get_starting_point(const long long& global_n, double* x0)
@@ -131,8 +141,20 @@ namespace gollnlp {
 
   class HiopSolverMDS : public NlpSolver {
   public:
-    HiopSolverMDS(OptProblemMDS* p_) : NlpSolver(p_), app_status(OptProblem::Invalid_Option) {}
-    virtual ~HiopSolverMDS() {}
+    HiopSolverMDS(OptProblemMDS* p_)
+      : NlpSolver(p_), hiop_nlp_spec(NULL), app_status(OptProblem::Invalid_Option)
+    {
+    }
+  private:
+    HiopSolverMDS(OptProblem* p_)
+      : NlpSolver(p_), hiop_nlp_spec(NULL), app_status(OptProblem::Invalid_Option)
+    {
+    }
+  public:
+    virtual ~HiopSolverMDS()
+    {
+      delete hiop_nlp_spec;
+    }
 
     virtual bool set_start_type(OptProblem::RestartType t)
     {
