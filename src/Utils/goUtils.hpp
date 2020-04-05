@@ -98,7 +98,8 @@ template<class T> inline void printlist(const std::list<T>& v, const std::string
 }
 
 
-template<class T> inline void printvecvec(const std::vector<std::vector<T> >& v, const std::string& msg="") 
+template<class T> inline void printvecvec(const std::vector<std::vector<T> >& v,
+					  const std::string& msg="") 
 { 
   std::cout.precision(6); 
   std::cout << msg << " size:" << v.size() << std::endl;
@@ -108,6 +109,39 @@ template<class T> inline void printvecvec(const std::vector<std::vector<T> >& v,
     std::cout << std::endl;
   }
 }
+
+inline void print_spmat_triplet(const int& nnz, const int& m, const int& n,
+				const int* irow, const int* jcol, const double* M,
+				const std::string& msg="")
+{
+  //let's do it the way it's done in hiop
+  
+  FILE* file = stdout;
+  const int max_elems = nnz;
+
+  fprintf(file, "[%s] matrix of size %d %d and nonzeros %d, printing %d elems\n", 
+	  msg.c_str(), m,n, nnz, max_elems);
+
+  // using matlab indices
+  
+  if(irow && jcol) {
+
+    fprintf(file, "iRow=[");
+    for(int it=0; it<max_elems; it++)  fprintf(file, "%d; ", irow[it]+1);
+    fprintf(file, "];\n");
+    
+    fprintf(file, "jCol=[");
+    for(int it=0; it<max_elems; it++)  fprintf(file, "%d; ", jcol[it]+1);
+    fprintf(file, "];\n");
+  }
+
+  if(M) {
+    fprintf(file, "v=[");
+    for(int it=0; it<max_elems; it++)  fprintf(file, "%22.16e; ", M[it]);
+    fprintf(file, "];\n");
+  }
+}
+  
 template<class T> inline void hardclear(std::vector<T>& in) { std::vector<T>().swap(in); }
 
 
