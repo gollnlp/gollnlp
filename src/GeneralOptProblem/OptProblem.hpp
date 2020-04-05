@@ -25,7 +25,7 @@ class NlpSolver;
 class OptVariablesBlock {
 public:
   OptVariablesBlock(const int& n_, const std::string& id_);
-  OptVariablesBlock(const int& n_, const std::string& id_, /*const*/ double* lb, /*const*/double* ub=NULL);
+  OptVariablesBlock(const int& n_, const std::string& id_, const double* lb, const double* ub=NULL);
   //all lb and ub are set to lb_ and ub_
   OptVariablesBlock(const int& n_, const std::string& id_, double lb_, double ub_);
   virtual ~OptVariablesBlock();
@@ -50,9 +50,14 @@ public:
   const double* xref;
   //starting point provided?
   bool providesStartingPoint;
-  //dense or sparse variables. All variables in a block have the same type.
+  //Flag indicating dense or sparse variables. All variables in a block have the same type.
   //Sparse is the default.
   bool sparseBlock;
+  //index at which the sparse block start within the sparse variables within OptVariables container
+  //if this is a dense block, the "sparse" index is negative, indicating the sparse index of the
+  //previously sparse block within OptVariables container
+  int indexSparse;
+  
   
   inline OptVariablesBlock* new_copy() 
   {

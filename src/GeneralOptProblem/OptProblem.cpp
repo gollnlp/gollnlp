@@ -202,6 +202,7 @@ bool OptProblem::eval_Jaccons(const double* x, bool new_x, const int& nnz, int* 
     if(!con->eval_Jac(*vars_primal, new_x, nnz, i,j,M))
       return false;
   }
+
   return true;
 }
 
@@ -617,7 +618,39 @@ bool OptVariables::append_varsblock(OptVariablesBlock* b)
       assert(false);
       return false;
     }
-    b->index=this->n();
+    print_summary();
+    b->index = this->n();
+    if(b->sparseBlock) {
+      //update the index within sparse variables
+
+      //if not blocks were added, nothing to do -> indexSparse is 0 (and already set in the
+      // constructor of OptVariablesBlock)
+      if(!vblocks.empty()) {
+	if(!vblocks.back()->sparseBlock) {
+	  //if the previous vars block is dense, it has the negative of the index of the previous sparse
+	  //block; just flip the sign to get the 'indexSparse' of current vars block
+	  assert(vblocks.back()->indexSparse <= 0);
+	  b->indexSparse = -vblocks.back()->indexSparse;
+	} else {
+	  //if the previous vars block is sparse, just use its 'indexSparse' and add its length to
+	  //get the 'indexSparse' of current vars block
+	  assert(vblocks.back()->indexSparse >= 0); //no zero length sparse blocks, isn't?
+	  b->indexSparse = vblocks.back()->indexSparse + vblocks.back()->n;
+	}
+      }
+    } else {
+      //b is a dense block!
+      
+      //if no blocks were added, sparseIndex is 0 (already set in the constructor of OptVariablesBlock)
+
+      //if blocks are present:
+      //  - if the previous is dense, 'indexSparse' does not change (and remains positive)
+      //  - if the previous is sparse, 'indexSparse' is with flipped sign
+      if(!vblocks.empty()) {
+	b->indexSparse = - std::abs(vblocks.back()->indexSparse);
+      }
+    }
+    
     vblocks.push_back(b);
     mblocks[b->id] = b;
   }
@@ -628,8 +661,9 @@ void OptVariables::print_summary(const std::string var_name) const
 {
   printf("Optimization variable %s\n", var_name.c_str());
   for(auto& b: vblocks)
-    printf("    '%s' size %d startsAt %d providesStPoint %d\n", 
-	   b->id.c_str(), b->n, b->index, b->providesStartingPoint);
+    printf("    '%s' size %d startsAt %d providesStPoint %d  sparseBlock %d (indexSparse %d)\n", 
+	   b->id.c_str(), b->n, b->index, b->providesStartingPoint,
+	   b->sparseBlock, b->indexSparse);
   
 }
 
@@ -801,7 +835,7 @@ void OptVariables::delete_block(const std::string& id)
 
 OptVariablesBlock::OptVariablesBlock(const int& n_, const std::string& id_)
   : n(n_), id(id_), index(-1), xref(NULL),
-    providesStartingPoint(false), sparseBlock(true)
+    providesStartingPoint(false), sparseBlock(true), indexSparse(0)
 {
   assert(n>=0);
   int i;
@@ -815,8 +849,10 @@ OptVariablesBlock::OptVariablesBlock(const int& n_, const std::string& id_)
   for(i=0; i<n; i++) ub[i] = +1e+20;
 }
 
-OptVariablesBlock::OptVariablesBlock(const int& n_, const std::string& id_, double* lb_, double* ub_)
-  : n(n_), id(id_), index(-1), xref(NULL), providesStartingPoint(false), sparseBlock(true)
+OptVariablesBlock::OptVariablesBlock(const int& n_, const std::string& id_,
+				     const double* lb_, const double* ub_)
+  : n(n_), id(id_), index(-1), xref(NULL), providesStartingPoint(false),
+    sparseBlock(true), indexSparse(0)
 {
   assert(n>=0);
 
@@ -825,18 +861,19 @@ OptVariablesBlock::OptVariablesBlock(const int& n_, const std::string& id_, doub
   int i;
   lb = new double[n];
   if(lb_)
-    DCOPY(&n, lb_, &ione, lb, &ione);
+    DCOPY(&n, const_cast<double*>(lb_), &ione, lb, &ione);
   else
     for(i=0; i<n; i++) lb[i] = -1e+20;
 
   ub = new double[n];
   if(ub_)
-    DCOPY(&n, ub_, &ione, ub, &ione);
+    DCOPY(&n, const_cast<double*>(ub_), &ione, ub, &ione);
   else
     for(i=0; i<n; i++) ub[i] = +1e+20;
 }
 OptVariablesBlock::OptVariablesBlock(const int& n_, const std::string& id_, double lb_, double ub_)
-  : n(n_), id(id_), index(-1), xref(NULL), providesStartingPoint(false), sparseBlock(true)
+  : n(n_), id(id_), index(-1), xref(NULL), providesStartingPoint(false),
+    sparseBlock(true), indexSparse(0)
 {
   assert(n>=0);
 
