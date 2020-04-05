@@ -28,6 +28,10 @@ namespace gollnlp {
     assert(p_g->sparseBlock==true);
     assert(v_n->sparseBlock==false);
     assert(theta_n->sparseBlock==false);
+    assert(p_g->indexSparse>=0);
+    assert(v_n->indexSparse<=0);
+    assert(theta_n->indexSparse<=0);
+
   }
   PFActiveBalanceKron::~PFActiveBalanceKron()
   {
@@ -128,35 +132,46 @@ namespace gollnlp {
     //
     // sparse part
     //
-    assert(nxsparse+nxdense == n);
-#ifdef DEBUG
+    assert(nxsparse+nxdense == x.n());
+    int row, *itnz;
+ #ifdef DEBUG
     int nnz_loc=get_spJacob_eq_nnz();
+    int row2=-1;
 #endif
-    int row, *itnz=J_nz_idxs;
-    if(NULL==MJacS) {
+    if(iJacS && jJacS) {
+      itnz = J_nz_idxs; row=0;
       for(int it=0; it<n; it++) {
-	row = this->index+it;
+	const int idxBusNonAux = bus_nonaux_idxs[it];
+	const size_t sz = Gn_fs[idxBusNonAux].size();
 	//p_g
-	for(auto g: Gn_fs[bus_nonaux_idxs[it]]) { 
+	for(int ig=0; ig<sz; ++ig) {
 	  iJacS[*itnz]=row; 
-	  jJacS[*itnz]=p_g->index+g; 
-	  itnz++; 
+	  jJacS[*itnz++]=p_g->indexSparse+Gn_fs[idxBusNonAux][ig]; 
 	}
+
+	//increase row if any generator/constraint was added
+	if(sz>0) ++row;
       }
 #ifdef DEBUG
       assert(J_nz_idxs + nnz_loc == itnz);
+      row2=row;
 #endif
-    } else {
       
+    }
+    if(MJacS) {
+      itnz = J_nz_idxs; row=0;
       for(int it=0; it<n; it++) {
 	//p_g 
-	const double sz = Gn_fs[bus_nonaux_idxs[it]].size();
-	for(int ig=0; ig<sz; ig++) { 
-	  MJacS[*itnz] += 1; 
-	  itnz++; 
+	const size_t sz = Gn_fs[bus_nonaux_idxs[it]].size();
+	for(int ig=0; ig<sz; ++ig) { 
+	  MJacS[*itnz++] += 1; 
 	}
+	if(sz>0) ++row;
       }
     }
+#ifdef DEBUG
+    if(row2>=0) assert(row==row2);
+#endif 
     //
     // dense part
     //
@@ -257,13 +272,14 @@ namespace gollnlp {
     int n_vij_in = vij.size();
 #endif
     
-    int row, *itnz=J_nz_idxs;
-    for(int it=0; it<n; it++) {
-      row = this->index+it;
-      
+    int row=0, *itnz=J_nz_idxs;
+    for(int it=0; it<n; it++) {      
       //p_g
       for(auto g: Gn_fs[bus_nonaux_idxs[it]]) 
-	vij.push_back(OptSparseEntry(row, p_g->index+g, itnz++));
+	vij.push_back(OptSparseEntry(row, p_g->indexSparse+g, itnz++));
+    
+      if(Gn_fs[bus_nonaux_idxs[it]].size()>0)
+	row++;
     }
     //printf("nnz=%d vijsize=%d\n", nnz, vij.size());
 #ifdef DEBUG
