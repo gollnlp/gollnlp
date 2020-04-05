@@ -85,7 +85,7 @@ namespace gollnlp {
 		   const double* x, bool new_x, double* cons)
     {
       if(num_cons==0) return true;
-      assert(num_cons==n);
+      assert(num_cons==m);
       return prob->eval_cons(x, new_x, cons);
     }
 

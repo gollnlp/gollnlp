@@ -146,7 +146,7 @@ namespace gollnlp {
     bool compute_num_variables_dense_sparse(int& ndense, int& nsparse) const;
     
     int compute_nnzJac_eq();
-    int compute_nnzJac_ineq() { assert(false); return -1; }
+    int compute_nnzJac_ineq() { return 0; }
     int compute_nnzHessLagr_SSblock();
     
     void use_nlp_solver(const std::string& name);
