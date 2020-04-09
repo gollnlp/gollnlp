@@ -66,8 +66,9 @@ namespace gollnlp {
       Gnv = Gn_fs[i].data();
       for(int ig=0; ig<nGn; ig++) 
 	*body += p_g->xref[Gnv[ig]];
-      body++;
+      ++body;
     }
+    assert(bus_nonaux_idxs.size()==n);
     body -= n;
 
     {
@@ -79,14 +80,15 @@ namespace gollnlp {
 
       for(int i=0; i<n; i++) {
 	for(int j=0; j<n; j++) {
+	  //!
+	  //if(i>1) {continue;}
+	  
 	  aux = theta_n->xref[i]-theta_n->xref[j];
 	  body[i] -= v_n->xref[i]*v_n->xref[j] *
 	    ( YredM[i][j].real()*cos(aux) + YredM[i][j].imag()*sin(aux) );
 	}
       }
     }
-#ifdef DEBUG
-#endif
     
     return true;
   }
@@ -148,9 +150,7 @@ namespace gollnlp {
 	  iJacS[*itnz]=row; 
 	  jJacS[*itnz++]=p_g->indexSparse+Gn_fs[idxBusNonAux][ig]; 
 	}
-
-	//increase row if any generator/constraint was added
-	if(sz>0) ++row;
+	++row;
       }
 #ifdef DEBUG
       assert(J_nz_idxs + nnz_loc == itnz);
@@ -166,7 +166,7 @@ namespace gollnlp {
 	for(int ig=0; ig<sz; ++ig) { 
 	  MJacS[*itnz++] += 1; 
 	}
-	if(sz>0) ++row;
+	++row;
       }
     }
 #ifdef DEBUG
@@ -175,79 +175,97 @@ namespace gollnlp {
     //
     // dense part
     //
-    if(NULL==MJacS) {
-
-    } else {
+    if(JacD) {
       //values
       std::complex<double>** YredM = Ybus_red.local_data();
-      double aux, aux_sin, aux_cos, aux_G_cos, aux_B_sin, aux_G_cos_B_sin, aux_G_sin, aux_B_cos, vivj, vivjGcos_Bsin;
+      double aux, aux_sin, aux_cos, aux_G_cos, aux_B_sin, aux_G_cos_B_sin, aux_G_sin, aux_B_cos;
+      double vivj, vivjGsin__Bcos;
+
+      assert(v_n->compute_indexDense() >=0);
+      assert(theta_n->compute_indexDense() >= 0);
+	
+      assert(v_n->compute_indexDense()    +v_n->n     <= nxdense);
+      assert(theta_n->compute_indexDense()+theta_n->n <= nxdense);
+
+      assert(v_n->n == n);
+      assert(theta_n->n == n);
+
+      const int idx_col_of_v_n     = v_n->compute_indexDense();
+      const int idx_col_of_theta_n = theta_n->compute_indexDense();
+      
       for(int i=0; i<n; i++) {
+
+	//!!
+	//if(i>1) continue;
+	
 	//
 	//partials w.r.t. to v_i and theta_i
 	//
-	assert(i<nxdense);
-	assert(i+v_n->index<nxdense);
 
-	//one term of da_i/v_i
-	JacD[i][i]            = - 2.0*v_n->xref[i]*YredM[i][i].real();
+	//first term of da_i/v_i  -> we'll accumulate in here
+	JacD[i][idx_col_of_v_n + i] = - 2.0*v_n->xref[i]*YredM[i][i].real();
 	//here we'll accumulate da_i/theta_i
-	JacD[i][v_n->index+i] = 0.;
+	JacD[i][idx_col_of_theta_n + i] = 0.;
 	
 	for(int j=0; j<i; j++) {
 	  //for v_i:     -     v_j* (   Gred[i,j]*cos(theta_i-theta_j) + Bred[i,j]*sin(theta_i-theta_j)) 
 	  //for theta_i: - v_i*v_j *( - Gred[i,j]*sin(theta_i-theta_k) + Bred[i,j]*cos(theta_i-theta_j))
+	  vivj = v_n->xref[j]*v_n->xref[i];
 	  aux = theta_n->xref[i]-theta_n->xref[j];
 	  aux_sin = sin(aux);
 	  aux_cos = cos(aux);
 
-	  //! Yred only stores upper triangle
-	  aux_G_cos = YredM[j][i].real()*aux_cos;
-	  aux_B_sin = YredM[j][i].imag()*aux_sin;
+	  aux_G_cos = YredM[i][j].real()*aux_cos;
+	  aux_B_cos = YredM[i][j].imag()*aux_cos;
+	  aux_B_sin = YredM[i][j].imag()*aux_sin;
+	  aux_G_sin = YredM[i][j].real()*aux_sin;
 	  aux_G_cos_B_sin = aux_G_cos + aux_B_sin;
+	  vivjGsin__Bcos = vivj*(aux_G_sin-aux_B_cos);
 
-	  aux_G_sin = YredM[j][i].real()*aux_sin;
-	  aux_B_cos = YredM[j][i].imag()*aux_cos;
-	  vivjGcos_Bsin = v_n->xref[j]*v_n->xref[i]*(aux_G_sin-aux_B_cos);
+	  //for da_i/dv_k = - v_i * (Gred[i,k]*cos(theta_i-theta_k)+Bred[i,k]*sin(theta_i-theta_k))
+	  assert(JacD[i][idx_col_of_v_n + j]==0. && "should not written previously in this");
+	  JacD[i][idx_col_of_v_n + j] = -v_n->xref[i]*aux_G_cos_B_sin;
 
-	  //for da_i/dv_k =   -   v_i * (Gred[i,k]*cos(theta_i-theta_k)+Bred[i,k]*sin(theta_i-theta_k))
-	  JacD[i][j] = -v_n->xref[i]*aux_G_cos_B_sin;
+	  //for da_i/v_i: add  - v_j* (   Gred[i,j]*cos(theta_i-theta_j) + Bred[i,j]*sin(theta_i-theta_j)) 
+	  JacD[i][idx_col_of_v_n + i] -= v_n->xref[j]*aux_G_cos_B_sin;
 
-	  //for da_i/v_i:     -   v_j* (   Gred[i,j]*cos(theta_i-theta_j) + Bred[i,j]*sin(theta_i-theta_j)) 
-	  JacD[i][i] -= v_n->xref[j]*aux_G_cos_B_sin;
-
+	  
 	  //for da_i/dtheta_k = - v_i*v_k *(Gred[i,k]*sin(theta_i-theta_k) - Bred*cos(theta_i-theta_k))
-	  JacD[i][j+v_n->index] = -vivj*(aux_G_sin-aux_B_cos);
+	  assert(JacD[i][idx_col_of_theta_n + j]==0. && "should not written previously in this");
+	  JacD[i][idx_col_of_theta_n + j] = - vivjGsin__Bcos;
 
-	  //for da_i/theta_i:   - v_i*v_j *( - Gred[i,j]*sin(theta_i-theta_k) + Bred[i,j]*cos(theta_i-theta_j))
-	  JacD[i][i+v_n->index] -= vivjGcos_Bsin;
+	  //for da_i/theta_i: add
+	  //        - v_i*v_j *( - Gred[i,j]*sin(theta_i-theta_k) + Bred[i,j]*cos(theta_i-theta_j))
+	  JacD[i][idx_col_of_theta_n + i] += vivjGsin__Bcos;
 	}
 	for(int j=i+1; j<n; j++) {
 	  //for v_i:     -     v_j* (   Gred[i,j]*cos(theta_i-theta_j) + Bred[i,j]*sin(theta_i-theta_j)) 
 	  //for theta_i: - v_i*v_j *( - Gred[i,j]*sin(theta_i-theta_k) + Bred[i,j]*cos(theta_i-theta_j))
+	  vivj = v_n->xref[j]*v_n->xref[i];
 	  aux = theta_n->xref[i]-theta_n->xref[j];
 	  aux_sin = sin(aux);
 	  aux_cos = cos(aux);
 
-	  //! Yred only stores upper triangle
 	  aux_G_cos = YredM[i][j].real()*aux_cos;
-	  aux_B_sin = YredM[i][j].imag()*aux_sin;
-	  aux_G_cos_B_sin = aux_G_cos + aux_B_sin;
-
-	  aux_G_sin = YredM[i][j].real()*aux_sin;
 	  aux_B_cos = YredM[i][j].imag()*aux_cos;
-	  vivjGcos_Bsin = v_n->xref[j]*v_n->xref[i]*(aux_G_sin-aux_B_cos);
+	  aux_B_sin = YredM[i][j].imag()*aux_sin;
+	  aux_G_sin = YredM[i][j].real()*aux_sin;
+	  aux_G_cos_B_sin = aux_G_cos + aux_B_sin;
+	  vivjGsin__Bcos = vivj*(aux_G_sin-aux_B_cos);
 
-	  //for da_i/v_i:      - v_j*     (   Gred[i,j]*cos(theta_i-theta_j) + Bred[i,j]*sin(theta_i-theta_j)) 
-	  JacD[i][i] -= v_n->xref[j]*aux_G_cos_B_sin;
+	  //for da_i/v_i:  add - v_j* (   Gred[i,j]*cos(theta_i-theta_j) + Bred[i,j]*sin(theta_i-theta_j))
+	  JacD[i][idx_col_of_v_n + i] -= v_n->xref[j]*aux_G_cos_B_sin;
 
-	  //for da_i/dv_k =    - v_i *    (Gred[i,k]*cos(theta_i-theta_k)+Bred[i,k]*sin(theta_i-theta_k))
-	  JacD[i][j] = -v_n->xref[i]*aux_G_cos_B_sin;
+	  //for da_i/dv_k =  - v_i * (Gred[i,k]*cos(theta_i-theta_k)+Bred[i,k]*sin(theta_i-theta_k))
+	  assert(JacD[i][idx_col_of_v_n + j]==0. && "should not written previously in this");
+	  JacD[i][idx_col_of_v_n + j] = -v_n->xref[i]*aux_G_cos_B_sin;
 
-	  //for da_i/theta_i:  - v_i*v_j *( - Gred[i,j]*sin(theta_i-theta_k) + Bred[i,j]*cos(theta_i-theta_j))
-	  JacD[i][i+v_n->index] -= vivjGcos_Bsin;
+	  //for da_i/theta_i: add
+	  //         - v_i*v_j *( - Gred[i,j]*sin(theta_i-theta_k) + Bred[i,j]*cos(theta_i-theta_j))
+	  JacD[i][idx_col_of_theta_n + i] += vivjGsin__Bcos;
 
 	  //for da_i/dtheta_k = - v_i*v_k*(Gred[i,k]*sin(theta_i-theta_k) - Bred*cos(theta_i-theta_k))
-	  JacD[i][j+v_n->index] = -vivj*(aux_G_sin-aux_B_cos);
+	  JacD[i][idx_col_of_theta_n + j] = - vivjGsin__Bcos;
 	}
       }
     }
@@ -278,8 +296,8 @@ namespace gollnlp {
       for(auto g: Gn_fs[bus_nonaux_idxs[it]]) 
 	vij.push_back(OptSparseEntry(row, p_g->indexSparse+g, itnz++));
     
-      if(Gn_fs[bus_nonaux_idxs[it]].size()>0)
-	row++;
+      //if(Gn_fs[bus_nonaux_idxs[it]].size()>0)
+      ++row;
     }
     //printf("nnz=%d vijsize=%d\n", nnz, vij.size());
 #ifdef DEBUG
