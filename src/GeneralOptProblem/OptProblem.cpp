@@ -500,6 +500,7 @@ void OptProblem::reallocate_nlp_solver()
     delete nlp_solver;
     nlp_solver=NULL;
   }
+  assert(false);
   use_nlp_solver("ipopt");
 }
 
@@ -566,9 +567,12 @@ void  OptProblem::print_summary() const
   printf("\n*************************************************************************\n");
   printf("Problem with %d variables and %d constraints\n", get_num_variables(), get_num_constraints());
   printf("Variables blocks: \n");
-  for(auto it : vars_primal->vblocks) 
-    printf("\t'%s' size %d  startsAt %d   providesStPoint %d\n",
-	   it->id.c_str(), it->n, it->index, it->providesStartingPoint);
+  for(auto b : vars_primal->vblocks)
+    printf("\t'%s' size %d startsAt %d providesStPoint %d  sparseBlock %d (indexSparse %d)\n", 
+	   b->id.c_str(), b->n, b->index, b->providesStartingPoint,
+	   b->sparseBlock, b->indexSparse);
+  //printf("\t'%s' size %d  startsAt %d   providesStPoint %d\n",
+  //	   it->id.c_str(), it->n, it->index, it->providesStartingPoint);
 
   printf("Constraints blocks: \n");
   for(auto it : cons->vblocks) 
@@ -625,16 +629,19 @@ bool OptVariables::append_varsblock(OptVariablesBlock* b)
 
       //if not blocks were added, nothing to do -> indexSparse is 0 (and already set in the
       // constructor of OptVariablesBlock)
+
+      //else
       if(!vblocks.empty()) {
 	if(!vblocks.back()->sparseBlock) {
-	  //if the previous vars block is dense, it has the negative of the index of the previous sparse
-	  //block; just flip the sign to get the 'indexSparse' of current vars block
+	  // if the previous vars block is dense, it has the negative of the total size of all
+	  // previous sparse blocks
+	  // just flip the sign to get the 'indexSparse' of current vars block
 	  assert(vblocks.back()->indexSparse <= 0);
 	  b->indexSparse = -vblocks.back()->indexSparse;
 	} else {
 	  //if the previous vars block is sparse, just use its 'indexSparse' and add its length to
-	  //get the 'indexSparse' of current vars block
-	  assert(vblocks.back()->indexSparse >= 0); //no zero length sparse blocks, isn't?
+	  //obtain the 'indexSparse' of current vars block
+	  assert(vblocks.back()->indexSparse >= 0); 
 	  b->indexSparse = vblocks.back()->indexSparse + vblocks.back()->n;
 	}
       }
@@ -644,10 +651,16 @@ bool OptVariables::append_varsblock(OptVariablesBlock* b)
       //if no blocks were added, sparseIndex is 0 (already set in the constructor of OptVariablesBlock)
 
       //if blocks are present:
-      //  - if the previous is dense, 'indexSparse' does not change (and remains positive)
-      //  - if the previous is sparse, 'indexSparse' is with flipped sign
       if(!vblocks.empty()) {
-	b->indexSparse = - std::abs(vblocks.back()->indexSparse);
+	if(vblocks.back()->sparseBlock) {
+	  //  - if the previous is sparse, increase its 'indexSparse' by its length and flip the sign
+	  assert(vblocks.back()->indexSparse>=0);
+	  b->indexSparse = - vblocks.back()->indexSparse - vblocks.back()->n;
+	} else {
+	  //  - if the previous is dense, 'indexSparse' does not change (and remains negative)
+	  b->indexSparse = vblocks.back()->indexSparse;
+	}
+	  
       }
     }
     

@@ -18,8 +18,6 @@ namespace gollnlp {
 typedef Ipopt::ApplicationReturnStatus OptimizationStatus;
 typedef Ipopt::AlgorithmMode OptimizationMode;
 
-
-
 class NlpSolver;
 
 class OptVariablesBlock {
@@ -54,10 +52,17 @@ public:
   //Sparse is the default.
   bool sparseBlock;
   //index at which the sparse block start within the sparse variables within OptVariables container
-  //if this is a dense block, the "sparse" index is negative, indicating the sparse index of the
+  //if this is a dense block, the "sparse" index is negative, indicating the last sparse index of the
   //previously sparse block within OptVariables container
   int indexSparse;
-  
+
+  inline int compute_indexDense() const
+  {
+    assert(!sparseBlock);
+    assert(indexSparse<=0);
+    assert(index>=0);
+    return index+indexSparse;
+  }
   
   inline OptVariablesBlock* new_copy() 
   {
