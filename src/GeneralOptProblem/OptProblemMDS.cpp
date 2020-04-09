@@ -14,25 +14,29 @@ namespace gollnlp {
       new_x_fgradf=true;
       vars_primal->attach_to(x);
     }
-    if(MJacS==NULL) {
-      for(auto& con_gen: cons->vblocks) {
+    // if(MJacS==NULL) {
+    //   for(auto& con_gen: cons->vblocks) {
 	
-	OptConstraintsBlockMDS* con = dynamic_cast<OptConstraintsBlockMDS*>(con_gen);
-	assert(NULL!=con);
-	if(!con) continue;
+    // 	OptConstraintsBlockMDS* con = dynamic_cast<OptConstraintsBlockMDS*>(con_gen);
+    // 	assert(NULL!=con);
+    // 	if(!con) continue;
 	
-	if(!con->eval_Jac_eq(*vars_primal, new_x,
-			     nxsparse, nxdense,
-			     nnzJacS, iJacS, jJacS, MJacS,
-			     JacD)) {
-	  assert(false && "eval_Jaccons should be called after get_nnzJaccons");
-	}
-      }
-      return true;
-    }
+    // 	if(!con->eval_Jac_eq(*vars_primal, new_x,
+    // 			     nxsparse, nxdense,
+    // 			     nnzJacS, iJacS, jJacS, MJacS,
+    // 			     JacD)) {
+    // 	  assert(false && "eval_Jaccons should be called after get_nnzJaccons");
+    // 	}
+    //   }
+    //   return true;
+    // }
     
     //M!=NULL > just fill in the values
-    for(int i=0; i<nnzJacS; i++) MJacS[i]=0.;
+    if(MJacS)
+      for(int i=0; i<nnzJacS; ++i) MJacS[i]=0.;
+    if(JacD)
+      for(int i=0; i<nxdense*cons->m(); ++i) JacD[0][i]=0.;
+  
     for(auto& con_gen: cons->vblocks) {
       
       OptConstraintsBlockMDS* con = dynamic_cast<OptConstraintsBlockMDS*>(con_gen);
@@ -42,8 +46,11 @@ namespace gollnlp {
       if(!con->eval_Jac_eq(*vars_primal, new_x,
 			   nxsparse, nxdense,
 			   nnzJacS, iJacS, jJacS, MJacS,
-			   JacD))
+			   JacD)) {
 	return false;
+      }
+      //print_spmat_triplet(nnzJacS, cons->m(), nxsparse, iJacS, jJacS, MJacS, "Jac_eq");
+
     }
     return true;
   }
@@ -225,9 +232,11 @@ namespace gollnlp {
   {
     if(NULL == nlp_solver) {
       if(gollnlp::tolower(name) == "ipopt") {
-	assert(false && "no Ipopt solver class for OptProblemMDS is available");
-	//nlp_solver = new IpoptSolver(this);
-	//nlp_solver->initialize();
+	printf("Ipopt called for a MDS formulation: this is not recommended since the "
+	       "IpoptSolver for MDS is for testing purposes only; use HiopSolver instead\n");
+
+	nlp_solver = new IpoptSolver_HiopMDS(this);
+	nlp_solver->initialize();
       } else {
 	assert(gollnlp::tolower(name) == "hiop");
 	nlp_solver = new HiopSolverMDS(this);

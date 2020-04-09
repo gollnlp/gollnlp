@@ -312,16 +312,22 @@ public:
 
   virtual bool set_start_type(OptProblem::RestartType t)
   {
+    gollnlp::IpoptNlp* nlp_spec = dynamic_cast<gollnlp::IpoptNlp*>(Ipopt::GetRawPtr(ipopt_nlp_spec));
+    //assert(nlp_spec != NULL);
+    
     if(t==OptProblem::primalDualRestart) {
       app->Options()->SetStringValue("warm_start_init_point", "yes");
-	ipopt_nlp_spec->set_advanced_primaldual_restart(false);
+
+      //nlp_spec can be NULL when the underlying TNLP is hiopMDS2IpoptTNLP. This TNLP
+      //is used in testing Hiop
+      if(nlp_spec) nlp_spec->set_advanced_primaldual_restart(false);
     } else {
       if(t==OptProblem::primalRestart)
 	app->Options()->SetStringValue("warm_start_init_point", "no");
       else { //	advancedPrimalDualRestart	
 	app->Options()->SetStringValue("warm_start_init_point", "yes");
 	app->Options()->SetStringValue("warm_start_entire_iterate", "yes");
-	ipopt_nlp_spec->set_advanced_primaldual_restart(true);
+	if(nlp_spec) nlp_spec->set_advanced_primaldual_restart(true);
       }
     }
     return true;
@@ -394,9 +400,10 @@ public:
     return true;
   };
 
-private:
+protected:
   Ipopt::SmartPtr<Ipopt::IpoptApplication> app;
-  Ipopt::SmartPtr<gollnlp::IpoptNlp> ipopt_nlp_spec;
+  //Ipopt::SmartPtr<gollnlp::IpoptNlp> ipopt_nlp_spec;
+  Ipopt::SmartPtr<Ipopt::TNLP> ipopt_nlp_spec;
   OptimizationStatus app_status;
 };
 

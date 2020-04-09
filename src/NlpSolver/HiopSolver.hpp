@@ -10,7 +10,9 @@
 
 #include "goTimer.hpp"
 
-//using namespace hiop;
+#include "IpoptSolver.hpp" //for IpoptSolver_HiopMDS
+
+#include "IpoptAdapter.hpp" //for hiopMDS2Ipopt, part of Hiop
 
 #include <iostream>
 
@@ -65,7 +67,7 @@ namespace gollnlp {
       assert(n == nx_dense+nx_sparse);
     
       nnz_sparse_Jace = prob->compute_nnzJac_eq();
-      printf("nx_sparse=%d  nx_dense=%d\n", nx_dense, nx_sparse);
+      printf("nx_sparse=%d  nx_dense=%d\n", nx_sparse, nx_dense);
       fflush(stdout);
 
       nnz_sparse_Jaci = prob->compute_nnzJac_ineq();
@@ -240,5 +242,46 @@ namespace gollnlp {
     OptimizationStatus app_status;
   };
 
-} //endnamespace
+  /** IpoptSolver_HiopMDS class to be used for testing only since it is not optimized
+   * for performance (and really Ipopt cannot solve MDS/Kron reduction problems 
+   * very efficiently).
+   *
+   *  Takes a OptProblemMDS as input, constructs the HiopNlpMDS, and then uses 
+   *  Hiop's Ipopt MDS adapter to solve the input MDS problem.
+   */
+
+  class IpoptSolver_HiopMDS : public IpoptSolver {
+  public:
+    IpoptSolver_HiopMDS(OptProblem* p_) : IpoptSolver(p_), hiop_nlp_spec(NULL) {}
+    virtual ~IpoptSolver_HiopMDS()
+    {
+      delete hiop_nlp_spec;
+    }
+
+    virtual bool initialize()
+    {
+      app = IpoptApplicationFactory();
+      // Intialize the IpoptApplication and process the options
+      app_status = app->Initialize();
+      if (app_status != Ipopt::Solve_Succeeded) {
+	printf("\n\n*** Error during initialization!\n");
+	return false;
+      }
+      //first allocate the Hiop specification class
+      
+      //this->prob is inherited from base NlpSolver and has the base type, OptProblem
+      OptProblemMDS* probMDS = dynamic_cast<OptProblemMDS*>(this->prob);
+      if(probMDS==NULL) {
+	printf("IpoptSolver_HiopMDS did not received an MDS OptProblem and cannot initialize\n");
+	return false;
+      }
+      hiop_nlp_spec = new gollnlp::HiopNlpMDS(probMDS);
+      
+      ipopt_nlp_spec = new hiop::hiopMDS2IpoptTNLP(hiop_nlp_spec);
+      return true;
+    }
+  protected:
+    gollnlp::HiopNlpMDS* hiop_nlp_spec;
+  };
+} //end namespace
 #endif
