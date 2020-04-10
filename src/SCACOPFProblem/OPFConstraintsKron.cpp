@@ -80,9 +80,6 @@ namespace gollnlp {
 
       for(int i=0; i<n; i++) {
 	for(int j=0; j<n; j++) {
-	  //!
-	  //if(i>1) {continue;}
-	  
 	  aux = theta_n->xref[i]-theta_n->xref[j];
 	  body[i] -= v_n->xref[i]*v_n->xref[j] *
 	    ( YredM[i][j].real()*cos(aux) + YredM[i][j].imag()*sin(aux) );
@@ -194,9 +191,6 @@ namespace gollnlp {
       const int idx_col_of_theta_n = theta_n->compute_indexDense();
       
       for(int i=0; i<n; i++) {
-
-	//!!
-	//if(i>1) continue;
 	
 	//
 	//partials w.r.t. to v_i and theta_i
@@ -351,8 +345,9 @@ namespace gollnlp {
   // d2 a_i/dv_i dtheta_j = -  v_j*[Gred[i,j]*sin(theta_i-theta_j) - Bred[i,j]*cos(theta_i-theta_j)]
   //
   // k>i
-  // d2 a_i/dv_k dtheta_k = - v_i*[Gred[i,k]*sin(theta_i-theta_k) - Bred[i,k]*cos(theta_i-theta_k)]
-  // d2 a_i/dv_k dtheta_j = 0 (j>k)
+  // d2 a_i/dv_k dtheta_k = - v_i*[ Gred[i,k]*sin(theta_i-theta_k) - Bred[i,k]*cos(theta_i-theta_k)]
+  // d2 a_i/dv_k dtheta_i = - v_i*[-Gred[i,k]*cos(theta_i-theta_k) + Bred[i,k]*sin(theta_i-theta_k)]
+  // d2 a_i/dv_k dtheta_j = 0 (j!=k)
   // ****************************************************
   //   d a_i
   // --------- = - v_i*v_k *(Gred[i,k]*sin(theta_i-theta_k) - Bred[i,k]*cos(theta_i-theta_k))  [[[ i!=k ]]]
@@ -402,129 +397,175 @@ namespace gollnlp {
     //
     // dense part
     //
+    // Note: Only upper triangle part of HDD is updated
     if(NULL==MHSS) {
     } else {
       const OptVariablesBlock* lambda = lambda_vars.get_block(std::string("duals_") + this->id);
-      assert(lambda!=NULL);
-      assert(lambda->n==n);
+      assert(lambda != NULL);
+      assert(lambda->n == n);
+      assert(v_n->n == n);
+      assert(theta_n->n == n);
+
+      const int idx_col_of_v_n     = v_n->compute_indexDense();
+      const int idx_col_of_theta_n = theta_n->compute_indexDense();
+
+      assert(idx_col_of_v_n >= 0 && idx_col_of_v_n+v_n->n <= nxdense);
+      assert(idx_col_of_theta_n >= 0 && idx_col_of_theta_n+theta_n->n <= nxdense);
+      
       std::complex<double>** YredM = Ybus_red.local_data();
       double theta_diff, aux_G_sin, aux_B_cos, res;
 
       //loop over constraints/lambdas
       for(int i=0; i<n; i++) {
+	
 	const double& lambda_i = lambda->xref[i];
 	int k,j;
-	//
+	const int idx_col_of_v_n_elemi = idx_col_of_v_n+i;
+	//********************************************************
 	//Dense part of Hessian of a_i w.r.t v_k,v_j  (j>=k)
-	//
-	
-	//! YredM is upper triangle
+	//********************************************************
 
 	//---> k=1,...,i-1 all zeros except d2 a_i/dv_k dv_i
 	for(k=0; k<i; k++) {
-	  //v_k has index k in dense part of Hessian; v_i has index i
 	  theta_diff = theta_n->xref[i]-theta_n->xref[k];
-	  HDD[k][i] -= lambda_i * (YredM[k][i].real()*cos(theta_diff) + YredM[k][i].imag()*sin(theta_diff));
+
+	  assert(idx_col_of_v_n+k <= idx_col_of_v_n_elemi);
+	  HDD[idx_col_of_v_n+k][idx_col_of_v_n_elemi] -=
+	    lambda_i * (YredM[i][k].real()*cos(theta_diff) + YredM[i][k].imag()*sin(theta_diff));
 	}
 	//---> k=i
 	k=i;
-	// d2 a_i/dv_i dv_i and d2 a_i/dv_i dv_j (j>i)
-	HDD[i][i] -= lambda_i * 2 * YredM[i][i].real();
+	// d2 a_i/dv_i dv_i 
+	HDD[idx_col_of_v_n_elemi][idx_col_of_v_n_elemi] -= lambda_i * 2 * YredM[i][i].real();
+	// d2 a_i/dv_i dv_j (j>i)
 	for(j=k+1; j<n; j++) {
 	  theta_diff = theta_n->xref[i]-theta_n->xref[j];
-	  HDD[i][i] -= lambda_i * (YredM[k][i].real()*cos(theta_diff) + YredM[k][i].imag()*sin(theta_diff));
+	  
+	  assert(idx_col_of_v_n_elemi <= idx_col_of_v_n+j);
+	  HDD[idx_col_of_v_n_elemi][idx_col_of_v_n+j] -=
+	    lambda_i * (YredM[i][j].real()*cos(theta_diff) + YredM[i][j].imag()*sin(theta_diff));
 	}
 	//---> k>i all zeros
 
-	//
+	//********************************************************
 	// Dense part of the Hessian of a_i w.r.t. v_k, theta_j
-	//
+	//********************************************************
+	
 	// ----> k=1,...,i-1 all zeros except d2 a_i/dv_k dtheta_k  and  d2 a_i/dv_k dtheta_i
-
-	// index of theta_k in dense part of the Hessian is v_n->n+k	
-
+	// index of theta_k in dense part of the Hessian is idx_col_of_theta_n
+	const int idx_col_of_theta_n_elemi = idx_col_of_theta_n+i;
 	for(k=0; k<i; k++) {
 	  theta_diff = theta_n->xref[i]-theta_n->xref[k];
-	  aux_G_sin = YredM[k][i].real()*sin(theta_diff);
-	  aux_B_cos = YredM[k][i].imag()*cos(theta_diff);
+	  aux_G_sin = YredM[i][k].real()*sin(theta_diff);
+	  aux_B_cos = YredM[i][k].imag()*cos(theta_diff);
 	  res = lambda_i * v_n->xref[i] * (aux_G_sin - aux_B_cos);
 	  //d2 a_i/dv_k dtheta_k
-	  assert(k<v_n->n+k);
-	  HDD[k][v_n->n+k] -= res;
+	  assert(idx_col_of_v_n+k <= idx_col_of_theta_n+k);
+	  HDD[idx_col_of_v_n+k][idx_col_of_theta_n+k] -= res;
 	  
 	  //d2 a_i/dv_k dtheta_i
-	  assert(k<v_n->n+i);
-	  HDD[k][v_n->n+i] += res;
+	  assert(idx_col_of_v_n+k <= idx_col_of_theta_n_elemi);
+	  HDD[idx_col_of_v_n+k][idx_col_of_theta_n_elemi] += res;
 	}
-	// ---> k=i
+	// ---> k=i <---
 	k=i;
-	//                             n
-	// d2 a_i/dv_i dtheta_i = -   sum    v_j*[-Gred[i,j]*sin(theta_i-theta_j) + Bred[i,j]*cos(theta_i-theta_j)]
-	//                         j=1, j!=i
+	//                          n
+	// d2 a_i/dv_i dtheta_i= - sum  v_j*[-Gred[i,j]*sin(theta_i-theta_j) + Bred[i,j]*cos(theta_i-theta_j)]
+	//                       j=1, j!=i
 	double sum=0.; 
 	for(j=0; j<i; j++) {
 	  theta_diff = theta_n->xref[i]-theta_n->xref[j];
-	  sum += v_n->xref[j]*(-YredM[j][i].real()*sin(theta_diff) + YredM[j][i].imag()*cos(theta_diff));
+	  sum += v_n->xref[j]*(-YredM[i][j].real()*sin(theta_diff) + YredM[i][j].imag()*cos(theta_diff));
 	}
 	for(j=i+1; j<n; j++) {
 	  theta_diff = theta_n->xref[i]-theta_n->xref[j];
 	  sum += v_n->xref[j]*(-YredM[i][j].real()*sin(theta_diff) + YredM[i][j].imag()*cos(theta_diff));
 	}
-	HDD[i][v_n->n+i] -= lambda_i*sum;
+	assert(idx_col_of_v_n_elemi <= idx_col_of_theta_n_elemi);
+	HDD[idx_col_of_v_n_elemi][idx_col_of_theta_n_elemi] -= lambda_i*sum;
 
-	//TODO merge the loop above with the one below maybe
 	// d2 a_i/dv_i dtheta_j = -  v_j*[Gred[i,j]*sin(theta_i-theta_j) - Bred[i,j]*cos(theta_i-theta_j)]
-	for(int j=i+1; j<n; j++) {
+	for(j=0; j<i; j++) {
 	  theta_diff = theta_n->xref[i]-theta_n->xref[j];
-	  HDD[i][v_n->n+j] -= lambda_i*(YredM[i][j].real()*sin(theta_diff) - YredM[i][j].imag()*cos(theta_diff));
+
+	  assert(idx_col_of_v_n_elemi <= idx_col_of_theta_n+j);
+	  HDD[idx_col_of_v_n_elemi][idx_col_of_theta_n+j] -= lambda_i*v_n->xref[j]*
+	    (YredM[i][j].real()*sin(theta_diff) - YredM[i][j].imag()*cos(theta_diff));
+	}
+	for(j=i+1; j<n; j++) {
+	  theta_diff = theta_n->xref[i]-theta_n->xref[j];
+	  
+	  assert(idx_col_of_v_n_elemi <= idx_col_of_theta_n+j);
+	  HDD[idx_col_of_v_n_elemi][idx_col_of_theta_n+j] -= lambda_i*v_n->xref[j]*
+	    (YredM[i][j].real()*sin(theta_diff) - YredM[i][j].imag()*cos(theta_diff));
 	}
 
-	// ---> k=i+1, ..., n -> only d2 a_i/dv_k dtheta_k is nonzero
-	HDD[k][v_n->n+k] -= lambda_i*v_n->xref[i]*(YredM[i][j].real()*sin(theta_diff) - YredM[i][j].imag()*cos(theta_diff));
+	// ---> k=i+1, ..., n  <---
+	for(k=i+1; k<n; k++) {
+	  theta_diff = theta_n->xref[i]-theta_n->xref[k];
+	  res = lambda_i*v_n->xref[i]*(YredM[i][k].real()*sin(theta_diff) -
+				       YredM[i][k].imag()*cos(theta_diff));
+	  //d2 a_i/dv_k dtheta_k is nonzero
+	  assert(idx_col_of_v_n+k <= idx_col_of_theta_n+k);
+	  HDD[idx_col_of_v_n+k][idx_col_of_theta_n+k] -= res;
+	    
 
-	//
+	  //d2 a_i/dv_k dtheta_i
+	  assert(idx_col_of_v_n+k <= idx_col_of_theta_n_elemi);
+	  HDD[idx_col_of_v_n+k][idx_col_of_theta_n_elemi] += res;
+	}
+	
+	//********************************************************
 	// Dense part of the Hessian of a_i w.r.t theta_k, theta_j
-	//
-	// ---> k<i : only d2 a_i / dtheta_k dtheta_k and d2 a_i / dtheta_k dtheta_i are nonzeros
-	const int idx_of_theta_i = v_n->n+i;
+	//********************************************************
+	
+	// ---> k<i <---
+	// only d2 a_i / dtheta_k dtheta_k and d2 a_i / dtheta_k dtheta_i are nonzeros
 	for(k=0; k<i; k++) {
 	  theta_diff = theta_n->xref[i]-theta_n->xref[k];
 	  res = v_n->xref[i]*v_n->xref[k]*
-	    (YredM[k][i].real()*cos(theta_diff) + YredM[k][i].imag()*sin(theta_diff));
-	  const int idx_of_theta_k = v_n->n+k;
-	  HDD[idx_of_theta_k][idx_of_theta_k] += lambda_i * res;
-	  HDD[idx_of_theta_k][idx_of_theta_i] -= lambda_i * res;
+	    (YredM[i][k].real()*cos(theta_diff) + YredM[i][k].imag()*sin(theta_diff));
+	  const int idx_col_of_theta_n_elemk = idx_col_of_theta_n+k;
+	  HDD[idx_col_of_theta_n_elemk][idx_col_of_theta_n_elemk] += lambda_i * res;
+	  HDD[idx_col_of_theta_n_elemk][idx_col_of_theta_n_elemi] -= lambda_i * res;
 	}
-	// ---> k=i
+	// ---> k=i  <---
 	k=i; 
 	// d2 a_i / dtheta_i dtheta_i
 	sum = 0;
 	for(j=0; j<i; j++) {
 	  theta_diff = theta_n->xref[i]-theta_n->xref[j];
 	  sum += v_n->xref[i]*v_n->xref[j]*
-	    (-YredM[j][i].real()*cos(theta_diff) - YredM[j][i].imag()*sin(theta_diff));
+	    (-YredM[i][j].real()*cos(theta_diff) - YredM[i][j].imag()*sin(theta_diff));
 	}
 	for(j=i+1; j<n; j++) {
 	  theta_diff = theta_n->xref[i]-theta_n->xref[j];
 	  sum += v_n->xref[i]*v_n->xref[j]*
 	    (-YredM[i][j].real()*cos(theta_diff) - YredM[i][j].imag()*sin(theta_diff));
 	}
-	HDD[idx_of_theta_i][idx_of_theta_i] -= lambda_i*sum;
-	// d2 a_i / dtheta_i dtheta_j  (k=i)
+	HDD[idx_col_of_theta_n_elemi][idx_col_of_theta_n_elemi] -= lambda_i*sum;
+	
+	// d2 a_i / dtheta_i dtheta_j  (k=i) for j>i (j<i was updated by symmetry at ---> k<i <---)
 	for(j=i+1; j<n; j++) {
 	  theta_diff = theta_n->xref[i]-theta_n->xref[j];
 
-	  HDD[idx_of_theta_i][v_n->n+j] -= lambda_i * v_n->xref[i] * v_n->xref[j] *
+	  assert(idx_col_of_theta_n_elemi <= idx_col_of_theta_n+j);
+	  HDD[idx_col_of_theta_n_elemi][idx_col_of_theta_n+j] -=
+	    lambda_i * v_n->xref[i] * v_n->xref[j] *
 	    (YredM[i][j].real()*cos(theta_diff) + YredM[i][j].imag()*sin(theta_diff));
 	}
 
 	// ---> k>i : only d2 a_i / dtheta_k dtheta_k is nonzero
 	for(k=i+1; k<n; k++) {
-	  const int idx_of_theta_k = v_n->n+k;
+	  const int idx_col_of_theta_n_elemk = idx_col_of_theta_n+k;
 	  theta_diff = theta_n->xref[i]-theta_n->xref[k];
-	  HDD[idx_of_theta_k][idx_of_theta_k] -= lambda_i * v_n->xref[i] * v_n->xref[k] *
+	  
+	  //assert(idx_col_of_theta_n_elemk <= idx_col_of_theta_n_elemk);
+	  HDD[idx_col_of_theta_n_elemk][idx_col_of_theta_n_elemk] -=
+	    lambda_i * v_n->xref[i] * v_n->xref[k] *
 	    (-YredM[i][k].real()*cos(theta_diff) - YredM[i][k].imag()*sin(theta_diff));
 	}
+	
       } // end of for over i=1,..,n
     }
     return true;
