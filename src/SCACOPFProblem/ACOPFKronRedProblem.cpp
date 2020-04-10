@@ -32,12 +32,12 @@ namespace gollnlp {
     if(!reduction.go(idxs_buses_nonaux, idxs_buses_aux, *YBus_, *Ybus_red)) {
       return false;
     }
-
+#ifdef DEBUG
     if(Ybus_red->assertSymmetry(1e-12))
       printf("!!!!! matrix is symmetric\n");
     else
       printf("!!!!! matrix is NOT symmetric\n");
-    
+#endif
     add_variables(data_sc);
     add_cons_pf(data_sc);
 
@@ -48,6 +48,28 @@ namespace gollnlp {
   
   void ACOPFKronRedProblem::add_variables(SCACOPFData& d, bool SysCond_BaseCase/* = true*/)
   {
+    /******************************************************************************
+     * WARNING: "sparse" variables need to be added first, before "dense" variables
+     ******************************************************************************
+     */
+    { // generation p_g and q_g
+      auto p_g = new OptVariablesBlock(d.G_Generator.size(), var_name("p_g",d), 
+				       d.G_Plb.data(), d.G_Pub.data());
+      append_variables(p_g); 
+      p_g->set_start_to(d.G_p0.data());
+
+
+      auto q_g = new OptVariablesBlock(d.G_Generator.size(), var_name("q_g",d), 
+				       d.G_Qlb.data(), d.G_Qub.data());
+      q_g->set_start_to(d.G_q0.data());
+      append_variables(q_g); 
+    }
+
+    /******************************************************************************
+     * WARNING: voltage variables need to be added first, before theta variables
+     * otherwise the Hessian evaluation of PFActiveBalanceKron will not work
+     ******************************************************************************
+     */
     { //voltages
       vector<double>& vlb = SysCond_BaseCase==true ? data_sc.N_Vlb : data_sc.N_EVlb;
       vector<double>& vub = SysCond_BaseCase==true ? data_sc.N_Vub : data_sc.N_EVub;
@@ -57,7 +79,10 @@ namespace gollnlp {
       selectfrom(vub, idxs_buses_nonaux, vub_na);
       selectfrom(data_sc.N_v0, idxs_buses_nonaux, v0_na);
       
-      auto v_n = new OptVariablesBlock(idxs_buses_nonaux.size(), var_name("v_n",d), vlb_na.data(), vub_na.data());
+      auto v_n = new OptVariablesBlock(idxs_buses_nonaux.size(),
+				       var_name("v_n",d),
+				       vlb_na.data(),
+				       vub_na.data());
       v_n->sparseBlock = false;
       append_variables(v_n);
       v_n->set_start_to(v0_na.data());
@@ -65,8 +90,9 @@ namespace gollnlp {
 
     { //theta
       auto theta_n = new OptVariablesBlock(idxs_buses_nonaux.size(), var_name("theta_n",d));
-      append_variables(theta_n);
       theta_n->sparseBlock = false;
+      append_variables(theta_n);
+      
       vector<double> theta0_n;
       selectfrom(data_sc.N_theta0, idxs_buses_nonaux, theta0_n);
       theta_n->set_start_to(theta0_n.data());
@@ -95,7 +121,7 @@ namespace gollnlp {
       assert(theta_n->x[RefBusIdx_nonaux]==0.);
     }
 
-    { //b_s
+    if(false) { //b_s
       
       auto b_s = new OptVariablesBlock(data_sc.SSh_Blb.size(),
 				       var_name("b_s",d),
@@ -105,27 +131,15 @@ namespace gollnlp {
 
       append_variables(b_s);
     }
-
-    { // generation p_g and q_g
-      auto p_g = new OptVariablesBlock(d.G_Generator.size(), var_name("p_g",d), 
-				       d.G_Plb.data(), d.G_Pub.data());
-      append_variables(p_g); 
-      p_g->set_start_to(d.G_p0.data());
-
-
-      auto q_g = new OptVariablesBlock(d.G_Generator.size(), var_name("q_g",d), 
-				       d.G_Qlb.data(), d.G_Qub.data());
-      q_g->set_start_to(d.G_q0.data());
-      append_variables(q_g); 
-    }
   }
-    
+
   void ACOPFKronRedProblem::add_cons_pf(SCACOPFData& d)
   {
     auto p_g = vars_block(var_name("p_g",d)), 
       v_n = vars_block(var_name("v_n",d)), 
       theta_n = vars_block(var_name("theta_n",d));
     {
+
       //active power balance
       auto pf_p_bal = new PFActiveBalanceKron(con_name("p_balance_kron",d), 
 					      idxs_buses_nonaux.size(),
