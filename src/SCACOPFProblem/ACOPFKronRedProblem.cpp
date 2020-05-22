@@ -41,6 +41,11 @@ namespace gollnlp {
     add_variables(data_sc);
     add_cons_pf(data_sc);
 
+    //objective
+    auto* p_g = vars_block(var_name("p_g", data_sc)); assert(p_g);
+    append_objterm(new DummySingleVarQuadrObjTerm("objective", p_g));
+    //add_obj_prod_cost(data_sc);
+    
     print_summary();
     
     return true;

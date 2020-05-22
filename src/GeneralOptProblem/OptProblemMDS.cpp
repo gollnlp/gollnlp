@@ -70,22 +70,31 @@ namespace gollnlp {
     if(new_lambda) vars_duals_cons->attach_to(lambda);
       
     if(NULL==MHSS) {
+      //
+      // Objective terms
+      //
       for(auto& ot_gen: obj->vterms) {
 
 	OptObjectiveTermMDS* ot = dynamic_cast<OptObjectiveTermMDS*>(ot_gen);
 	if(NULL==ot) {
-	  assert(false && "check this");
-	  continue;
-	}
-	  
-	if(!ot->eval_HessLagr(*vars_primal, new_x, obj_factor, 
-			      nxsparse, nxdense,
-			      nnzHSS, iHSS, jHSS, MHSS,
-			      HDD,
-			      nnzHSD, iHSD, jHSD, MHSD)) {
-	  assert(false && "eval_HessLagr should be called after get_nnzHessLagr");
+
+	  if(!ot_gen->eval_HessLagr(*vars_primal, new_x, obj_factor,
+				    nnzHSS, iHSS, jHSS, MHSS)) {
+	    assert(false && "eval_HessLagr should be called after get_nnzHessLagr");
+	  }
+	} else {
+	  if(!ot->eval_HessLagr(*vars_primal, new_x, obj_factor, 
+				nxsparse, nxdense,
+				nnzHSS, iHSS, jHSS, MHSS,
+				HDD,
+				nnzHSD, iHSD, jHSD, MHSD)) {
+	    assert(false && "eval_HessLagr should be called after get_nnzHessLagr");
+	  }
 	}
       }
+      //
+      // constraints
+      //
       for(auto& con_gen: cons->vblocks) {
 	OptConstraintsBlockMDS* con = dynamic_cast<OptConstraintsBlockMDS*>(con_gen);
 	if(NULL==con) {
@@ -110,16 +119,20 @@ namespace gollnlp {
 	  
 	OptObjectiveTermMDS* ot = dynamic_cast<OptObjectiveTermMDS*>(ot_gen);
 	if(NULL==ot) {
-	  assert(false && "check this");
-	  continue;
-	}
+	  //this is a general 'OptObjectiveTerm' which is sparse and contributes only to the
+	  //sparse Hessian
+	  if(!ot_gen->eval_HessLagr(*vars_primal, new_x, obj_factor, nnzHSS, iHSS, jHSS, MHSS)) {
+	    return false;
+	  }
+	} else {
 	  
-	if(!ot->eval_HessLagr(*vars_primal, new_x, obj_factor, 
-			      nxsparse, nxdense,
-			      nnzHSS, iHSS, jHSS, MHSS,
-			      HDD,
-			      nnzHSD, iHSD, jHSD, MHSD))
-	  return false;
+	  if(!ot->eval_HessLagr(*vars_primal, new_x, obj_factor, 
+				nxsparse, nxdense,
+				nnzHSS, iHSS, jHSS, MHSS,
+				HDD,
+				nnzHSD, iHSD, jHSD, MHSD))
+	    return false;
+	}
       }
 	
       for(auto& con_gen: cons->vblocks) {
@@ -191,15 +204,17 @@ namespace gollnlp {
 
   int OptProblemMDS::compute_nnzHessLagr_SSblock()
   {
-    if(nnz_HessLagr_SSblock>=0) return nnz_HessLagr_SSblock;
+    if(nnz_HessLagr_SSblock>=0)
+      return nnz_HessLagr_SSblock;
 
     for(auto& ot_gen: obj->vterms) {
       OptObjectiveTermMDS* ot = dynamic_cast<OptObjectiveTermMDS*>(ot_gen);
-      if(NULL==ot_gen) {
-	assert(false && "check this: incorrect/unsupported type for obj term");
-	continue;
+      if(NULL==ot) {
+	//treat general objective terms (which are sparse) as sparse blocks in the MDS
+	ot_gen->get_HessLagr_ij(ij_HessLagr_SSblock);
+      } else {
+	ot->get_HessLagr_SSblock_ij(ij_HessLagr_SSblock);
       }
-      ot->get_HessLagr_SSblock_ij(ij_HessLagr_SSblock);
       
 #ifdef DEBUG
       if(false==check_is_upper(ij_HessLagr_SSblock)) {

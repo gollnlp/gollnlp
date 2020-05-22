@@ -115,6 +115,7 @@ namespace gollnlp {
       : OptProblem()
     {
       nnz_Jac_eq = nnz_Jac_ineq = -1;
+      nnz_HessLagr_SSblock = -1;
     }
     virtual ~OptProblemMDS()
     {
