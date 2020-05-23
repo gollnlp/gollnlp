@@ -170,14 +170,15 @@ namespace gollnlp {
 			       const double& obj_factor,
 			       const int& nnz, int* i, int* j, double* M)
     {
-      if(NULL==M) {
+      if(i && j) {
 	int idx, row;
 	for(int it=0; it<x->n; it++) {
 	  idx = H_nz_idxs[it]; 
 	  if(idx<0) return false;
 	  i[idx] = j[idx] = x->index+it;
 	}
-      } else {
+      }
+      if(M) {
 	for(int it=0; it<x->n; it++) {
 	  assert(H_nz_idxs[it]>=0);
 	  assert(H_nz_idxs[it]<nnz);
@@ -327,14 +328,15 @@ namespace gollnlp {
 			       const int& nnz, int* i, int* j, double* M)
     {
       assert(ci_qua.size() == H_nnz);
-      if(NULL==M) {
+      if(i && j) {
 	int idx, row;
 	for(int it=0; it<ci_qua.size(); it++) {
 	  idx = H_nz_idxs[it]; 
 	  if(idx<0) {assert(false); return false; }
 	  i[idx] = j[idx] = x->index + ci_qua[it].idx;
 	}
-      } else {
+      }
+      if(M) {
 	for(int it=0; it<ci_qua.size(); it++) {
 	  assert(H_nz_idxs[it]>=0);
 	  assert(H_nz_idxs[it]<nnz);
@@ -552,14 +554,15 @@ namespace gollnlp {
 			       const int& nnz, int* ii, int* jj, double* M)
     {
       assert(terms.size()==H_nnz);
-      if(NULL==M) {
+      if(ii && jj) {
 	int idx, row;
 	for(int it=0; it<terms.size(); it++) {
 	  idx = H_nz_idxs[it]; 
 	  if(idx<0) {assert(false); return false; }
 	  ii[idx] = jj[idx] = v_n0->index + terms[it].N_idx;
 	}
-      } else {
+      }
+      if(M) {
 	for(int it=0; it<terms.size(); it++) {
 	  assert(H_nz_idxs[it]>=0);
 	  assert(H_nz_idxs[it]<nnz);
@@ -713,14 +716,15 @@ namespace gollnlp {
 			       const int& nnz, int* ii, int* jj, double* M)
     {
       assert(terms.size()==H_nnz);
-      if(NULL==M) {
+      if(ii && jj) {
 	int idx, row;
 	for(int it=0; it<terms.size(); it++) {
 	  idx = H_nz_idxs[it]; 
 	  if(idx<0) {assert(false); return false; }
 	  ii[idx] = jj[idx] = x->index + terms[it].idx;
 	}
-      } else {
+      }
+      if(M) {
 	for(int it=0; it<terms.size(); it++) {
 	  assert(H_nz_idxs[it]>=0);
 	  assert(H_nz_idxs[it]<nnz);

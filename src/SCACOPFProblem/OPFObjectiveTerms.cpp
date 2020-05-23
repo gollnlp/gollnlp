@@ -258,7 +258,7 @@ eval_HessLagr(const OptVariables& vars_primal, bool new_x,
 	      const double& obj_factor,
 	      const int& nnz, int* i, int* j, double* M)
 {
-  if(NULL==M) {
+  if(i && j) {
     int idx;
     for(int it=0; it<x->n; it++) {
       idx = H_nz_idxs[it]; 
@@ -266,7 +266,9 @@ eval_HessLagr(const OptVariables& vars_primal, bool new_x,
       //if(idx<0) return false;
       i[idx] = j[idx] = x->index+it;
     }
-  } else {
+  }
+
+  if(M) {
     aux = 2*a*obj_factor;
     for(int it=0; it<x->n; it++) {
       assert(H_nz_idxs[it]>=0);

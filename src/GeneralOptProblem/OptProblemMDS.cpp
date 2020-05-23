@@ -69,7 +69,7 @@ namespace gollnlp {
     }
     if(new_lambda) vars_duals_cons->attach_to(lambda);
       
-    if(NULL==MHSS) {
+    if(NULL!=iHSS && NULL!=jHSS) {
       //
       // Objective terms
       //
@@ -109,7 +109,9 @@ namespace gollnlp {
 	  assert(false && "eval_HessLagr should be called after get_nnzHessLagr");
 	}
       }
-    } else {
+    }
+
+    if(NULL != MHSS) {
       // case of M!=NULL > just fill in the values
       for(int it=0; it<nnzHSS; ++it) MHSS[it]=0.;
       for(int it=0; it<nxdense*nxdense; ++it) HDD[0][it] = 0.;
