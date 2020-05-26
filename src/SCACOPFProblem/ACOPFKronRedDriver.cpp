@@ -44,6 +44,7 @@ int main(int argc, char *argv[])
     ACOPFKronRedProblem prob(data);
     prob.assemble();
 
+    //prob.use_nlp_solver("ipopt");
     prob.use_nlp_solver("hiop");
     bool bret = prob.optimize("aaa");
     //if(!bret) retcode=-3;

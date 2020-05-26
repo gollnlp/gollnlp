@@ -116,7 +116,7 @@ namespace gollnlp {
   // d theta_k
   //
   //  d a_i            n
-  // --------- = -    sum    v_i*v_j *( - Gred[i,j]*sin(theta_i-theta_k) + Bred[i,j]*cos(theta_i-theta_j))
+  // --------- = -    sum    v_i*v_j *( - Gred[i,j]*sin(theta_i-theta_j) + Bred[i,j]*cos(theta_i-theta_j))
   // d theta_i     j=1, j!=i
   //
   //             
@@ -398,8 +398,10 @@ namespace gollnlp {
     // dense part
     //
     // Note: Only upper triangle part of HDD is updated
-    if(NULL==MHSS) {
-    } else {
+    if(NULL!=iHSS && NULL!=jHSS) {
+    }
+
+    if(HDD) {
       const OptVariablesBlock* lambda = lambda_vars.get_block(std::string("duals_") + this->id);
       assert(lambda != NULL);
       assert(lambda->n == n);
@@ -430,7 +432,7 @@ namespace gollnlp {
 	  theta_diff = theta_n->xref[i]-theta_n->xref[k];
 
 	  assert(idx_col_of_v_n+k <= idx_col_of_v_n_elemi);
-	  HDD[idx_col_of_v_n+k][idx_col_of_v_n_elemi] -=
+	  HDD[idx_col_of_v_n+k][idx_col_of_v_n_elemi] -= 
 	    lambda_i * (YredM[i][k].real()*cos(theta_diff) + YredM[i][k].imag()*sin(theta_diff));
 	}
 	//---> k=i
@@ -571,6 +573,361 @@ namespace gollnlp {
     return true;
   }
 
+  ///////////////////////////////////////////////////////////////////////////////
+  // Reactive Balance constraints
+  ///////////////////////////////////////////////////////////////////////////////
+
+  /**
+   * Reactive Balance constraints
+   *
+   * for i=1:length(nonaux)
+   *
+   * sum(q_g[g] for g=Gn[nonaux[i]]) - N[:Qd][nonaux[i]] +
+   * v_n[i]^2*sum(b_s[s] for s=SShn[nonaux[i]]) ==
+   *   sum(v_n[i]*v_n[j]*(Gred[i,j]*sin(theta_n[i]-theta_n[j]) -
+   *   Bred[i,j]*cos(theta_n[i]-theta_n[j])) for j=1:length(nonaux)))
+   */
+  PFReactiveBalanceKron::PFReactiveBalanceKron(const std::string& id_, int numcons,
+					       OptVariablesBlock* q_g_, 
+					       OptVariablesBlock* v_n_,
+					       OptVariablesBlock* theta_n_,
+					       OptVariablesBlock* b_s_,
+					       const std::vector<int>& bus_nonaux_idxs_,
+					       const std::vector<std::vector<int> >& Gn_full_space_,
+					       const std::vector<std::vector<int> >& SShn_full_space_in,
+					       const hiop::hiopMatrixComplexDense& Ybus_red_,
+					       const std::vector<double>& N_Qd_full_space_)
+    : OptConstraintsBlockMDS(id_, numcons),
+      q_g(q_g_), v_n(v_n_), theta_n(theta_n_), b_s(b_s_),
+      bus_nonaux_idxs(bus_nonaux_idxs_),
+      Gn_fs(Gn_full_space_), SShn_fs(SShn_full_space_in),
+      Ybus_red(Ybus_red_), 
+      J_nz_idxs(NULL), H_nz_idxs(NULL)
+  {
+    assert(numcons==bus_nonaux_idxs_.size());
+
+    selectfrom(N_Qd_full_space_, bus_nonaux_idxs, N_Qd);
+
+    //rhs
+    //!memcpy(lb, d.N_Pd.data(), n*sizeof(double));
+    for(int i=0; i<n; i++) lb[i]=0.;
+    DCOPY(&n, lb, &ione, ub, &ione);
+
+    assert(q_g->sparseBlock==true);
+    assert(v_n->sparseBlock==false);
+    assert(theta_n->sparseBlock==false);
+    assert(b_s->sparseBlock==false);
+    assert(q_g->indexSparse>=0);
+    assert(v_n->indexSparse<=0);
+    assert(b_s->indexSparse<=0);
+    assert(theta_n->indexSparse<=0);
+
+  }
+  PFReactiveBalanceKron::~PFReactiveBalanceKron()
+  {
+    delete[] J_nz_idxs;
+    delete[] H_nz_idxs;
+  }
+
+  /*
+   * sum(q_g[g] for g=Gn[nonaux[i]]) - N[:Qd][nonaux[i]] +
+   * v_n[i]^2*sum(b_s[s] for s=SShn[nonaux[i]]) ==
+   *   sum(v_n[i]*v_n[j]*(Gred[i,j]*sin(theta_n[i]-theta_n[j]) -
+   *   Bred[i,j]*cos(theta_n[i]-theta_n[j])) for j=1:length(nonaux)))
+   */
+  bool PFReactiveBalanceKron::eval_body (const OptVariables& vars_primal, bool new_x, double* body_)
+  {
+    double* body = body_ + this->index;
+    assert(n==N_Qd.size());
+    assert(n==bus_nonaux_idxs.size());
+
+    double *NQd=N_Qd.data();
+    DAXPY(&n, &dminusone, NQd, &ione, body, &ione);
+
+    const int *Gnv; int nGn;
+    //for(int i=0; i<n; i++) {
+    for(auto& i : bus_nonaux_idxs) {
+      nGn = Gn_fs[i].size(); 
+      Gnv = Gn_fs[i].data();
+      for(int ig=0; ig<nGn; ig++) 
+	*body += q_g->xref[Gnv[ig]];
+      ++body;
+    }
+    assert(bus_nonaux_idxs.size()==n);
+    body -= n;
+
+    {
+      double sum;
+      //v_n[i]^2*sum(b_s[s] for s=SShn[nonaux[i]])
+      for(auto& i : bus_nonaux_idxs) {
+	sum = 0.;
+	for(int issh=0; issh<SShn_fs[i].size(); ++issh) {
+	  sum += b_s->xref[SShn_fs[i][issh]];
+	}
+	*body += sum * v_n->xref[i] * v_n->xref[i];
+	++body;
+      }
+      body -= n;
+    }
+    
+    {
+      std::complex<double>** YredM = Ybus_red.local_data();
+      double aux;
+
+      for(int i=0; i<n; i++) {
+	for(int j=0; j<n; j++) {
+	  aux = theta_n->xref[i]-theta_n->xref[j];
+	  body[i] -= v_n->xref[i]*v_n->xref[j] *
+	    ( YredM[i][j].real()*sin(aux) + YredM[i][j].imag()*cos(aux) );
+	}
+      }
+    }
+    
+    return true;
+  }
+
+  /**
+   * sum(q_g[g] for g=Gn[nonaux[i]]) - N[:Qd][nonaux[i]] +
+   * v_n[i]^2*sum(b_s[s] for s=SShn[nonaux[i]]) 
+   *   - sum(v_n[i]*v_n[j]*(Gred[i,j]*sin(theta_n[i]-theta_n[j]) 
+   *                        - Bred[i,j]*cos(theta_n[i]-theta_n[j])) for j=1:length(nonaux)))   :=   a(i) 
+   * -----------------------------------------------------------------------------------------------------
+   *
+   * Sparse part easy: ones for each gen. at non-aux bus
+   *
+   * Dense part of the Jacobian w.r.t. v(=v_n) and theta(=theta_n)
+   *
+   // [[[ i!=k ]]]
+   // d a_i
+   // ----- =  - v_i * (Gred[i,k]*sin(theta_i-theta_k) - Bred[i,k]*cos(theta_i-theta_k)) 
+   // d v_k
+   //
+   //
+   // d a_i        n
+   // ----- = -   sum    v_j* (Gred[i,j]*sin(theta_i-theta_j) - Bred[i,j]*cos(theta_i-theta_j))
+   // d v_i     j=1, j!=i
+   //
+   //         + 2*v_i*Bred[i,i]
+   //         + 2*v_i*sum(b[s] for s=SShn[nonaux[i]])
+   //
+   //
+   // [[[ i!=k ]]]
+   //   d a_i
+   // --------- = v_i*v_k *(Gred[i,k]*cos(theta_i-theta_k) + Bred[i,k*sin(theta_i-theta_k))  
+   // d theta_k
+   //
+   //  d a_i            n
+   // --------- = -    sum    v_i*v_j *( Gred[i,j]*cos(theta_i-theta_j) + Bred[i,j]*sin(theta_i-theta_j))
+   // d theta_i     j=1, j!=i
+   * 
+   *    d a_i
+   *  --------- = v_i^2, for s \in SShn[nonaux[i]] 
+   *    d bs_s
+   */
+  bool PFReactiveBalanceKron::eval_Jac_eq(const OptVariables& x, bool new_x, 
+					  const int& nxsparse, const int& nxdense,
+					  const int& nnzJacS, int* iJacS, int* jJacS, double* MJacS, 
+					  double** JacD)
+  {
+    //
+    // sparse part
+    //
+    assert(nxsparse+nxdense == x.n());
+    int row, *itnz;
+ #ifdef DEBUG
+    int nnz_loc=get_spJacob_eq_nnz();
+    int row2=-1;
+#endif
+    if(iJacS && jJacS) {
+      
+      itnz = J_nz_idxs; row=0;
+      for(int it=0; it<n; it++) {
+	const int idxBusNonAux = bus_nonaux_idxs[it];
+	const size_t sz = Gn_fs[idxBusNonAux].size();
+	//q_g
+	for(int ig=0; ig<sz; ++ig) {
+	  iJacS[*itnz]=row; 
+	  jJacS[*itnz++]=q_g->indexSparse+Gn_fs[idxBusNonAux][ig]; 
+	}
+	++row;
+      }
+#ifdef DEBUG
+      assert(J_nz_idxs + nnz_loc == itnz);
+      row2=row;
+#endif
+      
+    }
+    if(MJacS) {
+      itnz = J_nz_idxs; row=0;
+      for(int it=0; it<n; it++) {
+	//p_g 
+	const size_t sz = Gn_fs[bus_nonaux_idxs[it]].size();
+	for(int ig=0; ig<sz; ++ig) { 
+	  MJacS[*itnz++] += 1; 
+	}
+	++row;
+      }
+    }
+#ifdef DEBUG
+    if(row2>=0) assert(row==row2);
+#endif 
+    //
+    // dense part
+    //
+    if(JacD) {
+      //values
+      std::complex<double>** YredM = Ybus_red.local_data();
+      double aux, aux_sin, aux_cos, aux_G_cos, aux_B_sin, aux_G_cos_B_sin, aux_G_sin, aux_B_cos;
+      double vivj, Gcos_p_Bsin, Gsin__Bcos;
+
+      assert(v_n->compute_indexDense() >=0);
+      assert(theta_n->compute_indexDense() >= 0);
+	
+      assert(v_n->compute_indexDense()    +v_n->n     <= nxdense);
+      assert(theta_n->compute_indexDense()+theta_n->n <= nxdense);
+      assert(b_s->compute_indexDense()+theta_n->n <= nxdense);
+      
+      assert(v_n->n == n);
+      assert(theta_n->n == n);
+
+      assert(SShn_fs.size() >= n);
+
+      const int idx_col_of_v_n     = v_n->compute_indexDense();
+      const int idx_col_of_theta_n = theta_n->compute_indexDense();
+      const int idx_col_of_b_s     = b_s->compute_indexDense();
+
+      assert(idx_col_of_v_n>=0 && idx_col_of_theta_n>=0 && idx_col_of_b_s>=0);
+      
+      for(int i=0; i<n; i++) {
+	
+	//
+	//partials w.r.t. to v_i and theta_i
+	//
+
+	//first term of da_i/v_i  -> we'll accumulate in here
+	JacD[i][idx_col_of_v_n + i] = 2.0 * v_n->xref[i] * YredM[i][i].imag();
+	//second term of da_i/v_i
+	for(int ss : SShn_fs[i]) {
+	  JacD[i][idx_col_of_v_n + i] += 2 *v_n->xref[i] * b_s->xref[ss];
+	}
+	
+	//here we'll accumulate da_i/theta_i
+	JacD[i][idx_col_of_theta_n + i] = 0.;
+	
+	for(int j=0; j<i; j++) {
+
+	  vivj = v_n->xref[j]*v_n->xref[i];
+	  aux = theta_n->xref[i]-theta_n->xref[j];
+	  aux_sin = sin(aux);
+	  aux_cos = cos(aux);
+
+	  aux_G_cos = YredM[i][j].real()*aux_cos;
+	  aux_B_cos = YredM[i][j].imag()*aux_cos;
+	  aux_B_sin = YredM[i][j].imag()*aux_sin;
+	  aux_G_sin = YredM[i][j].real()*aux_sin;
+	  Gcos_p_Bsin = aux_G_cos - aux_B_sin;
+	  Gsin__Bcos = aux_G_sin - aux_B_cos;
+
+	  //for da_i/dv_k = - v_i * (Gred[i,k]*sin(theta_i-theta_k) - Bred[i,k]*cos(theta_i-theta_k)) 
+	  assert(JacD[i][idx_col_of_v_n + j]==0. && "should not be written previously in this");
+	  JacD[i][idx_col_of_v_n + j] =  - v_n->xref[i]*Gsin__Bcos;
+
+	  //for da_i/v_i: add - v_j* (Gred[i,j]*sin(theta_i-theta_j) - Bred[i,j]*cos(theta_i-theta_j))
+	  JacD[i][idx_col_of_v_n + i] -= v_n->xref[j]*Gsin__Bcos;
+	  
+	  //for da_i/dtheta_k = v_i*v_k *(Gred[i,k]*cos(theta_i-theta_k) - Bred*sin(theta_i-theta_k))  
+	  assert(JacD[i][idx_col_of_theta_n + j]==0. && "should not be written previously in this");
+	  JacD[i][idx_col_of_theta_n + j] = vivj*Gcos_p_Bsin;
+
+	  //for da_i/theta_i: add
+	  //      - v_i*v_j *( Gred[i,j]*cos(theta_i-theta_j) + Bred[i,j]*sin(theta_i-theta_j))
+	  JacD[i][idx_col_of_theta_n + i] -= vivj*Gcos_p_Bsin;
+	}
+	for(int j=i+1; j<n; j++) {
+
+	  vivj = v_n->xref[j]*v_n->xref[i];
+	  aux = theta_n->xref[i]-theta_n->xref[j];
+	  aux_sin = sin(aux);
+	  aux_cos = cos(aux);
+
+	  aux_G_cos = YredM[i][j].real()*aux_cos;
+	  aux_B_cos = YredM[i][j].imag()*aux_cos;
+	  aux_B_sin = YredM[i][j].imag()*aux_sin;
+	  aux_G_sin = YredM[i][j].real()*aux_sin;
+	  Gcos_p_Bsin = aux_G_cos - aux_B_sin;
+	  Gsin__Bcos = aux_G_sin - aux_B_cos;
+
+	  //for da_i/dv_k = - v_i * (Gred[i,k]*sin(theta_i-theta_k) - Bred[i,k]*cos(theta_i-theta_k)) 
+	  assert(JacD[i][idx_col_of_v_n + j]==0. && "should not be written previously in this");
+	  JacD[i][idx_col_of_v_n + j] =  - v_n->xref[i]*Gsin__Bcos;
+
+	  //for da_i/v_i: add - v_j* (Gred[i,j]*sin(theta_i-theta_j) - Bred[i,j]*cos(theta_i-theta_j))
+	  JacD[i][idx_col_of_v_n + i] -= v_n->xref[j]*Gsin__Bcos;
+	  
+	  //for da_i/dtheta_k = v_i*v_k *(Gred[i,k]*cos(theta_i-theta_k) - Bred*sin(theta_i-theta_k))  
+	  assert(JacD[i][idx_col_of_theta_n + j]==0. && "should not be written previously in this");
+	  JacD[i][idx_col_of_theta_n + j] = vivj*Gcos_p_Bsin;
+
+	  //for da_i/theta_i: add
+	  //      - v_i*v_j *( Gred[i,j]*cos(theta_i-theta_j) + Bred[i,j]*sin(theta_i-theta_j))
+	  JacD[i][idx_col_of_theta_n + i] -= vivj*Gcos_p_Bsin;
+	}
+
+	//
+	//w.r.t. b_s:  d a_i/bs_s = v_i^2 for s \in SShn[nonaux[i]]
+	//
+
+	for(auto ss : SShn_fs[i]) {
+	  JacD[i][idx_col_of_b_s + ss] = v_n->xref[i] * v_n->xref[i];
+	}
+      }
+    }
+    return true;
+  }
+
+  int PFReactiveBalanceKron::get_spJacob_eq_nnz(){ 
+    int nnz = 0; 
+    for(auto& i : bus_nonaux_idxs)
+      nnz += Gn_fs[i].size();
+    return nnz; 
+  }
+  
+  bool PFReactiveBalanceKron::get_spJacob_eq_ij(std::vector<OptSparseEntry>& vij)
+  {
+    if(n<=0) return true;
+    
+    int nnz = get_spJacob_eq_nnz();
+    if(!J_nz_idxs) 
+      J_nz_idxs = new int[nnz];
+#ifdef DEBUG
+    int n_vij_in = vij.size();
+#endif
+    
+    int row=0, *itnz=J_nz_idxs;
+    for(int it=0; it<n; it++) {      
+      //q_g
+      for(auto g: Gn_fs[bus_nonaux_idxs[it]]) 
+	vij.push_back(OptSparseEntry(row, q_g->indexSparse+g, itnz++));
+    
+      //if(Gn_fs[bus_nonaux_idxs[it]].size()>0)
+      ++row;
+    }
+
+#ifdef DEBUG
+    assert(nnz+n_vij_in==vij.size());
+#endif
+    assert(J_nz_idxs+nnz == itnz);
+    return true;
+  }
 
 
+    bool PFReactiveBalanceKron::eval_HessLagr(const OptVariables& x, bool new_x, 
+					      const OptVariables& lambda_vars, bool new_lambda,
+					      const int& nxsparse, const int& nxdense, 
+					      const int& nnzHSS, int* iHSS, int* jHSS, double* MHSS, 
+					      double** HDD,
+					      const int& nnzHSD, int* iHSD, int* jHSD, double* MHSD)
+    {
+    return true;
+  }
 } // end of namespace

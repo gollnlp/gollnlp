@@ -67,8 +67,11 @@ namespace gollnlp {
       new_x_fgradf=true; 
       vars_primal->attach_to(x);
     }
-    if(new_lambda) vars_duals_cons->attach_to(lambda);
-      
+    if(new_lambda) {
+      vars_duals_cons->attach_to(lambda);
+
+    }
+
     if(NULL!=iHSS && NULL!=jHSS) {
       //
       // Objective terms
@@ -79,15 +82,15 @@ namespace gollnlp {
 	if(NULL==ot) {
 
 	  if(!ot_gen->eval_HessLagr(*vars_primal, new_x, obj_factor,
-				    nnzHSS, iHSS, jHSS, MHSS)) {
+				    nnzHSS, iHSS, jHSS, NULL)) {
 	    assert(false && "eval_HessLagr should be called after get_nnzHessLagr");
 	  }
 	} else {
 	  if(!ot->eval_HessLagr(*vars_primal, new_x, obj_factor, 
 				nxsparse, nxdense,
-				nnzHSS, iHSS, jHSS, MHSS,
-				HDD,
-				nnzHSD, iHSD, jHSD, MHSD)) {
+				nnzHSS, iHSS, jHSS, NULL,
+				NULL,
+				nnzHSD, iHSD, jHSD, NULL)) {
 	    assert(false && "eval_HessLagr should be called after get_nnzHessLagr");
 	  }
 	}
@@ -103,9 +106,9 @@ namespace gollnlp {
 	}
 	if(!con->eval_HessLagr(*vars_primal, new_x, *vars_duals_cons, new_lambda, 
 			       nxsparse, nxdense,
-			       nnzHSS, iHSS, jHSS, MHSS,
-			       HDD,
-			       nnzHSD, iHSD, jHSD, MHSD)) {
+			       nnzHSS, iHSS, jHSS, NULL,
+			       NULL,
+			       nnzHSD, iHSD, jHSD, NULL)) {
 	  assert(false && "eval_HessLagr should be called after get_nnzHessLagr");
 	}
       }
@@ -143,7 +146,7 @@ namespace gollnlp {
 	  assert(false && "check this");
 	  continue;
 	}
-
+	//continue;
 	if(!con->eval_HessLagr(*vars_primal, new_x, *vars_duals_cons, new_lambda, 
 			       nxsparse, nxdense,
 			       nnzHSS, iHSS, jHSS, MHSS,
