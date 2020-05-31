@@ -33,6 +33,7 @@ namespace gollnlp {
       iter_sol_written=-10;
       optim_obj_value = optim_inf_pr = optim_inf_pr_orig_pr = optim_inf_du = optim_mu = 1000.;
       use_filelocks_when_writing = true;
+      glob_timer = NULL;
     }
     virtual ~SCACOPFProblem();
 
@@ -194,6 +195,17 @@ namespace gollnlp {
     bool slacks_initially_to_zero, slacks_initially_recomputed;
     bool linear_prod_cost;
     double L_rate_reduction, T_rate_reduction;
+    goTimer* glob_timer;
+    inline std::string glob_time_to_string() {
+      if(glob_timer) {
+	const double t = glob_timer->measureElapsedTime();
+	char str[128];
+	sprintf(str, "%.2f sec", t);
+	return std::string(str);
+      } else {
+	return std::string("NA");
+      }
+    }
   public:
     inline OptVariablesBlock* variable(const std::string& prefix, const SCACOPFData& d) { 
       return vars_block(var_name(prefix, d));
@@ -496,11 +508,15 @@ namespace gollnlp {
 	if(nread>0) {
 	  if(my_mu<=1.01*cmu && my_pr_inf<=1.01*cpr_inf) {
 	    if(my_obj < cobj) return true;
-	  } else {
-	    return false;
+	  } 
+	  if( (my_mu<= cmu/2. || my_mu<=1e-8) && (my_pr_inf<= cpr_inf/2. || my_pr_inf<1e-8)) {
+	    if(my_obj < 1.02*cobj) return true;
 	  }
+
+	  return false;
+	  
 	} else {
-	  //no file was there
+	  //no file or empty file
 	  return true;
 	}
       } else {
@@ -515,14 +531,14 @@ namespace gollnlp {
 		      const double& du_inf, 
 		      const double& mu)
     {
-      //we assume we're at the beginning of the file
       char s[1000];
       sprintf(s, "%.16f %.16f %.16f %.16f\n", obj, pr_inf, du_inf, mu);
       
       if(-1==::ftruncate(fid, 0)) {
 	printf("[warning] FileLocker error[%d] could not truncate file\n", errno);
       }
-      
+
+      //move to the beginning      
       if(-1==::lseek(fid, 0, SEEK_SET)) {
 	printf("[warning] FileLocker error[%d] could not lseek in file\n", errno);
       }

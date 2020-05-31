@@ -38,6 +38,8 @@ OptProblem::OptProblem()
   nlp_solver = NULL;
 
   new_x_fgradf = true;
+
+  need_intermediate_duals=false;
 }
 
 OptProblem::~OptProblem()

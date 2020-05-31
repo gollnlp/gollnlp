@@ -124,7 +124,11 @@ public:
   }
 
   bool set_start_to(const OptVariables& src);
-
+  void set_start_to(const double& scalar)
+  {
+    for(auto& b : vblocks)
+      if(b) b->set_start_to(scalar);      
+  }
   void copy_to(double* a);
   void copy_to(std::vector<double>& v);
   inline void copy_from(const std::vector<double>& v) { copy_from(v.data()); }
