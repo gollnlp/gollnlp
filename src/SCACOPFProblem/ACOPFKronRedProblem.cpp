@@ -126,12 +126,24 @@ namespace gollnlp {
       assert(theta_n->x[RefBusIdx_nonaux]==0.);
     }
 
-    if(false) { //b_s
-      
+    { //b_s
+
+      vector<double> _lb, _ub, _B0;
+      vector<int> count_SSh_at_nonaux_buses(data_sc.SSh_SShunt.size(), 0);
+      for(int bus_nonaux : idxs_buses_nonaux) {
+	for(int idx_ssh : data_sc.SShn[bus_nonaux])
+	  count_SSh_at_nonaux_buses[idx_ssh]++;
+      }
+      //selectfrom(data_sc.data_sc.Ssh_Blb, idx_buses_nonaux, _lb);
+      //selectfrom(data_sc.data_sc.Ssh_Bub, idx_buses_nonaux, _ub);
+      //selectfrom(data_sc.data_sc.Ssh_B0,  idx_buses_nonaux, _B0);
+
+      printvec(count_SSh_at_nonaux_buses);
       auto b_s = new OptVariablesBlock(data_sc.SSh_Blb.size(),
 				       var_name("b_s",d),
 				       data_sc.SSh_Blb.data(),
 				       data_sc.SSh_Bub.data());
+      b_s->sparseBlock = false;
       b_s->set_start_to(data_sc.SSh_B0.data());
 
       append_variables(b_s);
@@ -143,8 +155,8 @@ namespace gollnlp {
     auto p_g = vars_block(var_name("p_g",d)), 
       v_n = vars_block(var_name("v_n",d)), 
       theta_n = vars_block(var_name("theta_n",d));
-    {
 
+    {
       //active power balance
       auto pf_p_bal = new PFActiveBalanceKron(con_name("p_balance_kron",d), 
 					      idxs_buses_nonaux.size(),
@@ -152,6 +164,18 @@ namespace gollnlp {
 					      idxs_buses_nonaux,
 					      d.Gn, *Ybus_red, data_sc.N_Pd);
       append_constraints(pf_p_bal);
+    }
+    
+    auto b_s = vars_block(var_name("b_s", d));
+    auto q_g = vars_block(var_name("q_g",d));
+    {
+      auto pf_q_bal = new PFReactiveBalanceKron(con_name("q_balance_kron", d), 
+						idxs_buses_nonaux.size(),
+						q_g, v_n, theta_n, b_s,
+						idxs_buses_nonaux,
+						d.Gn, d.SShn,
+						*Ybus_red, data_sc.N_Qd);
+      append_constraints(pf_q_bal);
     }
   }
     
