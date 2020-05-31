@@ -659,12 +659,12 @@ namespace gollnlp {
     {
       double sum;
       //v_n[i]^2*sum(b_s[s] for s=SShn[nonaux[i]])
-      for(auto& i : bus_nonaux_idxs) {
+      for(int ii=0; ii<n; ++ii) {  
 	sum = 0.;
-	for(int issh=0; issh<SShn_fs[i].size(); ++issh) {
-	  sum += b_s->xref[SShn_fs[i][issh]];
+	for(auto issh : SShn_fs[bus_nonaux_idxs[ii]]) {
+	  sum += b_s->xref[issh];
 	}
-	*body += sum * v_n->xref[i] * v_n->xref[i];
+	*body += sum * v_n->xref[ii] * v_n->xref[ii];
 	++body;
       }
       body -= n;
@@ -678,7 +678,7 @@ namespace gollnlp {
 	for(int j=0; j<n; j++) {
 	  aux = theta_n->xref[i]-theta_n->xref[j];
 	  body[i] -= v_n->xref[i]*v_n->xref[j] *
-	    ( YredM[i][j].real()*sin(aux) + YredM[i][j].imag()*cos(aux) );
+	    ( YredM[i][j].real()*sin(aux) - YredM[i][j].imag()*cos(aux) );
 	}
       }
     }
@@ -785,7 +785,7 @@ namespace gollnlp {
 	
       assert(v_n->compute_indexDense()    +v_n->n     <= nxdense);
       assert(theta_n->compute_indexDense()+theta_n->n <= nxdense);
-      assert(b_s->compute_indexDense()+theta_n->n <= nxdense);
+      assert(b_s->compute_indexDense()+b_s->n <= nxdense);
       
       assert(v_n->n == n);
       assert(theta_n->n == n);
@@ -797,22 +797,27 @@ namespace gollnlp {
       const int idx_col_of_b_s     = b_s->compute_indexDense();
 
       assert(idx_col_of_v_n>=0 && idx_col_of_theta_n>=0 && idx_col_of_b_s>=0);
-      
-      for(int i=0; i<n; i++) {
+
+      assert(n==bus_nonaux_idxs.size());
+
+      //in 'i2' we keep the  index of the constraint (row # in the Jacobian)
+      for(int i=0, i2=this->index; i<n; ++i, ++i2) {
 	
 	//
 	//partials w.r.t. to v_i and theta_i
 	//
 
 	//first term of da_i/v_i  -> we'll accumulate in here
-	JacD[i][idx_col_of_v_n + i] = 2.0 * v_n->xref[i] * YredM[i][i].imag();
+	assert(JacD[i2][idx_col_of_v_n + i]==0. && "should not be written previously in this");
+	JacD[i2][idx_col_of_v_n + i] = 2.0 * v_n->xref[i] * YredM[i][i].imag();
 	//second term of da_i/v_i
-	for(int ss : SShn_fs[i]) {
-	  JacD[i][idx_col_of_v_n + i] += 2 *v_n->xref[i] * b_s->xref[ss];
+	for(int issh : SShn_fs[bus_nonaux_idxs[i]]) {
+	  assert(issh>=0 && issh<b_s->n);
+	  JacD[i2][idx_col_of_v_n + i] += 2. * v_n->xref[i] * b_s->xref[issh];
 	}
 	
 	//here we'll accumulate da_i/theta_i
-	JacD[i][idx_col_of_theta_n + i] = 0.;
+	JacD[i2][idx_col_of_theta_n + i] = 0.;
 	
 	for(int j=0; j<i; j++) {
 
@@ -825,24 +830,25 @@ namespace gollnlp {
 	  aux_B_cos = YredM[i][j].imag()*aux_cos;
 	  aux_B_sin = YredM[i][j].imag()*aux_sin;
 	  aux_G_sin = YredM[i][j].real()*aux_sin;
-	  Gcos_p_Bsin = aux_G_cos - aux_B_sin;
+	  Gcos_p_Bsin = aux_G_cos + aux_B_sin;
 	  Gsin__Bcos = aux_G_sin - aux_B_cos;
 
 	  //for da_i/dv_k = - v_i * (Gred[i,k]*sin(theta_i-theta_k) - Bred[i,k]*cos(theta_i-theta_k)) 
-	  assert(JacD[i][idx_col_of_v_n + j]==0. && "should not be written previously in this");
-	  JacD[i][idx_col_of_v_n + j] =  - v_n->xref[i]*Gsin__Bcos;
+	  assert(JacD[i2][idx_col_of_v_n + j]==0. && "should not be written previously in this");
+	  JacD[i2][idx_col_of_v_n + j] =  - v_n->xref[i]*Gsin__Bcos;
 
 	  //for da_i/v_i: add - v_j* (Gred[i,j]*sin(theta_i-theta_j) - Bred[i,j]*cos(theta_i-theta_j))
-	  JacD[i][idx_col_of_v_n + i] -= v_n->xref[j]*Gsin__Bcos;
+	  JacD[i2][idx_col_of_v_n + i] -= v_n->xref[j]*Gsin__Bcos;
 	  
 	  //for da_i/dtheta_k = v_i*v_k *(Gred[i,k]*cos(theta_i-theta_k) - Bred*sin(theta_i-theta_k))  
-	  assert(JacD[i][idx_col_of_theta_n + j]==0. && "should not be written previously in this");
-	  JacD[i][idx_col_of_theta_n + j] = vivj*Gcos_p_Bsin;
+	  assert(JacD[i2][idx_col_of_theta_n + j]==0. && "should not be written previously in this");
+	  JacD[i2][idx_col_of_theta_n + j] = vivj*Gcos_p_Bsin;
 
 	  //for da_i/theta_i: add
 	  //      - v_i*v_j *( Gred[i,j]*cos(theta_i-theta_j) + Bred[i,j]*sin(theta_i-theta_j))
-	  JacD[i][idx_col_of_theta_n + i] -= vivj*Gcos_p_Bsin;
+	  JacD[i2][idx_col_of_theta_n + i] -= vivj*Gcos_p_Bsin;
 	}
+	
 	for(int j=i+1; j<n; j++) {
 
 	  vivj = v_n->xref[j]*v_n->xref[i];
@@ -854,31 +860,33 @@ namespace gollnlp {
 	  aux_B_cos = YredM[i][j].imag()*aux_cos;
 	  aux_B_sin = YredM[i][j].imag()*aux_sin;
 	  aux_G_sin = YredM[i][j].real()*aux_sin;
-	  Gcos_p_Bsin = aux_G_cos - aux_B_sin;
+	  Gcos_p_Bsin = aux_G_cos + aux_B_sin;
 	  Gsin__Bcos = aux_G_sin - aux_B_cos;
 
 	  //for da_i/dv_k = - v_i * (Gred[i,k]*sin(theta_i-theta_k) - Bred[i,k]*cos(theta_i-theta_k)) 
-	  assert(JacD[i][idx_col_of_v_n + j]==0. && "should not be written previously in this");
-	  JacD[i][idx_col_of_v_n + j] =  - v_n->xref[i]*Gsin__Bcos;
+	  assert(JacD[i2][idx_col_of_v_n + j]==0. && "should not be written previously in this");
+	  JacD[i2][idx_col_of_v_n + j] =  - v_n->xref[i]*Gsin__Bcos;
 
 	  //for da_i/v_i: add - v_j* (Gred[i,j]*sin(theta_i-theta_j) - Bred[i,j]*cos(theta_i-theta_j))
-	  JacD[i][idx_col_of_v_n + i] -= v_n->xref[j]*Gsin__Bcos;
+	  JacD[i2][idx_col_of_v_n + i] -= v_n->xref[j]*Gsin__Bcos;
 	  
 	  //for da_i/dtheta_k = v_i*v_k *(Gred[i,k]*cos(theta_i-theta_k) - Bred*sin(theta_i-theta_k))  
-	  assert(JacD[i][idx_col_of_theta_n + j]==0. && "should not be written previously in this");
-	  JacD[i][idx_col_of_theta_n + j] = vivj*Gcos_p_Bsin;
+	  assert(JacD[i2][idx_col_of_theta_n + j]==0. && "should not be written previously in this");
+	  JacD[i2][idx_col_of_theta_n + j] = vivj*Gcos_p_Bsin;
 
 	  //for da_i/theta_i: add
 	  //      - v_i*v_j *( Gred[i,j]*cos(theta_i-theta_j) + Bred[i,j]*sin(theta_i-theta_j))
-	  JacD[i][idx_col_of_theta_n + i] -= vivj*Gcos_p_Bsin;
+	  JacD[i2][idx_col_of_theta_n + i] -= vivj*Gcos_p_Bsin;
 	}
 
 	//
 	//w.r.t. b_s:  d a_i/bs_s = v_i^2 for s \in SShn[nonaux[i]]
 	//
-
-	for(auto ss : SShn_fs[i]) {
-	  JacD[i][idx_col_of_b_s + ss] = v_n->xref[i] * v_n->xref[i];
+	const double vn_sq = v_n->xref[i] * v_n->xref[i];
+	for(auto issh : SShn_fs[bus_nonaux_idxs[i]]) {
+	  assert(issh>=0 && issh<b_s->n);
+	  assert(JacD[i2][idx_col_of_b_s + issh]==0. && "should not be written previously in this");
+	  JacD[i2][idx_col_of_b_s + issh] = vn_sq;
 	}
       }
     }
@@ -903,7 +911,7 @@ namespace gollnlp {
     int n_vij_in = vij.size();
 #endif
     
-    int row=0, *itnz=J_nz_idxs;
+    int row=this->index, *itnz=J_nz_idxs;
     for(int it=0; it<n; it++) {      
       //q_g
       for(auto g: Gn_fs[bus_nonaux_idxs[it]]) 
@@ -928,6 +936,6 @@ namespace gollnlp {
 					      double** HDD,
 					      const int& nnzHSD, int* iHSD, int* jHSD, double* MHSD)
     {
-    return true;
-  }
+      return true;
+    }
 } // end of namespace
