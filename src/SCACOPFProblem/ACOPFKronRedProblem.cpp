@@ -128,17 +128,13 @@ namespace gollnlp {
 
     { //b_s
 
-      vector<double> _lb, _ub, _B0;
-      vector<int> count_SSh_at_nonaux_buses(data_sc.SSh_SShunt.size(), 0);
-      for(int bus_nonaux : idxs_buses_nonaux) {
-	for(int idx_ssh : data_sc.SShn[bus_nonaux])
-	  count_SSh_at_nonaux_buses[idx_ssh]++;
-      }
-      //selectfrom(data_sc.data_sc.Ssh_Blb, idx_buses_nonaux, _lb);
-      //selectfrom(data_sc.data_sc.Ssh_Bub, idx_buses_nonaux, _ub);
-      //selectfrom(data_sc.data_sc.Ssh_B0,  idx_buses_nonaux, _B0);
-
-      printvec(count_SSh_at_nonaux_buses);
+      // vector<int> count_SSh_at_nonaux_buses(data_sc.SSh_SShunt.size(), 0);
+      // for(int bus_nonaux : idxs_buses_nonaux) {
+      //	for(int idx_ssh : data_sc.SShn[bus_nonaux])
+      //	  count_SSh_at_nonaux_buses[idx_ssh]++;
+      // }
+      // printvec(count_SSh_at_nonaux_buses);
+      
       auto b_s = new OptVariablesBlock(data_sc.SSh_Blb.size(),
 				       var_name("b_s",d),
 				       data_sc.SSh_Blb.data(),

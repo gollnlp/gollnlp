@@ -135,10 +135,10 @@ namespace gollnlp {
     int row, *itnz;
  #ifdef DEBUG
     int nnz_loc=get_spJacob_eq_nnz();
-    int row2=-1;
 #endif
+    
     if(iJacS && jJacS) {
-      itnz = J_nz_idxs; row=0;
+      itnz = J_nz_idxs; row=this->index;
       for(int it=0; it<n; it++) {
 	const int idxBusNonAux = bus_nonaux_idxs[it];
 	const size_t sz = Gn_fs[idxBusNonAux].size();
@@ -151,24 +151,20 @@ namespace gollnlp {
       }
 #ifdef DEBUG
       assert(J_nz_idxs + nnz_loc == itnz);
-      row2=row;
 #endif
       
     }
     if(MJacS) {
-      itnz = J_nz_idxs; row=0;
+      itnz = J_nz_idxs; 
       for(int it=0; it<n; it++) {
 	//p_g 
 	const size_t sz = Gn_fs[bus_nonaux_idxs[it]].size();
 	for(int ig=0; ig<sz; ++ig) { 
 	  MJacS[*itnz++] += 1; 
 	}
-	++row;
       }
     }
-#ifdef DEBUG
-    if(row2>=0) assert(row==row2);
-#endif 
+
     //
     // dense part
     //
@@ -189,17 +185,19 @@ namespace gollnlp {
 
       const int idx_col_of_v_n     = v_n->compute_indexDense();
       const int idx_col_of_theta_n = theta_n->compute_indexDense();
+
+      //'i2' is the row # in the Jacobian of this set of constraints
       
-      for(int i=0; i<n; i++) {
+      for(int i=0, i2=this->index; i<n; i++, i2++) {
 	
 	//
 	//partials w.r.t. to v_i and theta_i
 	//
 
 	//first term of da_i/v_i  -> we'll accumulate in here
-	JacD[i][idx_col_of_v_n + i] = - 2.0*v_n->xref[i]*YredM[i][i].real();
+	JacD[i2][idx_col_of_v_n + i] = - 2.0*v_n->xref[i]*YredM[i][i].real();
 	//here we'll accumulate da_i/theta_i
-	JacD[i][idx_col_of_theta_n + i] = 0.;
+	JacD[i2][idx_col_of_theta_n + i] = 0.;
 	
 	for(int j=0; j<i; j++) {
 	  //for v_i:     -     v_j* (   Gred[i,j]*cos(theta_i-theta_j) + Bred[i,j]*sin(theta_i-theta_j)) 
@@ -217,20 +215,20 @@ namespace gollnlp {
 	  vivjGsin__Bcos = vivj*(aux_G_sin-aux_B_cos);
 
 	  //for da_i/dv_k = - v_i * (Gred[i,k]*cos(theta_i-theta_k)+Bred[i,k]*sin(theta_i-theta_k))
-	  assert(JacD[i][idx_col_of_v_n + j]==0. && "should not written previously in this");
-	  JacD[i][idx_col_of_v_n + j] = -v_n->xref[i]*aux_G_cos_B_sin;
+	  assert(JacD[i2][idx_col_of_v_n + j]==0. && "should not written previously in this");
+	  JacD[i2][idx_col_of_v_n + j] = -v_n->xref[i]*aux_G_cos_B_sin;
 
 	  //for da_i/v_i: add  - v_j* (   Gred[i,j]*cos(theta_i-theta_j) + Bred[i,j]*sin(theta_i-theta_j)) 
-	  JacD[i][idx_col_of_v_n + i] -= v_n->xref[j]*aux_G_cos_B_sin;
+	  JacD[i2][idx_col_of_v_n + i] -= v_n->xref[j]*aux_G_cos_B_sin;
 
 	  
 	  //for da_i/dtheta_k = - v_i*v_k *(Gred[i,k]*sin(theta_i-theta_k) - Bred*cos(theta_i-theta_k))
-	  assert(JacD[i][idx_col_of_theta_n + j]==0. && "should not written previously in this");
-	  JacD[i][idx_col_of_theta_n + j] = - vivjGsin__Bcos;
+	  assert(JacD[i2][idx_col_of_theta_n + j]==0. && "should not written previously in this");
+	  JacD[i2][idx_col_of_theta_n + j] = - vivjGsin__Bcos;
 
 	  //for da_i/theta_i: add
 	  //        - v_i*v_j *( - Gred[i,j]*sin(theta_i-theta_k) + Bred[i,j]*cos(theta_i-theta_j))
-	  JacD[i][idx_col_of_theta_n + i] += vivjGsin__Bcos;
+	  JacD[i2][idx_col_of_theta_n + i] += vivjGsin__Bcos;
 	}
 	for(int j=i+1; j<n; j++) {
 	  //for v_i:     -     v_j* (   Gred[i,j]*cos(theta_i-theta_j) + Bred[i,j]*sin(theta_i-theta_j)) 
@@ -248,18 +246,18 @@ namespace gollnlp {
 	  vivjGsin__Bcos = vivj*(aux_G_sin-aux_B_cos);
 
 	  //for da_i/v_i:  add - v_j* (   Gred[i,j]*cos(theta_i-theta_j) + Bred[i,j]*sin(theta_i-theta_j))
-	  JacD[i][idx_col_of_v_n + i] -= v_n->xref[j]*aux_G_cos_B_sin;
+	  JacD[i2][idx_col_of_v_n + i] -= v_n->xref[j]*aux_G_cos_B_sin;
 
 	  //for da_i/dv_k =  - v_i * (Gred[i,k]*cos(theta_i-theta_k)+Bred[i,k]*sin(theta_i-theta_k))
-	  assert(JacD[i][idx_col_of_v_n + j]==0. && "should not written previously in this");
-	  JacD[i][idx_col_of_v_n + j] = -v_n->xref[i]*aux_G_cos_B_sin;
+	  assert(JacD[i2][idx_col_of_v_n + j]==0. && "should not written previously in this");
+	  JacD[i2][idx_col_of_v_n + j] = -v_n->xref[i]*aux_G_cos_B_sin;
 
 	  //for da_i/theta_i: add
 	  //         - v_i*v_j *( - Gred[i,j]*sin(theta_i-theta_k) + Bred[i,j]*cos(theta_i-theta_j))
-	  JacD[i][idx_col_of_theta_n + i] += vivjGsin__Bcos;
+	  JacD[i2][idx_col_of_theta_n + i] += vivjGsin__Bcos;
 
 	  //for da_i/dtheta_k = - v_i*v_k*(Gred[i,k]*sin(theta_i-theta_k) - Bred*cos(theta_i-theta_k))
-	  JacD[i][idx_col_of_theta_n + j] = - vivjGsin__Bcos;
+	  JacD[i2][idx_col_of_theta_n + j] = - vivjGsin__Bcos;
 	}
       }
     }
@@ -284,7 +282,7 @@ namespace gollnlp {
     int n_vij_in = vij.size();
 #endif
     
-    int row=0, *itnz=J_nz_idxs;
+    int row=this->index, *itnz=J_nz_idxs;
     for(int it=0; it<n; it++) {      
       //p_g
       for(auto g: Gn_fs[bus_nonaux_idxs[it]]) 
@@ -740,7 +738,7 @@ namespace gollnlp {
 #endif
     if(iJacS && jJacS) {
       
-      itnz = J_nz_idxs; row=0;
+      itnz = J_nz_idxs; row=this->index;
       for(int it=0; it<n; it++) {
 	const int idxBusNonAux = bus_nonaux_idxs[it];
 	const size_t sz = Gn_fs[idxBusNonAux].size();
@@ -758,19 +756,16 @@ namespace gollnlp {
       
     }
     if(MJacS) {
-      itnz = J_nz_idxs; row=0;
+      itnz = J_nz_idxs; 
       for(int it=0; it<n; it++) {
 	//p_g 
 	const size_t sz = Gn_fs[bus_nonaux_idxs[it]].size();
 	for(int ig=0; ig<sz; ++ig) { 
-	  MJacS[*itnz++] += 1; 
+	  MJacS[*itnz++] += 1.; 
 	}
-	++row;
       }
     }
-#ifdef DEBUG
-    if(row2>=0) assert(row==row2);
-#endif 
+
     //
     // dense part
     //
@@ -905,8 +900,9 @@ namespace gollnlp {
     if(n<=0) return true;
     
     int nnz = get_spJacob_eq_nnz();
-    if(!J_nz_idxs) 
+    if(!J_nz_idxs) {
       J_nz_idxs = new int[nnz];
+    }
 #ifdef DEBUG
     int n_vij_in = vij.size();
 #endif
@@ -914,8 +910,9 @@ namespace gollnlp {
     int row=this->index, *itnz=J_nz_idxs;
     for(int it=0; it<n; it++) {      
       //q_g
-      for(auto g: Gn_fs[bus_nonaux_idxs[it]]) 
+      for(auto g: Gn_fs[bus_nonaux_idxs[it]]) {
 	vij.push_back(OptSparseEntry(row, q_g->indexSparse+g, itnz++));
+      }
     
       //if(Gn_fs[bus_nonaux_idxs[it]].size()>0)
       ++row;
