@@ -152,7 +152,7 @@ namespace gollnlp {
       v_n = vars_block(var_name("v_n",d)), 
       theta_n = vars_block(var_name("theta_n",d));
 
-    {
+    if(true) {
       //active power balance
       auto pf_p_bal = new PFActiveBalanceKron(con_name("p_balance_kron",d), 
 					      idxs_buses_nonaux.size(),
@@ -164,7 +164,7 @@ namespace gollnlp {
     
     auto b_s = vars_block(var_name("b_s", d));
     auto q_g = vars_block(var_name("q_g",d));
-    {
+    if(true) {
       auto pf_q_bal = new PFReactiveBalanceKron(con_name("q_balance_kron", d), 
 						idxs_buses_nonaux.size(),
 						q_g, v_n, theta_n, b_s,

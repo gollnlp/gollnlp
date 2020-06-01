@@ -978,7 +978,7 @@ namespace gollnlp {
    * k>i
    *  d2 a_i/dv_k dtheta_i = -v_i*(Gred[i,k]*cos(theta_i-theta_k) + Bred[i,j]*sin(theta_i-theta_k))
    *  d2 a_i/dv_k dtheta_k =  v_i*(Gred[i,k]*cos(theta_i-theta_k) + Bred[i,j]*sin(theta_i-theta_k))
-   *  d2 a_i/dv_i dtheta_j = 0 (j!=k j!=i)
+   *  d2 a_i/dv_k dtheta_j = 0 (j!=k j!=i)
    * ***************************************************
    * ***************************************************
    * Dense part of the Hessian of a_i w.r.t. v_k, bs_j  (j =1,...,n)
@@ -1047,6 +1047,11 @@ namespace gollnlp {
       for(int i=0; i<n; i++) {
 	
 	const double& lambda_i = lambda->xref[i];
+
+	if(lambda_i==0.) continue;
+
+	//printf("Hessian constraint %d (lambda_i=%.6e)\n", i, lambda_i);
+	
 	int k,j;
 	const int idx_col_of_v_n_elemi = idx_col_of_v_n+i;
 	//********************************************************
@@ -1065,9 +1070,9 @@ namespace gollnlp {
 	//---> k=i
 	k=i;
 	//d2 a_i/dvi dvi = 2*Bred[i,i] + 2*sum(b[s] for s=SShn[nonaux[i]])
-	HDD[idx_col_of_v_n_elemi][idx_col_of_v_n_elemi] += 2.0*YredM[i][k].real();
+	HDD[idx_col_of_v_n_elemi][idx_col_of_v_n_elemi] += 2.0*lambda_i*YredM[i][i].imag();
 	for(int issh : SShn_fs[bus_nonaux_idxs[i]]) {
-	  HDD[idx_col_of_v_n_elemi][idx_col_of_v_n_elemi] += 2.0*b_s->xref[issh];
+	  HDD[idx_col_of_v_n_elemi][idx_col_of_v_n_elemi] += 2.0*lambda_i*b_s->xref[issh];
 	}
 	//d2 a_i/dvi dvj = -(Gred[i,j]*sin(theta_i-theta_j) - Bred[i,j]*cos(theta_i-theta_j))
 	for(j=k+1; j<n; j++) {
@@ -1075,7 +1080,7 @@ namespace gollnlp {
 	  
 	  assert(idx_col_of_v_n_elemi <= idx_col_of_v_n+j);
 	  HDD[idx_col_of_v_n_elemi][idx_col_of_v_n+j] -=
-	    lambda_i * (YredM[i][j].real()*sin(theta_diff) + YredM[i][j].imag()*cos(theta_diff));
+	    lambda_i * (YredM[i][j].real()*sin(theta_diff) - YredM[i][j].imag()*cos(theta_diff));
 	}
 	//---> k>i all zeros
 
@@ -1123,14 +1128,14 @@ namespace gollnlp {
 
 	  assert(idx_col_of_v_n_elemi <= idx_col_of_theta_n+j);
 	  HDD[idx_col_of_v_n_elemi][idx_col_of_theta_n+j] += lambda_i*v_n->xref[j]*
-	    (YredM[i][j].real()*cos(theta_diff) - YredM[i][j].imag()*sin(theta_diff));
+	    (YredM[i][j].real()*cos(theta_diff) + YredM[i][j].imag()*sin(theta_diff)); //!
 	}
 	for(j=i+1; j<n; j++) {
 	  theta_diff = theta_n->xref[i]-theta_n->xref[j];
 	  
 	  assert(idx_col_of_v_n_elemi <= idx_col_of_theta_n+j);
 	  HDD[idx_col_of_v_n_elemi][idx_col_of_theta_n+j] += lambda_i*v_n->xref[j]*
-	    (YredM[i][j].real()*cos(theta_diff) - YredM[i][j].imag()*sin(theta_diff));
+	    (YredM[i][j].real()*cos(theta_diff) + YredM[i][j].imag()*sin(theta_diff)); //!
 	}
 
 	// ---> k=i+1, ..., n  <---
@@ -1155,7 +1160,7 @@ namespace gollnlp {
 	for(int issh : SShn_fs[bus_nonaux_idxs[i]]) {
 	  assert(issh>=0 && issh<b_s->n);
 	  assert(idx_col_of_v_n_elemi < idx_col_of_b_s+issh);
-	  HDD[idx_col_of_v_n_elemi][idx_col_of_b_s+issh] += 2.0*v_n->xref[i];
+	  HDD[idx_col_of_v_n_elemi][idx_col_of_b_s+issh] += lambda_i*2.0*v_n->xref[i];
 	}
 
 	//********************************************************
