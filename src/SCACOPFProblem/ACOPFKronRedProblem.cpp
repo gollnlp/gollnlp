@@ -42,9 +42,9 @@ namespace gollnlp {
     add_cons_pf(data_sc);
 
     //objective
-    auto* p_g = vars_block(var_name("p_g", data_sc)); assert(p_g);
-    append_objterm(new DummySingleVarQuadrObjTerm("objective", p_g));
-    //add_obj_prod_cost(data_sc);
+    //auto* p_g = vars_block(var_name("p_g", data_sc)); assert(p_g);
+    //append_objterm(new DummySingleVarQuadrObjTerm("objective", p_g));
+    add_obj_prod_cost(data_sc);
     
     print_summary();
     
@@ -179,13 +179,19 @@ namespace gollnlp {
   {
     vector<int> gens(d.G_Generator.size()); iota(gens.begin(), gens.end(), 0);
     auto p_g = vars_block(var_name("p_g", d));
-    PFProdCostAffineCons* prod_cost_cons = 
-      new PFProdCostAffineCons(con_name("prodcost_cons",d), 2*gens.size(), 
-			       p_g, gens, d.G_CostCi, d.G_CostPi);
-    append_constraints(prod_cost_cons);
-    
-    OptVariablesBlock* t_h = prod_cost_cons->get_t_h();
-    prod_cost_cons->compute_t_h(t_h); t_h->providesStartingPoint = true;
+    //PFProdCostAffineCons* prod_cost_cons = 
+    // new PFProdCostAffineCons(con_name("prodcost_cons",d), 2*gens.size(), 
+    //			       p_g, gens, d.G_CostCi, d.G_CostPi);
+    //append_constraints(prod_cost_cons);
+    //
+    //OptVariablesBlock* t_h = prod_cost_cons->get_t_h();
+    //prod_cost_cons->compute_t_h(t_h); t_h->providesStartingPoint = true;
+
+    append_objterm(new PFProdCostApproxAffineObjTerm("prod_cost",
+						     p_g,
+						     gens,
+						     d.G_CostCi,
+						     d.G_CostPi));
   }
 
   void ACOPFKronRedProblem::construct_buses_idxs(std::vector<int>& idxs_nonaux, std::vector<int>& idxs_aux)

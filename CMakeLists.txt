@@ -87,6 +87,8 @@ find_library(HIOP_LIB NAMES hiop HINTS "${HIOP_DIR}/lib")
 if(HIOP_LIB)
   include_directories("${HIOP_DIR}/include")
   message("Using HiOp include '${HIOP_DIR}/include' and lib '${HIOP_LIB}'")
+  add_library(hiop STATIC IMPORTED GLOBAL)
+  set_target_properties(hiop PROPERTIES IMPORTED_LOCATION "${HIOP_LIB}")
 else()
   message(FATAL_ERROR "Could not find HiOp library needed by kron reduction. Please cmake with '-DHIOP_DIR=/path/to/hiop_dist_dir'; currently HIOP_DIR='${HIOP_DIR}'")
 endif(HIOP_LIB)
@@ -114,14 +116,6 @@ if(GOLLNLP_WITH_KRON_REDUCTION)
   #else()
   #  message(FATAL_ERROR "Could not find METIS lib needed by UMFPACK. Please cmake with '-DMETIS_DIR=/path/to/metis/lib'; currently, METIS_DIR='${METIS_DIR}'")
   #endif(METIS_LIB)
-
-  #ma86
-  #find_library(MA86_LIB NAMES hsl_ma86 ma86 HINTS ${MA86_DIR} "${MA86_DIR}/lib" )
-  #if(MA86_LIB)
-  #  message("Using HSL MA86 lib '${MA86_LIB}'")
-  #else()
-  #  message(FATAL_ERROR "Could not find HSL MA86 needed by kron reduction. Please cmake with '-DMA86_DIR=/path/to/ma86_dir'; currently, MA86_DIR='${MA86_DIR}'")
-  #endif(MA86_LIB)
 endif(GOLLNLP_WITH_KRON_REDUCTION)
 
 # include build directory for Fortran name mangling header
@@ -150,21 +144,21 @@ add_library(gollnlp STATIC $<TARGET_OBJECTS:goSCACOPF> $<TARGET_OBJECTS:goUtils>
 #message(${GOLLNLP_LIBS_EXTRA})
 add_executable(MyExe1 MyCpp1.cpp)
 target_link_libraries(MyExe1 gollnlp ipopt coinhsl coinmetis 
-                      ${HIOP_LIB} ${GOLLNLP_LIBS_EXTRA} 
+                      hiop ${GOLLNLP_LIBS_EXTRA} 
 		      ${OpenMP_CXX_LIBRARIES} ${LAPACK_LIBRARIES})
 
 add_executable(MyExe2 MyCpp2.cpp)
 target_link_libraries(MyExe2 gollnlp ipopt coinhsl coinmetis 
-                      ${HIOP_LIB} ${GOLLNLP_LIBS_EXTRA} 
+                      hiop ${GOLLNLP_LIBS_EXTRA} 
 		      ${OpenMP_CXX_LIBRARIES} ${LAPACK_LIBRARIES})
 
 ##########################################################
 # CMake Tests
 ##########################################################
-if (GOLLNLP_WITH_MAKETEST)
-  enable_testing()
-  add_test(NAME SCACOPFData COMMAND $<TARGET_FILE:test_scacopfdata.exe> ${PROJECT_SOURCE_DIR}/test_instanceslist.txt )
-endif(GOLLNLP_WITH_MAKETEST)
+#if (GOLLNLP_WITH_MAKETEST)
+#  enable_testing()
+#  add_test(NAME SCACOPFData COMMAND $<TARGET_FILE:test_scacopfdata.exe> ${PROJECT_SOURCE_DIR}/test_instanceslist.txt )
+#endif(GOLLNLP_WITH_MAKETEST)
 
 ##########################################################
 # Examples of cmake-ing
