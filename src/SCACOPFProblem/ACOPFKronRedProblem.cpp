@@ -28,8 +28,7 @@ namespace gollnlp {
 
     Ybus_red = new hiopMatrixComplexDense(idxs_buses_nonaux.size(),idxs_buses_nonaux.size());
 
-    hiopKronReduction reduction;
-    if(!reduction.go(idxs_buses_nonaux, idxs_buses_aux, *YBus_, *Ybus_red)) {
+    if(!reduction_.go(idxs_buses_nonaux, idxs_buses_aux, *YBus_, *Ybus_red)) {
       return false;
     }
 #ifdef DEBUG
@@ -314,7 +313,7 @@ namespace gollnlp {
 	Ii[nnz_count] = Nidxfrom;
 	M[nnz_count] = -yf/tauf;
 	nnz_count++;
-}
+      }
     }
     assert(nnz_count==nnz);
     Ybus->storage()->sort_indexes();
@@ -322,6 +321,130 @@ namespace gollnlp {
 
     return Ybus;
   }
+
+  void ACOPFKronRedProblem::compute_voltages_nonaux(const OptVariablesBlock* v_nonaux,
+						    const OptVariablesBlock* theta_nonaux,
+						    std::vector<std::complex<double> >& v_complex_all)
+  {
+    std::vector<std::complex<double> > v_complex_nonaux(v_nonaux->n);
+
+    for(int i=0; i<v_nonaux->n; i++) {
+      v_complex_nonaux[i] = v_nonaux->xref[i] * std::complex<double>(cos(theta_nonaux->xref[i]),
+								     sin(theta_nonaux->xref[i]));
+    }
+    // v_complex_aux = -(Ybb\Yba)*v_complex_nonaux
+    std::vector<complex<double> > v_complex_aux(idxs_buses_aux.size());
+    reduction_.apply_nonaux_to_aux(v_complex_nonaux, v_complex_aux);
+    for(auto& it : v_complex_aux) it = -it;
+
+    for(int i=0; i<idxs_buses_nonaux.size(); i++) {
+      v_complex_all[idxs_buses_nonaux[i]] = v_complex_nonaux[i];
+    }
+	
+    for(int i=0; i<idxs_buses_aux.size(); i++) {
+      v_complex_all[idxs_buses_aux[i]] = v_complex_aux[i];
+    }
+  }
+
+  void ACOPFKronRedProblem::compute_power_flows(const std::vector<std::complex<double> >& v_complex_all,
+						std::vector<std::vector<std::complex<double> > >& pli,
+						std::vector<std::vector<std::complex<double> > >& pti)
+  {
+    pli.clear();
+    pli.push_back(vector<complex<double> >(data_sc.L_Line.size()));
+    pli.push_back(vector<complex<double> >(data_sc.L_Line.size()));
+    for(int l=0; l<data_sc.L_Line.size(); ++l) {
+      // ye = L[:G][l] + L[:B][l]*im;
+      complex<double> ye(data_sc.L_G[l], data_sc.L_B[l]); 
+      // yCHe = L[:Bch][l]*im;
+      complex<double> yCHe(0., data_sc.L_Bch[l]);
+      for(int i=0; i<2; i++) {
+	// v_i = v_n[L_Nidx[l,i]]
+	auto v_i = v_complex_all[data_sc.L_Nidx[i][l]];
+	
+	// v_j = v_n[L_Nidx[l,3-i]]
+	auto v_j = v_complex_all[data_sc.L_Nidx[2-i][l]];
+				 
+	// s_li[l, i] = v_i*conj(yCHe/2*v_i) + v_i*conj(ye*(v_j - v_i))
+	pli[i][l] = v_i * std::conj(yCHe/2.0*v_i) + v_i * std::conj(ye*(v_j-v_i));
+      }
+    }
+
+    pti.clear();
+    pti.push_back(vector<complex<double> >(data_sc.T_Transformer.size()));
+    pti.push_back(vector<complex<double> >(data_sc.T_Transformer.size()));
+
+    for(int t=0; t<data_sc.T_Transformer.size(); ++t) {
+      //yf = T[:G][t] + T[:B][t]*im;
+      complex<double> yf(data_sc.T_G[t], data_sc.T_B[t]);
+      //yMf = T[:Gm][t] + T[:Bm][t]*im;
+      complex<double> yMf(data_sc.T_Gm[t], data_sc.T_Bm[t]);
+      //tauf = T[:Tau][t];
+      double tauf = data_sc.T_Tau[t];
+      //v_1 = v_n[T_Nidx[t,1]]
+      auto v_1 = v_complex_all[data_sc.T_Nidx[0][t]];
+      //v_2 = v_n[T_Nidx[t,2]]
+      auto v_2 = v_complex_all[data_sc.T_Nidx[1][t]];
+	    
+      //s_ti[t, 1] = v_1*conj(yMf*v_1) + v_1/tauf*conj(yf*(v_2 - v_1/tauf))
+      pti[0][t] = v_1 * std::conj(yMf*v_1) + v_1/tauf*std::conj(yf*(v_2-v_1/tauf));
+      //s_ti[t, 2] = v_2*conj(yf*(v_1/tauf - v_2))
+      pti[1][t] = v_2 * std::conj(yf*(v_1/tauf)-v_2);
+    }
+  }
+
+#define EPSILON 1e-8
+  void ACOPFKronRedProblem::find_voltage_viol_busidxs(const std::vector<std::complex<double> >& v_complex_all,
+						      std::vector<int>& Nidx_voltoutofbnds)
+  {
+    Nidx_voltoutofbnds.clear();
+    for(auto n : idxs_buses_aux) {
+      const double v_abs = std::abs(v_complex_all[n]);
+      if(data_sc.N_Vlb[n] > v_abs + EPSILON || v_abs > data_sc.N_Vub[n] + EPSILON) {
+	Nidx_voltoutofbnds.push_back(n);	
+      }
+    }
+  }
+
+  /** Finds indexes in lines/transformers and in to/from arrays corresponding to lines/transformers
+   * that are overloaded
+   */
+  void ACOPFKronRedProblem::find_power_viol_LTidxs(const std::vector<std::complex<double> >& v_complex_all,
+						   const std::vector<std::vector<std::complex<double> > >& pli,
+						   const std::vector<std::vector<std::complex<double> > >& pti,
+						   std::vector<int>& Lidx_overload,
+						   std::vector<int>& Lin_overload,
+						   std::vector<int>& Tidx_overload,
+						   std::vector<int>& Tin_overload)
+  {
+    Lidx_overload.clear();
+    Lin_overload.clear();
+
+    for(int l=0; l<data_sc.L_Line.size(); l++) {
+      for(int i=0; i<2; i++) {
+	const double viol = std::abs(pli[i][l]) -
+	  data_sc.L_RateBase[l] * std::abs(v_complex_all[data_sc.L_Nidx[i][l]]);
+	if(viol>EPSILON) {
+	  Lidx_overload.push_back(l);
+	  Lin_overload.push_back(i);
+	}
+      }
+    }
+
+    Tidx_overload.clear();
+    Tin_overload.clear();
+
+    for(int t=0; t<data_sc.T_Transformer.size(); t++) {
+      for(int i=0; i<2; i++) {
+	const double viol = std::abs(pti[i][t]) - data_sc.T_RateEmer[t];
+	if(viol>EPSILON) {
+	  Tidx_overload.push_back(t);
+	  Tin_overload.push_back(i);
+	}
+      }
+    }
+  }
+  
 } //end namespace
     
 

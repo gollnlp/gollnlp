@@ -51,8 +51,6 @@ PFConRectangular::~PFConRectangular()
   delete[] H_nz_idxs;
 }
 
-
-
 bool PFConRectangular::eval_body (const OptVariables& vars_primal, bool new_x, double* body)
 {
   // - pq[i] + A[i] * v[Nidx1[i]]^2 
