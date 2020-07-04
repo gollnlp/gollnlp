@@ -17,15 +17,23 @@ namespace gollnlp {
   class ACOPFKronRedProblem : public OptProblemMDS
   {
   public:
-    ACOPFKronRedProblem(SCACOPFData& d_in) 
-      : data_sc(d_in), Ybus_red(NULL)
-    {
-    }
+    ACOPFKronRedProblem(SCACOPFData& d_in);
     virtual ~ACOPFKronRedProblem();
     
     /* initialization method: performs Kron reduction and builds the OptProblem */
     virtual bool assemble();
+
+    /** Override of the parent @optimize method that performs the solve of the Kron
+     * problem in a loop by adding binding transmission constraints and voltages
+     * bounds for non-auxiliary buses.
+     * 
+     * Internally, calls @OptProblemMDS::optimize and @OptProblemMDS::reoptimize
+     * inside the solve loop.
+     */
+    virtual bool optimize(const std::string& nlpsolver);
     
+    /** See @optimize above */
+    virtual bool reoptimize(RestartType t=primalRestart);
   protected: 
     void add_variables(SCACOPFData& dB, bool SysCond_BaseCase = true);
     void add_cons_pf(SCACOPFData& d);
@@ -72,7 +80,23 @@ namespace gollnlp {
     SCACOPFData& data_sc;
     std::vector<int> idxs_buses_nonaux, idxs_buses_aux;
     hiop::hiopKronReduction reduction_;
-    hiop::hiopMatrixComplexDense* Ybus_red;
+    hiop::hiopMatrixComplexDense* Ybus_red_;
+
+    std::vector<int> N_idx_voutofobounds_;
+
+    std::vector<int> Lidx_overload_;
+    std::vector<int> Lin_overload_;
+    std::vector<int> Tidx_overload_;
+    std::vector<int> Tin_overload_;
+
+
+    /* map of bus index into 
+     *  - the index inside of the optimization variable v_n and theta_n for nonaux buses
+     *  - the index inside v_aux_n and theta_aux_n for aux buses included in the optimization (as the 
+     * result of voltage bounds and thermal limit violations)
+     *  - -1 for aux buses non included in the optimization
+     */
+    std::vector<int> map_idxbuses_idxsoptimiz_;
   };
 
 } //end namespace

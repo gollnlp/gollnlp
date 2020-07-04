@@ -12,9 +12,14 @@ using namespace std;
 
 namespace gollnlp {
 
+  ACOPFKronRedProblem::ACOPFKronRedProblem(SCACOPFData& d_in) 
+    : data_sc(d_in), Ybus_red_(NULL)
+  {
+  }
+  
   ACOPFKronRedProblem::~ACOPFKronRedProblem() 
   {
-    delete Ybus_red;
+    delete Ybus_red_;
   }
   
   /* initialization method: performs Kron reduction and builds the OptProblem */
@@ -24,15 +29,15 @@ namespace gollnlp {
     //YBus_->print();
     construct_buses_idxs(idxs_buses_nonaux, idxs_buses_aux);
 
-    if(Ybus_red) delete Ybus_red;
+    if(Ybus_red_) delete Ybus_red_;
 
-    Ybus_red = new hiopMatrixComplexDense(idxs_buses_nonaux.size(),idxs_buses_nonaux.size());
+    Ybus_red_ = new hiopMatrixComplexDense(idxs_buses_nonaux.size(),idxs_buses_nonaux.size());
 
-    if(!reduction_.go(idxs_buses_nonaux, idxs_buses_aux, *YBus_, *Ybus_red)) {
+    if(!reduction_.go(idxs_buses_nonaux, idxs_buses_aux, *YBus_, *Ybus_red_)) {
       return false;
     }
 #ifdef DEBUG
-    if(Ybus_red->assertSymmetry(1e-12))
+    if(Ybus_red_->assertSymmetry(1e-12))
       printf("!!!!! matrix is symmetric\n");
     else
       printf("!!!!! matrix is NOT symmetric\n");
@@ -49,6 +54,162 @@ namespace gollnlp {
     
     return true;
   }
+  
+  bool ACOPFKronRedProblem::optimize(const std::string& nlpsolver)
+  {
+    bool bret = OptProblemMDS::optimize(nlpsolver);
+
+    int n_iter = 1;
+    do {
+      if(!bret) return false;
+
+      if(n_iter>=100) {
+	printf("error: Max number (%d) of loopings has been reached\n", n_iter);
+	return false;
+      }
+      
+      vector<complex<double> > v_n_all_complex;
+      compute_voltages_nonaux(vars_block(var_name("v_n", data_sc)), 
+			      vars_block(var_name("theta_n", data_sc)),
+			      v_n_all_complex);
+      
+      //s_li, s_ti = power_flows(v_n_all_complex, L, L_Nidx, T, T_Nidx)
+      vector<vector<complex<double> > > s_li, s_ti;
+      compute_power_flows(v_n_all_complex, s_li, s_ti);
+      
+      vector<int> Nidx_voutofobounds_pass;
+      find_voltage_viol_busidxs(v_n_all_complex, Nidx_voutofobounds_pass);
+      
+      std::vector<int> Lidx_overload_pass, Lin_overload_pass, Tidx_overload_pass, Tin_overload_pass;
+      find_power_viol_LTidxs(v_n_all_complex, s_li, s_ti,
+			     Lidx_overload_pass, Lin_overload_pass, Tidx_overload_pass, Tin_overload_pass);
+      
+      // verify that all included constraints are respected
+      auto Lfails = Lidx_overload_pass;
+      for(int i=0; i<Lfails.size(); i++) Lfails[i] = 10*Lfails[i]+Lin_overload_pass[i];
+      auto Lfails_prev_pass = Lidx_overload_;
+      for(int i=0; Lfails_prev_pass.size(); i++)
+	Lfails_prev_pass[i] = 10*Lfails_prev_pass[i]+Lin_overload_[i];
+      auto LfailIdxs = gollnlp::indexin(Lfails, Lfails_prev_pass);
+      LfailIdxs = gollnlp::findall(LfailIdxs, [](int val) {return val!=-1;});
+      
+      auto Tfails = Tidx_overload_pass;
+      for(int i=0; i<Tfails.size(); i++) Tfails[i] = 10*Tfails[i]+Tin_overload_pass[i];
+      auto Tfails_prev_pass = Tidx_overload_;
+      for(int i=0; i<Tfails_prev_pass.size(); i++)
+	Tfails_prev_pass[i] = 10*Tfails_prev_pass[i]+Tin_overload_[i];
+      auto TfailIdxs = gollnlp::indexin(Tfails, Tfails_prev_pass);
+      TfailIdxs = gollnlp::findall(TfailIdxs, [](int val) {return val!=-1;});
+      
+      //warnings 
+      if(LfailIdxs.size()) {
+	printvec(LfailIdxs, "warning / error: unexpected lines overloaded - they should not be");
+      }
+      if(TfailIdxs.size()) {
+	printvec(TfailIdxs, "warning / error: unexpected transformers overloaded - they should not be");
+      }
+      
+      //remove failed transmission elements that were previously added to avoid adding redundant constraints
+      //for them later on
+      for(auto idx : LfailIdxs) {
+	erase_idx_from(Lidx_overload_pass, idx);
+	erase_idx_from(Lin_overload_pass, idx);
+      }
+      for(auto idx : TfailIdxs) {
+	erase_idx_from(Tidx_overload_pass, idx);
+	erase_idx_from(Tin_overload_pass, idx);
+      }
+
+      //
+      // exit loop if no new lines/transformers appear
+      //
+      if(Nidx_voutofobounds_pass.size() + Lidx_overload_pass.size() + Tidx_overload_pass.size()==0) {
+	cout << "No new violations detected. Exiting loop. Total lazy constraints added: "
+	     << (2*(Nidx_voutofobounds_pass.size() + Lidx_overload_pass.size() + Tidx_overload_pass.size()))
+	     << endl;
+	break;
+      }
+
+      //create/get auxiliary voltages and theta variables
+      OptVariablesBlock* v_aux_n = vars_block(var_name("v_aux_n",data_sc));
+      if(NULL == v_aux_n) {
+	assert(1==n_iter);
+	v_aux_n = new OptVariablesBlock(0, var_name("v_aux_n", data_sc));
+	append_variables(v_aux_n);
+      }
+
+      OptVariablesBlock* theta_aux_n = vars_block(var_name("theta_aux_n",data_sc));
+      if(NULL == theta_aux_n) {
+	assert(n_iter==1);
+	theta_aux_n = new OptVariablesBlock(0, var_name("theta_aux_n", data_sc));
+	append_variables(theta_aux_n);
+      }
+      
+      
+      // add necessary auxiliary bus voltages (if any)
+      auto reqbuses = Nidx_voutofobounds_pass;
+      for(auto idx : Lidx_overload_pass) {
+	reqbuses.push_back(data_sc.L_Nidx[Lin_overload_pass[idx]][Lidx_overload_pass[idx]]);
+      }
+      for(auto idx : Tidx_overload_pass) {
+	reqbuses.push_back(data_sc.T_Nidx[Tin_overload_pass[idx]][Tidx_overload_pass[idx]]);
+      }
+
+      // sort and remove duplicates
+      remove_duplicates(reqbuses);
+
+      auto reqauxidxs = indexin(set_diff(reqbuses, idxs_buses_nonaux), idxs_buses_aux);
+
+      //add constraints for voltage violations at auxiliary buses with voltage violations
+      {
+	vector<double> v_lb, v_ub, v_start;
+	vector<double> theta_start;
+
+	//first build information for buses; skip the ones already added (previously with voltage violations)
+	for(auto nix : reqauxidxs) {
+	  assert(-1 != nix);
+			    
+	  const int bus_idx = idxs_buses_aux[nix];
+	  
+	  //should not be optimized over previously  
+	  if(-1 == map_idxbuses_idxsoptimiz_[bus_idx]) {
+	    assert(v_lb.size() == v_ub.size());
+	    assert(v_ub.size() == v_start.size());
+	    assert(v_start.size() == theta_start.size());
+	    
+	    //we will add v_aux_n and theta_aux_n for this bus, therefore in map_idxbuses_idxsoptimiz_
+	    //we will keep the index in v_aux_n and theta_aux_n
+	    assert(v_aux_n->n == theta_aux_n->n);
+	    map_idxbuses_idxsoptimiz_[bus_idx] = v_aux_n->n + v_lb.size();
+
+	    v_lb.push_back(data_sc.N_Vlb[bus_idx]);
+	    v_ub.push_back(data_sc.N_Vub[bus_idx]);
+	    assert(bus_idx<v_n_all_complex.size());
+	    v_start.push_back(std::abs(v_n_all_complex[bus_idx]));
+
+	    theta_start.push_back(std::arg(v_n_all_complex[bus_idx]));
+	  }
+	} // end of for loop over reqauxidxs
+
+	//append aux v_n and theta_n
+	v_aux_n->append_variables(v_lb.size(),
+				  v_lb.data(), v_ub.data(),
+				  v_start.data());
+	theta_aux_n->append_variables(theta_start.size(), NULL, NULL, theta_start.data());
+      }
+
+      n_iter++;
+    } while(true);
+    return bret; 
+  }
+
+  bool ACOPFKronRedProblem::reoptimize(RestartType t/*=primalRestart*/)
+  {
+    bool bret = OptProblemMDS::reoptimize(t);
+
+    return bret;
+  }
+  
   
   void ACOPFKronRedProblem::add_variables(SCACOPFData& d, bool SysCond_BaseCase/* = true*/)
   {
@@ -157,7 +318,7 @@ namespace gollnlp {
 					      idxs_buses_nonaux.size(),
 					      p_g, v_n, theta_n,
 					      idxs_buses_nonaux,
-					      d.Gn, *Ybus_red, data_sc.N_Pd);
+					      d.Gn, *Ybus_red_, data_sc.N_Pd);
       append_constraints(pf_p_bal);
     }
     
@@ -169,7 +330,7 @@ namespace gollnlp {
 						q_g, v_n, theta_n, b_s,
 						idxs_buses_nonaux,
 						d.Gn, d.SShn,
-						*Ybus_red, data_sc.N_Qd);
+						*Ybus_red_, data_sc.N_Qd);
       append_constraints(pf_q_bal);
     }
   }
@@ -326,22 +487,31 @@ namespace gollnlp {
 						    const OptVariablesBlock* theta_nonaux,
 						    std::vector<std::complex<double> >& v_complex_all)
   {
+    v_complex_all.resize(idxs_buses_nonaux.size() + idxs_buses_aux.size());
+
     std::vector<std::complex<double> > v_complex_nonaux(v_nonaux->n);
 
+    assert(v_nonaux->n == idxs_buses_nonaux.size());
+    assert(theta_nonaux->n == v_nonaux->n);
+    
     for(int i=0; i<v_nonaux->n; i++) {
-      v_complex_nonaux[i] = v_nonaux->xref[i] * std::complex<double>(cos(theta_nonaux->xref[i]),
-								     sin(theta_nonaux->xref[i]));
+      v_complex_nonaux[i] = v_nonaux->x[i] * complex<double>(cos(theta_nonaux->x[i]),
+							     sin(theta_nonaux->x[i]));
     }
     // v_complex_aux = -(Ybb\Yba)*v_complex_nonaux
     std::vector<complex<double> > v_complex_aux(idxs_buses_aux.size());
     reduction_.apply_nonaux_to_aux(v_complex_nonaux, v_complex_aux);
     for(auto& it : v_complex_aux) it = -it;
 
+    assert(v_complex_aux.size() == idxs_buses_aux.size());
+ 
     for(int i=0; i<idxs_buses_nonaux.size(); i++) {
+      assert(idxs_buses_nonaux[i] < v_complex_all.size());
       v_complex_all[idxs_buses_nonaux[i]] = v_complex_nonaux[i];
     }
 	
     for(int i=0; i<idxs_buses_aux.size(); i++) {
+      assert(idxs_buses_aux[i] < v_complex_all.size());
       v_complex_all[idxs_buses_aux[i]] = v_complex_aux[i];
     }
   }
@@ -363,7 +533,7 @@ namespace gollnlp {
 	auto v_i = v_complex_all[data_sc.L_Nidx[i][l]];
 	
 	// v_j = v_n[L_Nidx[l,3-i]]
-	auto v_j = v_complex_all[data_sc.L_Nidx[2-i][l]];
+	auto v_j = v_complex_all[data_sc.L_Nidx[1-i][l]];
 				 
 	// s_li[l, i] = v_i*conj(yCHe/2*v_i) + v_i*conj(ye*(v_j - v_i))
 	pli[i][l] = v_i * std::conj(yCHe/2.0*v_i) + v_i * std::conj(ye*(v_j-v_i));

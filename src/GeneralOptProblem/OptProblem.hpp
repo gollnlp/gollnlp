@@ -14,7 +14,7 @@
 
 namespace gollnlp {
 
-  //quick hack to avoid poluting gollnlp code with Ipopt::
+//quick hack to avoid poluting gollnlp code with Ipopt::
 typedef Ipopt::ApplicationReturnStatus OptimizationStatus;
 typedef Ipopt::AlgorithmMode OptimizationMode;
 
@@ -39,9 +39,9 @@ public:
   int index;
   //identifier, unique within OptVariables; is maintained by OptVariables
   std::string id; 
-  //array that holds the solution; maintained by this class
+  //array that holds the solution; memory maintained by this class
   double* x;
-  //lower and upper vector bounds; maintained by this class
+  //lower and upper vector bounds; memory maintained by this class
   double *lb, *ub;
   //pointer/reference to the first elem in NLP solver's "x" that corresponds to this block
   //handled by attach_to
@@ -63,6 +63,16 @@ public:
     assert(index>=0);
     return index+indexSparse;
   }
+
+  /** Grow the variables array/vector 
+   * Reallocates 'x', 'lb', 'ub' therefore use carefully.
+   * Flags 'sparseBlock' and 'providesStartingPoint' do not change.
+   * Automatically reuses starting point values of the existing variables in the block
+   *
+   * NULL values passed as arguments signifies default values: 
+   *   this->lb = -1e+20  this->ub= 1e+20  this->x=0.
+   */
+  void append_variables(const int& how_many, const double* lb, const double* ub, const double* x0=NULL);
   
   inline OptVariablesBlock* new_copy() 
   {

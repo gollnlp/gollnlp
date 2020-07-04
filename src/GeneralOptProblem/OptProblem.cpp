@@ -856,6 +856,10 @@ OptVariablesBlock::OptVariablesBlock(const int& n_, const std::string& id_)
   int i;
 
   x = new double[n];
+  //need to initialize these to some default values xsin case additional variables
+  //are added later to this block (which will trigger a copy of the initial point stored in x)
+  //before any of the 'set_start_to' methods are called
+  for(int i=0; i<n; i++) x[i]=0.;
 
   lb = new double[n];
   for(i=0; i<n; i++) lb[i] = -1e+20;
@@ -885,21 +889,53 @@ OptVariablesBlock::OptVariablesBlock(const int& n_, const std::string& id_,
     DCOPY(&n, const_cast<double*>(ub_), &ione, ub, &ione);
   else
     for(i=0; i<n; i++) ub[i] = +1e+20;
+
+  //need to initialize these to some default values in case additional variables
+  //are added later to this block (which will trigger a copy of the initial point stored in x)
+  //before any of the 'set_start_to' methods are called
+  for(i=0; i<n; i++) {
+    double x0=0.;
+    if(ub[i]==1e+20 && lb[i]==-1e20) {
+      //x0=0.;
+    } else if(lb[i]!=-1e+20 && ub[i]!=1e+20) {
+      x0 = 0.5 * (lb[i]+ub[i]);
+    } else if(lb[i]==-1e+20) {
+      x0 = ub[i];
+    } else if(ub[i]==1e+20) {
+      x0 = lb[i];
+    }
+    x[i] = x0;
+  }
+  
 }
-OptVariablesBlock::OptVariablesBlock(const int& n_, const std::string& id_, double lb_, double ub_)
-  : n(n_), id(id_), index(-1), xref(NULL), providesStartingPoint(false),
+OptVariablesBlock::OptVariablesBlock(const int& n_in, const std::string& id_in, double lb_in, double ub_in)
+  : n(n_in), id(id_in), index(-1), xref(NULL), providesStartingPoint(false),
     sparseBlock(true), indexSparse(0)
 {
   assert(n>=0);
 
   x = new double[n];
+  //need to initialize these to some default values in case additional variables
+  //are added later to this block (which will trigger a copy of the initial point stored in x)
+  //before any of the 'set_start_to' methods are called
+  double x0 = 0.;
+  if(ub_in==1e+20 && lb_in==-1e20) {
+    //x0=0.;
+  } else if(lb_in!=-1e+20 && ub_in!=1e+20) {
+    x0 = 0.5 * (lb_in+ub_in);
+  } else if(lb_in==-1e+20) {
+    x0 = ub_in;
+  } else if(ub_in==1e+20) {
+    x0 = lb_in;
+  }
+  for(int i=0; i<n; i++) x[i] = x0;
 
   int i;
   lb = new double[n];
-  for(i=0; i<n; i++) lb[i] = lb_;
+  for(i=0; i<n; i++) lb[i] = lb_in;
 
   ub = new double[n];
-  for(i=0; i<n; i++) ub[i] = ub_;
+  for(i=0; i<n; i++) ub[i] = ub_in;
 }
 
 OptVariablesBlock::~OptVariablesBlock()
@@ -934,6 +970,59 @@ void OptVariablesBlock::print() const
   printf("\n");
 }
 
+
+void OptVariablesBlock::append_variables(const int& how_many,
+					 const double* lb_in,
+					 const double* ub_in,
+					 const double* x0)
+{
+  assert(how_many>=0);
+  if(how_many <= 0) return;
+
+  int n_new = this->n + how_many;
+
+  {
+    double* x_new = new double[n_new];
+    memcpy(x_new, this->x, this->n*sizeof(double));
+    delete[] x;
+    x = x_new;
+    if(NULL != x0) {
+      memcpy(x+n, x0, how_many*sizeof(double));       
+    } else {
+      for(int i=n; i<n_new; ++i) x[i] = 0.;
+    }
+  }
+
+  {
+    double* lb_new = new double[n_new];
+    memcpy(lb_new, lb, n*sizeof(double));
+    delete[] lb;
+    lb = lb_new;
+    if(NULL != lb_in) {
+      memcpy(lb+n, lb_in, how_many*sizeof(double));   
+    } else {
+      for(int i=n; i<n_new; ++i) lb[i] = -1e+20;
+    }
+  }
+
+  {
+    double* ub_new = new double[n_new];
+    memcpy(ub_new, ub, n*sizeof(double));
+    delete[] ub;
+    ub = ub_new;
+    if(NULL != ub_in) {
+      memcpy(ub+n, ub_in, how_many*sizeof(double));   
+    } else {
+      for(int i=n; i<n_new; ++i) ub[i] = 1e+20;
+    }
+  }
+  
+  n = n_new;
+
+  //invalidate xref
+  xref = NULL;
+}
+ 
 /////////////////////////////////////////
 // OptConstraints
 /////////////////////////////////////////
