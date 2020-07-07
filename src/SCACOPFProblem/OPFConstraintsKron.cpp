@@ -1217,4 +1217,79 @@ namespace gollnlp {
     }
     return true;
   }
+
+
+  /*********************************************************************************************
+   * Voltage violations constraints at auxiliary buses
+   *
+   * for nix = vtheta_aux_idxs_in
+   *    vaux_n[nix]*cos(thetaaux_n[nix]) ==
+   *	sum((re_ynix[i]*v_n[i]*cos(theta_n[i]) - im_ynix[i]*v_n[i]*sin(theta_n[i])) for i=1:length(nonaux)))
+   *
+   *    vaux_n[nix]*sin(thetaaux_n[nix]) ==
+   *    sum((re_ynix[i]*v_n[i]*sin(theta_n[i]) + im_ynix[i]*v_n[i]*cos(theta_n[i])) for i=1:length(nonaux)))
+   *
+   * where re_ynix=Re(vmap[nix,:]) and im_ynix=Im(vmap[nix,:])
+   *********************************************************************************************/
+  VoltageConsAuxBuses::VoltageConsAuxBuses(const std::string& id_in, int numcons,
+					   OptVariablesBlock* v_n_in,
+					   OptVariablesBlock* theta_n_in,
+					   OptVariablesBlock* v_aux_n_in,
+					   OptVariablesBlock* theta_aux_n_in,
+					   const std::vector<int>& vtheta_aux_idxs_in,
+					   const hiop::hiopMatrixComplexDense& vmap_in)
+    : OptConstraintsBlockMDS(id_in, numcons),
+      v_n_(v_n_in), theta_n_(theta_n_in),
+      v_aux_n_(v_aux_n_in), theta_aux_n_(theta_aux_n_in),
+      vtheta_aux_idxs_(vtheta_aux_idxs_in),
+      vmap_(vmap_in) //v_n(v_n_),
+  {
+  }
+  VoltageConsAuxBuses::~VoltageConsAuxBuses()
+  {
+  }
+  void VoltageConsAuxBuses::append_constraints(const std::vector<int>& vtheta_aux_idxs_new)
+  {
+    assert(v_n_->n == vtheta_aux_idxs_.size()+vtheta_aux_idxs_new.size());
+    assert(v_n_->n == theta_n_->n);
+    assert(vmap_.n() == v_n_->n);
+    for(auto idx: vtheta_aux_idxs_new) {
+      assert(idx >= 0);
+      assert(idx < vmap_.m());
+      vtheta_aux_idxs_.push_back(idx);
+    }
+  }
+
+  bool VoltageConsAuxBuses::eval_body (const OptVariables& vars_primal, bool new_x, double* body)
+  {
+    return true;
+  }
+
+  bool VoltageConsAuxBuses::eval_Jac_eq(const OptVariables& x, bool new_x, 
+			     const int& nxsparse, const int& nxdense,
+			     const int& nnzJacS, int* iJacS, int* jJacS, double* MJacS, 
+			     double** JacD)
+  {
+    return true;
+  }
+
+  int VoltageConsAuxBuses::get_spJacob_eq_nnz()
+  {
+    return 0;
+  }
+  bool VoltageConsAuxBuses::get_spJacob_eq_ij(std::vector<OptSparseEntry>& vij)
+  {
+    return true;
+  }
+
+  bool VoltageConsAuxBuses::eval_HessLagr(const OptVariables& x, bool new_x, 
+			       const OptVariables& lambda, bool new_lambda,
+			       const int& nxsparse, const int& nxdense, 
+			       const int& nnzHSS, int* iHSS, int* jHSS, double* MHSS, 
+			       double** HDD,
+			       const int& nnzHSD, int* iHSD, int* jHSD, double* MHSD)
+  {
+    return true;
+  }
+ 
 } // end of namespace

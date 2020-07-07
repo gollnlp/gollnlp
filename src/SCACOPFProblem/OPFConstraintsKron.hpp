@@ -30,13 +30,13 @@ namespace gollnlp {
   {
   public:
     PFActiveBalanceKron(const std::string& id_, int numcons,
-			 OptVariablesBlock* p_g_, 
-			 OptVariablesBlock* v_n_,
-			 OptVariablesBlock* theta_n_,
-			 const std::vector<int>& bus_nonaux_idxs_,
-			 const std::vector<std::vector<int> >& Gn_full_space_,
-			 const hiop::hiopMatrixComplexDense& Ybus_red_,
-			 const std::vector<double>& N_Pd_full_space_);
+			OptVariablesBlock* p_g_, 
+			OptVariablesBlock* v_n_,
+			OptVariablesBlock* theta_n_,
+			const std::vector<int>& bus_nonaux_idxs_,
+			const std::vector<std::vector<int> >& Gn_full_space_,
+			const hiop::hiopMatrixComplexDense& Ybus_red_,
+			const std::vector<double>& N_Pd_full_space_);
     virtual ~PFActiveBalanceKron();
 
     virtual bool eval_body (const OptVariables& vars_primal, bool new_x, double* body);
@@ -161,7 +161,80 @@ namespace gollnlp {
     int* J_nz_idxs;
     int* H_nz_idxs;
   };
-  
+
+  /*********************************************************************************************
+   * Voltage violations constraints at auxiliary buses
+   *
+   * for nix = vtheta_aux_idxs_in
+   *    vaux_n[nix]*cos(thetaaux_n[nix]) ==
+   *	sum((re_ynix[i]*v_n[i]*cos(theta_n[i]) - im_ynix[i]*v_n[i]*sin(theta_n[i])) for i=1:length(nonaux)))
+   *
+   *    vaux_n[nix]*sin(thetaaux_n[nix]) ==
+   *    sum((re_ynix[i]*v_n[i]*sin(theta_n[i]) + im_ynix[i]*v_n[i]*cos(theta_n[i])) for i=1:length(nonaux)))
+   *
+   * where re_ynix=Re(vmap[nix,:]) and im_ynix=Im(vmap[nix,:])
+   *********************************************************************************************/
+  class VoltageConsAuxBuses : public OptConstraintsBlockMDS
+  {
+  public:
+    VoltageConsAuxBuses(const std::string& id_in, int numcons,
+			OptVariablesBlock* v_n_in,
+			OptVariablesBlock* theta_n_in,
+			OptVariablesBlock* v_aux_n_in,
+			OptVariablesBlock* theta_aux_n_in,
+			const std::vector<int>& vtheta_aux_idxs_in,
+			const hiop::hiopMatrixComplexDense& vmap_in);
+    virtual ~VoltageConsAuxBuses();
+
+    //add (append to existing) voltage constraints for v and theta variables specified by the
+    //indexes passed in 'vtheta_aux_idxs_new'
+    void append_constraints(const std::vector<int>& vtheta_aux_idxs_new);
+
+    //
+    // OptProblem ConstraintsBlock interface methods
+    //
+    virtual bool eval_body (const OptVariables& vars_primal, bool new_x, double* body);
+
+    virtual bool eval_Jac_eq(const OptVariables& x, bool new_x, 
+			     const int& nxsparse, const int& nxdense,
+			     const int& nnzJacS, int* iJacS, int* jJacS, double* MJacS, 
+			     double** JacD);
+
+    virtual bool eval_Jac_ineq(const OptVariables& x, bool new_x, 
+			       const int& nxsparse, const int& nxdense,
+			       const int& nnzJacS, int* iJacS, int* jJacS, double* MJacS, 
+			       double** JacD)
+    {
+      return false;
+    }
+
+    virtual int get_spJacob_eq_nnz();
+    virtual int get_spJacob_ineq_nnz()
+    {
+      assert(false);
+      return 0;
+    }
+    virtual bool get_spJacob_eq_ij(std::vector<OptSparseEntry>& vij);
+    virtual bool get_spJacob_ineq_ij(std::vector<OptSparseEntry>& vij)
+    {
+      return false;
+    }
+
+    virtual bool eval_HessLagr(const OptVariables& x, bool new_x, 
+			       const OptVariables& lambda, bool new_lambda,
+			       const int& nxsparse, const int& nxdense, 
+			       const int& nnzHSS, int* iHSS, int* jHSS, double* MHSS, 
+			       double** HDD,
+			       const int& nnzHSD, int* iHSD, int* jHSD, double* MHSD);
+    //nnz for sparse part (all zeros)
+    virtual int get_HessLagr_SSblock_nnz() { return 0; }
+
+    virtual bool get_HessLagr_SSblock_ij(std::vector<OptSparseEntry>& vij) { return true; }
+  protected:
+    OptVariablesBlock *v_n_, *theta_n_, *v_aux_n_, *theta_aux_n_;
+    std::vector<int> vtheta_aux_idxs_;
+    const hiop::hiopMatrixComplexDense& vmap_;
+  };
 } //end namespace
 
 #endif
