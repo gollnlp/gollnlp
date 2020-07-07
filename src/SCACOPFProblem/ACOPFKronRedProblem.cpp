@@ -171,7 +171,8 @@ namespace gollnlp {
 			    
 	  const int bus_idx = idxs_buses_aux[nix];
 	  
-	  //should not be optimized over previously  
+	  //should not be optimized over previously
+	  //((if it was, the voltage violation constraints are already part of the model))
 	  if(-1 == map_idxbuses_idxsoptimiz_[bus_idx]) {
 	    assert(v_lb.size() == v_ub.size());
 	    assert(v_ub.size() == v_start.size());
@@ -190,13 +191,51 @@ namespace gollnlp {
 	    theta_start.push_back(std::arg(v_n_all_complex[bus_idx]));
 	  }
 	} // end of for loop over reqauxidxs
-
-	//append aux v_n and theta_n
+	
+	//
+	//append these buses to v_aux_n and theta_aux_n
+	//
 	v_aux_n->append_variables(v_lb.size(),
 				  v_lb.data(), v_ub.data(),
 				  v_start.data());
-	theta_aux_n->append_variables(theta_start.size(), NULL, NULL, theta_start.data());
-      }
+	theta_aux_n->append_variables(theta_start.size(),
+				      NULL,
+				      NULL,
+				      theta_start.data());
+	this->primal_problem_changed();
+	
+	//
+	//append the constraints for voltage violations
+	//
+	int n_cons_new = v_lb.size();
+	//indexes of newly added (above) aux buses in v_aux_n and theta_aux_n
+	vector<int> vtheta_aux_idxs_new;
+	vtheta_aux_idxs_new.reserve(n_cons_new);
+	for(int idx=v_aux_n->n - v_lb.size(); idx < v_aux_n->n; ++idx) {
+	  vtheta_aux_idxs_new.push_back(idx);
+	}
+	const hiop::hiopMatrixComplexDense& vmap = reduction_.map_nonaux_to_aux();
+	auto cons_volt_viol = this->constraints_block(con_name("voltage_viol_aux", data_sc));
+	if(cons_volt_viol) {
+	  VoltageConsAuxBuses* cons = dynamic_cast<VoltageConsAuxBuses*>(cons_volt_viol);
+	  assert(NULL!=cons);
+	  if(cons) {
+	    cons->append_constraints(vtheta_aux_idxs_new);
+	  }
+	} else {
+	  VoltageConsAuxBuses* cons_block =
+	    new VoltageConsAuxBuses(con_name("voltage_viol_aux", data_sc), n_cons_new,
+				    vars_block(var_name("v_n", data_sc)), 
+				    vars_block(var_name("theta_n", data_sc)),
+				    v_aux_n, theta_aux_n,
+				    vtheta_aux_idxs_new,
+				    vmap);
+
+	  append_constraints(cons_block);
+	}
+	this->dual_problem_changed();
+	
+      } // end of voltage violations block
 
       n_iter++;
     } while(true);
