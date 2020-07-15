@@ -22,7 +22,9 @@ namespace gollnlp {
   {
   public:
     /**constructor */
-    HiopNlpMDS(OptProblemMDS* p) : prob(p)
+    HiopNlpMDS(OptProblemMDS* p)
+      : prob(p),
+	warm_start_type_(OptProblem::primalRestart)
     { 
     } 
 
@@ -131,9 +133,75 @@ namespace gollnlp {
       if(!prob->fill_primal_start(x0)) return false;
       return true;
     }
+
+    /**
+     * Method provides a primal or a primal-dual primal-dual starting point This point is subject 
+     * to internal adjustments in HiOp.
+     *
+     * If the user (implementer of this method) has good estimates only of the primal variables,
+     * the method should populates 'x0' with these values and return true. The 'duals_avail' 
+     * should be set to false; internally, HiOp will not access 'z_bndL0', 'z_bndU0', and 
+     * 'lambda0'.
+     *
+     * If the user (implementer of this method) has good estimates of the duals of bound constraints 
+     * and of inequality and equality constraints, 'duals_avail' boolean argument should 
+     * be set to true and the respective duals should be provided (in 'z_bndL0' and 'z_bndU0' and 
+     * 'lambda0', respectively). In this case, the user should also set 'x0' to his/her estimate 
+     * of primal variables and return 'true'.
+     *
+     * If user does not have high-quality (primal or primal-dual) starting points, the method should 
+     * return false (see note below).
+     *
+     * Note: when this method returns false, HiOp will call the overload
+     * @get_starting_point(long long&, double*)
+     * This behaviour is for backward compatibility and will be removed in a future release.
+     * 
+     */
+    virtual bool get_starting_point(const long long& n, const long long& m,
+				    double* x0,
+				    bool& duals_avail,
+				    double* z_bndL0, double* z_bndU0,
+				    double* lambda0)
+    {
+      if(warm_start_type_ == OptProblem::primalRestart) {
+	duals_avail = false;
+	return prob->fill_primal_start(x0);
+      } else {
+	duals_avail = true;
+	assert(false && "not yet implemented");
+	return false;
+      }
+      return true;
+    }
+
+    void solution_callback(hiop::hiopSolveStatus status,
+			   int n, const double* x,
+			   const double* z_L,
+			   const double* z_U,
+			   int m, const double* g,
+			   const double* lambda,
+			   double obj_value)
+    {
+      prob->set_obj_value(obj_value);
+      prob->set_obj_value_barrier(1e+20);//
+      prob->set_num_iters(-1);//ip_data->iter_count());
+
+      prob->set_primal_vars(x);
+      prob->set_duals_vars_bounds(z_L, z_U);
+
+      prob->set_duals_vars_cons(lambda);
+      
+      prob->iterate_finalize();
+    }
+
+    /** Methods not part of hiopInterfaceMDS */
+    void set_warm_start_type(OptProblem::RestartType t)
+    {
+      warm_start_type_ = t;
+    }
   private:
     OptProblemMDS* prob;
-
+    OptProblem::RestartType warm_start_type_;
     /** Block default compiler methods.
      */
     HiopNlpMDS();
@@ -141,6 +209,10 @@ namespace gollnlp {
     HiopNlpMDS& operator=(const HiopNlpMDS&);
   };
 
+  /** 
+   *Wrapper class to feed OptProblemMDS into a hiopInterfaceMDS nlp object
+   */
+  
   class HiopSolverMDS : public NlpSolver {
   public:
     HiopSolverMDS(OptProblemMDS* p_)
@@ -160,7 +232,7 @@ namespace gollnlp {
 
     virtual bool set_start_type(OptProblem::RestartType t)
     {
-      assert(false && "not yet implemented");
+      warm_start_type_ = t;
       // if(t==OptProblem::primalDualRestart) {
       //   app->Options()->SetStringValue("warm_start_init_point", "yes");
       // 	ipopt_nlp_spec->set_advanced_primaldual_restart(false);
@@ -217,8 +289,15 @@ namespace gollnlp {
     }
 
     virtual int reoptimize() {
-      assert(false && "not yet implemented");
-      return false;
+      if(warm_start_type_==OptProblem::primalRestart) {
+
+      } else if(warm_start_type_==OptProblem::primalRestart) {
+	
+      } else {
+	assert(false && "warm-start type not supported");
+	warm_start_type_=OptProblem::primalRestart;
+      }
+      return true;
     }
 
     virtual bool set_option(const std::string& name, int value)
@@ -240,6 +319,16 @@ namespace gollnlp {
   private:
     gollnlp::HiopNlpMDS* hiop_nlp_spec;
     OptimizationStatus app_status;
+
+    /**
+     * Internal member that keeps track of calls to @set_start_type by the user of this glue code
+     * and decide the behavior in @get_starting_point overloads
+     *
+     * Accepted values: 
+     * OptProblem::primalRestart and OptProblem::primalDualRestart
+     * Currently, OptProblem::advancedPrimalDualRestart is not suported
+     */
+    gollnlp::OptProblem::RestartType warm_start_type_;
   };
 
   /** IpoptSolver_HiopMDS class to be used for testing only since it is not optimized

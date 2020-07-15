@@ -184,6 +184,13 @@ protected:
   bool append_varsblock(OptVariablesBlock* b);
   bool append_varsblocks(std::vector<OptVariablesBlock*> vVarBlocks);
 
+  //grows the vars block specified by 'id'
+  void append_vars_to_varsblock(const std::string& id,
+				int num_vars_to_add,
+				const double* lb,
+				const double* ub,
+				const double* start);
+  
   virtual void attach_to(const double* xfromsolver);
 };
 
@@ -405,7 +412,7 @@ public:
 				       const double* ub,
 				       const double* start)
   {
-    //vars_primal->append_vars_to_varsblock(id_varsblock, num_vars_to_add, lb, ub, start);
+    vars_primal->append_vars_to_varsblock(id_varsblock, num_vars_to_add, lb, ub, start);
   }
   inline void append_varsblock(OptVariablesBlock* vars)
   {

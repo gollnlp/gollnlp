@@ -1244,6 +1244,14 @@ namespace gollnlp {
       vtheta_aux_idxs_(vtheta_aux_idxs_in),
       vmap_(vmap_in) //v_n(v_n_),
   {
+    for(int i=0; i<n; i++) lb[i]=0.;
+    DCOPY(&n, lb, &ione, ub, &ione);
+
+    assert(v_n_->sparseBlock==false);
+    assert(theta_n_->sparseBlock==false);
+
+    assert(v_n_->indexSparse<=0);
+    assert(theta_n_->indexSparse<=0);
   }
   VoltageConsAuxBuses::~VoltageConsAuxBuses()
   {

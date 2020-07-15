@@ -16,9 +16,9 @@ int main()
   z->set_start_to(*y); // can also have z->set_start_to( some_array_double* )
   //x still does not have start values and OptProblem will pass zeros for x to the NlpSolver
 
-  prob.append_variables(x);
-  prob.append_variables(y);
-  prob.append_variables(z);
+  prob.append_varsblock(x);
+  prob.append_varsblock(y);
+  prob.append_varsblock(z);
   
   prob.append_objterm(new Ex1SingleVarQuadrObjTerm("xsquare", x));
   prob.append_objterm(new Ex1TwoVarsQuadrObjTerm("yzsquare", y, z));

@@ -29,6 +29,11 @@ namespace gollnlp {
     //YBus_->print();
     construct_buses_idxs(idxs_buses_nonaux, idxs_buses_aux);
 
+    printf("Total %d buses: %d nonaux   %d aux\n",
+	   YBus_->m(),
+	   idxs_buses_nonaux.size(),
+	   idxs_buses_aux.size());
+    
     if(Ybus_red_) delete Ybus_red_;
 
     Ybus_red_ = new hiopMatrixComplexDense(idxs_buses_nonaux.size(),idxs_buses_nonaux.size());
@@ -36,6 +41,8 @@ namespace gollnlp {
     if(!reduction_.go(idxs_buses_nonaux, idxs_buses_aux, *YBus_, *Ybus_red_)) {
       return false;
     }
+
+    
 #ifdef DEBUG
     if(Ybus_red_->assertSymmetry(1e-12))
       printf("!!!!! matrix is symmetric\n");
@@ -46,8 +53,6 @@ namespace gollnlp {
     add_cons_pf(data_sc);
 
     //objective
-    //auto* p_g = vars_block(var_name("p_g", data_sc)); assert(p_g);
-    //append_objterm(new DummySingleVarQuadrObjTerm("objective", p_g));
     add_obj_prod_cost(data_sc);
     
     print_summary();
@@ -72,17 +77,27 @@ namespace gollnlp {
       compute_voltages_nonaux(vars_block(var_name("v_n", data_sc)), 
 			      vars_block(var_name("theta_n", data_sc)),
 			      v_n_all_complex);
+
+      //!
+      //printvec(v_n_all_complex, "v_n_all_complex");
       
       //s_li, s_ti = power_flows(v_n_all_complex, L, L_Nidx, T, T_Nidx)
       vector<vector<complex<double> > > s_li, s_ti;
       compute_power_flows(v_n_all_complex, s_li, s_ti);
+
+      printvecvec(s_li, "s_li");
+      printvecvec(s_ti, "s_ti");
+      
       
       vector<int> Nidx_voutofobounds_pass;
       find_voltage_viol_busidxs(v_n_all_complex, Nidx_voutofobounds_pass);
+      if(Nidx_voutofobounds_pass.size()>0) 
+	printvec(Nidx_voutofobounds_pass, "Bus indexes with voltage out of bounds: ");
       
       std::vector<int> Lidx_overload_pass, Lin_overload_pass, Tidx_overload_pass, Tin_overload_pass;
       find_power_viol_LTidxs(v_n_all_complex, s_li, s_ti,
-			     Lidx_overload_pass, Lin_overload_pass, Tidx_overload_pass, Tin_overload_pass);
+			     Lidx_overload_pass, Lin_overload_pass,
+			     Tidx_overload_pass, Tin_overload_pass);
       
       // verify that all included constraints are respected
       auto Lfails = Lidx_overload_pass;
@@ -109,8 +124,8 @@ namespace gollnlp {
 	printvec(TfailIdxs, "warning / error: unexpected transformers overloaded - they should not be");
       }
       
-      //remove failed transmission elements that were previously added to avoid adding redundant constraints
-      //for them later on
+      //remove failed transmission elements that were previously added to avoid adding
+      //redundant constraints for them later on
       for(auto idx : LfailIdxs) {
 	erase_idx_from(Lidx_overload_pass, idx);
 	erase_idx_from(Lin_overload_pass, idx);
@@ -135,14 +150,16 @@ namespace gollnlp {
       if(NULL == v_aux_n) {
 	assert(1==n_iter);
 	v_aux_n = new OptVariablesBlock(0, var_name("v_aux_n", data_sc));
-	append_variables(v_aux_n);
+	v_aux_n->sparseBlock = false;
+	append_varsblock(v_aux_n);
       }
 
       OptVariablesBlock* theta_aux_n = vars_block(var_name("theta_aux_n",data_sc));
       if(NULL == theta_aux_n) {
 	assert(n_iter==1);
 	theta_aux_n = new OptVariablesBlock(0, var_name("theta_aux_n", data_sc));
-	append_variables(theta_aux_n);
+	theta_aux_n->sparseBlock = false;
+	append_varsblock(theta_aux_n);
       }
       
       
@@ -165,11 +182,17 @@ namespace gollnlp {
 	vector<double> v_lb, v_ub, v_start;
 	vector<double> theta_start;
 
-	//first build information for buses; skip the ones already added (previously with voltage violations)
+	//first build information for buses; skip the ones already added (previously with
+	//voltage violations)
 	for(auto nix : reqauxidxs) {
 	  assert(-1 != nix);
 			    
 	  const int bus_idx = idxs_buses_aux[nix];
+
+	  assert(map_idxbuses_idxsoptimiz_.size() == data_sc.N_Bus.size());
+	  assert(map_idxbuses_idxsoptimiz_.size() == v_n_all_complex.size());
+	  assert(bus_idx < map_idxbuses_idxsoptimiz_.size());
+
 	  
 	  //should not be optimized over previously
 	  //((if it was, the voltage violation constraints are already part of the model))
@@ -195,13 +218,16 @@ namespace gollnlp {
 	//
 	//append these buses to v_aux_n and theta_aux_n
 	//
-	v_aux_n->append_variables(v_lb.size(),
-				  v_lb.data(), v_ub.data(),
-				  v_start.data());
-	theta_aux_n->append_variables(theta_start.size(),
-				      NULL,
-				      NULL,
-				      theta_start.data());
+	this->append_vars_to_varsblock(v_aux_n->id,
+				       v_lb.size(),
+				       v_lb.data(),
+				       v_ub.data(),
+				       v_start.data());
+	this->append_vars_to_varsblock(theta_aux_n->id,
+				       theta_start.size(),
+				       NULL,
+				       NULL,
+				       theta_start.data());
 	this->primal_problem_changed();
 	
 	//
@@ -237,6 +263,13 @@ namespace gollnlp {
 	
       } // end of voltage violations block
 
+      //
+      // resolve
+      //
+
+      print_summary();
+      bret = OptProblemMDS::reoptimize(primalRestart);
+      
       n_iter++;
     } while(true);
     return bret; 
@@ -252,6 +285,7 @@ namespace gollnlp {
   
   void ACOPFKronRedProblem::add_variables(SCACOPFData& d, bool SysCond_BaseCase/* = true*/)
   {
+    
     /******************************************************************************
      * WARNING: "sparse" variables need to be added first, before "dense" variables
      ******************************************************************************
@@ -259,14 +293,14 @@ namespace gollnlp {
     { // generation p_g and q_g
       auto p_g = new OptVariablesBlock(d.G_Generator.size(), var_name("p_g",d), 
 				       d.G_Plb.data(), d.G_Pub.data());
-      append_variables(p_g); 
+      append_varsblock(p_g); 
       p_g->set_start_to(d.G_p0.data());
 
 
       auto q_g = new OptVariablesBlock(d.G_Generator.size(), var_name("q_g",d), 
 				       d.G_Qlb.data(), d.G_Qub.data());
       q_g->set_start_to(d.G_q0.data());
-      append_variables(q_g); 
+      append_varsblock(q_g); 
     }
 
     /******************************************************************************
@@ -288,14 +322,21 @@ namespace gollnlp {
 				       vlb_na.data(),
 				       vub_na.data());
       v_n->sparseBlock = false;
-      append_variables(v_n);
+      append_varsblock(v_n);
       v_n->set_start_to(v0_na.data());
+
+      assert(map_idxbuses_idxsoptimiz_.size() == 0);
+      map_idxbuses_idxsoptimiz_ = vector<int>(data_sc.N_Bus.size(), -1);
+      for(int i=0; i<idxs_buses_nonaux.size(); i++) {
+	assert(0<=idxs_buses_nonaux[i] && idxs_buses_nonaux[i]<=data_sc.N_Bus.size());
+	map_idxbuses_idxsoptimiz_[idxs_buses_nonaux[i]] = i;
+      }
     }
 
     { //theta
       auto theta_n = new OptVariablesBlock(idxs_buses_nonaux.size(), var_name("theta_n",d));
       theta_n->sparseBlock = false;
-      append_variables(theta_n);
+      append_varsblock(theta_n);
       
       vector<double> theta0_n;
       selectfrom(data_sc.N_theta0, idxs_buses_nonaux, theta0_n);
@@ -341,7 +382,7 @@ namespace gollnlp {
       b_s->sparseBlock = false;
       b_s->set_start_to(data_sc.SSh_B0.data());
 
-      append_variables(b_s);
+      append_varsblock(b_s);
     }
   }
 
@@ -528,6 +569,10 @@ namespace gollnlp {
   {
     v_complex_all.resize(idxs_buses_nonaux.size() + idxs_buses_aux.size());
 
+    //vector<double> a(v_nonaux->x, v_nonaux->x+v_nonaux->n);
+    //printvec(a, "v_nonaux->x");
+
+
     std::vector<std::complex<double> > v_complex_nonaux(v_nonaux->n);
 
     assert(v_nonaux->n == idxs_buses_nonaux.size());
@@ -537,6 +582,7 @@ namespace gollnlp {
       v_complex_nonaux[i] = v_nonaux->x[i] * complex<double>(cos(theta_nonaux->x[i]),
 							     sin(theta_nonaux->x[i]));
     }
+    
     // v_complex_aux = -(Ybb\Yba)*v_complex_nonaux
     std::vector<complex<double> > v_complex_aux(idxs_buses_aux.size());
     reduction_.apply_nonaux_to_aux(v_complex_nonaux, v_complex_aux);
@@ -598,7 +644,7 @@ namespace gollnlp {
       //s_ti[t, 1] = v_1*conj(yMf*v_1) + v_1/tauf*conj(yf*(v_2 - v_1/tauf))
       pti[0][t] = v_1 * std::conj(yMf*v_1) + v_1/tauf*std::conj(yf*(v_2-v_1/tauf));
       //s_ti[t, 2] = v_2*conj(yf*(v_1/tauf - v_2))
-      pti[1][t] = v_2 * std::conj(yf*(v_1/tauf)-v_2);
+      pti[1][t] = v_2 * std::conj(yf*(v_1/tauf-v_2));
     }
   }
 

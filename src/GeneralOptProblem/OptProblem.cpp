@@ -672,6 +672,37 @@ bool OptVariables::append_varsblock(OptVariablesBlock* b)
   return true;
 }
 
+void OptVariables::append_vars_to_varsblock(const std::string& id_varsblock,
+					    int num_vars_to_add,
+					    const double* lb,
+					    const double* ub,
+					    const double* start)
+{
+  if(num_vars_to_add==0) return;
+  
+  auto block = vars_block(id_varsblock);
+  assert(block!=NULL);
+  if(!block) return;
+
+  //this adjust the size of 'block'
+  block->append_variables(num_vars_to_add, lb, ub, start);
+
+  //the indexes of the blocks in the 'this' that follows after 'block' needs to be increased
+  //by 'num_vars_to_add'
+  bool adjust_size = false;
+  for(auto b : vblocks) {
+    if(b == block) {
+      assert(b->id == b->id);
+      adjust_size = true;
+      continue;
+    }
+    if(adjust_size) {
+      assert(b->index+num_vars_to_add >= block->index+block->n);
+      b->index += num_vars_to_add;
+    }
+  }
+}
+
 void OptVariables::print_summary(const std::string var_name) const
 {
   printf("Optimization variable %s\n", var_name.c_str());
