@@ -624,7 +624,7 @@ bool OptVariables::append_varsblock(OptVariablesBlock* b)
       assert(false);
       return false;
     }
-    print_summary();
+    //print_summary();
     b->index = this->n();
     if(b->sparseBlock) {
       //update the index within sparse variables

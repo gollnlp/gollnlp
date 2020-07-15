@@ -447,7 +447,7 @@ void SCACOPFProblem::add_cons_AGC(SCACOPFData& dB, const std::vector<int>& G_idx
   }
 
   OptVariablesBlock* deltaK = new OptVariablesBlock(1, var_name("delta", dB));
-  append_variables(deltaK);
+  append_varsblock(deltaK);
   deltaK->set_start_to(0.);
 
   auto cons = new AGCComplementarityCons(con_name("AGC", dB), 3*G_idxs_AGC.size(),
@@ -513,7 +513,7 @@ void SCACOPFProblem::add_cons_AGC_simplified(SCACOPFData& dB, const std::vector<
   }
 
   OptVariablesBlock* deltaK = new OptVariablesBlock(1, var_name("delta", dB));
-  append_variables(deltaK);
+  append_varsblock(deltaK);
   deltaK->set_start_to(0.);
 
   auto cons = new AGCSimpleCons(con_name("AGC_simple", dB), G_idxs_AGC.size(),
@@ -1082,14 +1082,14 @@ void SCACOPFProblem::add_variables(SCACOPFData& d, bool SysCond_BaseCase)
   //printvec(data_sc.N_Vub);
   auto v_n = new OptVariablesBlock(data_sc.N_Bus.size(), var_name("v_n",d), vlb, vub);
   //data_sc.N_EVlb.data(), data_sc.N_EVub.data()); 
-  append_variables(v_n);
+  append_varsblock(v_n);
   v_n->set_start_to(data_sc.N_v0.data());
   //v_n->print();
   //append_objterm(new DummySingleVarQuadrObjTerm("v_nsq", v_n));
 
 
   auto theta_n = new OptVariablesBlock(data_sc.N_Bus.size(), var_name("theta_n",d));
-  append_variables(theta_n);
+  append_varsblock(theta_n);
   theta_n->set_start_to(data_sc.N_theta0.data());
   int RefBus = data_sc.bus_with_largest_gen();
   //printf("RefBus=%d\n", RefBus);
@@ -1109,17 +1109,17 @@ void SCACOPFProblem::add_variables(SCACOPFData& d, bool SysCond_BaseCase)
 
   // LINES
   auto p_li1 = new OptVariablesBlock(d.L_Line.size(), var_name("p_li1",d));
-  append_variables(p_li1);
+  append_varsblock(p_li1);
   auto p_li2 = new OptVariablesBlock(d.L_Line.size(), var_name("p_li2",d));
-  append_variables(p_li2);
+  append_varsblock(p_li2);
   //append_objterm(new DummySingleVarQuadrObjTerm("pli1_sq", p_li1));
   //append_objterm(new DummySingleVarQuadrObjTerm("pli2_sq", p_li2));
 
 
   auto q_li1 = new OptVariablesBlock(d.L_Line.size(), var_name("q_li1",d));
   auto q_li2 = new OptVariablesBlock(d.L_Line.size(), var_name("q_li2",d));
-  append_variables(q_li1); 
-  append_variables(q_li2);
+  append_varsblock(q_li1); 
+  append_varsblock(q_li2);
   //append_objterm(new DummySingleVarQuadrObjTerm("qli1_sq", q_li1));
   //append_objterm(new DummySingleVarQuadrObjTerm("qli2_sq", q_li2));
   
@@ -1127,23 +1127,23 @@ void SCACOPFProblem::add_variables(SCACOPFData& d, bool SysCond_BaseCase)
   //TRANSFORMERS
   auto p_ti1 = new OptVariablesBlock(d.T_Transformer.size(), var_name("p_ti1",d));
   auto p_ti2 = new OptVariablesBlock(d.T_Transformer.size(), var_name("p_ti2",d));
-  append_variables(p_ti1); 
-  append_variables(p_ti2); 
+  append_varsblock(p_ti1); 
+  append_varsblock(p_ti2); 
   //append_objterm(new DummySingleVarQuadrObjTerm("pti1_sq", p_ti1));
   //append_objterm(new DummySingleVarQuadrObjTerm("pti2_sq", p_ti2));
 
 
   auto q_ti1 = new OptVariablesBlock(d.T_Transformer.size(), var_name("q_ti1",d));
   auto q_ti2 = new OptVariablesBlock(d.T_Transformer.size(), var_name("q_ti2",d));
-  append_variables(q_ti1); 
-  append_variables(q_ti2); 
+  append_varsblock(q_ti1); 
+  append_varsblock(q_ti2); 
   //append_objterm(new DummySingleVarQuadrObjTerm("qti1_sq", q_ti1));
   //append_objterm(new DummySingleVarQuadrObjTerm("qti2_sq", q_ti2));
 
   auto b_s = new OptVariablesBlock(data_sc.SSh_SShunt.size(), var_name("b_s",d), 
   				   data_sc.SSh_Blb.data(), data_sc.SSh_Bub.data());
   b_s->set_start_to(data_sc.SSh_B0.data());
-  append_variables(b_s);
+  append_varsblock(b_s);
   //append_objterm(new DummySingleVarQuadrObjTerm("b_s_sq", b_s));
 
   //for(auto& b : d.G_Plb) b -=1e-8;
@@ -1153,7 +1153,7 @@ void SCACOPFProblem::add_variables(SCACOPFData& d, bool SysCond_BaseCase)
   auto p_g = new OptVariablesBlock(d.G_Generator.size(), var_name("p_g",d), 
 				   d.G_Plb.data(), d.G_Pub.data());
 
-  append_variables(p_g); 
+  append_varsblock(p_g); 
   p_g->set_start_to(d.G_p0.data());
 
   //auto Qlb = d.G_Qlb, Qub = d.G_Qub;
@@ -1167,7 +1167,7 @@ void SCACOPFProblem::add_variables(SCACOPFData& d, bool SysCond_BaseCase)
   auto q_g = new OptVariablesBlock(d.G_Generator.size(), var_name("q_g",d), 
   				   d.G_Qlb.data(), d.G_Qub.data());
   q_g->set_start_to(d.G_q0.data());
-  append_variables(q_g); 
+  append_varsblock(q_g); 
   //append_objterm(new DummySingleVarQuadrObjTerm("q_g_sq", q_g));
 
 }
