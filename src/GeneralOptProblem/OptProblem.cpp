@@ -1018,7 +1018,8 @@ void OptVariablesBlock::append_variables(const int& how_many,
     delete[] x;
     x = x_new;
     if(NULL != x0) {
-      memcpy(x+n, x0, how_many*sizeof(double));       
+      memcpy(x+n, x0, how_many*sizeof(double));
+      this->providesStartingPoint = true;
     } else {
       for(int i=n; i<n_new; ++i) x[i] = 0.;
     }

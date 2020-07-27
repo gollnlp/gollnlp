@@ -169,6 +169,7 @@ namespace gollnlp {
     // dense part
     //
     if(JacD) {
+      
       //values
       std::complex<double>** YredM = Ybus_red.local_data();
       double aux, aux_sin, aux_cos, aux_G_cos, aux_B_sin, aux_G_cos_B_sin, aux_G_sin, aux_B_cos;
@@ -400,6 +401,7 @@ namespace gollnlp {
     }
 
     if(HDD) {
+      
       const OptVariablesBlock* lambda = lambda_vars.get_block(std::string("duals_") + this->id);
       assert(lambda != NULL);
       assert(lambda->n == n);
@@ -419,6 +421,10 @@ namespace gollnlp {
       for(int i=0; i<n; i++) {
 	
 	const double& lambda_i = lambda->xref[i];
+
+	//quick return for when the derivatives are checked
+	if(lambda_i==0.) continue;
+	
 	int k,j;
 	const int idx_col_of_v_n_elemi = idx_col_of_v_n+i;
 	//********************************************************
@@ -755,6 +761,7 @@ namespace gollnlp {
 #endif
       
     }
+    
     if(MJacS) {
       itnz = J_nz_idxs; 
       for(int it=0; it<n; it++) {
@@ -1022,7 +1029,7 @@ namespace gollnlp {
     // Note: Only upper triangle part of HDD is updated
     if(NULL!=iHSS && NULL!=jHSS) {
     }
-      
+
     if(HDD) {
       const OptVariablesBlock* lambda = lambda_vars.get_block(std::string("duals_") + this->id);
       assert(lambda != NULL);
@@ -1048,9 +1055,8 @@ namespace gollnlp {
 	
 	const double& lambda_i = lambda->xref[i];
 
+	//quick return for when the derivatives are checked
 	if(lambda_i==0.) continue;
-
-	//printf("Hessian constraint %d (lambda_i=%.6e)\n", i, lambda_i);
 	
 	int k,j;
 	const int idx_col_of_v_n_elemi = idx_col_of_v_n+i;
@@ -1222,7 +1228,7 @@ namespace gollnlp {
   /*********************************************************************************************
    * Voltage violations constraints at auxiliary buses
    *
-   * for nix = vtheta_aux_idxs_in
+   * for nix = idxs_busviol_in_aux_buses
    *    vaux_n[nix]*cos(thetaaux_n[nix]) ==
    *	sum((re_ynix[i]*v_n[i]*cos(theta_n[i]) - im_ynix[i]*v_n[i]*sin(theta_n[i])) for i=1:length(nonaux)))
    *
@@ -1236,48 +1242,209 @@ namespace gollnlp {
 					   OptVariablesBlock* theta_n_in,
 					   OptVariablesBlock* v_aux_n_in,
 					   OptVariablesBlock* theta_aux_n_in,
-					   const std::vector<int>& vtheta_aux_idxs_in,
+					   const std::vector<int>& idxs_busviol_in_aux_buses_in,
 					   const hiop::hiopMatrixComplexDense& vmap_in)
     : OptConstraintsBlockMDS(id_in, numcons),
       v_n_(v_n_in), theta_n_(theta_n_in),
       v_aux_n_(v_aux_n_in), theta_aux_n_(theta_aux_n_in),
-      vtheta_aux_idxs_(vtheta_aux_idxs_in),
+      idxs_busviol_in_aux_buses_(idxs_busviol_in_aux_buses_in),
       vmap_(vmap_in) //v_n(v_n_),
   {
     for(int i=0; i<n; i++) lb[i]=0.;
     DCOPY(&n, lb, &ione, ub, &ione);
 
+    assert(n == 2*idxs_busviol_in_aux_buses_.size());
+    
     assert(v_n_->sparseBlock==false);
     assert(theta_n_->sparseBlock==false);
 
     assert(v_n_->indexSparse<=0);
     assert(theta_n_->indexSparse<=0);
   }
+  
   VoltageConsAuxBuses::~VoltageConsAuxBuses()
   {
   }
-  void VoltageConsAuxBuses::append_constraints(const std::vector<int>& vtheta_aux_idxs_new)
+  
+  void VoltageConsAuxBuses::append_constraints(const std::vector<int>& idxs_busviol_in_aux_buses_new)
   {
-    assert(v_n_->n == vtheta_aux_idxs_.size()+vtheta_aux_idxs_new.size());
+    assert(v_n_->n == idxs_busviol_in_aux_buses_.size()+idxs_busviol_in_aux_buses_new.size());
     assert(v_n_->n == theta_n_->n);
     assert(vmap_.n() == v_n_->n);
-    for(auto idx: vtheta_aux_idxs_new) {
+    for(auto idx: idxs_busviol_in_aux_buses_new) {
       assert(idx >= 0);
       assert(idx < vmap_.m());
-      vtheta_aux_idxs_.push_back(idx);
+      idxs_busviol_in_aux_buses_.push_back(idx);
     }
+    n = 2*idxs_busviol_in_aux_buses_.size();
   }
 
   bool VoltageConsAuxBuses::eval_body (const OptVariables& vars_primal, bool new_x, double* body)
   {
+    std::complex<double>** vmap = vmap_.local_data();
+
+    assert(vmap_.n() == v_n_->n);
+    assert(vmap_.m() >= idxs_busviol_in_aux_buses_.size());
+    assert(n == 2*idxs_busviol_in_aux_buses_.size());
+    assert(theta_n_->n == v_n_->n);
+
+    double* rhs = body + this->index;
+
+    //loop over all buses with violations (for each there are two constraints)
+    for(int b=0; b<idxs_busviol_in_aux_buses_.size(); ++b) {
+      const int idx_in_aux_buses = idxs_busviol_in_aux_buses_[b];
+      
+      assert(idx_in_aux_buses>=0);
+      assert(idx_in_aux_buses<vmap_.m());
+
+      //
+      //first equality for b
+      //
+      int idx_con = 2*b;
+      rhs[idx_con] = - v_aux_n_->xref[b]*cos(theta_aux_n_->xref[b]);
+      for(int i=0; i<v_n_->n; ++i) {
+	rhs[idx_con] += vmap[idx_in_aux_buses][i].real() * v_n_->xref[i] * cos(theta_n_->xref[i]);
+	rhs[idx_con] -= vmap[idx_in_aux_buses][i].imag() * v_n_->xref[i] * sin(theta_n_->xref[i]);
+      }
+      //
+      //second equality for b
+      //
+      idx_con = idx_con + 1;
+      rhs[idx_con] = - v_aux_n_->xref[b]*sin(theta_aux_n_->xref[b]);
+      for(int i=0; i<v_n_->n; ++i) {
+	rhs[idx_con] += vmap[idx_in_aux_buses][i].real() * v_n_->xref[i] * sin(theta_n_->xref[i]);
+	rhs[idx_con] += vmap[idx_in_aux_buses][i].imag() * v_n_->xref[i] * cos(theta_n_->xref[i]);
+      }
+    }
     return true;
   }
 
+  /*********************************************************************************************
+   * for nix = idxs_busviol_in_aux_buses
+   * a(2*nix)  = - vaux_n[nix]*cos(thetaaux_n[nix]) +
+   *   sum((re_ynix[i]*v_n[i]*cos(theta_n[i]) - im_ynix[i]*v_n[i]*sin(theta_n[i])) for i=1:length(nonaux)))
+   *
+   * d a_{2*nix)
+   * -----------  = 0, unless j=nix when is = - cos(thetaaux_n[nix])
+   * d vaux_n[j]
+   *
+   * d a_{2*nix)
+   * -----------  = 0, unless j=nix when is = vaux_n[nix]*sin(thetaaux_n[nix])
+   * d thetaaux_n[j]
+   * 
+   * d a_{2*nix)
+   * -----------  = re_ynix[j]*cos(theta_n[j]) - im_ynix[i]*sin(theta_n[j])
+   * d v_n[j]
+   *
+   * d a_{2*nix)
+   * -----------  = - re_ynix[j]*v_n[j]*sin(theta_n[j]) - im_ynix[j]*v_n[j]*cos(theta_n[j])
+   * d theta_n[j]
+   * .............................................................................
+   *
+   * a(2*nix+1)= - vaux_n[nix]*sin(thetaaux_n[nix]) +
+   *   sum((re_ynix[i]*v_n[i]*sin(theta_n[i]) + im_ynix[i]*v_n[i]*cos(theta_n[i])) for i=1:length(nonaux)))
+   *
+   * d a_{2*nix+1}
+   * -------------  = 0, unless j=nix when is = - sin(thetaaux_n[nix])
+   * d vaux_n[j]
+   *
+   * d a_{2*nix+1}
+   * -------------  = 0, unless j=nix when is = - vaux_n[nix]*cos(thetaaux_n[nix])
+   * d thetaaux_n[j]
+   * 
+   * d a_{2*nix+1}
+   * ------------  = re_ynix[j]*sin(theta_n[j]) + im_ynix[i]*cos(theta_n[j])
+   * d v_n[j]
+   *
+   * d a_{2*nix+1}
+   * ------------- = re_ynix[j]*v_n[j]*cos(theta_n[j]) - im_ynix[j]*v_n[j]*sin(theta_n[j])
+   * d theta_n[j]
+   *
+   * where re_ynix=Re(vmap[nix,:]) and im_ynix=Im(vmap[nix,:])
+
+   *********************************************************************************************/
+
   bool VoltageConsAuxBuses::eval_Jac_eq(const OptVariables& x, bool new_x, 
-			     const int& nxsparse, const int& nxdense,
-			     const int& nnzJacS, int* iJacS, int* jJacS, double* MJacS, 
-			     double** JacD)
+					const int& nxsparse, const int& nxdense,
+					const int& nnzJacS, int* iJacS, int* jJacS, double* MJacS, 
+					double** JacD)
   {
+    std::complex<double>** vmap = vmap_.local_data();
+    //
+    // sparse part is empty
+    //
+    assert(0 == get_spJacob_eq_nnz());
+    //printf("------- nnzJacS=%d\n", nnzJacS);
+    //assert(nnzJacS==0);
+
+    if(NULL==JacD) return true;
+    //
+    // dense spart
+    //
+
+    assert(2*idxs_busviol_in_aux_buses_.size() == n); 
+    assert(idxs_busviol_in_aux_buses_.size() == theta_aux_n_->n);
+    assert(idxs_busviol_in_aux_buses_.size() == v_aux_n_->n);
+
+    const int idx_col_of_vaux     = v_aux_n_->compute_indexDense();
+    const int idx_col_of_thetaaux = theta_aux_n_->compute_indexDense();
+    const int idx_col_of_v        = v_n_->compute_indexDense();
+    const int idx_col_of_theta    = theta_n_->compute_indexDense();
+
+    for(int ii=0; ii<2*nxdense; ii++) JacD[this->index][ii] = 0.;
+    
+    for(int iauxb=0; iauxb<idxs_busviol_in_aux_buses_.size(); ++iauxb) {
+      
+      const int idx_in_aux_buses = idxs_busviol_in_aux_buses_[iauxb];
+      assert(idx_in_aux_buses>=0); assert(idx_in_aux_buses<vmap_.m());
+
+      assert(idx_col_of_vaux >=0 && idx_col_of_vaux + v_aux_n_->n <= nxdense);
+      assert(idx_col_of_thetaaux >=0 && idx_col_of_thetaaux + theta_aux_n_->n <= nxdense);
+      assert(idx_col_of_v >=0 && idx_col_of_v + v_n_->n <= nxdense);
+      assert(idx_col_of_theta >=0 && idx_col_of_theta + theta_n_->n <= nxdense);
+
+      //
+      // first and second row combined to save on cos and sin evals 
+      //
+
+      const double cos_th_aux = cos(theta_aux_n_->xref[iauxb]);
+      const double sin_th_aux = sin(theta_aux_n_->xref[iauxb]);
+      
+      int i = this->index+2*iauxb;
+
+      //da_i / dvaux_n[nix] = - cos(thetaaux_n[nix]
+      JacD[i][idx_col_of_vaux+iauxb] = - cos_th_aux;
+
+      //da_i / dthetaaux_n[nix]
+      JacD[i][idx_col_of_thetaaux+iauxb] = v_aux_n_->xref[iauxb] * sin_th_aux;
+
+      //d_a{i+1} / dvaux_n and dthetaaux_n
+      JacD[i+1][idx_col_of_vaux+iauxb] = - sin_th_aux;
+      JacD[i+1][idx_col_of_thetaaux+iauxb] = - v_aux_n_->xref[iauxb] * cos_th_aux;
+
+      //da_i     / dv_n[j] and theta_n[j] for j=1,...,length(nonaux)
+      //da_{i+1} / dv_n[j] and theta_n[j] for j=1,...,length(nonaux)
+      for(int j=0; j<v_n_->n; ++j) {
+	const double cos_th = cos(theta_n_->xref[j]);
+	const double sin_th = sin(theta_n_->xref[j]);
+	JacD[i][idx_col_of_v + j] =
+	  + vmap[idx_in_aux_buses][j].real() * cos_th
+	  - vmap[idx_in_aux_buses][j].imag() * sin_th;
+
+	JacD[i][idx_col_of_theta+j] =
+	  v_n_->xref[j]*( - vmap[idx_in_aux_buses][j].real() * sin_th
+			  - vmap[idx_in_aux_buses][j].imag() * cos_th);
+
+	JacD[i+1][idx_col_of_v + j] =
+	  + vmap[idx_in_aux_buses][j].real() * sin_th
+	  + vmap[idx_in_aux_buses][j].imag() * cos_th;
+	JacD[i+1][idx_col_of_theta+j] =
+	  v_n_->xref[j]*( + vmap[idx_in_aux_buses][j].real() * cos_th
+			  - vmap[idx_in_aux_buses][j].imag() * sin_th);
+
+      }
+      
+    } // end of for over aux buses with violations
     return true;
   }
 
@@ -1290,13 +1457,203 @@ namespace gollnlp {
     return true;
   }
 
+  /*********************************************************************************************
+   * for nix = idxs_busviol_in_aux_buses
+   * a(2*nix)  = - vaux_n[nix]*cos(thetaaux_n[nix]) +
+   *   sum((re_ynix[i]*v_n[i]*cos(theta_n[i]) - im_ynix[i]*v_n[i]*sin(theta_n[i])) for i=1:length(nonaux)))
+   *
+   * d a_{2*nix)
+   * -----------  = 0, unless j=nix when is = - cos(thetaaux_n[nix])
+   * d vaux_n[j]
+   *
+   * d2 a_{2*nix}
+   * -------------------------- = sin(thetaaux_n[nix])
+   * dvaux[nix] dthetaaux[nix]
+   * ==================================================================================================
+   * d a_{2*nix)
+   * -----------  = 0, unless j=nix when is = vaux_n[nix]*sin(thetaaux_n[nix])
+   * d thetaaux_n[j]
+   *
+   * d2 a_{2*nix}
+   * -------------------- = sin(thetaaux_n[nix])
+   * dthaux[nix] dvaux[nix]
+   *
+   * d2 a_{2*nix}
+   * ---------------------- = vaux_n[nix]*cos(thetaaux_n[nix])
+   * dthaux[nix] dthaux[nix]
+   * ==================================================================================================
+   * d a_{2*nix)
+   * -----------  = re_ynix[j]*cos(theta_n[j]) - im_ynix[i]*sin(theta_n[j])
+   * d v_n[j]
+   *
+   * d2 a_{2*nix}           d2 a_{2*nix}           
+   * ------------- = 0      ------------- = - re_ynix[j]*sin(theta_n[j]) - im_ynix[i]*cos(theta_n[j])
+   * dv[j] dv[j]            dv[j] dth[j]
+   * ==================================================================================================
+   * d a_{2*nix)
+   * -----------  = - re_ynix[j]*v_n[j]*sin(theta_n[j]) - im_ynix[j]*v_n[j]*cos(theta_n[j])
+   * d theta_n[j]
+   *
+   * d2 a_{2*nix}
+   * ------------- =  - re_ynix[j]*sin(theta_n[j]) - im_ynix[j]*cos(theta_n[j])
+   * dth[j] dv[j]
+   *
+   * d2 a_{2*nix}
+   * ------------- =  v_n[j] * [- re_ynix[j]*cos(theta_n[j]) + im_ynix[j]*sin(theta_n[j]) ]
+   * dth[j] dth[j]
+   *
+   * ...................................................................................................
+   * ...................................................................................................
+   * ...................................................................................................
+   *
+   * a(2*nix+1)= - vaux_n[nix]*sin(thetaaux_n[nix]) +
+   *   sum((re_ynix[i]*v_n[i]*sin(theta_n[i]) + im_ynix[i]*v_n[i]*cos(theta_n[i])) for i=1:length(nonaux)))
+   *
+   * d a_{2*nix+1}
+   * -------------  = 0, unless j=nix when is = - sin(thetaaux_n[nix])
+   * d vaux_n[j]
+   *
+   * d2 a_{2*nix+1}
+   * --------------------- = - cos(thetaaux_n[nix])
+   * d vaux[nix] dthaux[nix]
+   * ==================================================================================================
+   * d a_{2*nix+1}
+   * -------------  = 0, unless j=nix when is = - vaux_n[nix]*cos(thetaaux_n[nix])
+   * d thetaaux_n[j]
+   * 
+   * d2 a_{2*nix+1}
+   * ------------------------ = - cos(thetaaux_n[nix])
+   * d thaux[nix] dvaux[nix]
+   * 
+   * d2 a_{2*nix+1}
+   * ------------------------ = + vaux_n[nix]*sin(thetaaux_n[nix])
+   * d thaux[nix] dthaux[nix]
+   * ==================================================================================================
+   * d a_{2*nix+1}
+   * ------------  = re_ynix[j]*sin(theta_n[j]) + im_ynix[i]*cos(theta_n[j])
+   * d v_n[j]
+   *
+   * d2 a_{2*nix+1}
+   * --------------  = re_ynix[j]*cos(theta_n[j]) - im_ynix[i]*sin(theta_n[j])
+   * d v[j] dth[j]
+   * ==================================================================================================
+   * d a_{2*nix+1}
+   * ------------- = re_ynix[j]*v_n[j]*cos(theta_n[j]) - im_ynix[j]*v_n[j]*sin(theta_n[j])
+   * d theta_n[j]
+   *
+   * d2 a_{2*nix+1}
+   * ---------------- = re_ynix[j]*cos(theta_n[j]) - im_ynix[j]*in(theta_n[j])
+   * dth_n[j] dv_n[j]
+   *
+   * d2 a_{2*nix+1}
+   * ---------------- = v_n[j] * [ - re_ynix[j]*sin(theta_n[j]) - im_ynix[j]*cos(theta_n[j]) ]
+   * dth_n[j] dth_n[j]
+   *
+   * ==================================================================================================
+   *****************************************************************************************************/
+
+
   bool VoltageConsAuxBuses::eval_HessLagr(const OptVariables& x, bool new_x, 
-			       const OptVariables& lambda, bool new_lambda,
+			       const OptVariables& lambda_vars, bool new_lambda,
 			       const int& nxsparse, const int& nxdense, 
 			       const int& nnzHSS, int* iHSS, int* jHSS, double* MHSS, 
 			       double** HDD,
 			       const int& nnzHSD, int* iHSD, int* jHSD, double* MHSD)
   {
+    //
+    //sparse part is empty -> do nothing
+    //
+
+    //
+    //dense part
+    //
+    
+    //quick return
+    if(!HDD) return true;
+    
+    const OptVariablesBlock* lambda = lambda_vars.get_block(std::string("duals_") + this->id);
+    assert(lambda != NULL);
+    assert(lambda->n == n);
+    assert(2*v_aux_n_->n == n);
+    assert(2*theta_aux_n_->n == n);
+    assert(lambda->n == 2*idxs_busviol_in_aux_buses_.size());
+    
+    const int idx_col_of_vaux     = v_aux_n_->compute_indexDense();
+    const int idx_col_of_thetaaux = theta_aux_n_->compute_indexDense();
+    const int idx_col_of_v        = v_n_->compute_indexDense();
+    const int idx_col_of_theta    = theta_n_->compute_indexDense();
+
+    std::complex<double>** vmap = vmap_.local_data();
+    
+    //iterate over constraints two by two
+    for(size_t iauxb=0; iauxb<idxs_busviol_in_aux_buses_.size(); ++iauxb) { 
+
+      const int idx_in_aux_buses = idxs_busviol_in_aux_buses_[iauxb];
+      assert(idx_in_aux_buses>=0); assert(idx_in_aux_buses<vmap_.m());
+
+      double lambda_i=0.;
+      double lambda_ip1=0.;
+      {
+	const int i = 2*iauxb;
+	lambda_i = lambda->xref[i];
+	lambda_ip1 = lambda->xref[i+1];
+      
+	//quick return for when the derivatives are checked
+	if(lambda_i==0. && lambda_ip1==0.) continue;
+
+      }
+      // d2 a_{i} / dvaux[iauxb] dthaux[iauxb]
+      assert(idx_col_of_vaux+iauxb < nxdense);
+      assert(idx_col_of_thetaaux+iauxb < nxdense);
+      assert(idx_col_of_vaux+iauxb <= idx_col_of_thetaaux+iauxb);
+      
+      const double sin_th_aux = sin(theta_aux_n_->xref[iauxb]);
+      const double cos_th_aux = cos(theta_aux_n_->xref[iauxb]);
+      
+      HDD[idx_col_of_vaux+iauxb][idx_col_of_thetaaux+iauxb] += lambda_i   * sin_th_aux;
+      HDD[idx_col_of_vaux+iauxb][idx_col_of_thetaaux+iauxb] +=-lambda_ip1 * cos_th_aux;
+
+      
+      // d2 a_i / dthaux[nix] dthaux[nix]
+      HDD[idx_col_of_thetaaux+iauxb][idx_col_of_thetaaux+iauxb] +=
+	lambda_i * v_aux_n_->xref[iauxb] * cos_th_aux;
+       HDD[idx_col_of_thetaaux+iauxb][idx_col_of_thetaaux+iauxb] +=
+	lambda_ip1 * v_aux_n_->xref[iauxb] * sin_th_aux;
+      
+
+      // d2 a_i / dv[j]  dth[j]  for j=1,..., length(nonaux)
+      // d2 a_i / dth[j] dth[j]  for j=1,..., length(nonaux)
+      for(int j=0; j<v_n_->n; ++j) {
+	assert(idx_col_of_v+j<idx_col_of_theta+j);
+	assert(idx_col_of_v+j<nxdense);
+	assert(idx_col_of_theta+j<nxdense);
+
+	const int idx_vj = idx_col_of_v+j;
+	const int idx_thj = idx_col_of_theta+j;
+	
+	const double sin_th = sin(theta_n_->xref[j]);
+	const double cos_th = cos(theta_n_->xref[j]);
+
+	//
+	// d2 a_i / dv[j] dth[j]  and  d2 a_i+1 / dv[j] dth[j]
+	HDD[idx_vj][idx_thj] +=
+	  lambda_i * ( - vmap[idx_in_aux_buses][j].real() * sin_th
+		       - vmap[idx_in_aux_buses][j].imag() * cos_th );
+
+	HDD[idx_vj][idx_thj] +=
+	  lambda_ip1 * ( + vmap[idx_in_aux_buses][j].real() * cos_th
+			 - vmap[idx_in_aux_buses][j].imag() * sin_th );
+	//
+	// d2 a_i / dth[j] dth[j]  and  d2 a_i+1 / dth[j] dth[j]
+	HDD[idx_thj][idx_thj] +=
+	  lambda_i * v_n_->xref[j] * ( - vmap[idx_in_aux_buses][j].real() * cos_th
+				       + vmap[idx_in_aux_buses][j].imag() * sin_th );
+
+	HDD[idx_thj][idx_thj] +=
+	  lambda_ip1 * v_n_->xref[j] * ( - vmap[idx_in_aux_buses][j].real() * sin_th
+					 - vmap[idx_in_aux_buses][j].imag() * cos_th );
+      }
+    } // end outer loop 
     return true;
   }
  

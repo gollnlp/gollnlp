@@ -29,7 +29,7 @@ namespace gollnlp {
     //YBus_->print();
     construct_buses_idxs(idxs_buses_nonaux, idxs_buses_aux);
 
-    printf("Total %d buses: %d nonaux   %d aux\n",
+    printf("Total %lld buses: %lu nonaux    %lu aux\n",
 	   YBus_->m(),
 	   idxs_buses_nonaux.size(),
 	   idxs_buses_aux.size());
@@ -45,9 +45,9 @@ namespace gollnlp {
     
 #ifdef DEBUG
     if(Ybus_red_->assertSymmetry(1e-12))
-      printf("!!!!! matrix is symmetric\n");
+      printf("!!!!! Ybus matrix is symmetric\n");
     else
-      printf("!!!!! matrix is NOT symmetric\n");
+      printf("!!!!! Ybus matrix is NOT symmetric\n");
 #endif
     add_variables(data_sc);
     add_cons_pf(data_sc);
@@ -62,6 +62,8 @@ namespace gollnlp {
   
   bool ACOPFKronRedProblem::optimize(const std::string& nlpsolver)
   {
+    //set_solver_option("tol", 1e-2);
+    //set_solver_option("mu_target", 1e-4);
     bool bret = OptProblemMDS::optimize(nlpsolver);
 
     int n_iter = 1;
@@ -85,9 +87,9 @@ namespace gollnlp {
       vector<vector<complex<double> > > s_li, s_ti;
       compute_power_flows(v_n_all_complex, s_li, s_ti);
 
-      printvecvec(s_li, "s_li");
-      printvecvec(s_ti, "s_ti");
-      
+      //!
+      //printvecvec(s_li, "s_li");
+      //printvecvec(s_ti, "s_ti");
       
       vector<int> Nidx_voutofobounds_pass;
       find_voltage_viol_busidxs(v_n_all_complex, Nidx_voutofobounds_pass);
@@ -162,9 +164,13 @@ namespace gollnlp {
 	append_varsblock(theta_aux_n);
       }
       
-      
-      // add necessary auxiliary bus voltages (if any)
+      // reqbuses will hold (aux)bus idxs that have violations and for which (aux) v_n and theta_n
+      // will be later added
+
+      //add necessary auxiliary bus voltages (if any)
       auto reqbuses = Nidx_voutofobounds_pass;
+      
+      //buses part of lines/transformers that are violated
       for(auto idx : Lidx_overload_pass) {
 	reqbuses.push_back(data_sc.L_Nidx[Lin_overload_pass[idx]][Lidx_overload_pass[idx]]);
       }
@@ -174,8 +180,13 @@ namespace gollnlp {
 
       // sort and remove duplicates
       remove_duplicates(reqbuses);
-
+      //printvec(reqbuses, "reqbuses1: ");
+      
+      //indexes in idxs_buses_aux of the (aux) buses for which v_n and theta_n will be added
       auto reqauxidxs = indexin(set_diff(reqbuses, idxs_buses_nonaux), idxs_buses_aux);
+
+      //printvec(reqbuses, "reqbuses2: ");
+      //reqauxidxs = { 0 };//reqauxidxs[1] };
 
       //add constraints for voltage violations at auxiliary buses with voltage violations
       {
@@ -193,7 +204,6 @@ namespace gollnlp {
 	  assert(map_idxbuses_idxsoptimiz_.size() == v_n_all_complex.size());
 	  assert(bus_idx < map_idxbuses_idxsoptimiz_.size());
 
-	  
 	  //should not be optimized over previously
 	  //((if it was, the voltage violation constraints are already part of the model))
 	  if(-1 == map_idxbuses_idxsoptimiz_[bus_idx]) {
@@ -209,15 +219,37 @@ namespace gollnlp {
 	    v_lb.push_back(data_sc.N_Vlb[bus_idx]);
 	    v_ub.push_back(data_sc.N_Vub[bus_idx]);
 	    assert(bus_idx<v_n_all_complex.size());
-	    v_start.push_back(std::abs(v_n_all_complex[bus_idx]));
 
+	    assert(data_sc.N_v0.size() == v_n_all_complex.size());
+	    v_start.push_back(std::abs(v_n_all_complex[bus_idx]));
+	    
 	    theta_start.push_back(std::arg(v_n_all_complex[bus_idx]));
+
+	    //printf("add bus %d  low/upp %g,%g start=%g   theta start=%g\n",
+	    //	   bus_idx, v_lb.back(), v_ub.back(), v_start.back(), theta_start.back());
+
+	    //const hiop::hiopMatrixComplexDense& vmap = reduction_.map_nonaux_to_aux();
+	    //auto vmapd = vmap.local_data();
+
+	    // printf("re :");
+	    // for(int i=0; i<vmap.n(); ++i) {
+	    //   printf("%g ", vmapd[nix][i].real());
+	    // }
+	    // printf("im :");
+	    // for(int i=0; i<vmap.n(); ++i) {
+	    //   printf("%g ", vmapd[nix][i].imag());
+	    // }
+	    // printf("\n");
+
 	  }
 	} // end of for loop over reqauxidxs
 	
 	//
 	//append these buses to v_aux_n and theta_aux_n
 	//
+	//printvec(v_lb, "v_lb");
+	//printvec(v_ub, "v_ub");
+	//printvec(v_start, "v_start");
 	this->append_vars_to_varsblock(v_aux_n->id,
 				       v_lb.size(),
 				       v_lb.data(),
@@ -229,32 +261,77 @@ namespace gollnlp {
 				       NULL,
 				       theta_start.data());
 	this->primal_problem_changed();
+
+	//
+	// cold starting 
+	//
+	if(false) {
+	  vars_block(var_name("p_g",data_sc))->set_start_to(data_sc.G_p0.data());
+	  vars_block(var_name("q_g",data_sc))->set_start_to(data_sc.G_q0.data());
+	  
+	  vector<double> v0_na;
+	  selectfrom(data_sc.N_v0, idxs_buses_nonaux, v0_na);
+	  vars_block(var_name("v_n",data_sc))->set_start_to(v0_na.data());
+
+	  //
+	  //for theta is a bit more complicated
+	  //
+	  auto theta_n = vars_block(var_name("theta_n",data_sc));
+	  vector<double> theta0_n;
+	  selectfrom(data_sc.N_theta0, idxs_buses_nonaux, theta0_n);
+	  theta_n->set_start_to(theta0_n.data());
+
+	  int RefBusIdx = data_sc.bus_with_largest_gen(), RefBusIdx_nonaux;
+	  auto it = std::find(idxs_buses_nonaux.begin(), idxs_buses_nonaux.end(), RefBusIdx);
+	  if(it==idxs_buses_nonaux.end()) {
+	    assert(false && "check this");
+	    RefBusIdx_nonaux=0;
+	  } else {
+	    RefBusIdx_nonaux = std::distance(idxs_buses_nonaux.begin(), it);
+	  }
+
+	  const double& theta0_ref = data_sc.N_theta0[RefBusIdx];
+	  if(theta0_ref!=0.) {
+	    //check indexing again
+	    assert(theta_n->x[RefBusIdx_nonaux] == theta0_ref);
+	    
+	    for(int b=0; b<theta_n->n; b++) {
+	      theta_n->x[b] -= theta0_ref;
+	      assert(theta_n->x[b] >= theta_n->lb[b]);
+	      assert(theta_n->x[b] <= theta_n->ub[b]);
+	    }
+	  }
+	  theta_n->lb[RefBusIdx_nonaux] = 0.;
+	  theta_n->ub[RefBusIdx_nonaux] = 0.;
+	  assert(theta_n->x[RefBusIdx_nonaux]==0.);
+	  
+
+	  vars_block(var_name("b_s",data_sc))->set_start_to(data_sc.SSh_B0.data());
+	} // end of cold starting
 	
 	//
 	//append the constraints for voltage violations
 	//
-	int n_cons_new = v_lb.size();
-	//indexes of newly added (above) aux buses in v_aux_n and theta_aux_n
-	vector<int> vtheta_aux_idxs_new;
-	vtheta_aux_idxs_new.reserve(n_cons_new);
-	for(int idx=v_aux_n->n - v_lb.size(); idx < v_aux_n->n; ++idx) {
-	  vtheta_aux_idxs_new.push_back(idx);
-	}
+	assert(reqauxidxs.size() == v_lb.size());
+	
 	const hiop::hiopMatrixComplexDense& vmap = reduction_.map_nonaux_to_aux();
+	
 	auto cons_volt_viol = this->constraints_block(con_name("voltage_viol_aux", data_sc));
 	if(cons_volt_viol) {
 	  VoltageConsAuxBuses* cons = dynamic_cast<VoltageConsAuxBuses*>(cons_volt_viol);
 	  assert(NULL!=cons);
+
 	  if(cons) {
-	    cons->append_constraints(vtheta_aux_idxs_new);
+	    cons->append_constraints(reqauxidxs);
 	  }
 	} else {
 	  VoltageConsAuxBuses* cons_block =
-	    new VoltageConsAuxBuses(con_name("voltage_viol_aux", data_sc), n_cons_new,
+	    new VoltageConsAuxBuses(con_name("voltage_viol_aux", data_sc),
+				    2*reqauxidxs.size(),
 				    vars_block(var_name("v_n", data_sc)), 
 				    vars_block(var_name("theta_n", data_sc)),
 				    v_aux_n, theta_aux_n,
-				    vtheta_aux_idxs_new,
+				    reqauxidxs,
 				    vmap);
 
 	  append_constraints(cons_block);
@@ -266,9 +343,21 @@ namespace gollnlp {
       //
       // resolve
       //
-
+ 
       print_summary();
-      bret = OptProblemMDS::reoptimize(primalRestart);
+
+      //derivative_test first-order
+      //derivative_test only-second-order
+      //set_solver_option("derivative_test", "first-order");
+      //set_solver_option("derivative_test", "only-second-order");
+      //OptProblem::pass2 = true;
+
+      //set_solver_option("start_with_resto", "yes");
+      //set_solver_option("max_hessian_perturbation", 1e+30);
+      //set_solver_option("mu_init", 1e+1);
+      
+      //bret = OptProblemMDS::reoptimize(primalRestart);
+      bret = OptProblemMDS::optimize("hiop");
       
       n_iter++;
     } while(true);
@@ -362,7 +451,8 @@ namespace gollnlp {
 	  assert( theta_n->x[b] <= theta_n->ub[b]);
 	}
       }
-      theta_n->lb[RefBusIdx_nonaux] = theta_n->ub[RefBusIdx_nonaux] = 0.;
+      theta_n->lb[RefBusIdx_nonaux] = 0.;
+      theta_n->ub[RefBusIdx_nonaux] = 0.;
       assert(theta_n->x[RefBusIdx_nonaux]==0.);
     }
 
@@ -441,6 +531,7 @@ namespace gollnlp {
     idxs_nonaux.clear(); idxs_aux.clear();
 
     for(int n=0; n<data_sc.N_Pd.size(); n++) {
+      
       if(data_sc.Gn[n].size()>0 || data_sc.SShn[n].size()>0 || 
 	 magnitude(data_sc.N_Pd[n], data_sc.N_Qd[n])>SMALL) {
 
@@ -586,7 +677,7 @@ namespace gollnlp {
     // v_complex_aux = -(Ybb\Yba)*v_complex_nonaux
     std::vector<complex<double> > v_complex_aux(idxs_buses_aux.size());
     reduction_.apply_nonaux_to_aux(v_complex_nonaux, v_complex_aux);
-    for(auto& it : v_complex_aux) it = -it;
+    //for(auto& it : v_complex_aux) it = -it;
 
     assert(v_complex_aux.size() == idxs_buses_aux.size());
  
@@ -648,7 +739,7 @@ namespace gollnlp {
     }
   }
 
-#define EPSILON 1e-8
+#define EPSILON 1e-6
   void ACOPFKronRedProblem::find_voltage_viol_busidxs(const std::vector<std::complex<double> >& v_complex_all,
 						      std::vector<int>& Nidx_voltoutofbnds)
   {
@@ -656,6 +747,8 @@ namespace gollnlp {
     for(auto n : idxs_buses_aux) {
       const double v_abs = std::abs(v_complex_all[n]);
       if(data_sc.N_Vlb[n] > v_abs + EPSILON || v_abs > data_sc.N_Vub[n] + EPSILON) {
+	//printf("!!!!! viol bus %d -> [%20.14f, %20.14f] val %20.14f\n",
+	//       n, data_sc.N_Vlb[n], data_sc.N_Vub[n], v_abs);
 	Nidx_voltoutofbnds.push_back(n);	
       }
     }

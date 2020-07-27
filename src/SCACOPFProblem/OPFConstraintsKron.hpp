@@ -165,7 +165,7 @@ namespace gollnlp {
   /*********************************************************************************************
    * Voltage violations constraints at auxiliary buses
    *
-   * for nix = vtheta_aux_idxs_in
+   * for nix = idxs_busviol_in_aux_buses
    *    vaux_n[nix]*cos(thetaaux_n[nix]) ==
    *	sum((re_ynix[i]*v_n[i]*cos(theta_n[i]) - im_ynix[i]*v_n[i]*sin(theta_n[i])) for i=1:length(nonaux)))
    *
@@ -232,7 +232,7 @@ namespace gollnlp {
     virtual bool get_HessLagr_SSblock_ij(std::vector<OptSparseEntry>& vij) { return true; }
   protected:
     OptVariablesBlock *v_n_, *theta_n_, *v_aux_n_, *theta_aux_n_;
-    std::vector<int> vtheta_aux_idxs_;
+    std::vector<int> idxs_busviol_in_aux_buses_;
     const hiop::hiopMatrixComplexDense& vmap_;
   };
 } //end namespace

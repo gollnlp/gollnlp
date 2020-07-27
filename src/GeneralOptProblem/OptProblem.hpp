@@ -647,7 +647,6 @@ public:
   
   static const OptimizationMode RegularMode = Ipopt::RegularMode;
   static const OptimizationMode RestorationPhaseMode = Ipopt::RestorationPhaseMode;
-
 };
   
 } //end namespace
