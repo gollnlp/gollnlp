@@ -235,6 +235,90 @@ namespace gollnlp {
     std::vector<int> vtheta_aux_idxs_;
     const hiop::hiopMatrixComplexDense& vmap_;
   };
+
+  /*********************************************************************************************
+   * Constraints for enforcing line thermal limits violations
+   * 
+   * for lix=1:length(Lidx_overload_pass)
+   *   l = Lidx_overload_pass[lix]
+   *   i = Lin_overload_pass[lix]
+   *   vi = vall_n[L_Nidx[l,i]]
+   *   thetai = thetaall_n[L_Nidx[l,i]]
+   *   vj = vall_n[L_Nidx[l,3-i]]
+   *   thetaj = thetaall_n[L_Nidx[l,3-i]]
+   *   slack_li >=0 starts at max(0, abs(s_li[l,i]) - abs(v_n_all_complex[L_Nidx[l,i]])*L[:RateBase][l])
+
+
+   *   ychiyij^2*vi^4 + yij^2*vi^2*vj^2
+   *    - 2*ychiyij*yij*vi^3*vj*cos(thetai-thetaj-phi) 
+   *    - (L[:RateBase][l]*vi + slack_li)^2 <=0
+   *
+   *
+   *********************************************************************************************/
+
+  class LineThermalViolCons : public OptConstraintsBlockMDS
+  {
+  public:
+    LineThermalViolCons(const std::string& id_in, int numcons,
+			OptVariablesBlock* v_n_in,
+			OptVariablesBlock* theta_n_in,
+			OptVariablesBlock* v_aux_n_in,
+			OptVariablesBlock* theta_aux_n_in,
+			const std::vector<int>& vtheta_aux_idxs_in,
+			const hiop::hiopMatrixComplexDense& vmap_in);
+    virtual ~LineThermalViolCons();
+    
+    //add (append to existing block of) line thermal violations
+    //indexes passed in 'vtheta_aux_idxs_new'
+    void append_constraints(const std::vector<int>& vtheta_aux_idxs_new);
+
+    //
+    // OptProblem ConstraintsBlock interface methods
+    //
+    virtual bool eval_body (const OptVariables& vars_primal, bool new_x, double* body);
+
+    virtual bool eval_Jac_eq(const OptVariables& x, bool new_x, 
+			     const int& nxsparse, const int& nxdense,
+			     const int& nnzJacS, int* iJacS, int* jJacS, double* MJacS, 
+			     double** JacD);
+
+    virtual bool eval_Jac_ineq(const OptVariables& x, bool new_x, 
+			       const int& nxsparse, const int& nxdense,
+			       const int& nnzJacS, int* iJacS, int* jJacS, double* MJacS, 
+			       double** JacD)
+    {
+      return false;
+    }
+
+    virtual int get_spJacob_eq_nnz();
+    virtual int get_spJacob_ineq_nnz()
+    {
+      assert(false);
+      return 0;
+    }
+    virtual bool get_spJacob_eq_ij(std::vector<OptSparseEntry>& vij);
+    virtual bool get_spJacob_ineq_ij(std::vector<OptSparseEntry>& vij)
+    {
+      return false;
+    }
+
+    virtual bool eval_HessLagr(const OptVariables& x, bool new_x, 
+			       const OptVariables& lambda, bool new_lambda,
+			       const int& nxsparse, const int& nxdense, 
+			       const int& nnzHSS, int* iHSS, int* jHSS, double* MHSS, 
+			       double** HDD,
+			       const int& nnzHSD, int* iHSD, int* jHSD, double* MHSD);
+    //nnz for sparse part (all zeros)
+    virtual int get_HessLagr_SSblock_nnz() { return 0; }
+
+    virtual bool get_HessLagr_SSblock_ij(std::vector<OptSparseEntry>& vij) { return true; }
+  protected:
+    OptVariablesBlock *v_n_, *theta_n_, *v_aux_n_, *theta_aux_n_;
+    std::vector<int> vtheta_aux_idxs_;
+    const hiop::hiopMatrixComplexDense& vmap_;
+  };
+
+
 } //end namespace
 
 #endif

@@ -82,7 +82,8 @@ namespace gollnlp {
       
       std::vector<int> Lidx_overload_pass, Lin_overload_pass, Tidx_overload_pass, Tin_overload_pass;
       find_power_viol_LTidxs(v_n_all_complex, s_li, s_ti,
-			     Lidx_overload_pass, Lin_overload_pass, Tidx_overload_pass, Tin_overload_pass);
+			     Lidx_overload_pass, Lin_overload_pass,
+			     Tidx_overload_pass, Tin_overload_pass);
       
       // verify that all included constraints are respected
       auto Lfails = Lidx_overload_pass;
@@ -232,11 +233,34 @@ namespace gollnlp {
 				    vmap);
 
 	  append_constraints(cons_block);
-	}
-	this->dual_problem_changed();
-	
+	}	
       } // end of voltage violations block
 
+      
+      //
+      // append constraints for line thermal violations
+      //
+      assert(Lidx_overload_pass.size() == Lin_overload_pass.size());
+      if(Lidx_overload_pass.size()>0) {
+
+	auto cons_line_viol = this->constraints_block(con_name("line_thermal_viol", data_sc));
+	if(cons_line_viol) {
+	  
+	} else {
+	  //idxs_buses_nonaux
+	  //idxs_buses_aux
+	  //map_idxbuses_idxsoptimiz_
+	  LineThermalViolCons* cons_block =
+	    new LineThermalViolCons(con_name("line_thermal_viol"), num_cons,
+				    Lidx_overload_pass,
+				    Lin_overload_pass,
+				    aaa;
+	}
+      } // end of cons block for line thermal violations
+      
+      this->dual_problem_changed();
+
+      
       n_iter++;
     } while(true);
     return bret; 
