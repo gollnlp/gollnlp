@@ -443,7 +443,7 @@ namespace gollnlp {
       return;
     }
     OptVariablesBlock* deltaK = new OptVariablesBlock(1, var_name("delta", dK));
-    append_variables(deltaK);
+    append_varsblock(deltaK);
     deltaK->set_start_to(0.);
     
     //AGCSmoothing = 1e-3;

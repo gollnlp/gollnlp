@@ -77,8 +77,12 @@ namespace gollnlp {
 				  
   protected: 
     //members
+    
     SCACOPFData& data_sc;
+    
+    //indexes in N_Bus
     std::vector<int> idxs_buses_nonaux, idxs_buses_aux;
+    
     hiop::hiopKronReduction reduction_;
     hiop::hiopMatrixComplexDense* Ybus_red_;
 

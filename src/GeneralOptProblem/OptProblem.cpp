@@ -624,7 +624,7 @@ bool OptVariables::append_varsblock(OptVariablesBlock* b)
       assert(false);
       return false;
     }
-    print_summary();
+    //print_summary();
     b->index = this->n();
     if(b->sparseBlock) {
       //update the index within sparse variables
@@ -670,6 +670,37 @@ bool OptVariables::append_varsblock(OptVariablesBlock* b)
     mblocks[b->id] = b;
   }
   return true;
+}
+
+void OptVariables::append_vars_to_varsblock(const std::string& id_varsblock,
+					    int num_vars_to_add,
+					    const double* lb,
+					    const double* ub,
+					    const double* start)
+{
+  if(num_vars_to_add==0) return;
+  
+  auto block = vars_block(id_varsblock);
+  assert(block!=NULL);
+  if(!block) return;
+
+  //this adjust the size of 'block'
+  block->append_variables(num_vars_to_add, lb, ub, start);
+
+  //the indexes of the blocks in the 'this' that follows after 'block' needs to be increased
+  //by 'num_vars_to_add'
+  bool adjust_size = false;
+  for(auto b : vblocks) {
+    if(b == block) {
+      assert(b->id == b->id);
+      adjust_size = true;
+      continue;
+    }
+    if(adjust_size) {
+      assert(b->index+num_vars_to_add >= block->index+block->n);
+      b->index += num_vars_to_add;
+    }
+  }
 }
 
 void OptVariables::print_summary(const std::string var_name) const
@@ -987,7 +1018,8 @@ void OptVariablesBlock::append_variables(const int& how_many,
     delete[] x;
     x = x_new;
     if(NULL != x0) {
-      memcpy(x+n, x0, how_many*sizeof(double));       
+      memcpy(x+n, x0, how_many*sizeof(double));
+      this->providesStartingPoint = true;
     } else {
       for(int i=n; i<n_new; ++i) x[i] = 0.;
     }

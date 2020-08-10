@@ -48,8 +48,11 @@ public:
   const double* xref;
   //starting point provided?
   bool providesStartingPoint;
-  //Flag indicating dense or sparse variables. All variables in a block have the same type.
-  //Sparse is the default.
+  
+  /** 
+   * Flag indicating whether the block is of dense or sparse variables. All variables in a block have 
+   * the same type. Default value: true
+   */
   bool sparseBlock;
   //index at which the sparse block start within the sparse variables within OptVariables container
   //if this is a dense block, the "sparse" index is negative, indicating the last sparse index of the
@@ -181,6 +184,13 @@ protected:
   bool append_varsblock(OptVariablesBlock* b);
   bool append_varsblocks(std::vector<OptVariablesBlock*> vVarBlocks);
 
+  //grows the vars block specified by 'id'
+  void append_vars_to_varsblock(const std::string& id,
+				int num_vars_to_add,
+				const double* lb,
+				const double* ub,
+				const double* start);
+  
   virtual void attach_to(const double* xfromsolver);
 };
 
@@ -395,8 +405,16 @@ public:
   inline OptVariables* duals_bounds_lower() { return vars_duals_bounds_L; }
   inline OptVariables* duals_bounds_upper() { return vars_duals_bounds_U; }
   inline OptVariables* duals_constraints() { return vars_duals_cons; }
-  
-  inline void append_variables(OptVariablesBlock* vars)
+
+  inline void append_vars_to_varsblock(const std::string& id_varsblock,
+				       int num_vars_to_add,
+				       const double* lb,
+				       const double* ub,
+				       const double* start)
+  {
+    vars_primal->append_vars_to_varsblock(id_varsblock, num_vars_to_add, lb, ub, start);
+  }
+  inline void append_varsblock(OptVariablesBlock* vars)
   {
     vars_primal->append_varsblock(vars);
   }
@@ -629,7 +647,6 @@ public:
   
   static const OptimizationMode RegularMode = Ipopt::RegularMode;
   static const OptimizationMode RestorationPhaseMode = Ipopt::RestorationPhaseMode;
-
 };
   
 } //end namespace

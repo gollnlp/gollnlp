@@ -191,7 +191,7 @@ namespace gollnlp {
     } else { 
       //all AGC gens were fixed; add fixed variable delta 
       OptVariablesBlock* deltaK = new OptVariablesBlock(1, var_name("delta", dK)); 
-      append_variables(deltaK);
+      append_varsblock(deltaK);
       deltaK->set_start_to(solv1_delta_out);
       deltaK->lb[0] = deltaK->ub[0] = solv1_delta_out;
       append_objterm(new QuadrRegularizationObjTerm("delta_regul", deltaK, 1., solv1_delta_out));
@@ -1301,7 +1301,7 @@ namespace gollnlp {
     OptVariablesBlock* deltaK = variable("delta", dB);
     if(deltaK==NULL) {
       deltaK = new OptVariablesBlock(1, var_name("delta", dB));
-      append_variables(deltaK);
+      append_varsblock(deltaK);
       deltaK->set_start_to(0.);
     }
 
