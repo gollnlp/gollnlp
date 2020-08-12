@@ -94,10 +94,13 @@ namespace gollnlp {
     std::vector<int> Tin_overload_;
 
 
-    /* map of bus index into 
+    /* Mapping of bus N indexes into 
      *  - the index inside of the optimization variable v_n and theta_n for nonaux buses
-     *  - the index inside v_aux_n and theta_aux_n for aux buses included in the optimization (as the 
-     * result of voltage bounds and thermal limit violations)
+     *
+     *  - the index 'i' inside v_aux_n and theta_aux_n for aux buses included in the optimization 
+     * (as the result of voltage bounds and thermal limit violations)
+     * !!!  for these buses, we store -i-2, where i is the index in v_aux_n and theta_aux_n
+     *
      *  - -1 for aux buses non included in the optimization
      */
     std::vector<int> map_idxbuses_idxsoptimiz_;

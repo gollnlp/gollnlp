@@ -1277,6 +1277,7 @@ namespace gollnlp {
       idxs_busviol_in_aux_buses_.push_back(idx);
     }
     n = 2*idxs_busviol_in_aux_buses_.size();
+    assert(false); //reallocate lb and ub
   }
 
   bool VoltageConsAuxBuses::eval_body (const OptVariables& vars_primal, bool new_x, double* body)
@@ -1656,5 +1657,244 @@ namespace gollnlp {
     } // end outer loop 
     return true;
   }
- 
+
+
+  /*********************************************************************************************
+   * Constraints for enforcing line thermal limits violations
+   * 
+   * for lix=1:length(Lidx_overload_pass)
+   *   l = Lidx_overload_pass[lix]
+   *   i = Lin_overload_pass[lix]
+   *   vi = vall_n[L_Nidx[l,i]]
+   *   thetai = thetaall_n[L_Nidx[l,i]]
+   *   vj = vall_n[L_Nidx[l,3-i]]
+   *   thetaj = thetaall_n[L_Nidx[l,3-i]]
+   *   slack_li >=0 starts at max(0, abs(s_li[l,i]) - abs(v_n_all_complex[L_Nidx[l,i]])*L[:RateBase][l])
+   *
+   *   ychiyij^2*vi^4 + yij^2*vi^2*vj^2
+   *    - 2*ychiyij*yij*vi^3*vj*cos(thetai-thetaj-phi) 
+   *    - (L[:RateBase][l]*vi + slack_li)^2 <=0
+   *
+   *
+   *********************************************************************************************/
+  
+  LineThermalViolCons::LineThermalViolCons(const std::string& id_in,
+					   int numcons,
+					   const std::vector<int>& Lidx_overload_in,
+					   const std::vector<int>& Lin_overload_in,
+					   /*idxs of L_From and L_To in N_Bus (in L_Nidx[0] and L_Nidx[1])*/
+					   const std::vector<std::vector<int> >& L_Nidx_in,
+					   const std::vector<double>& L_Rate_in,
+					   const std::vector<double>& L_G_in,
+					   const std::vector<double>& L_B_in,
+					   const std::vector<double>& L_Bch_in,
+					   /*from N idxs to idxs in aux and nonaux optimiz vars*/
+					   const std::vector<int>& map_idxbuses_idxsoptimiz_in, 
+					   OptVariablesBlock* v_n_in,
+					   OptVariablesBlock* theta_n_in,
+					   OptVariablesBlock* v_aux_n_in,
+					   OptVariablesBlock* theta_aux_n_in)
+    : OptConstraintsBlockMDS(id_in, numcons),
+      Lidx_overload_(Lidx_overload_in), Lin_overload_(Lin_overload_in),
+      L_Nidx_(L_Nidx_in),
+      map_idxbuses_idxsoptimiz_(map_idxbuses_idxsoptimiz_in),
+      L_Rate_(L_Rate_in), L_G_(L_G_in), L_B_(L_B_in), L_Bch_(L_Bch_in),
+      v_n_(v_n_in), theta_n_(theta_n_in),
+      v_aux_n_(v_aux_n_in), theta_aux_n_(theta_aux_n_in),
+      slacks_(NULL)
+  {
+    for(int i=0; i<n; i++) lb[i]=0.;
+    DCOPY(&n, lb, &ione, ub, &ione);
+  }
+  LineThermalViolCons::~LineThermalViolCons()
+  {
+  }
+  
+  //add (append to existing block of) line thermal violations
+  //indexes passed in 'vtheta_aux_idxs_new'
+  void LineThermalViolCons::append_constraints(const std::vector<int>& Lidx_overload_pass_in,
+					       const std::vector<int>& Lin_overload_pass_in)
+  {
+    assert(Lidx_overload_.size() == Lin_overload_.size());
+    assert(Lidx_overload_pass_in.size() == Lin_overload_pass_in.size());
+
+    const int num_new_cons = Lidx_overload_pass_in.size();
+    if(num_new_cons==0) return;
+
+    const int new_n = this->n+num_new_cons;
+    
+    double* lb_new = new double[new_n];
+    DCOPY(&n, lb, &ione, lb_new, &ione);
+    for(int i=n; i<new_n; ++i)
+      lb_new[i] = 0.;
+    delete[] lb;
+    lb = lb_new;
+    
+    double* ub_new = new double[new_n];
+    DCOPY(&n, ub, &ione, ub_new, &ione);
+    for(int i=n; i<new_n; ++i)
+      ub_new[i] = 0.;
+    delete[] ub;
+    ub = ub_new;
+
+    for(auto& e : Lidx_overload_pass_in)
+      Lidx_overload_.push_back(e);
+
+    for(auto& e : Lin_overload_pass_in)
+      Lin_overload_.push_back(e);
+
+    n = new_n;
+    assert(Lidx_overload_.size() == n);
+  }
+
+  void LineThermalViolCons::get_v_theta_vals(const int& idx_bus, double& vval, double& thetaval)
+  {
+    const int idx_aux_or_nonaux = map_idxbuses_idxsoptimiz_[idx_bus];
+    //-1 are aux buses not included in optimization (no voltage and transmission violations at these)
+    //and thermal violation constraints should not appear at these buses
+    assert(idx_aux_or_nonaux != -1);
+    int idx_aux=-1, idx_nonaux=-1;
+    if(idx_aux_or_nonaux<=-2) {
+      idx_aux = -idx_aux_or_nonaux - 2;
+      assert(idx_aux>=0);
+      assert(idx_aux < v_aux_n_->n);
+    } else {
+      if(idx_aux_or_nonaux >= 0)
+	idx_aux = idx_aux_or_nonaux;
+      else
+	assert(false);
+    }
+    
+    if(idx_nonaux>=0) {
+      assert(idx_aux == -1);
+      
+      vval = v_n_->xref[idx_nonaux];
+      thetaval = theta_n_->xref[idx_nonaux];
+    } else {
+      assert(idx_aux>=0);
+      assert(idx_aux < v_n_->n);
+      assert(idx_nonaux == -1);
+      
+      vval = v_aux_n_->xref[idx_aux];
+      thetaval = theta_aux_n_->xref[idx_aux];
+    }
+  }
+  
+  /*
+   * for lix=1:length(Lidx_overload_pass)
+   *   l = Lidx_overload_pass[lix]
+   *   i = Lin_overload_pass[lix]
+   *   vi = vall_n[L_Nidx[l,i]]
+   *   thetai = thetaall_n[L_Nidx[l,i]]
+   *   vj = vall_n[L_Nidx[l,3-i]]
+   *   thetaj = thetaall_n[L_Nidx[l,3-i]]
+   *   slack_li >=0 starts at max(0, abs(s_li[l,i]) - abs(v_n_all_complex[L_Nidx[l,i]])*L[:RateBase][l])
+   *
+   *   ychiyij^2*vi^4 + yij^2*vi^2*vj^2
+   *    - 2*ychiyij*yij*vi^3*vj*cos(thetai-thetaj-phi) 
+   *    - (L[:RateBase][l]*vi + slack_li)^2 <=0
+   */
+  bool LineThermalViolCons::eval_body (const OptVariables& vars_primal, bool new_x, double* body)
+  {
+    double* rhs = body + this->index;
+    
+    assert(Lidx_overload_.size() == Lin_overload_.size());
+    assert(Lidx_overload_.size() == this->n);
+    assert(slacks_->n == this->n);
+
+    double vi, vj, thetai, thetaj;
+    
+    for(int con=0; con<n; ++con) {
+      const int l = Lidx_overload_[con];
+      const int i = Lin_overload_[con];
+      assert(i==0 || i==1);
+      assert(L_Nidx_[i].size() > l);
+      assert(L_Nidx_[0].size() == L_Nidx_[1].size());
+
+      //compute vi and theta i
+      const int i_idx_bus = L_Nidx_[i][l];
+      get_v_theta_vals(i_idx_bus, vi, thetai);
+      //compute vj and thetaj
+      const int j_idx_bus = L_Nidx_[2-i][i];
+      get_v_theta_vals(j_idx_bus, vj, thetaj);
+
+      //Ychi = im*L[:Bch][l]/2
+      const auto Ychi = std::complex<double>(0., L_Bch_[l]/2);
+      
+      //Yij = L[:G][l] + im*L[:B][l]
+      const auto Yij = std::complex<double>(L_G_[l], L_B_[l]);
+      
+      //Ychiyij = abs(Ychi+Yij)
+      const double ychiyij =  std::abs(Ychi+Yij);
+      //yij = abs(Yij)
+      const double yij = std::abs(Yij);
+      //phi = angle(Yij) - angle(Ychi+Yij)
+      const double phi = std::arg(Yij)-std::arg(Ychi+Yij);
+
+      rhs[con] = ychiyij*ychiyij*std::pow(vi,4) + yij*yij*vi*vi*vj*vj
+	- 2*ychiyij*yij*pow(vi,3)*vj*cos(thetai-thetaj-phi)
+	- std::pow(L_Rate_[l]*vi - slacks_->xref[con], 2);
+      
+    }
+    return true;
+  }
+
+  bool LineThermalViolCons::eval_Jac_eq(const OptVariables& x, bool new_x, 
+					const int& nxsparse, const int& nxdense,
+					const int& nnzJacS, int* iJacS, int* jJacS, double* MJacS, 
+					double** JacD)
+  {
+    return true;
+  }
+
+  bool LineThermalViolCons::eval_Jac_ineq(const OptVariables& x, bool new_x, 
+					  const int& nxsparse, const int& nxdense,
+					  const int& nnzJacS, int* iJacS, int* jJacS, double* MJacS, 
+					  double** JacD)
+  {
+    return false;
+  }
+  
+  int LineThermalViolCons::get_spJacob_eq_nnz()
+  {
+    return 0;
+  }
+  int LineThermalViolCons::get_spJacob_ineq_nnz()
+  {
+    assert(false);
+    return 0;
+  }
+  bool LineThermalViolCons::get_spJacob_eq_ij(std::vector<OptSparseEntry>& vij)
+  {
+    return true;
+  }
+  bool LineThermalViolCons::get_spJacob_ineq_ij(std::vector<OptSparseEntry>& vij)
+  {
+    assert(false);
+    return true;
+  }
+  
+  bool LineThermalViolCons::eval_HessLagr(const OptVariables& x, bool new_x, 
+					  const OptVariables& lambda, bool new_lambda,
+					  const int& nxsparse, const int& nxdense, 
+					  const int& nnzHSS, int* iHSS, int* jHSS, double* MHSS, 
+					  double** HDD,
+					  const int& nnzHSD, int* iHSD, int* jHSD, double* MHSD)
+  {
+
+    return true;
+  }
+
+  //nnz for sparse part (all zeros)
+  int LineThermalViolCons::get_HessLagr_SSblock_nnz()
+  {
+    return 0;
+  }
+  
+  bool LineThermalViolCons::get_HessLagr_SSblock_ij(std::vector<OptSparseEntry>& vij)
+  {
+    return true;
+  }
+  
+  
 } // end of namespace

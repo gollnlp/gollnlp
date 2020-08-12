@@ -214,7 +214,7 @@ namespace gollnlp {
 	    //we will add v_aux_n and theta_aux_n for this bus, therefore in map_idxbuses_idxsoptimiz_
 	    //we will keep the index in v_aux_n and theta_aux_n
 	    assert(v_aux_n->n == theta_aux_n->n);
-	    map_idxbuses_idxsoptimiz_[bus_idx] = v_aux_n->n + v_lb.size();
+	    map_idxbuses_idxsoptimiz_[bus_idx] = -(v_aux_n->n + v_lb.size())-2;
 
 	    v_lb.push_back(data_sc.N_Vlb[bus_idx]);
 	    v_ub.push_back(data_sc.N_Vub[bus_idx]);
@@ -345,18 +345,32 @@ namespace gollnlp {
       assert(Lidx_overload_pass.size() == Lin_overload_pass.size());
       if(Lidx_overload_pass.size()>0) {
 
-	auto cons_line_viol = this->constraints_block(con_name("line_thermal_viol", data_sc));
-	if(cons_line_viol) {
-	  
+	auto cons_block = this->constraints_block(con_name("line_thermal_viol", data_sc));
+	if(cons_block) {
+	  LineThermalViolCons* cons_viol = dynamic_cast<LineThermalViolCons*>(cons_block);
+	  if(cons_viol) {
+	    cons_viol->append_constraints(Lidx_overload_pass, Lin_overload_pass);
+	  } else assert(false);
 	} else {
 	  //idxs_buses_nonaux
 	  //idxs_buses_aux
 	  //map_idxbuses_idxsoptimiz_
-	  //LineThermalViolCons* cons_block =
-	  //  new LineThermalViolCons(con_name("line_thermal_viol"), num_cons,
-	  //			    Lidx_overload_pass,
-	  //			    Lin_overload_pass,
-	  //			    aaa;
+	  LineThermalViolCons* cons_block =
+	    new LineThermalViolCons(con_name("line_thermal_viol", data_sc),				   
+				    Lidx_overload_pass.size(),
+	  			    Lidx_overload_pass,
+	  			    Lin_overload_pass,
+	  			    data_sc.L_Nidx,
+				    data_sc.L_RateBase,
+				    data_sc.L_G,
+				    data_sc.L_B,
+				    data_sc.L_Bch,
+				    map_idxbuses_idxsoptimiz_,
+				    vars_block(var_name("v_n", data_sc)), 
+				    vars_block(var_name("theta_n", data_sc)),
+				    v_aux_n,
+				    theta_aux_n);
+	  append_constraints(cons_block);
 	}
       } // end of cons block for line thermal violations
       

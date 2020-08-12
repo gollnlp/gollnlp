@@ -247,8 +247,7 @@ namespace gollnlp {
    *   vj = vall_n[L_Nidx[l,3-i]]
    *   thetaj = thetaall_n[L_Nidx[l,3-i]]
    *   slack_li >=0 starts at max(0, abs(s_li[l,i]) - abs(v_n_all_complex[L_Nidx[l,i]])*L[:RateBase][l])
-
-
+   *
    *   ychiyij^2*vi^4 + yij^2*vi^2*vj^2
    *    - 2*ychiyij*yij*vi^3*vj*cos(thetai-thetaj-phi) 
    *    - (L[:RateBase][l]*vi + slack_li)^2 <=0
@@ -259,18 +258,28 @@ namespace gollnlp {
   class LineThermalViolCons : public OptConstraintsBlockMDS
   {
   public:
-    LineThermalViolCons(const std::string& id_in, int numcons,
+    LineThermalViolCons(const std::string& id_in,
+			int numcons,
+			const std::vector<int>& Lidx_overload_in,
+			const std::vector<int>& Lin_overload_in,
+			/*idxs of L_From and L_To in N_Bus (in L_Nidx[0] and L_Nidx[1])*/
+			const std::vector<std::vector<int> >& L_Nidx_in,
+			const std::vector<double>& L_Rate_in,
+			const std::vector<double>& L_G_in,
+			const std::vector<double>& L_B_in,
+			const std::vector<double>& L_Bch_in,
+			/*from N idxs to idxs in aux and nonaux optimiz vars*/
+			const std::vector<int>& map_idxbuses_idxsoptimiz_in, 
 			OptVariablesBlock* v_n_in,
 			OptVariablesBlock* theta_n_in,
 			OptVariablesBlock* v_aux_n_in,
-			OptVariablesBlock* theta_aux_n_in,
-			const std::vector<int>& vtheta_aux_idxs_in,
-			const hiop::hiopMatrixComplexDense& vmap_in);
+			OptVariablesBlock* theta_aux_n_in);
     virtual ~LineThermalViolCons();
     
     //add (append to existing block of) line thermal violations
     //indexes passed in 'vtheta_aux_idxs_new'
-    void append_constraints(const std::vector<int>& vtheta_aux_idxs_new);
+    void append_constraints(const std::vector<int>& Lidx_overload_pass_in,
+			    const std::vector<int>& Lin_overload_pass_in);
 
     //
     // OptProblem ConstraintsBlock interface methods
@@ -285,22 +294,12 @@ namespace gollnlp {
     virtual bool eval_Jac_ineq(const OptVariables& x, bool new_x, 
 			       const int& nxsparse, const int& nxdense,
 			       const int& nnzJacS, int* iJacS, int* jJacS, double* MJacS, 
-			       double** JacD)
-    {
-      return false;
-    }
+			       double** JacD);
 
     virtual int get_spJacob_eq_nnz();
-    virtual int get_spJacob_ineq_nnz()
-    {
-      assert(false);
-      return 0;
-    }
+    virtual int get_spJacob_ineq_nnz();
     virtual bool get_spJacob_eq_ij(std::vector<OptSparseEntry>& vij);
-    virtual bool get_spJacob_ineq_ij(std::vector<OptSparseEntry>& vij)
-    {
-      return false;
-    }
+    virtual bool get_spJacob_ineq_ij(std::vector<OptSparseEntry>& vij);
 
     virtual bool eval_HessLagr(const OptVariables& x, bool new_x, 
 			       const OptVariables& lambda, bool new_lambda,
@@ -309,13 +308,35 @@ namespace gollnlp {
 			       double** HDD,
 			       const int& nnzHSD, int* iHSD, int* jHSD, double* MHSD);
     //nnz for sparse part (all zeros)
-    virtual int get_HessLagr_SSblock_nnz() { return 0; }
+    virtual int get_HessLagr_SSblock_nnz();
 
-    virtual bool get_HessLagr_SSblock_ij(std::vector<OptSparseEntry>& vij) { return true; }
+    virtual bool get_HessLagr_SSblock_ij(std::vector<OptSparseEntry>& vij);
+
+    virtual OptVariablesBlock* create_varsblock() 
+    { 
+      assert(slacks_==NULL);
+      slacks_ = new OptVariablesBlock(n, "slacks_"+id, 0, 1e+20);
+      return slacks_; 
+    }
+  protected:
+    /* Get the values from v_n or v_aux_n and theta_n or theta_aux_n at bus 'idx_bus'. 
+     * 'map_idxbuses_idxsoptimiz_[idx_bus]' decides whether the value is from v_n and theta_n
+     * (nonaux bus) or from v_aux_n and theta_aux_n (aux bus)
+     */
+    void get_v_theta_vals(const int& idx_bus, double& vval, double& thetaval);
   protected:
     OptVariablesBlock *v_n_, *theta_n_, *v_aux_n_, *theta_aux_n_;
-    std::vector<int> vtheta_aux_idxs_;
-    const hiop::hiopMatrixComplexDense& vmap_;
+    OptVariablesBlock *slacks_; 
+    std::vector<int> Lidx_overload_;
+    std::vector<int> Lin_overload_;
+    
+    /*indexes of L_From and L_To in N_Bus (stored in L_Nidx[0] and L_Nidx[1])*/
+    const std::vector<std::vector<int> >& L_Nidx_;
+
+    const std::vector<double>& L_Rate_, L_G_, L_B_, L_Bch_;
+    
+    /*from N idxs to idxs in aux and nonaux optimiz vars*/
+    const std::vector<int>& map_idxbuses_idxsoptimiz_;
   };
 
 
