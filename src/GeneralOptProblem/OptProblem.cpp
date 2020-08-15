@@ -24,8 +24,8 @@ static void printnnz(int nnz, int* i, int*j, double* M=NULL)
 
 OptProblem::OptProblem()
 {
-  vars_primal = new OptVariables();
-  cons = new OptConstraints();
+  vars_primal = new OptVariables(this);
+  cons = new OptConstraints(this);
   obj = new OptObjective();
   obj_value   = +1e+20;
   obj_barrier = +1e+20;
@@ -395,7 +395,7 @@ bool OptProblem::fill_dual_bounds_start(double* zL, double* zU)
 
 OptVariables* OptProblem::new_duals_cons()
 {
-  OptVariables* duals = new OptVariables();
+  OptVariables* duals = new OptVariables(this);
   for(auto b: cons->vblocks) {
     duals->append_varsblock(new OptVariablesBlock(b->n, string("duals_") + b->id));
   }
@@ -403,7 +403,7 @@ OptVariables* OptProblem::new_duals_cons()
 }
 OptVariables* OptProblem::new_duals_lower_bounds()
 {
-  OptVariables* duals = new OptVariables();
+  OptVariables* duals = new OptVariables(this);
   for(auto b: vars_primal->vblocks) {
     duals->append_varsblock(new OptVariablesBlock(b->n, string("duals_bndL_") + b->id));
   }
@@ -411,7 +411,7 @@ OptVariables* OptProblem::new_duals_lower_bounds()
 }
 OptVariables* OptProblem::new_duals_upper_bounds()
 {
-  OptVariables* duals = new OptVariables();
+  OptVariables* duals = new OptVariables(this);
   for(auto b: vars_primal->vblocks) {
     duals->append_varsblock(new OptVariablesBlock(b->n, string("duals_bndU_") + b->id));
   }
@@ -607,8 +607,10 @@ void  OptProblem::print_summary() const
 // OptVariables
 ///////////////////////////////////////////////////////////////////
 
-OptVariables::OptVariables()
+OptVariables::OptVariables(OptProblem* prob/*=NULL*/)
+  : owner_prob_(prob)
 {
+  
 }
 
 OptVariables::~OptVariables()
@@ -625,6 +627,10 @@ bool OptVariables::append_varsblock(OptVariablesBlock* b)
       return false;
     }
     //print_summary();
+
+    //set the owner of the block that is going to be added
+    b->owner_vars_ = this;
+    
     b->index = this->n();
     if(b->sparseBlock) {
       //update the index within sparse variables
@@ -684,7 +690,9 @@ void OptVariables::append_vars_to_varsblock(const std::string& id_varsblock,
   assert(block!=NULL);
   if(!block) return;
 
-  //this adjust the size of 'block'
+  assert(this == block->owner_vars_);
+  
+  //this adjusts the size of 'block'
   block->append_variables(num_vars_to_add, lb, ub, start);
 
   //the indexes of the blocks in the 'this' that follows after 'block' needs to be increased
@@ -710,9 +718,7 @@ void OptVariables::print_summary(const std::string var_name) const
     printf("    '%s' size %d startsAt %d providesStPoint %d  sparseBlock %d (indexSparse %d)\n", 
 	   b->id.c_str(), b->n, b->index, b->providesStartingPoint,
 	   b->sparseBlock, b->indexSparse);
-  
 }
-
 
 void OptVariables::print(const std::string var_name) const
 {
@@ -879,9 +885,11 @@ void OptVariables::delete_block(const std::string& id)
   if(block) delete block;
 }
 
-OptVariablesBlock::OptVariablesBlock(const int& n_, const std::string& id_)
+OptVariablesBlock::OptVariablesBlock(const int& n_, const std::string& id_,
+				     OptVariables* owner)
   : n(n_), id(id_), index(-1), xref(NULL),
-    providesStartingPoint(false), sparseBlock(true), indexSparse(0)
+    providesStartingPoint(false), sparseBlock(true), indexSparse(0),
+    owner_vars_(owner)
 {
   assert(n>=0);
   int i;
@@ -900,9 +908,11 @@ OptVariablesBlock::OptVariablesBlock(const int& n_, const std::string& id_)
 }
 
 OptVariablesBlock::OptVariablesBlock(const int& n_, const std::string& id_,
-				     const double* lb_, const double* ub_)
+				     const double* lb_, const double* ub_,
+				     OptVariables* owner)
   : n(n_), id(id_), index(-1), xref(NULL), providesStartingPoint(false),
-    sparseBlock(true), indexSparse(0)
+    sparseBlock(true), indexSparse(0),
+    owner_vars_(owner)
 {
   assert(n>=0);
 
@@ -936,12 +946,14 @@ OptVariablesBlock::OptVariablesBlock(const int& n_, const std::string& id_,
       x0 = lb[i];
     }
     x[i] = x0;
-  }
-  
+  } 
 }
-OptVariablesBlock::OptVariablesBlock(const int& n_in, const std::string& id_in, double lb_in, double ub_in)
+OptVariablesBlock::OptVariablesBlock(const int& n_in, const std::string& id_in,
+				     double lb_in, double ub_in,
+				     OptVariables* owner)
   : n(n_in), id(id_in), index(-1), xref(NULL), providesStartingPoint(false),
-    sparseBlock(true), indexSparse(0)
+    sparseBlock(true), indexSparse(0),
+    owner_vars_(owner)
 {
   assert(n>=0);
 
@@ -1058,7 +1070,8 @@ void OptVariablesBlock::append_variables(const int& how_many,
 /////////////////////////////////////////
 // OptConstraints
 /////////////////////////////////////////
-OptConstraints::OptConstraints()
+OptConstraints::OptConstraints(OptProblem* prob)
+  : owner_prob_(prob)
 {
 }
 OptConstraints::~OptConstraints()
@@ -1103,6 +1116,7 @@ bool OptConstraints::append_consblock(OptConstraintsBlock* b)
       assert(false);
       return false;
     }
+    b->owner_cons_ = this;
     b->index=this->m();
     vblocks.push_back(b);
     mblocks[b->id] = b;

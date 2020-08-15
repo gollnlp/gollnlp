@@ -250,16 +250,14 @@ namespace gollnlp {
 	//printvec(v_lb, "v_lb");
 	//printvec(v_ub, "v_ub");
 	//printvec(v_start, "v_start");
-	this->append_vars_to_varsblock(v_aux_n->id,
-				       v_lb.size(),
-				       v_lb.data(),
-				       v_ub.data(),
-				       v_start.data());
-	this->append_vars_to_varsblock(theta_aux_n->id,
-				       theta_start.size(),
-				       NULL,
-				       NULL,
-				       theta_start.data());
+	this->primal_variables()->
+	  append_vars_to_varsblock(v_aux_n->id, v_lb.size(),
+				   v_lb.data(), v_ub.data(),
+				   v_start.data());
+	this->primal_variables()->
+	  append_vars_to_varsblock(theta_aux_n->id, theta_start.size(),
+				   NULL, NULL,
+				   theta_start.data());
 	this->primal_problem_changed();
 
 	//

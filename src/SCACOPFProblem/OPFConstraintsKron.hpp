@@ -323,20 +323,27 @@ namespace gollnlp {
      * 'map_idxbuses_idxsoptimiz_[idx_bus]' decides whether the value is from v_n and theta_n
      * (nonaux bus) or from v_aux_n and theta_aux_n (aux bus)
      */
-    void get_v_theta_vals(const int& idx_bus, double& vval, double& thetaval);
+    //void get_v_theta_vals(const int& idx_bus, double& vval, double& thetaval);
+
+    /* Same as above but also returns the "dense" indexes of v and theta */
+    void get_v_theta_vals_and_idxs(const int& idx_bus,
+				   double& vval, double& thetaval,
+				   int& v_idx_out, int& theta_idx_out);				  
   protected:
     OptVariablesBlock *v_n_, *theta_n_, *v_aux_n_, *theta_aux_n_;
     OptVariablesBlock *slacks_; 
     std::vector<int> Lidx_overload_;
     std::vector<int> Lin_overload_;
     
-    /*indexes of L_From and L_To in N_Bus (stored in L_Nidx[0] and L_Nidx[1])*/
+    /* indexes of L_From and L_To in N_Bus (stored in L_Nidx[0] and L_Nidx[1])*/
     const std::vector<std::vector<int> >& L_Nidx_;
 
     const std::vector<double>& L_Rate_, L_G_, L_B_, L_Bch_;
     
-    /*from N idxs to idxs in aux and nonaux optimiz vars*/
+    /* from N idxs to idxs in aux and nonaux optimiz vars*/
     const std::vector<int>& map_idxbuses_idxsoptimiz_;
+
+    int* J_nz_idxs_;
   };
 
 

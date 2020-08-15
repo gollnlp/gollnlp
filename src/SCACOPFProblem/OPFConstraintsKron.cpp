@@ -1701,8 +1701,15 @@ namespace gollnlp {
       L_Rate_(L_Rate_in), L_G_(L_G_in), L_B_(L_B_in), L_Bch_(L_Bch_in),
       v_n_(v_n_in), theta_n_(theta_n_in),
       v_aux_n_(v_aux_n_in), theta_aux_n_(theta_aux_n_in),
-      slacks_(NULL)
+      slacks_(NULL),
+      J_nz_idxs_(NULL)
   {
+    assert(false == v_aux_n_->sparseBlock);
+    assert(false == theta_aux_n_->sparseBlock);
+
+    assert(false == v_n_->sparseBlock);
+    assert(false == theta_n_->sparseBlock);
+
     for(int i=0; i<n; i++) lb[i]=0.;
     DCOPY(&n, lb, &ione, ub, &ione);
   }
@@ -1745,13 +1752,60 @@ namespace gollnlp {
 
     n = new_n;
     assert(Lidx_overload_.size() == n);
+
+    //add new variables in the slacks
+    assert(slacks_);
+    assert(owner_cons_);
+    assert(owner_cons_->opt_problem());
+
+    vector<double> s_lb(num_new_cons, 0.);
+    owner_cons_->opt_problem()->primal_variables()->
+      append_vars_to_varsblock(slacks_->id, num_new_cons, s_lb.data(), NULL, NULL);
+
   }
 
-  void LineThermalViolCons::get_v_theta_vals(const int& idx_bus, double& vval, double& thetaval)
+  // void LineThermalViolCons::get_v_theta_vals(const int& idx_bus, double& vval, double& thetaval)
+  // {
+  //   const int idx_aux_or_nonaux = map_idxbuses_idxsoptimiz_[idx_bus];
+  //   //-1 are aux buses not included in optimization (no voltage and transmission violations at these)
+  //   //thermal violation constraints should not appear at these "-1" buses
+  //   assert(idx_aux_or_nonaux != -1);
+  //   int idx_aux=-1, idx_nonaux=-1;
+  //   if(idx_aux_or_nonaux<=-2) {
+  //     idx_aux = -idx_aux_or_nonaux - 2;
+  //     assert(idx_aux>=0);
+  //     assert(idx_aux < v_aux_n_->n);
+  //   } else {
+  //     if(idx_aux_or_nonaux >= 0)
+  // 	idx_nonaux = idx_aux_or_nonaux;
+  //     else
+  // 	assert(false);
+  //   }
+    
+  //   if(idx_nonaux>=0) {
+  //     assert(idx_aux == -1);
+      
+  //     vval = v_n_->xref[idx_nonaux];
+  //     thetaval = theta_n_->xref[idx_nonaux];
+  //   } else {
+  //     assert(idx_aux>=0);
+  //     assert(idx_aux < v_n_->n);
+  //     assert(idx_nonaux == -1);
+      
+  //     vval = v_aux_n_->xref[idx_aux];
+  //     thetaval = theta_aux_n_->xref[idx_aux];
+  //   }
+  // }
+
+  void LineThermalViolCons::get_v_theta_vals_and_idxs(const int& idx_bus,
+						      double& vval, double& thetaval,
+						      int& v_idx_out, int& theta_idx_out)
   {
+    v_idx_out = theta_idx_out = -1;
+    
     const int idx_aux_or_nonaux = map_idxbuses_idxsoptimiz_[idx_bus];
     //-1 are aux buses not included in optimization (no voltage and transmission violations at these)
-    //and thermal violation constraints should not appear at these buses
+    //thermal violation constraints should not appear at these "-1" buses
     assert(idx_aux_or_nonaux != -1);
     int idx_aux=-1, idx_nonaux=-1;
     if(idx_aux_or_nonaux<=-2) {
@@ -1760,7 +1814,7 @@ namespace gollnlp {
       assert(idx_aux < v_aux_n_->n);
     } else {
       if(idx_aux_or_nonaux >= 0)
-	idx_aux = idx_aux_or_nonaux;
+	idx_nonaux = idx_aux_or_nonaux;
       else
 	assert(false);
     }
@@ -1768,19 +1822,27 @@ namespace gollnlp {
     if(idx_nonaux>=0) {
       assert(idx_aux == -1);
       
-      vval = v_n_->xref[idx_nonaux];
+      vval     = v_n_    ->xref[idx_nonaux];
       thetaval = theta_n_->xref[idx_nonaux];
+
+      v_idx_out     = v_aux_n_    ->compute_indexDense();
+      theta_idx_out = theta_aux_n_->compute_indexDense();
+
     } else {
       assert(idx_aux>=0);
       assert(idx_aux < v_n_->n);
       assert(idx_nonaux == -1);
       
-      vval = v_aux_n_->xref[idx_aux];
+      vval     = v_aux_n_->xref[idx_aux];
       thetaval = theta_aux_n_->xref[idx_aux];
+
+      v_idx_out     = v_n_    ->compute_indexDense();
+      theta_idx_out = theta_n_->compute_indexDense();
     }
   }
+
   
-  /*
+  /*****************************************************************************************************
    * for lix=1:length(Lidx_overload_pass)
    *   l = Lidx_overload_pass[lix]
    *   i = Lin_overload_pass[lix]
@@ -1811,12 +1873,15 @@ namespace gollnlp {
       assert(L_Nidx_[i].size() > l);
       assert(L_Nidx_[0].size() == L_Nidx_[1].size());
 
+      int idx_dummy1, idx_dummy2;
+      
       //compute vi and theta i
       const int i_idx_bus = L_Nidx_[i][l];
-      get_v_theta_vals(i_idx_bus, vi, thetai);
+      get_v_theta_vals_and_idxs(i_idx_bus, vi, thetai, idx_dummy1, idx_dummy2);
+      
       //compute vj and thetaj
       const int j_idx_bus = L_Nidx_[2-i][i];
-      get_v_theta_vals(j_idx_bus, vj, thetaj);
+      get_v_theta_vals_and_idxs(j_idx_bus, vj, thetaj, idx_dummy1, idx_dummy2);
 
       //Ychi = im*L[:Bch][l]/2
       const auto Ychi = std::complex<double>(0., L_Bch_[l]/2);
@@ -1839,11 +1904,133 @@ namespace gollnlp {
     return true;
   }
 
+  /**********************************************************************************************
+   *   ychiyij^2*vi^4 + yij^2*vi^2*vj^2
+   *    - 2*ychiyij*yij*vi^3*vj*cos(thetai-thetaj-phi) 
+   *    - (L[:RateBase][l]*vi + slack_li)^2  ==  c(vi,vj,thetai, thetaj, slack_li)
+   *
+   * dc/dvi =    4*ychiyij^2*vi^3 + 2*yij^2*vi*vj^2 
+   *           - 6*ychiyij*yij*vi^2*vj*cos(thetai-thetaj-phi)
+   *           -2*L[:RateBase][l]*(L[:RateBase][l]*vi + slack_li)
+   *
+   * dc/dvj  =     2*yij^2*vi^2*vj  
+   *            - 2*ychiyij*yij*vi^3*cos(thetai-thetaj-phi) 
+   *
+   * dc/dthetai =   2*ychiyij*yij*vi^3*vj*sin(thetai-thetaj-phi)
+   *
+   * dc/dthetaj = - 2*ychiyij*yij*vi^3*vj*sin(thetai-thetaj-phi) 
+   *
+   * dc/dslack  = - 2*(L[:RateBase][l]*vi + slack_li)
+   *
+   */
   bool LineThermalViolCons::eval_Jac_eq(const OptVariables& x, bool new_x, 
 					const int& nxsparse, const int& nxdense,
 					const int& nnzJacS, int* iJacS, int* jJacS, double* MJacS, 
 					double** JacD)
   {
+    //
+    // sparse part
+    //
+    assert(slacks_->indexSparse>=0);
+    assert(nxsparse+nxdense == x.n());
+
+    if(iJacS && jJacS) {
+      int *itnz = J_nz_idxs_;
+      for(int row=this->index; row<this->index+this->n; ++row) {
+	iJacS[*itnz] = row;
+	jJacS[*itnz++] = slacks_->indexSparse - this->index + row;
+      }
+    }
+
+    if(MJacS) {
+      int *itnz = J_nz_idxs_;
+      double vi, thetai;
+      for(int row=this->index; row<this->index+this->n; ++row) {
+
+	const int con = row - this->index;
+	const int l   = Lidx_overload_[con];
+	const int i   = Lin_overload_[con];
+
+	assert(i==0 || i==1);
+	assert(L_Nidx_[i].size() > l);
+	assert(L_Nidx_[0].size() == L_Nidx_[1].size());
+	assert(con < slacks_->n);
+
+	int idx_dummy1, idx_dummy2;
+	
+	const int i_idx_bus = L_Nidx_[i][l];
+	get_v_theta_vals_and_idxs(i_idx_bus, vi, thetai, idx_dummy1, idx_dummy2);
+	
+	MJacS[*itnz++] -= 2*(L_Rate_[l] * vi + slacks_->xref[con]);
+      }
+    }
+
+    //
+    // dense part
+    //
+    if(NULL == JacD) return true;
+
+    int idx_col_of_vi, idx_col_of_thetai;
+    double vi, thetai;
+    int idx_col_of_vj, idx_col_of_thetaj;
+    double vj, thetaj;
+    
+    for(int con=0; con<this->n; con++) {
+      const int row = con+this->index;
+
+      const int l   = Lidx_overload_[con];
+      const int i   = Lin_overload_[con];
+      
+      assert(i==0 || i==1);
+      assert(L_Nidx_[i].size() > l);
+      assert(L_Nidx_[0].size() == L_Nidx_[1].size());
+      assert(con < slacks_->n);
+      
+      //Ychi = im*L[:Bch][l]/2
+      const auto Ychi = std::complex<double>(0., L_Bch_[l]/2);
+      
+      //Yij = L[:G][l] + im*L[:B][l]
+      const auto Yij = std::complex<double>(L_G_[l], L_B_[l]);
+      
+      //Ychiyij = abs(Ychi+Yij)
+      const double ychiyij =  std::abs(Ychi+Yij);
+      //yij = abs(Yij)
+      const double yij = std::abs(Yij);
+      //phi = angle(Yij) - angle(Ychi+Yij)
+      const double phi = std::arg(Yij)-std::arg(Ychi+Yij);
+      
+      const int i_idx_bus = L_Nidx_[i][l];
+      get_v_theta_vals_and_idxs(i_idx_bus, vi, thetai, idx_col_of_vi, idx_col_of_thetai);
+
+      const int j_idx_bus = L_Nidx_[2-i][i];
+      get_v_theta_vals_and_idxs(j_idx_bus, vj, thetaj, idx_col_of_vj, idx_col_of_thetaj);
+
+      const double vi2 = vi*vi;
+      const double vi3 = vi2*vi;
+      const double ttp = thetai-thetaj-phi;
+      const double costtp = cos(ttp);
+      const double sinttp = sin(ttp);
+
+      // dc/dvi
+      assert(JacD[con][idx_col_of_vi]==0.);
+      JacD[con][idx_col_of_vi] =
+	+ 4 * ychiyij * ychiyij * vi3 + 2 * yij*yij *vi * vj*vj
+	- 6 * ychiyij * yij * vi*vi * vj * costtp
+        - 2 * L_Rate_[l] * (L_Rate_[l]*vi + slacks_->xref[con]);
+
+      // dc/dvj
+      assert(0. == JacD[con][idx_col_of_vj]);
+      JacD[con][idx_col_of_vj] = + 2 * yij*yij * vi2 * vj - 2 * ychiyij * yij * vi3 * costtp;
+
+      const double tmp = 2 * ychiyij * yij * vi3 * vj * sinttp;
+      assert(0. == JacD[con][idx_col_of_thetai]);
+      JacD[con][idx_col_of_thetai] = + tmp;
+
+      assert(0. == JacD[con][idx_col_of_thetaj]);
+      JacD[con][idx_col_of_thetaj] = - tmp;
+    }
+    
+    
     return true;
   }
 
@@ -1857,15 +2044,33 @@ namespace gollnlp {
   
   int LineThermalViolCons::get_spJacob_eq_nnz()
   {
-    return 0;
+    return this->n;
   }
   int LineThermalViolCons::get_spJacob_ineq_nnz()
   {
-    assert(false);
     return 0;
   }
   bool LineThermalViolCons::get_spJacob_eq_ij(std::vector<OptSparseEntry>& vij)
   {
+    if(n<=0) return true;
+    
+    int nnz = get_spJacob_eq_nnz();
+    if(NULL == J_nz_idxs_) 
+      J_nz_idxs_ = new int[nnz];
+#ifdef DEBUG
+    int n_vij_in = vij.size();
+#endif
+    
+    int row=this->index, *itnz=J_nz_idxs_;
+    for(int it=0; it<n; it++) {
+      vij.push_back(OptSparseEntry(row++, slacks_->indexSparse+it, itnz++));
+    }
+
+#ifdef DEBUG
+    assert(nnz+n_vij_in==vij.size());
+#endif
+    assert(J_nz_idxs_ + nnz == itnz);
+
     return true;
   }
   bool LineThermalViolCons::get_spJacob_ineq_ij(std::vector<OptSparseEntry>& vij)
@@ -1873,6 +2078,53 @@ namespace gollnlp {
     assert(false);
     return true;
   }
+
+  /**********************************************************************************************
+   *   ychiyij^2*vi^4 + yij^2*vi^2*vj^2
+   *    - 2*ychiyij*yij*vi^3*vj*cos(thetai-thetaj-phi) 
+   *    - (L[:RateBase][l]*vi + slack_li)^2  ==  c(vi,vj,thetai, thetaj, slack_li)
+   *
+   *===============================================================================================
+   * dc/dvi =    4*ychiyij^2*vi^3 + 2*yij^2*vi*vj^2 
+   *           - 6*ychiyij*yij*vi^2*vj*cos(thetai-thetaj-phi)
+   *           -2*L[:RateBase][l]*(L[:RateBase][l]*vi + slack_li)
+   *
+   * dc^2/dvi^2 = + 12*ychiyij^2*vi^2 + 2*yij^2*vj^2
+   *              - 12*ychiyij*yij*vi*vj*cos(thetai-thetaj-phi)
+   *              - 2*L[:RateBase][l]*L[:RateBase][l]
+   *
+   * dc^2/dvi dvj = + 4*yij^2*vi*vj
+   *                - 6*ychiyij*yij*vi^2*cos(thetai-thetaj-phi)
+   *
+   * dc^2/dvi dthetai = + 6*ychiyij*yij*vi^2*vj*sin(thetai-thetaj-phi)
+   *
+   * dc^2/dvi dthetaj = - dc^2/dvi dthetai
+   *
+   * dc^2/dvi dslack = - 2*L[:RateBase][l]
+   *===============================================================================================
+   *
+   * dc/dvj  =     2*yij^2*vi^2*vj  
+   *            - 2*ychiyij*yij*vi^3*cos(thetai-thetaj-phi) 
+   *
+   * d2c/dvj dvi = 4*yij^2*vi*vj - 6*ychiyij*yij*vi^2*cos(thetai-thetaj-phi) 
+   *
+   * d2c/d2vj = 2*yij^2*vi^2
+   *
+   * d2c/dvj dthetai = 2*ychiyij*yij*vi^3*sin(thetai-thetaj-phi) 
+   * d2c/dvj dthetaj = - dc/dvj dthetai
+   *
+   * d2c/dvj dslack = 0
+   *================================================================================================
+   * dc/dthetai =   2*ychiyij*yij*vi^3*vj*sin(thetai-thetaj-phi)
+   *
+   *================================================================================================
+   * dc/dthetaj = - 2*ychiyij*yij*vi^3*vj*sin(thetai-thetaj-phi) 
+   *
+   *================================================================================================
+   * dc/dslack  = - 2*(L[:RateBase][l]*vi + slack_li)
+   *
+   *================================================================================================
+   */
   
   bool LineThermalViolCons::eval_HessLagr(const OptVariables& x, bool new_x, 
 					  const OptVariables& lambda, bool new_lambda,

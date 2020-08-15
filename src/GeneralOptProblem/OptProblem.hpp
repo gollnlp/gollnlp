@@ -20,12 +20,20 @@ typedef Ipopt::AlgorithmMode OptimizationMode;
 
 class NlpSolver;
 
+class OptProblem;
+class OptVariables;
+ 
 class OptVariablesBlock {
 public:
-  OptVariablesBlock(const int& n_, const std::string& id_);
-  OptVariablesBlock(const int& n_, const std::string& id_, const double* lb, const double* ub=NULL);
+  OptVariablesBlock(const int& n_, const std::string& id_,
+		    OptVariables* owner=NULL);
+  OptVariablesBlock(const int& n_, const std::string& id_,
+		    const double* lb, const double* ub=NULL,
+		    OptVariables* owner=NULL);
   //all lb and ub are set to lb_ and ub_
-  OptVariablesBlock(const int& n_, const std::string& id_, double lb_, double ub_);
+  OptVariablesBlock(const int& n_, const std::string& id_,
+		    double lb_, double ub_,
+		    OptVariables* owner=NULL);
   virtual ~OptVariablesBlock();
 
   void set_start_to(const double& scalar);
@@ -79,12 +87,16 @@ public:
   
   inline OptVariablesBlock* new_copy() 
   {
-    auto b = new OptVariablesBlock(n, id, lb, ub);
+    auto b = new OptVariablesBlock(n, id, lb, ub, owner_vars_);
     b->set_start_to(*this);
     return b;
   }
 
   void print() const;
+  
+  friend class OptVariables;
+private:
+  OptVariables* owner_vars_;
 };
   
 ////////////////////////////////////////////////////////////
@@ -95,7 +107,7 @@ public:
 ////////////////////////////////////////////////////////////
 class OptVariables {
 public:
-  OptVariables();
+  OptVariables(OptProblem* prob=NULL);
   ~OptVariables();
 
   const OptVariablesBlock* get_block(const std::string& id) const
@@ -147,7 +159,6 @@ public:
   inline void copy_from(const std::vector<double>& v) { copy_from(v.data()); }
   void copy_from(const double* v);
 
-
   //
   //'this' is a dual (lb or ub) corresponding to 'primals'
   //
@@ -179,19 +190,21 @@ public:
 public: //MPI_Helpers
   //broadcasts 'this'; if non-null, 'buffer' will be used to pack/unpack variables blocks
   int MPI_Bcast_x(int root, MPI_Comm comm, int my_rank, double* buffer=NULL);
+public:
+  //grows the vars block specified by 'id'
+  void append_vars_to_varsblock(const std::string& id,
+  				int num_vars_to_add,
+  				const double* lb,
+  				const double* ub,
+  				const double* start);
 protected:
   // appends b to list of blocks; updates this->n and b->index
   bool append_varsblock(OptVariablesBlock* b);
   bool append_varsblocks(std::vector<OptVariablesBlock*> vVarBlocks);
-
-  //grows the vars block specified by 'id'
-  void append_vars_to_varsblock(const std::string& id,
-				int num_vars_to_add,
-				const double* lb,
-				const double* ub,
-				const double* start);
   
   virtual void attach_to(const double* xfromsolver);
+protected:
+  OptProblem* owner_prob_;
 };
 
 struct OptSparseEntry
@@ -245,10 +258,12 @@ public:
 ///////////////////////////////////////////////////////////////
 //OptConstraintsBlock
 ///////////////////////////////////////////////////////////////
+class OptConstraints;
 class OptConstraintsBlock {
 public:
-  OptConstraintsBlock(const std::string& id_, int num) 
-    : n(num), index(-1), id(id_), lb(NULL), ub(NULL)
+  OptConstraintsBlock(const std::string& id_, int num, OptConstraints* owner=NULL) 
+    : n(num), index(-1), id(id_), lb(NULL), ub(NULL),
+      owner_cons_(owner)
   {
     if(n>0) {
       lb = new double[n];
@@ -324,7 +339,11 @@ public:
   // Note 1: For MDS problems, these methods should contain only entries in the 
   // sparse part(s) of the of the derivatives
   virtual bool get_HessLagr_ij(std::vector<OptSparseEntry>& vij) { return true; }
-  virtual bool get_Jacob_ij(std::vector<OptSparseEntry>& vij) = 0; 
+  virtual bool get_Jacob_ij(std::vector<OptSparseEntry>& vij) = 0;
+
+  friend class OptConstraints;
+protected:
+  OptConstraints* owner_cons_;
 };
 
 //////////////////////////////////////////////////////
@@ -364,16 +383,17 @@ protected:
 /////////////////////////////////////////////////////////
 class OptConstraints 
 {
-  OptConstraints();
+  OptConstraints(OptProblem* prob=NULL);
   ~OptConstraints();
 
   OptConstraintsBlock* get_block(const std::string& id);
+
+  void delete_block(const std::string& id);
+
   inline int m() 
   {
     return  vblocks.size()>0 ? vblocks.back()->index + vblocks.back()->n : 0;
   }
-
-  void delete_block(const std::string& id);
 
   friend class OptProblem;
   friend class OptProblemMDS;
@@ -384,6 +404,11 @@ protected:
   std::vector<OptConstraintsBlock*> vblocks;
   // "dict" with the pointers for quick lookups by id
   std::map<std::string, OptConstraintsBlock*> mblocks;
+
+public:
+  OptProblem* opt_problem() { return owner_prob_; }
+protected:
+  OptProblem* owner_prob_;
 };
 
 
@@ -406,14 +431,15 @@ public:
   inline OptVariables* duals_bounds_upper() { return vars_duals_bounds_U; }
   inline OptVariables* duals_constraints() { return vars_duals_cons; }
 
-  inline void append_vars_to_varsblock(const std::string& id_varsblock,
-				       int num_vars_to_add,
-				       const double* lb,
-				       const double* ub,
-				       const double* start)
-  {
-    vars_primal->append_vars_to_varsblock(id_varsblock, num_vars_to_add, lb, ub, start);
-  }
+  //inline void append_vars_to_varsblock(const std::string& id_varsblock,
+  //				       int num_vars_to_add,
+  //				       const double* lb,
+  //				       const double* ub,
+  //				       const double* start)
+  //{
+  //  vars_primal->append_vars_to_varsblock(id_varsblock, num_vars_to_add, lb, ub, start);
+  //}
+  
   inline void append_varsblock(OptVariablesBlock* vars)
   {
     vars_primal->append_varsblock(vars);
