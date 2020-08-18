@@ -384,8 +384,9 @@ namespace gollnlp {
       //derivative_test first-order
       //derivative_test only-second-order
       //set_solver_option("derivative_test", "first-order");
-      //set_solver_option("derivative_test", "only-second-order");
-      //OptProblem::pass2 = true;
+      set_solver_option("derivative_test", "only-second-order");
+      set_solver_option("derivative_test_first_index", 538);
+
 
       //set_solver_option("start_with_resto", "yes");
       //set_solver_option("max_hessian_perturbation", 1e+30);
@@ -815,6 +816,11 @@ namespace gollnlp {
       }
     }
 
+    //!
+    Lidx_overload.push_back(0);
+    Lin_overload.push_back(0);
+
+    
     Tidx_overload.clear();
     Tin_overload.clear();
 

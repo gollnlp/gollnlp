@@ -250,7 +250,7 @@ namespace gollnlp {
    *
    *   ychiyij^2*vi^4 + yij^2*vi^2*vj^2
    *    - 2*ychiyij*yij*vi^3*vj*cos(thetai-thetaj-phi) 
-   *    - L[:RateBase][l]*vi^2 - slack_li <=0
+   *    - L[:RateBase][l]^2*vi^2 - slack_li <=0
    * ((the last line was originally:  - (L[:RateBase][l]*vi + slack_li)^2 <=0))
    *
    *********************************************************************************************/

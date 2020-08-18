@@ -1858,6 +1858,9 @@ namespace gollnlp {
    */
   bool LineThermalViolCons::eval_body (const OptVariables& vars_primal, bool new_x, double* body)
   {
+
+    printf("LineThermalViolCons: starts at %d   length %d\n", this->index, this->n);
+    
     double* rhs = body + this->index;
     
     assert(Lidx_overload_.size() == Lin_overload_.size());
@@ -2243,7 +2246,7 @@ namespace gollnlp {
       // d2c/d2vj = 2*yij^2*vi^2
       HDD[idx_col_of_vj][idx_col_of_vj] += 2*yij*yij*vi2;
 
-      const double tmp2 = 2*ychiyij*yij*vi2*vi*sinttp
+      const double tmp2 = 2*ychiyij*yij*vi2*vi*sinttp;
       // d2c/dvj dthetai = 2*ychiyij*yij*vi^3*sin(thetai-thetaj-phi)
       if(idx_col_of_vj<idx_col_of_thetai)
 	HDD[idx_col_of_vj][idx_col_of_thetai] += tmp2;
