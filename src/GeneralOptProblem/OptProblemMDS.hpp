@@ -120,6 +120,24 @@ namespace gollnlp {
     virtual ~OptProblemMDS()
     {
     }
+
+    virtual void primal_problem_changed()
+    {
+      nnz_Jac_eq = nnz_Jac_ineq = -1;
+      nnz_HessLagr_SSblock = -1;
+      ij_Jac_eq.clear();
+      ij_HessLagr_SSblock.clear();
+      
+      OptProblem::primal_problem_changed();
+    }
+    virtual void dual_problem_changed()
+    {
+      nnz_Jac_eq = nnz_Jac_ineq = -1;
+      nnz_HessLagr_SSblock = -1;
+      ij_Jac_eq.clear();
+      ij_HessLagr_SSblock.clear();
+      OptProblem::dual_problem_changed();
+    }
     
     bool eval_Jaccons_eq(const double* x, bool new_x, 
 			 const int& nxsparse, const int& nxdense,

@@ -76,6 +76,18 @@ namespace gollnlp {
     virtual int get_HessLagr_SSblock_nnz() { return 0; }
 
     virtual bool get_HessLagr_SSblock_ij(std::vector<OptSparseEntry>& vij) { return true; }
+
+    virtual void primal_problem_changed()
+    {
+      if(J_nz_idxs)
+	delete[] J_nz_idxs;
+      J_nz_idxs = NULL;
+      
+      if(H_nz_idxs)
+	delete[] H_nz_idxs;
+      H_nz_idxs = NULL;
+    }
+
   protected:
     OptVariablesBlock *p_g, *v_n, *theta_n;
     const std::vector<int> &bus_nonaux_idxs;
@@ -150,6 +162,17 @@ namespace gollnlp {
     virtual int get_HessLagr_SSblock_nnz() { return 0; }
 
     virtual bool get_HessLagr_SSblock_ij(std::vector<OptSparseEntry>& vij) { return true; }
+
+    virtual void primal_problem_changed()
+    {
+      if(J_nz_idxs)
+	delete[] J_nz_idxs;
+      J_nz_idxs = NULL;
+      
+      if(H_nz_idxs)
+	delete[] H_nz_idxs;
+      H_nz_idxs = NULL;
+    }
   protected:
     OptVariablesBlock *q_g, *v_n, *theta_n, *b_s;
     const std::vector<int> &bus_nonaux_idxs;
@@ -230,6 +253,8 @@ namespace gollnlp {
     virtual int get_HessLagr_SSblock_nnz() { return 0; }
 
     virtual bool get_HessLagr_SSblock_ij(std::vector<OptSparseEntry>& vij) { return true; }
+
+    virtual void primal_problem_changed() { }
   protected:
     OptVariablesBlock *v_n_, *theta_n_, *v_aux_n_, *theta_aux_n_;
     std::vector<int> idxs_busviol_in_aux_buses_;
@@ -313,10 +338,18 @@ namespace gollnlp {
     virtual bool get_HessLagr_SSblock_ij(std::vector<OptSparseEntry>& vij);
 
     virtual OptVariablesBlock* create_varsblock() 
-    { 
+    {
       assert(slacks_==NULL);
       slacks_ = new OptVariablesBlock(n, "slacks_"+id, 0, 1e+20);
+      slacks_->set_start_to(0.);
       return slacks_; 
+    }
+
+    virtual void primal_problem_changed()
+    {
+      if(J_nz_idxs_)
+	delete[] J_nz_idxs_;
+      J_nz_idxs_ = NULL;
     }
   protected:
     /* Get the values from v_n or v_aux_n and theta_n or theta_aux_n at bus 'idx_bus'. 

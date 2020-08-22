@@ -61,6 +61,17 @@ namespace gollnlp {
     // push_back in vij 
     virtual bool get_HessLagr_ij(std::vector<OptSparseEntry>& vij);
 
+    virtual void primal_problem_changed()
+    {
+      if(J_nz_idxs)
+	delete[] J_nz_idxs;
+      J_nz_idxs = NULL;
+      
+      if(H_nz_idxs)
+	delete[] H_nz_idxs;
+      H_nz_idxs = NULL;
+    }
+    
     // computes pq given vi,vj, thetai,thetaj
     // updates p_or_q->x  using v_n->x and theta_n->x
     // this is used in computing the starting points for example
@@ -138,6 +149,18 @@ namespace gollnlp {
       //this is done externally
       return NULL;//new DummySingleVarQuadrObjTerm("pen_pslack_n", pslack_n); 
     }
+
+    virtual void primal_problem_changed()
+    {
+      if(J_nz_idxs)
+	delete[] J_nz_idxs;
+      J_nz_idxs = NULL;
+      
+      if(H_nz_idxs)
+	delete[] H_nz_idxs;
+      H_nz_idxs = NULL;
+    }
+    
   protected:
     OptVariablesBlock *p_g, *v_n, *p_li1, *p_li2, *p_ti1, *p_ti2;
     double r;
@@ -218,6 +241,18 @@ namespace gollnlp {
       //this is done externally
       return NULL;//new DummySingleVarQuadrObjTerm("pen_qslack_n", qslack_n); 
     }
+
+    virtual void primal_problem_changed()
+    {
+      if(J_nz_idxs)
+	delete[] J_nz_idxs;
+      J_nz_idxs = NULL;
+      
+      if(H_nz_idxs)
+	delete[] H_nz_idxs;
+      H_nz_idxs = NULL;
+    }
+
   protected:
     OptVariablesBlock *q_g, *v_n, *q_li1, *q_li2, *q_ti1, *q_ti2, *b_s;
     double r;
@@ -271,6 +306,18 @@ namespace gollnlp {
 
     virtual OptVariablesBlock* create_varsblock();
     virtual OptObjectiveTerm* create_objterm();
+
+    virtual void primal_problem_changed()
+    {
+      if(J_nz_idxs)
+	delete[] J_nz_idxs;
+      J_nz_idxs = NULL;
+      
+      if(H_nz_idxs)
+	delete[] H_nz_idxs;
+      H_nz_idxs = NULL;
+    }
+
   protected:
     OptVariablesBlock *p_li, *q_li, *v_n;
     const std::vector<int> &Nidx;
@@ -315,6 +362,18 @@ namespace gollnlp {
 
     virtual OptVariablesBlock* create_varsblock();
     virtual OptObjectiveTerm* create_objterm();
+
+    virtual void primal_problem_changed()
+    {
+      if(J_nz_idxs)
+	delete[] J_nz_idxs;
+      J_nz_idxs = NULL;
+      
+      if(H_nz_idxs)
+	delete[] H_nz_idxs;
+      H_nz_idxs = NULL;
+    }
+
   protected:
     OptVariablesBlock *p_ti, *q_ti;
     std::vector<double> T_Rate;
@@ -355,6 +414,14 @@ namespace gollnlp {
 
     virtual OptVariablesBlock* create_varsblock() { return t_h; }
     virtual OptObjectiveTerm* create_objterm() { return obj_term; }
+
+        virtual void primal_problem_changed()
+    {
+      if(J_nz_idxs)
+	delete[] J_nz_idxs;
+      J_nz_idxs = NULL;
+    }
+
   protected:
     OptVariablesBlock *p_g, *t_h;
     PFProdCostPcLinObjTerm* obj_term;
@@ -391,6 +458,14 @@ namespace gollnlp {
     
     virtual OptObjectiveTerm* create_objterm() { return obj_term; }
     virtual OptVariablesBlock* create_varsblock() { return sigma; }
+
+    virtual void primal_problem_changed()
+    {
+      if(J_nz_idxs)
+	delete[] J_nz_idxs;
+      J_nz_idxs = NULL;
+    }
+
   protected:
     OptVariablesBlock *slack, *sigma;
     PFPenaltyPcLinObjTerm* obj_term;
@@ -479,6 +554,14 @@ namespace gollnlp {
 
     virtual OptVariablesBlock* create_varsblock() { return slacks; }
     virtual OptObjectiveTerm* create_objterm() { return obj_penalty; }
+
+    virtual void primal_problem_changed()
+    {
+      if(J_nz_idxs)
+	delete[] J_nz_idxs;
+      J_nz_idxs = NULL;
+    }
+
   protected:
     OptVariablesBlock *p_g;
     OptVariablesBlock *slacks; 

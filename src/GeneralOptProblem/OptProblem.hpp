@@ -143,9 +143,9 @@ public:
   }
 
   //total number of vars
-  inline int n()  const
+  inline int n() const
   {
-    return  vblocks.size()>0 ? vblocks.back()->index + vblocks.back()->n : 0;
+    return vblocks.size()>0 ? vblocks.back()->index + vblocks.back()->n : 0;
   }
 
   bool set_start_to(const OptVariables& src);
@@ -253,6 +253,23 @@ public:
   // (i,j) entries in the HessLagr to which the implementer's contributes to
   // this is only called once and is supposed to push_back in vij
   virtual bool get_HessLagr_ij(std::vector<OptSparseEntry>& vij) { return true; }
+
+  /*
+   * Objective terms keep various pointers and links to the primal problem. These may
+   * need to be invalidated (and later reconstructed) when the primal problem changes.
+   */
+  virtual void primal_problem_changed()
+  {
+  }
+
+  /*
+   * Objective terms keep various pointers and links to the dual problem. These may
+   * need to be invalidated (and later reconstructed) when the dual problem changes.
+   */
+  virtual void dual_problem_changed()
+  {
+  }
+
 };
 
 ///////////////////////////////////////////////////////////////
@@ -295,6 +312,23 @@ public:
   //term (e.g., penalization) that OptConstraintsBlock may need
   virtual OptObjectiveTerm* create_objterm() { return NULL; }
 
+  /*
+   * Constraint blocks keeps various pointers and links to the primal problem. These may
+   * need to be invalidated (and later reconstructed) when the primal problem changes.
+   */
+  virtual void primal_problem_changed()=0;
+  //{
+  //}
+
+  /*
+   * Constraint blocks keeps various pointers and links to the dual problem. These may
+   * need to be invalidated (and later reconstructed) when the dual problem changes.
+   */
+  virtual void dual_problem_changed()
+  {
+  }
+
+  
 public: 
   // number of constraints
   int n;
@@ -364,6 +398,7 @@ public:
       return it->second;
     return NULL;
   }
+
   friend class OptProblem;
   friend class OptProblemMDS;
 protected:
@@ -390,7 +425,7 @@ class OptConstraints
 
   void delete_block(const std::string& id);
 
-  inline int m() 
+    inline int m() 
   {
     return  vblocks.size()>0 ? vblocks.back()->index + vblocks.back()->n : 0;
   }

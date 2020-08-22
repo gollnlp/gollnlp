@@ -479,6 +479,13 @@ void OptProblem::primal_problem_changed()
   nnz_Jac = nnz_Hess = -1;
   ij_Jac.clear();
   ij_Hess.clear();
+
+  for(auto b : cons->vblocks) {
+    b->primal_problem_changed();
+  }
+  for(auto t : obj->vterms) {
+    t->primal_problem_changed();
+  }
 }
 
 void OptProblem::dual_problem_changed()
@@ -487,6 +494,13 @@ void OptProblem::dual_problem_changed()
   ij_Jac.clear();
   ij_Hess.clear();
 
+  for(auto b : cons->vblocks) {
+    b->dual_problem_changed();
+  }
+  for(auto t : obj->vterms) {
+    t->dual_problem_changed();
+  }
+  
   if(vars_duals_bounds_L) delete vars_duals_bounds_L;
   if(vars_duals_bounds_U) delete vars_duals_bounds_U;
   if(vars_duals_cons) delete vars_duals_cons;
@@ -626,40 +640,75 @@ bool OptVariables::append_varsblock(OptVariablesBlock* b)
       assert(false);
       return false;
     }
-    //print_summary();
 
     //set the owner of the block that is going to be added
     b->owner_vars_ = this;
     
-    b->index = this->n();
     if(b->sparseBlock) {
-      //update the index within sparse variables
 
-      //if not blocks were added, nothing to do -> indexSparse is 0 (and already set in the
-      // constructor of OptVariablesBlock)
-
-      //else
       if(!vblocks.empty()) {
+	
 	if(!vblocks.back()->sparseBlock) {
-	  // if the previous vars block is dense, it has the negative of the total size of all
-	  // previous sparse blocks
-	  // just flip the sign to get the 'indexSparse' of current vars block
+	  
+	  // the last vars block is dense
+	  // ths means it has the negative of the total size of all previous sparse blocks
 	  assert(vblocks.back()->indexSparse <= 0);
-	  b->indexSparse = -vblocks.back()->indexSparse;
-	} else {
-	  //if the previous vars block is sparse, just use its 'indexSparse' and add its length to
+
+	  //locate last sparse block and "insert" 'b' after it (meaning the dense blocks after
+	  //this newly inserted block are shifted to the right)
+
+	  size_t idx_of_first_dense=0;
+	  assert(idx_of_first_dense < vblocks.size());
+
+	  while(idx_of_first_dense < vblocks.size() &&
+		vblocks[idx_of_first_dense]->sparseBlock) {
+	    idx_of_first_dense++;
+	  }
+
+	  vblocks.push_back(NULL);
+
+	  for(int it=vblocks.size()-1; it>idx_of_first_dense; it--) {
+	    vblocks[it] = vblocks[it-1];
+	    vblocks[it]->index = vblocks[it-1]->index + b->n;
+	    assert(vblocks[it-1]->sparseBlock == false);
+	    assert(vblocks[it-1]->indexSparse < 0);
+	    vblocks[it]->indexSparse = vblocks[it-1]->indexSparse - b->n;
+	  }
+	  //this now becomes the last sparse block
+	  const size_t idx_of_last_sparse = idx_of_first_dense;
+	  vblocks[idx_of_last_sparse] = b;
+
+	  if(idx_of_last_sparse>0) {
+	    assert(vblocks[idx_of_last_sparse-1]->indexSparse>=0);
+	    b->indexSparse = vblocks[idx_of_last_sparse-1]->indexSparse + vblocks[idx_of_last_sparse-1]->n;
+	    b->index = vblocks[idx_of_last_sparse-1]->index + vblocks[idx_of_last_sparse-1]->n;
+	  } else {
+	    b->indexSparse = 0;
+	    b->index = b->n;
+	  }
+	} else { //vblocks.back()->sparseBlock == true
+	  
+	  //if the last vars block is sparse, just use its 'indexSparse' and add its length to
 	  //obtain the 'indexSparse' of current vars block
 	  assert(vblocks.back()->indexSparse >= 0); 
 	  b->indexSparse = vblocks.back()->indexSparse + vblocks.back()->n;
+	  b->index = vblocks.back()->index + vblocks.back()->n;
+	  
+	  vblocks.push_back(b);
 	}
+	
+      } else { //'vblocks' is empty
+
+	b->index = 0;
+	vblocks.push_back(b);
       }
     } else {
       //b is a dense block!
-      
-      //if no blocks were added, sparseIndex is 0 (already set in the constructor of OptVariablesBlock)
 
-      //if blocks are present:
       if(!vblocks.empty()) {
+
+	//blocks are present in the variables
+	
 	if(vblocks.back()->sparseBlock) {
 	  //  - if the previous is sparse, increase its 'indexSparse' by its length and flip the sign
 	  assert(vblocks.back()->indexSparse>=0);
@@ -668,13 +717,18 @@ bool OptVariables::append_varsblock(OptVariablesBlock* b)
 	  //  - if the previous is dense, 'indexSparse' does not change (and remains negative)
 	  b->indexSparse = vblocks.back()->indexSparse;
 	}
-	  
+
+	b->index = vblocks.back()->index + vblocks.back()->n;
+      } else {
+	b->index = 0;
+	//if no blocks were added, sparseIndex is 0 (already set in the constructor of OptVariablesBlock)
       }
+      vblocks.push_back(b);
     }
     
-    vblocks.push_back(b);
     mblocks[b->id] = b;
   }
+
   return true;
 }
 

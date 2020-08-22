@@ -7,6 +7,8 @@
 #include "SCACOPFUtils.hpp"
 #include "goUtils.hpp"
 
+#include "OptObjTerms.hpp"
+
 using namespace hiop;
 using namespace std;
 
@@ -62,10 +64,8 @@ namespace gollnlp {
   
   bool ACOPFKronRedProblem::optimize(const std::string& nlpsolver)
   {
-    //set_solver_option("tol", 1e-2);
-    //set_solver_option("mu_target", 1e-4);
     bool bret = OptProblemMDS::optimize(nlpsolver);
-
+    
     int n_iter = 1;
     do {
       if(!bret) return false;
@@ -100,6 +100,17 @@ namespace gollnlp {
       find_power_viol_LTidxs(v_n_all_complex, s_li, s_ti,
 			     Lidx_overload_pass, Lin_overload_pass,
 			     Tidx_overload_pass, Tin_overload_pass);
+
+      if(Lidx_overload_pass.size()>0) {
+	printf("Lines overloaded:\n");
+	printvec(Lidx_overload_pass, "Lidx:");
+	printvec(Lin_overload_pass, "Lin:");
+      }
+      if(Tidx_overload_pass.size()>0) {
+	printf("Transformers overloaded:\n");
+	printvec(Tidx_overload_pass, "Tidx:");
+	printvec(Tin_overload_pass, "Tin:");
+      }
       
       // verify that all included constraints are respected
       auto Lfails = Lidx_overload_pass;
@@ -169,13 +180,33 @@ namespace gollnlp {
 
       //add necessary auxiliary bus voltages (if any)
       auto reqbuses = Nidx_voutofobounds_pass;
+
+      assert(Lin_overload_pass.size() == Lidx_overload_pass.size());
       
       //buses part of lines/transformers that are violated
-      for(auto idx : Lidx_overload_pass) {
-	reqbuses.push_back(data_sc.L_Nidx[Lin_overload_pass[idx]][Lidx_overload_pass[idx]]);
+      for(int it=0; it<Lin_overload_pass.size(); it++) {
+	
+	assert(Lin_overload_pass[it]==0 || Lin_overload_pass[it]==1);
+	
+	//!
+	printf("for line [%d][%d] adding i bus %d\n",
+	       Lin_overload_pass[it], Lidx_overload_pass[it],
+	       data_sc.L_Nidx[Lin_overload_pass[it]][Lidx_overload_pass[it]]);
+	
+	reqbuses.push_back(data_sc.L_Nidx[Lin_overload_pass[it]][Lidx_overload_pass[it]]);
+
+	//!
+	printf("for line [%d][%d] adding i bus %d\n",
+	       1-Lin_overload_pass[it], Lidx_overload_pass[it],
+	       data_sc.L_Nidx[1-Lin_overload_pass[it]][Lidx_overload_pass[it]]);
+	
+	reqbuses.push_back(data_sc.L_Nidx[1-Lin_overload_pass[it]][Lidx_overload_pass[it]]);
       }
-      for(auto idx : Tidx_overload_pass) {
-	reqbuses.push_back(data_sc.T_Nidx[Tin_overload_pass[idx]][Tidx_overload_pass[idx]]);
+
+      assert(Tidx_overload_pass.size() == Tin_overload_pass.size());
+      for(size_t it=0; it<Tin_overload_pass.size(); it++) {
+	assert( Tin_overload_pass[it]==0 || Tin_overload_pass[it]==1 );
+	reqbuses.push_back(data_sc.T_Nidx[Tin_overload_pass[it]  ][Tidx_overload_pass[it]]);
       }
 
       // sort and remove duplicates
@@ -224,22 +255,6 @@ namespace gollnlp {
 	    v_start.push_back(std::abs(v_n_all_complex[bus_idx]));
 	    
 	    theta_start.push_back(std::arg(v_n_all_complex[bus_idx]));
-
-	    //printf("add bus %d  low/upp %g,%g start=%g   theta start=%g\n",
-	    //	   bus_idx, v_lb.back(), v_ub.back(), v_start.back(), theta_start.back());
-
-	    //const hiop::hiopMatrixComplexDense& vmap = reduction_.map_nonaux_to_aux();
-	    //auto vmapd = vmap.local_data();
-
-	    // printf("re :");
-	    // for(int i=0; i<vmap.n(); ++i) {
-	    //   printf("%g ", vmapd[nix][i].real());
-	    // }
-	    // printf("im :");
-	    // for(int i=0; i<vmap.n(); ++i) {
-	    //   printf("%g ", vmapd[nix][i].imag());
-	    // }
-	    // printf("\n");
 
 	  }
 	} // end of for loop over reqauxidxs
@@ -335,12 +350,13 @@ namespace gollnlp {
 	  append_constraints(cons_block);
 	}	
       } // end of voltage violations block
-
+      this->dual_problem_changed();
       
       //
       // append constraints for line thermal violations
       //
       assert(Lidx_overload_pass.size() == Lin_overload_pass.size());
+      
       if(Lidx_overload_pass.size()>0) {
 
 	auto cons_block = this->constraints_block(con_name("line_thermal_viol", data_sc));
@@ -352,7 +368,8 @@ namespace gollnlp {
 	} else {
 	  //idxs_buses_nonaux
 	  //idxs_buses_aux
-	  //map_idxbuses_idxsoptimiz_
+	  printvec(map_idxbuses_idxsoptimiz_, "map_idxbuses_idxsoptimiz:");
+
 	  LineThermalViolCons* cons_block =
 	    new LineThermalViolCons(con_name("line_thermal_viol", data_sc),				   
 				    Lidx_overload_pass.size(),
@@ -369,9 +386,13 @@ namespace gollnlp {
 				    v_aux_n,
 				    theta_aux_n);
 	  append_constraints(cons_block);
+
 	}
       } // end of cons block for line thermal violations
+
+      print_summary();
       
+      this->primal_problem_changed();
       this->dual_problem_changed();
 
 
@@ -379,13 +400,13 @@ namespace gollnlp {
       // resolve
       //
  
-      print_summary();
+      //print_summary();
 
       //derivative_test first-order
       //derivative_test only-second-order
       //set_solver_option("derivative_test", "first-order");
       set_solver_option("derivative_test", "only-second-order");
-      set_solver_option("derivative_test_first_index", 538);
+      set_solver_option("derivative_test_first_index", 590);
 
 
       //set_solver_option("start_with_resto", "yes");
@@ -414,6 +435,9 @@ namespace gollnlp {
     
     /******************************************************************************
      * WARNING: "sparse" variables need to be added first, before "dense" variables
+     *
+     * Update: 'append_varsblock' is now inserting sparse vars blocks before the
+     * dense blocks
      ******************************************************************************
      */
     { // generation p_g and q_g
@@ -493,7 +517,7 @@ namespace gollnlp {
       assert(theta_n->x[RefBusIdx_nonaux]==0.);
     }
 
-    { //b_s
+    if(true){ //b_s
 
       // vector<int> count_SSh_at_nonaux_buses(data_sc.SSh_SShunt.size(), 0);
       // for(int bus_nonaux : idxs_buses_nonaux) {
@@ -531,7 +555,7 @@ namespace gollnlp {
     
     auto b_s = vars_block(var_name("b_s", d));
     auto q_g = vars_block(var_name("q_g",d));
-    if(true) {
+    if(true) { 
       auto pf_q_bal = new PFReactiveBalanceKron(con_name("q_balance_kron", d), 
 						idxs_buses_nonaux.size(),
 						q_g, v_n, theta_n, b_s,
@@ -794,13 +818,14 @@ namespace gollnlp {
   /** Finds indexes in lines/transformers and in to/from arrays corresponding to lines/transformers
    * that are overloaded
    */
-  void ACOPFKronRedProblem::find_power_viol_LTidxs(const std::vector<std::complex<double> >& v_complex_all,
-						   const std::vector<std::vector<std::complex<double> > >& pli,
-						   const std::vector<std::vector<std::complex<double> > >& pti,
-						   std::vector<int>& Lidx_overload,
-						   std::vector<int>& Lin_overload,
-						   std::vector<int>& Tidx_overload,
-						   std::vector<int>& Tin_overload)
+  void ACOPFKronRedProblem::
+  find_power_viol_LTidxs(const std::vector<std::complex<double> >& v_complex_all,
+			 const std::vector<std::vector<std::complex<double> > >& pli,
+			 const std::vector<std::vector<std::complex<double> > >& pti,
+			 std::vector<int>& Lidx_overload,
+			 std::vector<int>& Lin_overload,
+			 std::vector<int>& Tidx_overload,
+			 std::vector<int>& Tin_overload)
   {
     Lidx_overload.clear();
     Lin_overload.clear();
@@ -819,7 +844,9 @@ namespace gollnlp {
     //!
     Lidx_overload.push_back(0);
     Lin_overload.push_back(0);
-
+    
+    //Lidx_overload.push_back(0);
+    //Lin_overload.push_back(1);
     
     Tidx_overload.clear();
     Tin_overload.clear();

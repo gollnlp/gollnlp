@@ -310,6 +310,10 @@ public:
     return true;
   } 
 
+  virtual void primal_problem_changed()
+  {
+    J_nz_start = -1;
+  }
 private:
   OptVariablesBlock* x; 
   int *H_nz_idxs;
@@ -533,6 +537,16 @@ public:
     return true;
   }
 
+  virtual void primal_problem_changed()
+  {
+    if(J_nz_idxs)
+      delete[] J_nz_idxs;
+    J_nz_idxs = NULL;
+    
+    if(H_nz_idxs)
+      delete[] H_nz_idxs;
+    H_nz_idxs = NULL;
+  }
 private:
   //s is null when use_slacks==false
   const OptVariablesBlock *x, *y, *z;

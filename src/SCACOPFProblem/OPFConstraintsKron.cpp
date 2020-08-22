@@ -21,7 +21,6 @@ namespace gollnlp {
     selectfrom(N_Pd_full_space_, bus_nonaux_idxs, N_Pd);
 
     //rhs
-    //!memcpy(lb, d.N_Pd.data(), n*sizeof(double));
     for(int i=0; i<n; i++) lb[i]=0.;
     DCOPY(&n, lb, &ione, ub, &ione);
 
@@ -613,7 +612,6 @@ namespace gollnlp {
     selectfrom(N_Qd_full_space_, bus_nonaux_idxs, N_Qd);
 
     //rhs
-    //!memcpy(lb, d.N_Pd.data(), n*sizeof(double));
     for(int i=0; i<n; i++) lb[i]=0.;
     DCOPY(&n, lb, &ione, ub, &ione);
 
@@ -1134,14 +1132,14 @@ namespace gollnlp {
 
 	  assert(idx_col_of_v_n_elemi <= idx_col_of_theta_n+j);
 	  HDD[idx_col_of_v_n_elemi][idx_col_of_theta_n+j] += lambda_i*v_n->xref[j]*
-	    (YredM[i][j].real()*cos(theta_diff) + YredM[i][j].imag()*sin(theta_diff)); //!
+	    (YredM[i][j].real()*cos(theta_diff) + YredM[i][j].imag()*sin(theta_diff));
 	}
 	for(j=i+1; j<n; j++) {
 	  theta_diff = theta_n->xref[i]-theta_n->xref[j];
 	  
 	  assert(idx_col_of_v_n_elemi <= idx_col_of_theta_n+j);
 	  HDD[idx_col_of_v_n_elemi][idx_col_of_theta_n+j] += lambda_i*v_n->xref[j]*
-	    (YredM[i][j].real()*cos(theta_diff) + YredM[i][j].imag()*sin(theta_diff)); //!
+	    (YredM[i][j].real()*cos(theta_diff) + YredM[i][j].imag()*sin(theta_diff));
 	}
 
 	// ---> k=i+1, ..., n  <---
@@ -1764,39 +1762,6 @@ namespace gollnlp {
 
   }
 
-  // void LineThermalViolCons::get_v_theta_vals(const int& idx_bus, double& vval, double& thetaval)
-  // {
-  //   const int idx_aux_or_nonaux = map_idxbuses_idxsoptimiz_[idx_bus];
-  //   //-1 are aux buses not included in optimization (no voltage and transmission violations at these)
-  //   //thermal violation constraints should not appear at these "-1" buses
-  //   assert(idx_aux_or_nonaux != -1);
-  //   int idx_aux=-1, idx_nonaux=-1;
-  //   if(idx_aux_or_nonaux<=-2) {
-  //     idx_aux = -idx_aux_or_nonaux - 2;
-  //     assert(idx_aux>=0);
-  //     assert(idx_aux < v_aux_n_->n);
-  //   } else {
-  //     if(idx_aux_or_nonaux >= 0)
-  // 	idx_nonaux = idx_aux_or_nonaux;
-  //     else
-  // 	assert(false);
-  //   }
-    
-  //   if(idx_nonaux>=0) {
-  //     assert(idx_aux == -1);
-      
-  //     vval = v_n_->xref[idx_nonaux];
-  //     thetaval = theta_n_->xref[idx_nonaux];
-  //   } else {
-  //     assert(idx_aux>=0);
-  //     assert(idx_aux < v_n_->n);
-  //     assert(idx_nonaux == -1);
-      
-  //     vval = v_aux_n_->xref[idx_aux];
-  //     thetaval = theta_aux_n_->xref[idx_aux];
-  //   }
-  // }
-
   void LineThermalViolCons::get_v_theta_vals_and_idxs(const int& idx_bus,
 						      double& vval, double& thetaval,
 						      int& v_idx_out, int& theta_idx_out)
@@ -1825,8 +1790,8 @@ namespace gollnlp {
       vval     = v_n_    ->xref[idx_nonaux];
       thetaval = theta_n_->xref[idx_nonaux];
 
-      v_idx_out     = v_aux_n_    ->compute_indexDense();
-      theta_idx_out = theta_aux_n_->compute_indexDense();
+      v_idx_out     = v_n_    ->compute_indexDense() + idx_nonaux;
+      theta_idx_out = theta_n_->compute_indexDense() + idx_nonaux;
 
     } else {
       assert(idx_aux>=0);
@@ -1836,8 +1801,8 @@ namespace gollnlp {
       vval     = v_aux_n_->xref[idx_aux];
       thetaval = theta_aux_n_->xref[idx_aux];
 
-      v_idx_out     = v_n_    ->compute_indexDense();
-      theta_idx_out = theta_n_->compute_indexDense();
+      v_idx_out     = v_aux_n_    ->compute_indexDense() + idx_aux;
+      theta_idx_out = theta_aux_n_->compute_indexDense() + idx_aux;
     }
   }
 
@@ -1858,11 +1823,8 @@ namespace gollnlp {
    */
   bool LineThermalViolCons::eval_body (const OptVariables& vars_primal, bool new_x, double* body)
   {
-
-    printf("LineThermalViolCons: starts at %d   length %d\n", this->index, this->n);
-    
     double* rhs = body + this->index;
-    
+        
     assert(Lidx_overload_.size() == Lin_overload_.size());
     assert(Lidx_overload_.size() == this->n);
     assert(slacks_->n == this->n);
@@ -1883,9 +1845,10 @@ namespace gollnlp {
       get_v_theta_vals_and_idxs(i_idx_bus, vi, thetai, idx_dummy1, idx_dummy2);
       
       //compute vj and thetaj
-      const int j_idx_bus = L_Nidx_[2-i][i];
+      const int j_idx_bus = L_Nidx_[1-i][l];
       get_v_theta_vals_and_idxs(j_idx_bus, vj, thetaj, idx_dummy1, idx_dummy2);
 
+      
       //Ychi = im*L[:Bch][l]/2
       const auto Ychi = std::complex<double>(0., L_Bch_[l]/2);
       
@@ -1899,10 +1862,15 @@ namespace gollnlp {
       //phi = angle(Yij) - angle(Ychi+Yij)
       const double phi = std::arg(Yij)-std::arg(Ychi+Yij);
 
-      rhs[con] = ychiyij*ychiyij*std::pow(vi,4) + yij*yij*vi*vi*vj*vj
+      //rhs[con] += 0.;//!
+      assert(rhs[con]==0.);
+      rhs[con] += ychiyij*ychiyij*std::pow(vi,4) + yij*yij*vi*vi*vj*vj
 	- 2*ychiyij*yij*pow(vi,3)*vj*cos(thetai-thetaj-phi)
 	- std::pow(L_Rate_[l]*vi, 2) - slacks_->xref[con];
-      
+
+      //printf(" ychiyij %g   vi %g    yij %g   L_Rate_[l] %g   \n", ychiyij, vi, yij, L_Rate_[l]);
+      //printf("rhs i_idx_bus=%d  j_idx_bus=%d   rhs=%12.5e\n", i_idx_bus, j_idx_bus, rhs[con]);
+      //printf(" ---- %d    %d \n", idx_dummy1, idx_dummy2);
     }
     return true;
   }
@@ -1938,10 +1906,13 @@ namespace gollnlp {
     assert(nxsparse+nxdense == x.n());
 
     if(iJacS && jJacS) {
+      assert(NULL != J_nz_idxs_);
       int *itnz = J_nz_idxs_;
       for(int row=this->index; row<this->index+this->n; ++row) {
 	iJacS[*itnz] = row;
-	jJacS[*itnz++] = slacks_->indexSparse - this->index + row;
+	jJacS[*itnz] = slacks_->indexSparse - this->index + row;
+	assert(jJacS[*itnz]>=0);
+	itnz++;
       }
     }
 
@@ -1965,7 +1936,7 @@ namespace gollnlp {
 	get_v_theta_vals_and_idxs(i_idx_bus, vi, thetai, idx_dummy1, idx_dummy2);
 	
 	//MJacS[*itnz++] -= 2*(L_Rate_[l] * vi + slacks_->xref[con]);
-	MJacS[*itnz++] -= slacks_->xref[con];
+	MJacS[*itnz++] -= 1.;//
       }
     }
 
@@ -1974,6 +1945,8 @@ namespace gollnlp {
     //
     if(NULL == JacD) return true;
 
+    assert(Lidx_overload_.size() == this->n);
+    
     int idx_col_of_vi, idx_col_of_thetai;
     double vi, thetai;
     int idx_col_of_vj, idx_col_of_thetaj;
@@ -2006,9 +1979,15 @@ namespace gollnlp {
       const int i_idx_bus = L_Nidx_[i][l];
       get_v_theta_vals_and_idxs(i_idx_bus, vi, thetai, idx_col_of_vi, idx_col_of_thetai);
 
-      const int j_idx_bus = L_Nidx_[2-i][i];
+      const int j_idx_bus = L_Nidx_[1-i][l];
       get_v_theta_vals_and_idxs(j_idx_bus, vj, thetaj, idx_col_of_vj, idx_col_of_thetaj);
 
+
+      //printf("jac i_idx_bus=%d  j_idx_bus=%d\n", i_idx_bus, j_idx_bus);
+      //printf("---- %d  %d         %d   %d\n",
+      //     idx_col_of_vi, idx_col_of_thetai,
+      //     idx_col_of_vj, idx_col_of_thetaj);
+      
       const double vi2 = vi*vi;
       const double vi3 = vi2*vi;
       const double ttp = thetai-thetaj-phi;
@@ -2016,23 +1995,23 @@ namespace gollnlp {
       const double sinttp = sin(ttp);
 
       // dc/dvi
-      assert(JacD[con][idx_col_of_vi]==0.);
-      JacD[con][idx_col_of_vi] =
+      assert(JacD[row][idx_col_of_vi]==0.);
+      JacD[row][idx_col_of_vi] =
 	+ 4 * ychiyij * ychiyij * vi3 + 2 * yij*yij *vi * vj*vj
 	- 6 * ychiyij * yij * vi*vi * vj * costtp
-        - 2 * L_Rate_[l] * L_Rate_[l] * vi
-	- slacks_->xref[con];
+        - 2 * L_Rate_[l] * L_Rate_[l] * vi;
+      //- slacks_->xref[con];
 
       // dc/dvj
-      assert(0. == JacD[con][idx_col_of_vj]);
-      JacD[con][idx_col_of_vj] = + 2 * yij*yij * vi2 * vj - 2 * ychiyij * yij * vi3 * costtp;
+      assert(0. == JacD[row][idx_col_of_vj]);
+      JacD[row][idx_col_of_vj] = + 2 * yij*yij * vi2 * vj - 2 * ychiyij * yij * vi3 * costtp;
 
       const double tmp = 2 * ychiyij * yij * vi3 * vj * sinttp;
-      assert(0. == JacD[con][idx_col_of_thetai]);
-      JacD[con][idx_col_of_thetai] = + tmp;
+      assert(0. == JacD[row][idx_col_of_thetai]);
+      JacD[row][idx_col_of_thetai] = + tmp;
 
-      assert(0. == JacD[con][idx_col_of_thetaj]);
-      JacD[con][idx_col_of_thetaj] = - tmp;
+      assert(0. == JacD[row][idx_col_of_thetaj]);
+      JacD[row][idx_col_of_thetaj] = - tmp;
     }
     
     
@@ -2058,10 +2037,11 @@ namespace gollnlp {
   bool LineThermalViolCons::get_spJacob_eq_ij(std::vector<OptSparseEntry>& vij)
   {
     if(n<=0) return true;
-    
+
     int nnz = get_spJacob_eq_nnz();
     if(NULL == J_nz_idxs_) 
       J_nz_idxs_ = new int[nnz];
+    
 #ifdef DEBUG
     int n_vij_in = vij.size();
 #endif
@@ -2149,6 +2129,7 @@ namespace gollnlp {
 					  double** HDD,
 					  const int& nnzHSD, int* iHSD, int* jHSD, double* MHSD)
   {
+
     //
     // sparse part is empty -> do nothing
     //
@@ -2174,7 +2155,9 @@ namespace gollnlp {
     
     for(int con=0; con<this->n; con++) {
 
-      if(lambda->xref[con]==0.) continue;
+      const double lambda_val = lambda->xref[con];
+      
+      if(lambda_val==0.) continue;
       
       //const int row = con+this->index;
       const int l   = Lidx_overload_[con];
@@ -2184,6 +2167,12 @@ namespace gollnlp {
       assert(L_Nidx_[i].size() > l);
       assert(L_Nidx_[0].size() == L_Nidx_[1].size());
       assert(con < slacks_->n);
+
+      const int i_idx_bus = L_Nidx_[i][l];
+      get_v_theta_vals_and_idxs(i_idx_bus, vi, thetai, idx_col_of_vi, idx_col_of_thetai);
+      
+      const int j_idx_bus = L_Nidx_[1-i][i];
+      get_v_theta_vals_and_idxs(j_idx_bus, vj, thetaj, idx_col_of_vj, idx_col_of_thetaj);
       
       //Ychi = im*L[:Bch][l]/2
       const auto Ychi = std::complex<double>(0., L_Bch_[l]/2);
@@ -2203,32 +2192,28 @@ namespace gollnlp {
       const double ttp = thetai-thetaj-phi;
       const double costtp = cos(ttp);
       const double sinttp = sin(ttp);
-      
-      
-      const int i_idx_bus = L_Nidx_[i][l];
-      get_v_theta_vals_and_idxs(i_idx_bus, vi, thetai, idx_col_of_vi, idx_col_of_thetai);
 
-      const int j_idx_bus = L_Nidx_[2-i][i];
-      get_v_theta_vals_and_idxs(j_idx_bus, vj, thetaj, idx_col_of_vj, idx_col_of_thetaj);
 
       // dc^2/dvi^2 = + 12*ychiyij^2*vi^2 + 2*yij^2*vj^2
       //              - 12*ychiyij*yij*vi*vj*cos(thetai-thetaj-phi)
       //              - 2*L[:RateBase][l]*L[:RateBase][l]
       
-      HDD[idx_col_of_vi][idx_col_of_vi] +=
+      HDD[idx_col_of_vi][idx_col_of_vi] += lambda_val*(
 	+ 12*ychiyij*ychiyij*vi2 + 2*yij*yij*vj*vj
-	- 12*ychiyij*yij*vi*vj*costtp - 2*L_Rate_[l]*L_Rate_[l];
+	- 12*ychiyij*yij*vi*vj*costtp - 2*L_Rate_[l]*L_Rate_[l]);
 
       if(idx_col_of_vi < idx_col_of_vj) {
 	// dc^2/dvi dvj = + 4*yij^2*vi*vj
 	//                - 6*ychiyij*yij*vi^2*cos(thetai-thetaj-phi)
-	HDD[idx_col_of_vi][idx_col_of_vj] += 4*yij*yij*vi*vj - 6*ychiyij*yij*vi2*costtp;
+	HDD[idx_col_of_vi][idx_col_of_vj] += lambda_val*(4*yij*yij*vi*vj - 6*ychiyij*yij*vi2*costtp);
       } else {
-	HDD[idx_col_of_vj][idx_col_of_vi] += 4*yij*yij*vi*vj - 6*ychiyij*yij*vi2*costtp;
+	HDD[idx_col_of_vj][idx_col_of_vi] += lambda_val*(4*yij*yij*vi*vj - 6*ychiyij*yij*vi2*costtp);
       }
       
+      //printf(" %g %g %g %g %g\n", ychiyij, yij, vi, vj, sinttp);
+      
       // dc^2/dvi dthetai = + 6*ychiyij*yij*vi^2*vj*sin(thetai-thetaj-phi)
-      const double tmp = 6*ychiyij*yij*vi2*vj*sinttp;
+      const double tmp = 6*ychiyij*yij*vi2*vj*sinttp * lambda_val;
       if(idx_col_of_vi<idx_col_of_thetai)
 	HDD[idx_col_of_vi][idx_col_of_thetai] += tmp;
       else
@@ -2244,9 +2229,9 @@ namespace gollnlp {
       //done above
    
       // d2c/d2vj = 2*yij^2*vi^2
-      HDD[idx_col_of_vj][idx_col_of_vj] += 2*yij*yij*vi2;
+      HDD[idx_col_of_vj][idx_col_of_vj] += 2*yij*yij*vi2 * lambda_val;
 
-      const double tmp2 = 2*ychiyij*yij*vi2*vi*sinttp;
+      const double tmp2 = 2*ychiyij*yij*vi2*vi*sinttp * lambda_val;
       // d2c/dvj dthetai = 2*ychiyij*yij*vi^3*sin(thetai-thetaj-phi)
       if(idx_col_of_vj<idx_col_of_thetai)
 	HDD[idx_col_of_vj][idx_col_of_thetai] += tmp2;
@@ -2265,7 +2250,7 @@ namespace gollnlp {
       // d^2c/dthetai dvj = 2*ychiyij*yij*vi^3*sin(thetai-thetaj-phi)
       //done above
 
-      const double tmp3 = 2*ychiyij*yij*vi2*vi*vj*costtp;
+      const double tmp3 = 2*ychiyij*yij*vi2*vi*vj*costtp * lambda_val;
       // d^2c/dthetai dthetai = 2*ychiyij*yij*vi^3*vj*cos(thetai-thetaj-phi)
       HDD[idx_col_of_thetai][idx_col_of_thetai] += tmp3;
 
@@ -2285,7 +2270,7 @@ namespace gollnlp {
       //done above
       
       // d^2c/dthetaj dthetaj = - d^2c/dthetaj dthetai
-      HDD[idx_col_of_thetaj][idx_col_of_thetaj] -= tmp3;
+      HDD[idx_col_of_thetaj][idx_col_of_thetaj] += tmp3;
       
     } //end of for over constraints
     

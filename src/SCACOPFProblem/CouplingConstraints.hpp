@@ -29,6 +29,13 @@ namespace gollnlp {
 			  const int& nnz, int* i, int* j, double* M);
     int get_Jacob_nnz();
     virtual bool get_Jacob_ij(std::vector<OptSparseEntry>& vij);
+
+    virtual void primal_problem_changed()
+    {
+      if(J_nz_idxs)
+	delete[] J_nz_idxs;
+      J_nz_idxs = NULL;
+    }
     
   protected:
     OptVariablesBlock *pg0, *pgK;
@@ -58,7 +65,13 @@ namespace gollnlp {
 			  const int& nnz, int* i, int* j, double* M);
     virtual int get_Jacob_nnz();
     virtual bool get_Jacob_ij(std::vector<OptSparseEntry>& vij);
-    
+
+    virtual void primal_problem_changed()
+    {
+      if(J_nz_idxs)
+	delete[] J_nz_idxs;
+      J_nz_idxs = NULL;
+    }
   protected:
     OptVariablesBlock *pg0, *pgK, *deltaK;
     int *idx0, *idxK;
@@ -135,6 +148,17 @@ namespace gollnlp {
     virtual std::vector<OptVariablesBlock*> create_multiple_varsblocks();
     virtual OptObjectiveTerm* create_objterm();
     double *gb; //size n/3 = nGenAGC
+
+    virtual void primal_problem_changed()
+    {
+      if(J_nz_idxs)
+	delete[] J_nz_idxs;
+      J_nz_idxs = NULL;
+
+      if(H_nz_idxs)
+	delete[] H_nz_idxs;
+      H_nz_idxs = NULL;
+    }
   protected:
     OptVariablesBlock *p0, *pk, *deltak, *rhop, *rhom;
     int *idx0, *idxk; //size n/3 = nGenAGC
@@ -197,6 +221,17 @@ namespace gollnlp {
     virtual std::vector<OptVariablesBlock*> create_multiple_varsblocks();
     virtual OptObjectiveTerm* create_objterm();
     double *gb; //size n/3 = nGenAGC
+
+    virtual void primal_problem_changed()
+    {
+      if(J_nz_idxs)
+	delete[] J_nz_idxs;
+      J_nz_idxs = NULL;
+
+      if(H_nz_idxs)
+	delete[] H_nz_idxs;
+      H_nz_idxs = NULL;
+    }
   protected:
     OptVariablesBlock *v0, *vk, *qk, *nup, *num;
     int *idxs_bus; // size n/3 = nPVPQBuses

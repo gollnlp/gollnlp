@@ -69,7 +69,7 @@ namespace gollnlp {
       assert(n == nx_dense+nx_sparse);
     
       nnz_sparse_Jace = prob->compute_nnzJac_eq();
-      printf("nx_sparse=%d  nx_dense=%d\n", nx_sparse, nx_dense);
+      //printf("nx_sparse=%d  nx_dense=%d\n", nx_sparse, nx_dense);
       fflush(stdout);
 
       nnz_sparse_Jaci = prob->compute_nnzJac_ineq();
