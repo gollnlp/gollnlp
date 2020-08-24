@@ -55,6 +55,7 @@ namespace gollnlp {
     virtual bool eval_Jac(const OptVariables& x, bool new_x, 
 			  const int& nnz, int* i, int* j, double* M)
     {
+      assert(false && "this method is supposed to be disabled");
       return false;
     }
 
@@ -66,23 +67,23 @@ namespace gollnlp {
 			       const int& nxsparse, const int& nxdense,
 			       const int& nnzJacS, int* iJacS, int* jJacS, double* MJacS, 
 			       double** JacD) = 0;
+    //
+    // Jacobian
+    //
+    
     //only of the sparse part
-    virtual int get_spJacob_eq_nnz() = 0;
-    virtual int get_spJacob_ineq_nnz() = 0;
     virtual int get_Jacob_nnz()
     {
-      assert(false && "should not be used, use _eq and _ineq methods instead");
-      return -1;
+      assert(false);
+      return 0;
     }
-    
     virtual bool get_spJacob_eq_ij(std::vector<OptSparseEntry>& vij) = 0;
     virtual bool get_spJacob_ineq_ij(std::vector<OptSparseEntry>& vij) = 0;
     virtual bool get_Jacob_ij(std::vector<OptSparseEntry>& vij)
     {
-      assert(false && "should not be used, use _eq and _ineq methods instead");
-      return false;
+      assert(false);
+      return true;
     }
-    
     //
     // Hessian
     //
@@ -114,7 +115,6 @@ namespace gollnlp {
     OptProblemMDS()
       : OptProblem()
     {
-      nnz_Jac_eq = nnz_Jac_ineq = -1;
       nnz_HessLagr_SSblock = -1;
     }
     virtual ~OptProblemMDS()
@@ -125,7 +125,6 @@ namespace gollnlp {
     {
       nnz_Jac_eq = nnz_Jac_ineq = -1;
       nnz_HessLagr_SSblock = -1;
-      ij_Jac_eq.clear();
       ij_HessLagr_SSblock.clear();
       
       OptProblem::primal_problem_changed();
@@ -134,11 +133,11 @@ namespace gollnlp {
     {
       nnz_Jac_eq = nnz_Jac_ineq = -1;
       nnz_HessLagr_SSblock = -1;
-      ij_Jac_eq.clear();
       ij_HessLagr_SSblock.clear();
       OptProblem::dual_problem_changed();
     }
-    
+
+    /*
     bool eval_Jaccons_eq(const double* x, bool new_x, 
 			 const int& nxsparse, const int& nxdense,
 			 const int& nnzJacS, int* iJacS, int* jJacS, double* MJacS, 
@@ -146,12 +145,13 @@ namespace gollnlp {
     bool eval_Jaccons_ineq(const double* x, bool new_x, 
 			   const int& nxsparse, const int& nxdense,
 			   const int& nnzJacS, int* iJacS, int* jJacS, double* MJacS, 
-			   double** JacD)
-    {
-      assert(false && "not yet supported");
-      return false;
-    }
-
+			   double** JacD);
+    */
+    bool eval_Jac_cons(const double* x, bool new_x, 
+		       const int& nxsparse, const int& nxdense,
+		       const int& nnzJacS, int* iJacS, int* jJacS, double* MJacS, 
+		       double** JacD);
+    
     bool eval_HessLagr(const double* x, bool new_x, 
 		       const double& obj_factor, 
 		       const double* lambda, bool new_lambda, 
@@ -163,15 +163,22 @@ namespace gollnlp {
     int compute_num_variables_sparse() const;
     int compute_num_variables_dense() const;
     bool compute_num_variables_dense_sparse(int& ndense, int& nsparse) const;
+
+    /*
+     * Returns nnz of the Jacob and of its eq and ineq parts. 
+     *
+     * Required by HiOp's 'get_sparse_dense_blocks_info' - which will be addressed/revisited soon.
+     * After that, OptProblem::compute_nnz_Jaccons can be safely used and the method below
+     * will be removed.
+     *
+     */
+    bool compute_nnzJaccons(int& nnzJac, int& nnzJacEq, int& nnzJacIneq);
+    int nnz_Jac_eq, nnz_Jac_ineq; //this is also temporary
     
-    int compute_nnzJac_eq();
-    int compute_nnzJac_ineq() { return 0; }
     int compute_nnzHessLagr_SSblock();
     
     void use_nlp_solver(const std::string& name);
   private:
-    int nnz_Jac_eq, nnz_Jac_ineq;
-    std::vector<OptSparseEntry> ij_Jac_eq, ij_Jac_ineq;
 
     int nnz_HessLagr_SSblock;
     std::vector<OptSparseEntry> ij_HessLagr_SSblock;

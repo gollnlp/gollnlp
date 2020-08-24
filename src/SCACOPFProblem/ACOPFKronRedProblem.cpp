@@ -405,8 +405,8 @@ namespace gollnlp {
       //derivative_test first-order
       //derivative_test only-second-order
       //set_solver_option("derivative_test", "first-order");
-      set_solver_option("derivative_test", "only-second-order");
-      set_solver_option("derivative_test_first_index", 590);
+      //set_solver_option("derivative_test", "only-second-order");
+      //set_solver_option("derivative_test_first_index", 590);
 
 
       //set_solver_option("start_with_resto", "yes");
@@ -570,6 +570,7 @@ namespace gollnlp {
   {
     vector<int> gens(d.G_Generator.size()); iota(gens.begin(), gens.end(), 0);
     auto p_g = vars_block(var_name("p_g", d));
+    
     //PFProdCostAffineCons* prod_cost_cons = 
     // new PFProdCostAffineCons(con_name("prodcost_cons",d), 2*gens.size(), 
     //			       p_g, gens, d.G_CostCi, d.G_CostPi);

@@ -5,31 +5,15 @@
 namespace gollnlp {
 
 
-  bool OptProblemMDS::eval_Jaccons_eq(const double* x, bool new_x, 
-				      const int& nxsparse, const int& nxdense,
-				      const int& nnzJacS, int* iJacS, int* jJacS, double* MJacS, 
-				      double** JacD)
+  bool OptProblemMDS::eval_Jac_cons(const double* x, bool new_x, 
+				    const int& nxsparse, const int& nxdense,
+				    const int& nnzJacS, int* iJacS, int* jJacS, double* MJacS, 
+				    double** JacD)
   {
     if(new_x) {
       new_x_fgradf=true;
       vars_primal->attach_to(x);
     }
-    // if(MJacS==NULL) {
-    //   for(auto& con_gen: cons->vblocks) {
-	
-    // 	OptConstraintsBlockMDS* con = dynamic_cast<OptConstraintsBlockMDS*>(con_gen);
-    // 	assert(NULL!=con);
-    // 	if(!con) continue;
-	
-    // 	if(!con->eval_Jac_eq(*vars_primal, new_x,
-    // 			     nxsparse, nxdense,
-    // 			     nnzJacS, iJacS, jJacS, MJacS,
-    // 			     JacD)) {
-    // 	  assert(false && "eval_Jaccons should be called after get_nnzJaccons");
-    // 	}
-    //   }
-    //   return true;
-    // }
     
     //M!=NULL > just fill in the values
     if(MJacS)
@@ -44,6 +28,13 @@ namespace gollnlp {
       if(!con) continue;
       
       if(!con->eval_Jac_eq(*vars_primal, new_x,
+			nxsparse, nxdense,
+			nnzJacS, iJacS, jJacS, MJacS,
+			JacD)) {
+	return false;
+      }
+
+      if(!con->eval_Jac_ineq(*vars_primal, new_x,
 			   nxsparse, nxdense,
 			   nnzJacS, iJacS, jJacS, MJacS,
 			   JacD)) {
@@ -185,26 +176,44 @@ namespace gollnlp {
     return true;
   }
 
-  int OptProblemMDS::compute_nnzJac_eq()
+  bool OptProblemMDS::compute_nnzJaccons(int& nnzJac_out, int& nnzJacEq_out, int& nnzJacIneq_out)
   {
-    if(nnz_Jac_eq<0) {
-      //goTimer tm; tm.start();
-      
-      for(auto& con_gen: cons->vblocks) {
-	
-	OptConstraintsBlockMDS* con = dynamic_cast<OptConstraintsBlockMDS*>(con_gen);
-	if(NULL==con) {
-	  assert(false && "check this: incorrect/unsupported type for constraints");
-	  continue;
+    if(nnz_Jac<0) {
+      ij_Jac.clear();
+      std::vector<OptSparseEntry> ij_Jac_eq;
+      std::vector<OptSparseEntry> ij_Jac_ineq;
+
+      // uniquely_indexise for eq and ineq separately to get nnz for eq and for ineq
+      {
+	for(auto& con_gen: cons->vblocks) {
+	  
+	  OptConstraintsBlockMDS* con = dynamic_cast<OptConstraintsBlockMDS*>(con_gen);
+	  if(NULL==con) {
+	    assert(false && "check this: incorrect/unsupported type for constraints");
+	    continue;
+	  }
+	  con->get_spJacob_eq_ij(ij_Jac_eq);
+	  con->get_spJacob_ineq_ij(ij_Jac_ineq);
+
+	  for(auto el : ij_Jac_eq)
+	    ij_Jac.push_back(el);
+
+	  for(auto el : ij_Jac_ineq)
+	    ij_Jac.push_back(el);
 	}
-	con->get_spJacob_eq_ij(ij_Jac_eq);
+	nnz_Jac_eq = uniquely_indexise_spTripletIdxs(ij_Jac_eq);
+	nnz_Jac_ineq = uniquely_indexise_spTripletIdxs(ij_Jac_ineq);
+
+	nnz_Jac = uniquely_indexise_spTripletIdxs(ij_Jac);
       }
-      nnz_Jac_eq = uniquely_indexise_spTripletIdxs(ij_Jac_eq);
       
-      //tm.stop();
-      //printf("Jacobian structure took %g sec\n", tm.getElapsedTime());
     }
-    return nnz_Jac_eq;
+
+    nnzJac_out = nnz_Jac;
+    nnzJacEq_out = nnz_Jac_eq;
+    nnzJacIneq_out = nnz_Jac_ineq;
+    
+    return true;
   }
 
   int OptProblemMDS::compute_nnzHessLagr_SSblock()

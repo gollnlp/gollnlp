@@ -751,6 +751,11 @@ void OptVariables::append_vars_to_varsblock(const std::string& id_varsblock,
 
   //the indexes of the blocks in the 'this' that follows after 'block' needs to be increased
   //by 'num_vars_to_add'
+
+  if(block->sparseBlock) {
+    assert(false && "revisit this code for sparseIndex calculation");
+  }
+  
   bool adjust_size = false;
   for(auto b : vblocks) {
     if(b == block) {

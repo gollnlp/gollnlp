@@ -51,19 +51,18 @@ namespace gollnlp {
 			       const int& nnzJacS, int* iJacS, int* jJacS, double* MJacS, 
 			       double** JacD)
     {
-      return false;
+      return true;
     }
 
     virtual int get_spJacob_eq_nnz();
     virtual int get_spJacob_ineq_nnz()
     {
-      assert(false);
       return 0;
     }
     virtual bool get_spJacob_eq_ij(std::vector<OptSparseEntry>& vij);
     virtual bool get_spJacob_ineq_ij(std::vector<OptSparseEntry>& vij)
     {
-      return false;
+      return true;
     }
 
     virtual bool eval_HessLagr(const OptVariables& x, bool new_x, 
@@ -137,19 +136,18 @@ namespace gollnlp {
 			       const int& nnzJacS, int* iJacS, int* jJacS, double* MJacS, 
 			       double** JacD)
     {
-      return false;
+      return true;
     }
 
     virtual int get_spJacob_eq_nnz();
     virtual int get_spJacob_ineq_nnz()
     {
-      assert(false);
       return 0;
     }
     virtual bool get_spJacob_eq_ij(std::vector<OptSparseEntry>& vij);
     virtual bool get_spJacob_ineq_ij(std::vector<OptSparseEntry>& vij)
     {
-      return false;
+      return true;
     }
 
     virtual bool eval_HessLagr(const OptVariables& x, bool new_x, 
@@ -228,19 +226,18 @@ namespace gollnlp {
 			       const int& nnzJacS, int* iJacS, int* jJacS, double* MJacS, 
 			       double** JacD)
     {
-      return false;
+      return true;
     }
 
     virtual int get_spJacob_eq_nnz();
     virtual int get_spJacob_ineq_nnz()
     {
-      assert(false);
       return 0;
     }
     virtual bool get_spJacob_eq_ij(std::vector<OptSparseEntry>& vij);
     virtual bool get_spJacob_ineq_ij(std::vector<OptSparseEntry>& vij)
     {
-      return false;
+      return true;
     }
 
     virtual bool eval_HessLagr(const OptVariables& x, bool new_x, 

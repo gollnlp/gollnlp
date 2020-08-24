@@ -458,8 +458,8 @@ public:
   inline int get_num_constraints() const { return cons->m(); }
   inline int get_num_variables() const { return vars_primal->n(); }
   
-  int compute_nnzJaccons();
-  int compute_nnzHessLagr();
+  virtual int compute_nnzJaccons();
+  virtual int compute_nnzHessLagr();
 public:
   inline OptVariables* primal_variables() { return vars_primal; }
   inline OptVariables* duals_bounds_lower() { return vars_duals_bounds_L; }

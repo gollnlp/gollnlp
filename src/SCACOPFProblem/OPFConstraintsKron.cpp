@@ -1708,8 +1708,9 @@ namespace gollnlp {
     assert(false == v_n_->sparseBlock);
     assert(false == theta_n_->sparseBlock);
 
-    for(int i=0; i<n; i++) lb[i]=0.;
-    DCOPY(&n, lb, &ione, ub, &ione);
+    for(int i=0; i<n; i++) lb[i]=-1e+20;
+    for(int i=0; i<n; i++) ub[i]= 0.;
+    //DCOPY(&n, lb, &ione, ub, &ione);
   }
   LineThermalViolCons::~LineThermalViolCons()
   {
@@ -1731,7 +1732,7 @@ namespace gollnlp {
     double* lb_new = new double[new_n];
     DCOPY(&n, lb, &ione, lb_new, &ione);
     for(int i=n; i<new_n; ++i)
-      lb_new[i] = 0.;
+      lb_new[i] = -1e+20;
     delete[] lb;
     lb = lb_new;
     
@@ -1899,6 +1900,13 @@ namespace gollnlp {
 					const int& nnzJacS, int* iJacS, int* jJacS, double* MJacS, 
 					double** JacD)
   {
+    return true;
+  }
+  bool LineThermalViolCons::eval_Jac_ineq(const OptVariables& x, bool new_x, 
+					  const int& nxsparse, const int& nxdense,
+					  const int& nnzJacS, int* iJacS, int* jJacS, double* MJacS, 
+					  double** JacD)
+  {
     //
     // sparse part
     //
@@ -2017,28 +2025,25 @@ namespace gollnlp {
     
     return true;
   }
-
-  bool LineThermalViolCons::eval_Jac_ineq(const OptVariables& x, bool new_x, 
-					  const int& nxsparse, const int& nxdense,
-					  const int& nnzJacS, int* iJacS, int* jJacS, double* MJacS, 
-					  double** JacD)
-  {
-    return false;
-  }
   
   int LineThermalViolCons::get_spJacob_eq_nnz()
   {
-    return this->n;
+    return 0;
   }
   int LineThermalViolCons::get_spJacob_ineq_nnz()
   {
-    return 0;
+    return this->n;
   }
   bool LineThermalViolCons::get_spJacob_eq_ij(std::vector<OptSparseEntry>& vij)
   {
+    return true;
+  }
+
+  bool LineThermalViolCons::get_spJacob_ineq_ij(std::vector<OptSparseEntry>& vij)
+  {
     if(n<=0) return true;
 
-    int nnz = get_spJacob_eq_nnz();
+    int nnz = get_spJacob_ineq_nnz();
     if(NULL == J_nz_idxs_) 
       J_nz_idxs_ = new int[nnz];
     
@@ -2058,11 +2063,7 @@ namespace gollnlp {
 
     return true;
   }
-  bool LineThermalViolCons::get_spJacob_ineq_ij(std::vector<OptSparseEntry>& vij)
-  {
-    assert(false);
-    return true;
-  }
+
 
   /**********************************************************************************************
    *   ychiyij^2*vi^4 + yij^2*vi^2*vj^2

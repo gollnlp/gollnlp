@@ -67,14 +67,20 @@ namespace gollnlp {
     
       prob->compute_num_variables_dense_sparse(nx_dense, nx_sparse);
       assert(n == nx_dense+nx_sparse);
-    
-      nnz_sparse_Jace = prob->compute_nnzJac_eq();
-      //printf("nx_sparse=%d  nx_dense=%d\n", nx_sparse, nx_dense);
-      fflush(stdout);
 
-      nnz_sparse_Jaci = prob->compute_nnzJac_ineq();
+      int nnz_Jac;
+
+      if(!prob->compute_nnzJaccons(nnz_Jac, nnz_sparse_Jace, nnz_sparse_Jaci)) {
+	return false;
+      }
+      assert(nnz_Jac == nnz_sparse_Jace+nnz_sparse_Jaci);
+      
       nnz_sparse_Hess_Lagr_SS = prob->compute_nnzHessLagr_SSblock();
       nnz_sparse_Hess_Lagr_SD = 0;
+
+       printf("nx_sparse=%d  nx_dense=%d  nnz_Jaceq=%d nnz_Jacineq=%d\n",
+	      nx_sparse, nx_dense, nnz_sparse_Jace, nnz_sparse_Jaci);
+      fflush(stdout);
       return true;
     }
 
@@ -88,8 +94,13 @@ namespace gollnlp {
 		   const long long& num_cons, const long long* idx_cons,  
 		   const double* x, bool new_x, double* cons)
     {
-      if(num_cons==0) return true;
-      assert(num_cons==m);
+      //we work with the one-call / full-body constraints
+      return false;
+    }
+    bool eval_cons(const long long& n, const long long& m, 
+		   const double* x, bool new_x, 
+		   double* cons)
+    {
       return prob->eval_cons(x, new_x, cons);
     }
 
@@ -106,11 +117,26 @@ namespace gollnlp {
 		       const int& nnzJacS, int* iJacS, int* jJacS, double* MJacS, 
 		       double** JacD)
     {
-      if(num_cons==0) return true;
-      assert(num_cons==m);
-      return prob->eval_Jaccons_eq(x, new_x, nsparse, ndense,
-				   nnzJacS, iJacS, jJacS, MJacS,
-				   JacD);
+      return false;
+    }
+    bool eval_Jac_cons(const long long& n, const long long& m, 
+		       const double* x, bool new_x,
+		       const long long& nsparse, const long long& ndense, 
+		       const int& nnzJacS, int* iJacS, int* jJacS, double* MJacS, 
+		       double** JacD)
+    {
+#ifdef DEBUG
+      int nnzJ, nnzeq, nnzineq;
+      if(!prob->compute_nnzJaccons(nnzJ, nnzeq, nnzineq)) {
+	return false;
+      }
+      assert(nnzeq+nnzineq == nnzJ);
+      assert(nnzJ == nnzJacS);
+#endif
+      bool bret = prob->eval_Jac_cons(x, new_x, nsparse, ndense,
+				      nnzJacS, iJacS, jJacS, MJacS,
+				      JacD);
+      return bret;
     }
 
     bool eval_Hess_Lagr(const long long& n, const long long& m, 
