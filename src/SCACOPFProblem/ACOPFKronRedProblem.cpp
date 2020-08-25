@@ -74,7 +74,7 @@ namespace gollnlp {
 	printf("error: Max number (%d) of loopings has been reached\n", n_iter);
 	return false;
       }
-      
+
       vector<complex<double> > v_n_all_complex;
       compute_voltages_nonaux(vars_block(var_name("v_n", data_sc)), 
 			      vars_block(var_name("theta_n", data_sc)),
@@ -82,7 +82,7 @@ namespace gollnlp {
 
       //!
       //printvec(v_n_all_complex, "v_n_all_complex");
-      
+
       //s_li, s_ti = power_flows(v_n_all_complex, L, L_Nidx, T, T_Nidx)
       vector<vector<complex<double> > > s_li, s_ti;
       compute_power_flows(v_n_all_complex, s_li, s_ti);
@@ -91,11 +91,11 @@ namespace gollnlp {
       //printvecvec(s_li, "s_li");
       //printvecvec(s_ti, "s_ti");
       
-      vector<int> Nidx_voutofobounds_pass;
-      find_voltage_viol_busidxs(v_n_all_complex, Nidx_voutofobounds_pass);
-      if(Nidx_voutofobounds_pass.size()>0) 
-	printvec(Nidx_voutofobounds_pass, "Bus indexes with voltage out of bounds: ");
-      
+      vector<int> N_idx_voutofbounds_pass;
+      find_voltage_viol_busidxs(v_n_all_complex, N_idx_voutofbounds_pass);
+      if(N_idx_voutofbounds_pass.size()>0) 
+	printvec(N_idx_voutofbounds_pass, "Bus indexes with voltage out of bounds: ");
+
       std::vector<int> Lidx_overload_pass, Lin_overload_pass, Tidx_overload_pass, Tin_overload_pass;
       find_power_viol_LTidxs(v_n_all_complex, s_li, s_ti,
 			     Lidx_overload_pass, Lin_overload_pass,
@@ -111,23 +111,29 @@ namespace gollnlp {
 	printvec(Tidx_overload_pass, "Tidx:");
 	printvec(Tin_overload_pass, "Tin:");
       }
-      
+
       // verify that all included constraints are respected
-      auto Lfails = Lidx_overload_pass;
-      for(int i=0; i<Lfails.size(); i++) Lfails[i] = 10*Lfails[i]+Lin_overload_pass[i];
-      auto Lfails_prev_pass = Lidx_overload_;
-      for(int i=0; Lfails_prev_pass.size(); i++)
-	Lfails_prev_pass[i] = 10*Lfails_prev_pass[i]+Lin_overload_[i];
+      auto Lfails = Lidx_overload_;
+      for(int i=0; i<Lfails.size(); i++)
+	Lfails[i] = 10*Lfails[i]+Lin_overload_[i];
+      
+      auto Lfails_prev_pass = Lidx_overload_pass;
+      for(int i=0; i<Lfails_prev_pass.size(); i++)
+	Lfails_prev_pass[i] = 10*Lfails_prev_pass[i]+Lin_overload_pass[i];
+      
       auto LfailIdxs = gollnlp::indexin(Lfails, Lfails_prev_pass);
       LfailIdxs = gollnlp::findall(LfailIdxs, [](int val) {return val!=-1;});
       
-      auto Tfails = Tidx_overload_pass;
-      for(int i=0; i<Tfails.size(); i++) Tfails[i] = 10*Tfails[i]+Tin_overload_pass[i];
-      auto Tfails_prev_pass = Tidx_overload_;
+      auto Tfails = Tidx_overload_;
+      for(int i=0; i<Tfails.size(); i++)
+	Tfails[i] = 10*Tfails[i]+Tin_overload_[i];
+      
+      auto Tfails_prev_pass = Tidx_overload_pass;
       for(int i=0; i<Tfails_prev_pass.size(); i++)
-	Tfails_prev_pass[i] = 10*Tfails_prev_pass[i]+Tin_overload_[i];
+	Tfails_prev_pass[i] = 10*Tfails_prev_pass[i]+Tin_overload_pass[i];
+      
       auto TfailIdxs = gollnlp::indexin(Tfails, Tfails_prev_pass);
-      TfailIdxs = gollnlp::findall(TfailIdxs, [](int val) {return val!=-1;});
+      TfailIdxs = gollnlp::findall(TfailIdxs, [](int val) {return val!=-1;}); 
       
       //warnings 
       if(LfailIdxs.size()) {
@@ -143,6 +149,7 @@ namespace gollnlp {
 	erase_idx_from(Lidx_overload_pass, idx);
 	erase_idx_from(Lin_overload_pass, idx);
       }
+
       for(auto idx : TfailIdxs) {
 	erase_idx_from(Tidx_overload_pass, idx);
 	erase_idx_from(Tin_overload_pass, idx);
@@ -151,9 +158,9 @@ namespace gollnlp {
       //
       // exit loop if no new lines/transformers appear
       //
-      if(Nidx_voutofobounds_pass.size() + Lidx_overload_pass.size() + Tidx_overload_pass.size()==0) {
+      if(N_idx_voutofbounds_pass.size() + Lidx_overload_pass.size() + Tidx_overload_pass.size()==0) {
 	cout << "No new violations detected. Exiting loop. Total lazy constraints added: "
-	     << (2*(Nidx_voutofobounds_pass.size() + Lidx_overload_pass.size() + Tidx_overload_pass.size()))
+	     << (2*(N_idx_voutofbounds_pass.size() + Lidx_overload_pass.size() + Tidx_overload_pass.size()))
 	     << endl;
 	break;
       }
@@ -179,7 +186,7 @@ namespace gollnlp {
       // will be later added
 
       //add necessary auxiliary bus voltages (if any)
-      auto reqbuses = Nidx_voutofobounds_pass;
+      auto reqbuses = N_idx_voutofbounds_pass;
 
       assert(Lin_overload_pass.size() == Lidx_overload_pass.size());
       
@@ -416,6 +423,18 @@ namespace gollnlp {
       //bret = OptProblemMDS::reoptimize(primalRestart);
       bret = OptProblemMDS::optimize("hiop");
 
+      if(!bret) {
+	return false;
+      }
+
+      //append violation idxs found at this iteration to the set of previously found
+      for( auto el : Lidx_overload_pass) Lidx_overload_.push_back(el);
+      for( auto el : Lin_overload_pass) Lin_overload_.push_back(el);
+      for( auto el : Tidx_overload_pass) Tidx_overload_.push_back(el);
+      for( auto el : Tin_overload_pass) Tin_overload_.push_back(el);
+      for( auto el : N_idx_voutofbounds_pass) N_idx_voutofobounds_.push_back(el);
+
+      printf("updated idxs wwwwwwwwwwwwww\n");
       
       n_iter++;
     } while(true);
