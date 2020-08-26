@@ -20,6 +20,10 @@ if(GOLLNLP_WITH_KRON_REDUCTION)
                         goKronRed gollnlp ipopt coinhsl coinmetis 
 			hiop ${UMFPACK_LIB} ${LAPACK_LIBRARIES} ${OpenMP_CXX_LIBRARIES}
 			${GOLLNLP_LIBS_EXTRA} )
+
+  if(GOLLNLP_USE_GPU)
+    target_link_libraries(acopf_kron_driver.exe hiop_cuda)
+  endif(GOLLNLP_USE_GPU)
 endif(GOLLNLP_WITH_KRON_REDUCTION)
 
 #add_executable(acopf_driver.exe ACOPFDriver.cpp)

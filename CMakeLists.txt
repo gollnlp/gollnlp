@@ -1,4 +1,10 @@
 cmake_minimum_required (VERSION 2.8)
+
+if (POLICY CMP0074)
+  cmake_policy(SET CMP0074 NEW)
+endif ()
+
+
 project (goSpecCpp)
 # enable Fortran for Fortran name mangling
 enable_language(Fortran)
@@ -10,6 +16,8 @@ add_compile_options("-std=c++11")
 if(NOT CMAKE_BUILD_TYPE)
   set(CMAKE_BUILD_TYPE Release)
 endif()
+
+list(APPEND CMAKE_MODULE_PATH ${CMAKE_SOURCE_DIR}/cmake)
 
 #set(CMAKE_CXX_FLAGS "-Wall -Wextra")
 #set(CMAKE_CXX_FLAGS_DEBUG "-g")
@@ -27,6 +35,8 @@ option(GOLLNLP_FAULT_HANDLING "Using handlers for select signals" ON)
 option(GOLLNLP_WITH_MAKETEST "Enable 'make test'" ON)
 
 option(GOLLNLP_WITH_KRON_REDUCTION "Building Kron Reduction code (requires addtl. dependencies)" OFF)
+
+option(GOLLNLP_USE_GPU "Use CUDA and Magma linear algebra with HiOp to enable GPU computations" OFF)
 
 if(GOLLNLP_USE_MPI)
   if(NOT DEFINED MPI_CXX_COMPILER)
@@ -117,6 +127,32 @@ if(GOLLNLP_WITH_KRON_REDUCTION)
   #  message(FATAL_ERROR "Could not find METIS lib needed by UMFPACK. Please cmake with '-DMETIS_DIR=/path/to/metis/lib'; currently, METIS_DIR='${METIS_DIR}'")
   #endif(METIS_LIB)
 endif(GOLLNLP_WITH_KRON_REDUCTION)
+
+if(GOLLNLP_USE_GPU)
+  include(CheckLanguage)
+  enable_language(CUDA)
+  check_language(CUDA)
+
+  if(NOT DEFINED CMAKE_CUDA_STANDARD)
+    set(CMAKE_CUDA_STANDARD 11)
+    set(CMAKE_CUDA_STANDARD_REQUIRED ON)
+  endif()
+
+  if(HIOP_NVCC_ARCH)
+    set(CMAKE_CUDA_FLAGS "-arch=${HIOP_NVCC_ARCH}")
+    message(STATUS "Using CUDA arch ${HIOP_NVCC_ARCH}")
+  else()
+    set(CMAKE_CUDA_FLAGS "-arch=sm_35")
+    message(STATUS "Using CUDA arch sm_35")
+  endif()
+
+  set(CMAKE_CUDA_FLAGS "${CMAKE_CUDA_FLAGS} --expt-extended-lambda")
+
+  set(HIOP_MAGMA_DIR CACHE PATH "Path to Magma directory")
+
+  include(FindHiopCudaLibraries)
+
+endif(GOLLNLP_USE_GPU)
 
 # include build directory for Fortran name mangling header
 include_directories(${CMAKE_BINARY_DIR})

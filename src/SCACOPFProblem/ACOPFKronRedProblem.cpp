@@ -634,6 +634,8 @@ namespace gollnlp {
 
     const int& N = data_sc.N_Bus.size();
 
+    assert(data_sc.L_Nidx.size() == 2);
+
     int nnz=N;
     // go over (L_Nidx1, L_Nidx2) and count nnz 
     assert(data_sc.L_Nidx[0].size() == data_sc.L_Nidx[1].size());
