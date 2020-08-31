@@ -19,6 +19,7 @@ namespace gollnlp {
   
   class SCACOPFProblem : public OptProblem
   {
+  friend class ContingencyProblemKronRedWithFixingCode1;
   public:
     SCACOPFProblem(SCACOPFData& d_in) 
       : data_sc(d_in), 
@@ -550,7 +551,7 @@ namespace gollnlp {
       return true;
     }
   private:
-    int fid; 
+    int fid;
   };
   
 } // end of namespace

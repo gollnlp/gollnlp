@@ -13,7 +13,7 @@ add_library(goSCACOPF OBJECT
 #
 
 if(GOLLNLP_WITH_KRON_REDUCTION)
-  add_library(goKronRed ACOPFKronRedProblem.cpp OPFConstraintsKron.cpp)
+  add_library(goKronRed ACOPFKronRedProblem.cpp OPFConstraintsKron.cpp ContingencyProblemKronRedWithFixingCode1.cpp ContingencyProblemKronRed.cpp)
 
   add_executable(acopf_kron_driver.exe ACOPFKronRedDriver.cpp)
   target_link_libraries(acopf_kron_driver.exe 

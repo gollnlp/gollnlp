@@ -3,6 +3,7 @@
 #include "SCMasterProblem.hpp"
 #include "SCRecourseProblem.hpp"
 #include "ContingencyProblemWithFixingCode1.hpp"
+#include "ContingencyProblemKronRedWithFixingCode1.hpp"
 #include "goUtils.hpp"
 
 //using namespace std;
@@ -2158,11 +2159,24 @@ double MyCode1::solve_contingency_use_fixing(int K_idx, int& status, double* dat
   assert(p_li2 == dict_basecase_vars["p_li2_0"]);
   assert(q_li2 == dict_basecase_vars["q_li2_0"]);
 
-  ContingencyProblemWithFixingCode1 prob(data, K_idx, 
+#ifdef GOLLNLP_WITH_KRON_REDUCTION          
+  
+  ContingencyProblemWithFixingCode1 prob2(data, K_idx, 
 					 my_rank, comm_size, 
 					 dict_basecase_vars, 
 					 -1, -1., false);
 
+  ContingencyProblemKronRedWithFixingCode1 prob(data, K_idx, 
+						my_rank, comm_size, 
+						dict_basecase_vars, 
+						-1, -1., false);
+#else
+  ContingencyProblemWithFixingCode1 prob(data, K_idx, 
+					 my_rank, comm_size, 
+					 dict_basecase_vars, 
+					 -1, -1., false);
+#endif
+  
   ContingencyProblemWithFixing::g_bounds_abuse = 0.000095;
   prob.monitor.is_active = true;
 
@@ -2175,7 +2189,8 @@ double MyCode1::solve_contingency_use_fixing(int K_idx, int& status, double* dat
   prob.use_nlp_solver("ipopt");
 
 
-  if(!prob.default_assembly(v_n0, theta_n0, b_s0, p_g0, q_g0, p_li1, q_li1, p_li2, q_li2, p_ti1, q_ti1, p_ti2, q_ti2)) {
+  if(!prob.default_assembly(v_n0, theta_n0, b_s0, p_g0, q_g0,
+			    p_li1, q_li1, p_li2, q_li2, p_ti1, q_ti1, p_ti2, q_ti2)) {
 
     printf("rank=%d failed in default_assembly for contingency K_idx=%d\n",
 	   my_rank, K_idx);

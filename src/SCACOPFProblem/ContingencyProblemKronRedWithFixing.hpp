@@ -35,12 +35,12 @@ namespace gollnlp {
 			  std::vector<double>& sln);
 
   protected:
-    virtual bool add_cons_AGC_simplified(SCACOPFData& dB, 
+    bool add_cons_AGC_simplified(SCACOPFData& dB, 
 				 const std::vector<int>& idxs_pg0_AGC_particip, 
 				 const std::vector<int>& idxs_pgK_AGC_particip,
 				 OptVariablesBlock* pg0);
 
-    virtual void add_cons_pg_nonanticip_using(OptVariablesBlock* pg0,
+    void add_cons_pg_nonanticip_using(OptVariablesBlock* pg0,
 				      const std::vector<int>& idxs_pg0_nonparticip, 
 				      const std::vector<int>& idxs_pgK_nonparticip);
 
@@ -66,7 +66,7 @@ namespace gollnlp {
 			     double& delta_lb, double& delta_ub,
 			     double& residual_Pg);
 
-    virtual bool do_qgen_fixing_for_PVPQ(OptVariablesBlock* vnk, OptVariablesBlock* qgk);
+     bool do_qgen_fixing_for_PVPQ(OptVariablesBlock* vnk, OptVariablesBlock* qgk);
 
     bool do_fixing_for_PVPQ(const double& smoothing, bool fixVoltage,
 			    OptVariablesBlock* vnk, OptVariablesBlock* qgk);
@@ -83,11 +83,11 @@ namespace gollnlp {
     
     void estimate_active_power_deficit(double& p_plus, double& p_minus, double& p_overall);
     void estimate_reactive_power_deficit(double& q_plus, double& q_minus, double& q_overall);
-    virtual void get_objective_penalties(double& pen_p_balance, double& pen_q_balance, 
-					 double& pen_line_limits, double& pen_trans_limits);
+    void get_objective_penalties(double& pen_p_balance, double& pen_q_balance, 
+				 double& pen_line_limits, double& pen_trans_limits);
 
-    virtual bool do_solve1();
-    virtual bool do_solve2(bool first_solve_OK);
+    bool do_solve1();
+    bool do_solve2(bool first_solve_OK);
   protected:
     std::unordered_map<std::string, gollnlp::OptVariablesBlock*>& dict_basecase_vars;
     std::vector<int> solv1_pg0_partic_idxs, solv1_pgK_partic_idxs, solv1_pgK_nonpartic_idxs, solv1_pg0_nonpartic_idxs;

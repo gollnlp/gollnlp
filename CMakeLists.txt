@@ -119,6 +119,8 @@ if(GOLLNLP_WITH_KRON_REDUCTION)
     message(FATAL_ERROR "Could not find UMFPACK needed by the kron reduction. Please cmake with '-DUMFPACK_DIR=/path/to/umfpack_dir'; currently, UMFPACK_DIR='${UMFPACK_DIR}'")
   endif(UMFPACK_LIB)
 
+  add_definitions(-DGOLLNLP_WITH_KRON_REDUCTION)
+  
   # metis needed (5.x needed by umfpack)
   #find_library(METIS_LIB NAMES metis HINTS ${METIS_DIR} "${METIS_DIR}/lib" "${METIS_DIR}/src/")
   #if(METIS_LIB)
@@ -182,7 +184,11 @@ add_executable(MyExe1 MyCpp1.cpp)
 target_link_libraries(MyExe1 gollnlp ipopt coinhsl coinmetis 
                       hiop ${GOLLNLP_LIBS_EXTRA} 
 		      ${OpenMP_CXX_LIBRARIES} ${LAPACK_LIBRARIES})
-
+if(GOLLNLP_WITH_KRON_REDUCTION)
+  target_link_libraries(MyExe1 goKronRed)
+endif(GOLLNLP_WITH_KRON_REDUCTION)
+		      
+		   
 add_executable(MyExe2 MyCpp2.cpp)
 target_link_libraries(MyExe2 gollnlp ipopt coinhsl coinmetis 
                       hiop ${GOLLNLP_LIBS_EXTRA} 
