@@ -26,16 +26,35 @@ namespace gollnlp {
     {
       delete prob_mds_;
     };
+
+    virtual bool default_assembly(OptVariablesBlock* pg0, OptVariablesBlock* vn0);
+
+    virtual bool default_assembly(OptVariablesBlock* vn0, OptVariablesBlock* thetan0, OptVariablesBlock* bs0, 
+				  OptVariablesBlock* pg0, OptVariablesBlock* qg0)
+    {
+      theta_n0=thetan0; b_s0=bs0; q_g0=qg0;
+      return default_assembly(pg0, vn0);
+    }
+    
     virtual bool default_assembly(OptVariablesBlock* vn0, OptVariablesBlock* thetan0, OptVariablesBlock* bs0, 
 				  OptVariablesBlock* pg0, OptVariablesBlock* qg0,
 				  OptVariablesBlock* pli10, OptVariablesBlock* qli10,
 				  OptVariablesBlock* pli20, OptVariablesBlock* qli20,
 				  OptVariablesBlock* pti10, OptVariablesBlock* qti10,
-				  OptVariablesBlock* pti20, OptVariablesBlock* qti20);
+				  OptVariablesBlock* pti20, OptVariablesBlock* qti20)
+    {
+      p_li10=pli10; q_li10=qli10; p_li20=pli20; q_li20=qli20;
+      p_ti10=pti10; q_ti10=qti10; p_ti20=pti20; q_ti20=qti20;
+      return default_assembly(vn0, thetan0, bs0, pg0, qg0);
+    }
     
     //evaluates objective/penalty given pg0 and vn0 (these are 'in' arguments)
     virtual bool eval_obj(OptVariablesBlock* pg0, OptVariablesBlock* vn0, double& f, double* data_for_master);
 
+    virtual void use_nlp_solver(const std::string& name)
+    {
+      prob_mds_->use_nlp_solver(name);
+    }
 
     virtual bool do_solve1();
     virtual bool do_solve2(bool first_solve_OK);
@@ -56,18 +75,12 @@ namespace gollnlp {
     bool add_cons_AGC_simplified(SCACOPFData& dB, 
 				 const std::vector<int>& idxs_pg0_AGC_particip, 
 				 const std::vector<int>& idxs_pgK_AGC_particip,
-				 OptVariablesBlock* pg0)
-    {
-      //see ContingencyProblemWithFixing
-      assert(false);
-    }
+				 OptVariablesBlock* pg0);
+    
     void add_cons_pg_nonanticip_using(OptVariablesBlock* pg0,
 				      const std::vector<int>& idxs_pg0_nonparticip, 
-				  const std::vector<int>& idxs_pgK_nonparticip)
-    {
-      //see ContingencyProblemWithFixing
-      assert(false);
-    }
+				      const std::vector<int>& idxs_pgK_nonparticip);
+    
     bool do_qgen_fixing_for_PVPQ(OptVariablesBlock* vnk, OptVariablesBlock* qgk)
     {
       //see ContingencyProblemWithFixing
@@ -79,6 +92,7 @@ namespace gollnlp {
 				 double& pen_line_limits, double& pen_trans_limits);
     void estimate_active_power_deficit(double& p_plus, double& p_minus, double& p_overall);
     void estimate_reactive_power_deficit(double& q_plus, double& q_minus, double& q_overall);
+  
   protected:
     OptVariablesBlock *p_li10, *q_li10, *p_li20, *q_li20, *p_ti10, *q_ti10, *p_ti20, *q_ti20;
 

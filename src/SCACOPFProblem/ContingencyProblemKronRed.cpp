@@ -328,7 +328,8 @@ namespace gollnlp {
   void ContingencyProblemKronRed::add_cons_PVPQ_using(OptVariablesBlock* vn0, 
 					       const vector<int>& Gk) 
   {
-    assert(data_K.size()==1); assert(v_n0 == vn0);
+    assert(data_K.size()==1);
+    assert(v_n0 == vn0);
     SCACOPFData& dB = *data_K[0];
 
     //(aggregated) non-fixed q_g generator ids at each node/bus

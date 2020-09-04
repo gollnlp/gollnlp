@@ -561,6 +561,14 @@ readinstance(const std::string& raw, const std::string& rop, const std::string& 
     std::vector<ContingencyType> contingencies_type;
     std::vector<Contingency*> contingencies_con;
     if(!readCON(con, contingencies_label, contingencies_type, contingencies_con)) return false;
+
+
+    //!
+    contingencies_label = sub_vector(contingencies_label, 0, 10);
+    contingencies_type = sub_vector(contingencies_type, 0, 10);
+    contingencies_con = sub_vector(contingencies_con, 0, 10);
+
+
     
     int ncont = contingencies_type.size();
     assert(contingencies_con.size() == ncont);

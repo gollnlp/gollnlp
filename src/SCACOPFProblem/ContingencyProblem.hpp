@@ -82,11 +82,11 @@ namespace gollnlp {
   public:
     //if no regularization term exists in the problem, one is added and 'primal_problem_changed' is called; 
     //otherwise the term is updated
-    void regularize_vn(const double& gamma=1e-4);    
-    void regularize_thetan(const double& gamma=1e-4);    
-    void regularize_bs(const double& gamma=1e-4);    
-    void regularize_pg(const double& gamma=1e-4);    
-    void regularize_qg(const double& gamma=1e-4);    
+    virtual void regularize_vn(const double& gamma=1e-4);    
+    virtual void regularize_thetan(const double& gamma=1e-4);    
+    virtual void regularize_bs(const double& gamma=1e-4);    
+    virtual void regularize_pg(const double& gamma=1e-4);    
+    virtual void regularize_qg(const double& gamma=1e-4);    
   protected:
     //update gamma for all the above regularizations
     //internal "helper" function

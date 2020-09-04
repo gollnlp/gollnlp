@@ -32,7 +32,7 @@ public:
   virtual int go();
   virtual void display_instance_info();
 
-private: //methods
+protected: //methods
   /////////////////////////////////////////////////////////////////////////////////
   // phase 1 - solve SCACOPF with small number of scenarios, possibly 0
   /////////////////////////////////////////////////////////////////////////////////
@@ -218,7 +218,7 @@ private: //methods
 
     int K_idx(){ return buffer[0]; } //for which contingency
     int scacopf_pass() { return buffer[1]; }
-  private:
+  protected:
     MPI_Request request;
     int buffer[2];
   };
@@ -256,7 +256,7 @@ private: //methods
     int idxK; //for which contingency; index in K_info_phase2 and K_phase2
     MPI_Request request;
     double buffer[6];
-  private:
+  protected:
     ReqPenalty() : ReqPenalty(-1, -1e+20) {}
     ReqPenalty(const int& idx_) : ReqPenalty(idx_, -1e+20) {} 
     ReqPenalty(const int& idx_, const double& penalty)
@@ -448,7 +448,6 @@ private: //methods
 
     std::vector<double> buffer;
     std::vector<MPI_Request> requests;
-  private: 
   };
 
   struct ReqPDBaseCaseSolutionSendList
@@ -480,7 +479,6 @@ private: //methods
       }
       return ndone;
     }
-    //private:
   public:
     std::list<ReqPDBaseCaseSolutionSend*> sends_list;
   };
@@ -576,6 +574,7 @@ private: //methods
   //status is on return OK=0 or failure<0 or OK-ish>0
   //return penalty/objective for the contingency problem
   double solve_contingency(int K_idx, int& status);
+  virtual
   double solve_contingency_use_fixing(int K_idx, int& status, double* data_for_master);
   double solve_contingency_with_basecase(int K_idx, int& status);
 
@@ -584,7 +583,7 @@ private: //methods
 			      const std::vector<double>& K_penalties,
 			      const std::vector<std::vector<double> >& K_powers,
 			      const std::vector<int>& K_actions);
-private:
+protected:
   void get_high_priority_Kgens(int Kmax, std::vector<int>& Kgens_high_prio, gollnlp::SCACOPFProblem* prob);
   void get_high_priority_Ktransm(int Kmax, std::vector<int>& Ktrasm_high_prio, gollnlp::SCACOPFProblem* prob);
 
@@ -600,7 +599,7 @@ private:
 					     std::vector<double>& pti1_capac,
 					     std::vector<double>& pti2_capac,
 					     double& inflow, double& outflow);
-private: //data members
+protected: //data members
   std::string InFile1, InFile2, InFile3, InFile4;
   double TimeLimitInSec;
   int ScoringMethod;

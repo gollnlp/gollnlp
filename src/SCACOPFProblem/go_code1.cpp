@@ -791,7 +791,7 @@ vector<int> MyCode1::phase1_SCACOPF_contingencies()
 std::vector<int> MyCode1::phase2_contingencies()
 {
   return data.K_Contingency;
-  //return {0, 1, 48, 106};
+  return {0, 1, 2, 3, 4,  5, 6, 7, 8, 9, 10, 11, 12, 14, 15, 16, 17};
 
   vector<int> ret;
   for(auto idx : data.K_Contingency)
@@ -2159,23 +2159,10 @@ double MyCode1::solve_contingency_use_fixing(int K_idx, int& status, double* dat
   assert(p_li2 == dict_basecase_vars["p_li2_0"]);
   assert(q_li2 == dict_basecase_vars["q_li2_0"]);
 
-#ifdef GOLLNLP_WITH_KRON_REDUCTION          
-  
-  ContingencyProblemWithFixingCode1 prob2(data, K_idx, 
-					 my_rank, comm_size, 
-					 dict_basecase_vars, 
-					 -1, -1., false);
-
-  ContingencyProblemKronRedWithFixingCode1 prob(data, K_idx, 
-						my_rank, comm_size, 
-						dict_basecase_vars, 
-						-1, -1., false);
-#else
   ContingencyProblemWithFixingCode1 prob(data, K_idx, 
 					 my_rank, comm_size, 
 					 dict_basecase_vars, 
 					 -1, -1., false);
-#endif
   
   ContingencyProblemWithFixing::g_bounds_abuse = 0.000095;
   prob.monitor.is_active = true;

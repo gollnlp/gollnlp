@@ -421,14 +421,17 @@ OptVariables* OptProblem::new_duals_upper_bounds()
 //these setters return false if the option is not recognized by the NLP solver
 bool OptProblem::set_solver_option(const std::string& name, int value)
 {
+  assert(nlp_solver);
   return nlp_solver->set_option(name,value);
 }
 bool OptProblem::set_solver_option(const std::string& name, double value)
 {
+  assert(nlp_solver);
   return nlp_solver->set_option(name,value);
 }
 bool OptProblem::set_solver_option(const std::string& name, const std::string& value)
 {
+  assert(nlp_solver);
   return nlp_solver->set_option(name,value);
 }
 
@@ -529,8 +532,7 @@ OptimizationStatus OptProblem::optimization_status() const
 }
 
 bool OptProblem::optimize(const std::string& solver_name)
-{
-
+{  
   if(vars_duals_bounds_L) delete vars_duals_bounds_L;
   if(vars_duals_bounds_U) delete vars_duals_bounds_U;
   if(vars_duals_cons) delete vars_duals_cons;

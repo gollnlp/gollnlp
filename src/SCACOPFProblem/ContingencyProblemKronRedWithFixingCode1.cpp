@@ -1,5 +1,11 @@
 #include "ContingencyProblemKronRedWithFixingCode1.hpp"
 
+#include "CouplingConstraints.hpp"
+#include "OPFObjectiveTerms.hpp"
+#include "OptObjTerms.hpp"
+#include "OPFConstraints.hpp"
+
+
 #include "goSignalHandling.hpp"
 
 using namespace std;
@@ -34,45 +40,28 @@ void set_timer_message_ma27(const char* msg);
 namespace gollnlp {
 
   bool ContingencyProblemKronRedWithFixingCode1::
-  default_assembly(OptVariablesBlock* vn0, OptVariablesBlock* thetan0, OptVariablesBlock* bs0, 
-		   OptVariablesBlock* pg0, OptVariablesBlock* qg0,
-		   OptVariablesBlock* pli10, OptVariablesBlock* qli10,
-		   OptVariablesBlock* pli20, OptVariablesBlock* qli20,
-		   OptVariablesBlock* pti10, OptVariablesBlock* qti10,
-		   OptVariablesBlock* pti20, OptVariablesBlock* qti20)
+  default_assembly(OptVariablesBlock* pg0, OptVariablesBlock* vn0)
   {
-    p_li10=pli10; q_li10=qli10; p_li20=pli20; q_li20=qli20;
-    p_ti10=pti10; q_ti10=qti10; p_ti20=pti20; q_ti20=qti20;
+    double K_avg_time_so_far = time_so_far / std::max(num_K_done,1);
+    string ssfm=" ";
+    if(safe_mode) ssfm=" [safe mode] ";
+    printf("ContProbKronWithFixing K_idx=%d%sIDOut=%d outidx=%d Type=%s avgtm=%.2f rank=%d\n",
+	   K_idx, ssfm.c_str(), data_sc.K_IDout[K_idx], data_sc.K_outidx[K_idx],
+	   data_sc.cont_type_string(K_idx).c_str(), K_avg_time_so_far, my_rank); fflush(stdout);
 
     p_g0=pg0; v_n0=vn0;
 
-    theta_n0=thetan0; b_s0=bs0; q_g0=qg0;
 
     assert(data_K.size()==1);
     SCACOPFData& dK = *data_K[0];
-
     useQPen = true;
-    //slacks_scale = 1.;
 
-    prob_mds_->add_variables(dK,false);
-
-    prob_mds_->add_cons_lines_pf(dK);
-    prob_mds_->add_cons_transformers_pf(dK);
-    prob_mds_->add_cons_active_powbal(dK);
-    prob_mds_->add_cons_reactive_powbal(dK);
-    bool SysCond_BaseCase = false;
-    prob_mds_->add_cons_thermal_li_lims(dK,SysCond_BaseCase);
-    prob_mds_->add_cons_thermal_ti_lims(dK,SysCond_BaseCase);
-
-    //
+    ////////////////////////////////////////////////////////////
     // setup for indexes used in non-anticip and AGC coupling 
-    //
+    ////////////////////////////////////////////////////////////
     //indexes in data_sc.G_Generator; exclude 'outidx' if K_idx is a generator contingency
     data_sc.get_AGC_participation(K_idx, Gk, pg0_partic_idxs, pg0_nonpartic_idxs);
     assert(pg0->n == Gk.size() || pg0->n == 1+Gk.size());
-
-    //pg0_nonpartic_idxs=Gk;
-    //pg0_partic_idxs={};
 
     // indexes in data_K (for the recourse's contingency)
     auto ids_no_AGC = selectfrom(data_sc.G_Generator, pg0_nonpartic_idxs);
@@ -100,20 +89,135 @@ namespace gollnlp {
     }
       
 #endif
-    prob_mds_->add_cons_nonanticip_using(pg0);
-    prob_mds_->add_cons_AGC_using(pg0);
-    
-    //add_const_nonanticip_v_n_using(vn0, Gk);
-    prob_mds_->add_cons_PVPQ_using(vn0, Gk);
-    
 
-    //print_summary();
-    //PVPQSmoothing  = 1e-2;
-    //coupling AGC and PVPQ; also creates delta_k
-    //add_cons_coupling(dK);
+    prob_mds_->add_variables(dK,false);
 
+    if(!warm_start_variable_from_basecase_dict(*prob_mds_->vars_primal)) {
+      assert(false);
+      return false;
+    }
+
+    auto pgK = prob_mds_->variable("p_g", dK); assert(pgK!=NULL);
+    //find AGC generators that are "blocking" and fix them; update particip and non-particip indexes
+    solv1_pg0_partic_idxs=pg0_partic_idxs; solv1_pgK_partic_idxs=pgK_partic_idxs;
+    solv1_pgK_nonpartic_idxs=pgK_nonpartic_idxs; solv1_pg0_nonpartic_idxs=pg0_nonpartic_idxs;
+    double gen_K_diff=0.01;//default for transmission contingencies; surplus or deficit of generation
+    double residual_Pg;
+    solv1_delta_out=0.; solv1_delta_lb=-1e+20; solv1_delta_ub=1e+20; 
+    solv1_delta_blocking=0.; solv1_delta_needed=0.; solv1_gens_pushed = 0.;
+    if(dK.K_ConType[0]==SCACOPFData::kGenerator || gen_K_diff>0.) {
+      
+      if(dK.K_ConType[0]==SCACOPFData::kGenerator) {
+	assert(data_sc.K_outidx[K_idx]<pg0->n);
+	gen_K_diff = pg0->x[data_sc.K_outidx[K_idx]];
+	
+      }
+
+      solv1_Pg_was_enough = push_and_fix_AGCgen(dK, gen_K_diff, 0., 
+				   solv1_pg0_partic_idxs, solv1_pgK_partic_idxs, 
+				   solv1_pg0_nonpartic_idxs, solv1_pgK_nonpartic_idxs,
+				   pg0, pgK, 
+				   data_sc.G_Plb, data_sc.G_Pub, data_sc.G_alpha,
+				   solv1_delta_out, solv1_delta_needed, solv1_delta_blocking, 
+				   solv1_delta_lb, solv1_delta_ub, residual_Pg);
+      //alter starting points 
+      assert(solv1_pg0_partic_idxs.size() == solv1_pgK_partic_idxs.size());
+      for(int it=0; it<solv1_pg0_partic_idxs.size(); it++) {
+	const int& i0 = solv1_pg0_partic_idxs[it]; 
+	pgK->x[solv1_pgK_partic_idxs[it]] = pg0->x[i0]+data_sc.G_alpha[i0] * solv1_delta_out;
+      }
+      solv1_gens_pushed = pg0_partic_idxs.size()-solv1_pg0_partic_idxs.size();
+#ifdef BE_VERBOSE
+      printf("ContProbWithFixing K_idx=%d def_ass (extra gener) %.8f gen missing; "
+	     "fixed %lu gens; delta out=%g needed=%g blocking=%g residualPg=%g feasib=%d\n",
+	     K_idx, gen_K_diff, pg0_partic_idxs.size()-solv1_pg0_partic_idxs.size(),
+	     solv1_delta_out, solv1_delta_needed, solv1_delta_blocking, residual_Pg, solv1_Pg_was_enough);
+#endif
+    }
+
+    prob_mds_->add_cons_lines_pf(dK);
+    prob_mds_->add_cons_transformers_pf(dK);
+    prob_mds_->add_cons_active_powbal(dK);
+    prob_mds_->add_cons_reactive_powbal(dK);
+    bool SysCond_BaseCase = false;
+    prob_mds_->add_cons_thermal_li_lims(dK,SysCond_BaseCase);
+    prob_mds_->add_cons_thermal_ti_lims(dK,SysCond_BaseCase);
+
+    this->add_cons_pg_nonanticip_using(pg0, solv1_pg0_nonpartic_idxs, solv1_pgK_nonpartic_idxs);
+    //add_cons_AGC_using(pg0);
+
+    if(solv1_pg0_partic_idxs.size() > 0) {
+      this->add_cons_AGC_simplified(dK, solv1_pg0_partic_idxs, solv1_pgK_partic_idxs, pg0);
+      auto deltav = prob_mds_->variable("delta", dK); assert(deltav);
+      if(deltav) { //it may happen that all AGC gens were fixed
+	deltav->set_start_to(solv1_delta_out);
+	deltav->lb[0] = solv1_delta_lb; deltav->ub[0] = solv1_delta_ub; 
+      } 
+    } else { 
+      //all AGC gens were fixed; add fixed variable delta 
+      OptVariablesBlock* deltaK = new OptVariablesBlock(1, var_name("delta", dK)); 
+      prob_mds_->append_varsblock(deltaK);
+      deltaK->set_start_to(solv1_delta_out);
+      deltaK->lb[0] = deltaK->ub[0] = solv1_delta_out;
+      prob_mds_->append_objterm(new QuadrRegularizationObjTerm("delta_regul", deltaK, 1., solv1_delta_out));
+    }
     
-    return true;//ContingencyProblem::default_assembly(vn0, thetan0, bs0, pg0, qg0);
+    prob_mds_->add_const_nonanticip_v_n_using(vn0, Gk);
+    //PVPQSmoothing=1e-8;
+    //add_cons_PVPQ_using(vn0, Gk);
+
+    assert(prob_mds_->vars_primal->provides_start());
+
+    if(NULL==prob_mds_->vars_duals_bounds_L ||
+       NULL==prob_mds_->vars_duals_bounds_U ||
+       NULL==prob_mds_->vars_duals_cons) {
+      //force allocation of duals
+      prob_mds_->dual_problem_changed();
+    }
+
+    if(!warm_start_variable_from_basecase_dict(*prob_mds_->vars_duals_bounds_L)) return false;
+    if( prob_mds_->variable_duals_lower("duals_bndL_delta", dK) )
+      prob_mds_->variable_duals_lower("duals_bndL_delta", dK)->set_start_to(0.0);
+    assert(prob_mds_->vars_duals_bounds_L->provides_start());
+
+    if(!warm_start_variable_from_basecase_dict(*prob_mds_->vars_duals_bounds_U)) return false;
+    if(prob_mds_->variable_duals_upper("duals_bndU_delta", dK))
+      prob_mds_->variable_duals_upper("duals_bndU_delta", dK)->set_start_to(0.0);
+    assert(prob_mds_->vars_duals_bounds_U->provides_start());
+
+    //AGC_simple_fixedpg0
+    if(!warm_start_variable_from_basecase_dict(*prob_mds_->vars_duals_cons)) return false;
+    if(prob_mds_->variable_duals_cons("duals_AGC_simple_fixedpg0", dK))
+      prob_mds_->variable_duals_cons("duals_AGC_simple_fixedpg0", dK)->set_start_to(0.0);
+    assert(prob_mds_->vars_duals_cons->provides_start());
+
+
+#ifdef GOLLNLP_FAULT_HANDLING
+    string msg =
+      "[timer] ma57 timeout rank=" + std::to_string(my_rank) +
+      " for K_idx=" + std::to_string(K_idx) + " occured!\n";
+    set_timer_message_ma57(msg.c_str());
+
+    msg =
+      "[timer] ma27 timeout rank=" + std::to_string(my_rank) +
+      " for K_idx=" + std::to_string(K_idx) + " occured!\n";
+    set_timer_message_ma27(msg.c_str());
+
+    assert(my_rank>=1);
+#endif
+    vars_last = prob_mds_->vars_primal->new_copy();
+    vars_ini  = prob_mds_->vars_primal->new_copy();
+    
+    double* x = new double[vars_primal->n()];
+    double obj;
+    prob_mds_->vars_primal->copy_to(x);
+    //will copy the values
+    best_known_iter.initialize(prob_mds_->vars_primal);
+    if(prob_mds_->eval_obj(x, true, obj)) {
+      best_known_iter.set_objective(obj);
+    }
+    delete [] x;
+    return true;
   }
   
   bool ContingencyProblemKronRedWithFixingCode1::eval_obj(OptVariablesBlock* pg0,
@@ -129,8 +233,8 @@ namespace gollnlp {
     set_no_recourse_action(data_for_master);
 
     if(best_known_iter.obj_value <= pen_accept_initpt) {
-      assert(vars_primal->n() == best_known_iter.vars_primal->n());
-      vars_primal->set_start_to(*best_known_iter.vars_primal);
+      assert(prob_mds_->vars_primal->n() == best_known_iter.vars_primal->n());
+      prob_mds_->vars_primal->set_start_to(*best_known_iter.vars_primal);
       prob_mds_->obj_value = best_known_iter.obj_value;
 
 #ifdef BE_VERBOSE
@@ -141,8 +245,8 @@ namespace gollnlp {
       set_no_recourse_action(data_for_master, f);
       return true;
     }
-    
     bool bFirstSolveOK = do_solve1();
+
     f = prob_mds_->obj_value;
     
     if(prob_mds_->variable("delta", d))
@@ -291,10 +395,13 @@ namespace gollnlp {
 	  } 
 
 	  bfeasib = push_and_fix_AGCgen(d, gen_K_diff, solv1_delta_optim, 
-					pg0_partic_idxs_u, pgK_partic_idxs_u, pg0_nonpartic_idxs_u, pgK_nonpartic_idxs_u,
+					pg0_partic_idxs_u, pgK_partic_idxs_u,
+					pg0_nonpartic_idxs_u, pgK_nonpartic_idxs_u,
 					pg0, pgK, 
 					data_sc.G_Plb, data_sc.G_Pub, data_sc.G_alpha,
-					delta_out, delta_needed, delta_blocking, delta_lb, delta_ub, residual_Pg);
+					delta_out, delta_needed, delta_blocking,
+					delta_lb, delta_ub,
+					residual_Pg);
  	  //alter starting points 
 	  assert(pg0_partic_idxs_u.size() == pgK_partic_idxs_u.size());
 	  for(int it=0; it<pg0_partic_idxs_u.size(); it++) {
@@ -461,13 +568,18 @@ namespace gollnlp {
     int n_solves=0; 
     while(!done) {
 
+      printf("loop do_solve1: nsolves=%d\n", n_solves);
+      
       bool opt_ok=false; bool PDRestart=true;
 
       solve1_emer_mode=false;
+
+      assert(prob_mds_);
       
       switch(n_solves) {
       case 0: 
-	{ 
+	{
+
 	  PDRestart=false;
 	  prob_mds_->set_solver_option("mu_target", 5e-9);
 	  prob_mds_->set_solver_option("mu_init", 1e-1);
@@ -477,11 +589,12 @@ namespace gollnlp {
 	  prob_mds_->set_solver_option("linear_scaling_on_demand", "yes");
 
 	  const double gamma = 1e-3;
-	  regularize_vn(gamma);
-	  regularize_thetan(gamma);
-	  regularize_bs(gamma);
-	  regularize_pg(gamma);
-	  regularize_qg(gamma);
+	  prob_mds_->regularize_vn(gamma);
+	  prob_mds_->regularize_thetan(gamma);
+	  prob_mds_->regularize_bs(gamma);
+	  prob_mds_->regularize_pg(gamma);
+	  prob_mds_->regularize_qg(gamma);
+
 	}
 	break;
       case 1: 
@@ -493,27 +606,27 @@ namespace gollnlp {
 	     last_opt_status!=Maximum_Iterations_Exceeded) {
 	    assert(last_opt_status!=Solve_Succeeded && last_opt_status!=Solved_To_Acceptable_Level);
 	    //restauration or something bad happened
-	    vars_primal->set_start_to(*vars_ini);
-	    set_solver_option("mu_init", 1.);
+	    prob_mds_->vars_primal->set_start_to(*vars_ini);
+	    prob_mds_->set_solver_option("mu_init", 1.);
 	  } else {
 	    //we do a primal restart only since restarting duals didn't work (and tends to pose issues)
-	    vars_primal->set_start_to(*vars_last);
-	    set_solver_option("mu_init", 1e-2);
+	    prob_mds_->vars_primal->set_start_to(*vars_last);
+	    prob_mds_->set_solver_option("mu_init", 1e-2);
 	  }
 
-	  set_solver_option("ma57_small_pivot_flag", 1);
+	  prob_mds_->set_solver_option("ma57_small_pivot_flag", 1);
 
-	   set_solver_option("mu_target", 5e-8);
-	  set_solver_option("tol", 5e-7);
-	  set_solver_option("mu_linear_decrease_factor", 0.4);
-	  set_solver_option("mu_superlinear_decrease_power", 1.25);
+	  prob_mds_->set_solver_option("mu_target", 5e-8);
+	  prob_mds_->set_solver_option("tol", 5e-7);
+	  prob_mds_->set_solver_option("mu_linear_decrease_factor", 0.4);
+	  prob_mds_->set_solver_option("mu_superlinear_decrease_power", 1.25);
 	  
 	  const double gamma = 1e-3;
-	  regularize_vn(gamma);
-	  regularize_thetan(gamma);
-	  regularize_bs(gamma);
-	  regularize_pg(gamma);
-	  regularize_qg(gamma);
+	  prob_mds_->regularize_vn(gamma);
+	  prob_mds_->regularize_thetan(gamma);
+	  prob_mds_->regularize_bs(gamma);
+	  prob_mds_->regularize_pg(gamma);
+	  prob_mds_->regularize_qg(gamma);
 
 	  g_alarm_duration_ma57=alarm_ma57_safem;
 	  g_max_memory_ma57=max_mem_ma57_safem;
@@ -614,13 +727,13 @@ namespace gollnlp {
 	{
 	  PDRestart=false;
 	  solve1_emer_mode=true;
-	  set_solver_option("mu_init", 1.);
-	  set_solver_option("mu_target", 1e-7);
-	  set_solver_option("linear_solver", "ma57"); 
-	  set_solver_option("ma57_automatic_scaling", "yes");
-	  set_solver_option("tol", 5e-6);
-	  set_solver_option("mu_linear_decrease_factor", 0.4);
-	  set_solver_option("mu_superlinear_decrease_power", 1.2);
+	  prob_mds_->set_solver_option("mu_init", 1.);
+	  prob_mds_->set_solver_option("mu_target", 1e-7);
+	  prob_mds_->set_solver_option("linear_solver", "ma57"); 
+	  prob_mds_->set_solver_option("ma57_automatic_scaling", "yes");
+	  prob_mds_->set_solver_option("tol", 5e-6);
+	  prob_mds_->set_solver_option("mu_linear_decrease_factor", 0.4);
+	  prob_mds_->set_solver_option("mu_superlinear_decrease_power", 1.2);
 
 	  const double gamma = 5e-2 + 0.1*n_solves;
 	  update_regularizations(gamma);
@@ -629,27 +742,28 @@ namespace gollnlp {
 	  g_max_memory_ma57=max_mem_ma57_safem;
 	}
       }
-      set_solver_option("print_user_options", "no");
-      set_solver_option("print_level", 2);
-      set_solver_option("sb","yes");
+      prob_mds_->set_solver_option("print_user_options", "no");
+      prob_mds_->set_solver_option("print_level", 2);
+      prob_mds_->set_solver_option("sb","yes");
 
-      set_solver_option("max_iter", 300);
-      set_solver_option("acceptable_tol", 1e-3);
-      set_solver_option("acceptable_constr_viol_tol", 1e-6);
-      set_solver_option("acceptable_iter", 5);
+      prob_mds_->set_solver_option("max_iter", 300);
+      prob_mds_->set_solver_option("acceptable_tol", 1e-3);
+      prob_mds_->set_solver_option("acceptable_constr_viol_tol", 1e-6);
+      prob_mds_->set_solver_option("acceptable_iter", 5);
 
-      set_solver_option("fixed_variable_treatment", "relax_bounds");
-      set_solver_option("honor_original_bounds", "yes");
+      prob_mds_->set_solver_option("fixed_variable_treatment", "relax_bounds");
+      prob_mds_->set_solver_option("honor_original_bounds", "yes");
       double relax_factor = 1e-8;//std::min(1e-8, pow(10., 3*n_solves-16));
-      set_solver_option("bound_relax_factor", relax_factor);
+      prob_mds_->set_solver_option("bound_relax_factor", relax_factor);
       double bound_push = 1e-2;//std::min(1e-2, pow(10., 3*n_solves-12));
-      set_solver_option("bound_push", bound_push);
-      set_solver_option("slack_bound_push", bound_push); 
+      prob_mds_->set_solver_option("bound_push", bound_push);
+      prob_mds_->set_solver_option("slack_bound_push", bound_push); 
       double bound_frac = 1e-2;//std::min(1e-2, pow(10., 3*n_solves-10));
-      set_solver_option("bound_frac", bound_frac);
-      set_solver_option("slack_bound_frac", bound_frac);
+      prob_mds_->set_solver_option("bound_frac", bound_frac);
+      prob_mds_->set_solver_option("slack_bound_frac", bound_frac);
       
-      set_solver_option("neg_curv_test_reg", "no"); //default yes ->ChiangZavala primal regularization
+      prob_mds_->set_solver_option("neg_curv_test_reg", "no"); //default yes ->ChiangZavala primal regularization
+
 
       monitor.timer.restart();
       monitor.hist_tm.clear();
@@ -669,16 +783,17 @@ namespace gollnlp {
       bool ok_to_exit = false;
       if(best_known_iter.obj_value <= monitor.pen_accept) {
 	ok_to_exit = true;
-	this->obj_value = best_known_iter.obj_value;
-	vars_primal->set_start_to(*best_known_iter.vars_primal);
+	prob_mds_->obj_value = best_known_iter.obj_value;
+	prob_mds_->vars_primal->set_start_to(*best_known_iter.vars_primal);
 	printf("[warning] ContProbWithFixing K_idx=%d opt1 exit best_known < pen_accept(%g) rank=%d  %g sec\n", 
 	       K_idx,  monitor.pen_accept, my_rank, tmrec.measureElapsedTime()); 
       }
       if(monitor.emergency && best_known_iter.obj_value <= monitor.pen_accept_emer) {
 	ok_to_exit = true;
-	this->obj_value = best_known_iter.obj_value;
-	vars_primal->set_start_to(*best_known_iter.vars_primal);
-	printf("[warning] ContProbWithFixing K_idx=%d opt1 exit best_known < pen_accept_emer(%g) rank=%d  %g sec\n", 
+	prob_mds_->obj_value = best_known_iter.obj_value;
+	prob_mds_->vars_primal->set_start_to(*best_known_iter.vars_primal);
+	printf("[warning] ContProbWithFixing K_idx=%d opt1 exit best_known < pen_accept_emer(%g) "
+	       "rank=%d  %g sec\n", 
 	       K_idx,  monitor.pen_accept_emer, my_rank, tmrec.measureElapsedTime()); 
       }
 	
@@ -687,11 +802,13 @@ namespace gollnlp {
 	bret = true;
       } else {
 
-	this->obj_value = 1e+20;
+	prob_mds_->obj_value = 1e+20;
 	if(PDRestart) {
-	  opt_ok = OptProblem::reoptimize(OptProblem::primalDualRestart);
+	  //opt_ok = OptProblem::reoptimize(OptProblem::primalDualRestart);
+	  prob_mds_->reoptimize(OptProblem::primalDualRestart);
 	} else {
-	  opt_ok = OptProblem::reoptimize(OptProblem::primalRestart);
+	  //opt_ok = OptProblem::reoptimize(OptProblem::primalRestart);
+	  prob_mds_->reoptimize(OptProblem::primalRestart);
 	}
 	
 	n_solves++;
@@ -1439,5 +1556,66 @@ namespace gollnlp {
 
     return false;
   }
-}
 
+
+  void ContingencyProblemKronRedWithFixingCode1::
+  add_cons_pg_nonanticip_using(OptVariablesBlock* pg0,
+			       const std::vector<int>& idxs_pg0_nonparticip, 
+			       const std::vector<int>& idxs_pgK_nonparticip)
+  {
+    SCACOPFData& dK = *data_K[0]; assert(dK.id-1 == K_idx);
+    OptVariablesBlock* pgK = prob_mds_->variable("p_g", dK);
+    if(NULL==pgK) {
+      printf("[warning] ContingencyProblemWithFixing K_idx=%d p_g var not found in contingency  "
+	     "problem; will not enforce non-ACG coupling constraints.\n", dK.id);
+      return;
+    }
+    int sz = pgK_nonpartic_idxs.size();  assert(sz == pg0_nonpartic_idxs.size());
+    const int *pgK_idxs = idxs_pgK_nonparticip.data(), *pg0_idxs = idxs_pg0_nonparticip.data();
+    int idxK; //double pg0_val, lb, ub; 
+
+#ifdef DEBUG
+    assert(pg0->xref == pg0->x);
+#endif
+
+    for(int i=0; i<sz; i++) {
+      assert(pg0_idxs[i]<pg0->n && pg0_idxs[i]>=0); assert(pgK_idxs[i]<pgK->n && pgK_idxs[i]>=0);
+      idxK = pgK_idxs[i];
+      pgK->lb[idxK] = pgK->ub[idxK] = pg0->xref[pg0_idxs[i]];
+    }
+  }
+
+  bool ContingencyProblemKronRedWithFixingCode1::
+  add_cons_AGC_simplified(SCACOPFData& dB, 
+			  const std::vector<int>& idxs0_AGC_particip, 
+			  const std::vector<int>& idxsK_AGC_particip,
+			  OptVariablesBlock* pg0)
+  {
+    assert(idxs0_AGC_particip.size()==idxsK_AGC_particip.size());
+    assert(prob_mds_->variable("p_g", dB));
+
+    if(idxs0_AGC_particip.size()==0) {
+      printf("[warning] ContingencyProblemWithFixing add_cons_AGC_simplified: "
+	     "NO gens participating !?! in contingency %d\n", dB.id);
+      return true;
+    }
+
+    OptVariablesBlock* deltaK = prob_mds_->variable("delta", dB);
+    if(deltaK==NULL) {
+      deltaK = new OptVariablesBlock(1, var_name("delta", dB));
+      prob_mds_->append_varsblock(deltaK);
+      deltaK->set_start_to(0.);
+    }
+
+    auto cons = new AGCSimpleCons_pg0Fixed(con_name("AGC_simple_fixedpg0", dB),
+					   idxs0_AGC_particip.size(), 
+					   pg0,
+					   prob_mds_->variable("p_g", dB),
+					   deltaK, 
+					   idxs0_AGC_particip, idxsK_AGC_particip, 
+					   data_sc.G_alpha);
+    prob_mds_->append_constraints(cons);
+
+    return true;
+  }
+}

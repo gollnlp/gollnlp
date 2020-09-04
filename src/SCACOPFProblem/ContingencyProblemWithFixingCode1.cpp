@@ -33,7 +33,10 @@ void set_timer_message_ma27(const char* msg);
 
 namespace gollnlp {
 
-  bool ContingencyProblemWithFixingCode1::eval_obj(OptVariablesBlock* pg0, OptVariablesBlock* vn0, double& f, double* data_for_master)
+  bool ContingencyProblemWithFixingCode1::eval_obj(OptVariablesBlock* pg0,
+						   OptVariablesBlock* vn0,
+						   double& f,
+						   double* data_for_master)
   {
     goTimer tmrec; tmrec.start();
     SCACOPFData& d = *data_K[0];

@@ -275,6 +275,15 @@ template<class T> void selectfrom(const std::vector<T>& vsrc, const std::vector<
   }
 }
 
+template<class T> std::vector<T> sub_vector(const std::vector<T>& vsrc,
+					    const size_t& nStart,
+					    const size_t& nLast)
+{
+  assert(nStart>=0 && nStart<vsrc.size());
+  assert(nLast>=nStart && nLast<vsrc.size());
+  return std::vector<T>(vsrc.begin()+nStart, vsrc.begin()+nLast);
+}
+  
 //j=max(i,j) and returns min(i,j)
 inline int uppertr_swap(const int& i, int& j, int& aux) {
   if(i>j) { aux=j; j=i; return aux; } return i;
