@@ -695,7 +695,7 @@ bool OptVariables::append_varsblock(OptVariablesBlock* b)
 	  assert(vblocks.back()->indexSparse >= 0); 
 	  b->indexSparse = vblocks.back()->indexSparse + vblocks.back()->n;
 	  b->index = vblocks.back()->index + vblocks.back()->n;
-	  
+
 	  vblocks.push_back(b);
 	}
 	

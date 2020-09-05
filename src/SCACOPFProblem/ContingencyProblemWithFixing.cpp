@@ -180,7 +180,7 @@ namespace gollnlp {
 
     add_cons_pg_nonanticip_using(pg0, solv1_pg0_nonpartic_idxs, solv1_pgK_nonpartic_idxs);
     //add_cons_AGC_using(pg0);
-
+    
     if(solv1_pg0_partic_idxs.size() > 0) {
       add_cons_AGC_simplified(dK, solv1_pg0_partic_idxs, solv1_pgK_partic_idxs, pg0);
       auto deltav = variable("delta", dK); assert(deltav);
@@ -196,13 +196,13 @@ namespace gollnlp {
       deltaK->lb[0] = deltaK->ub[0] = solv1_delta_out;
       append_objterm(new QuadrRegularizationObjTerm("delta_regul", deltaK, 1., solv1_delta_out));
     }
-    
+
     add_const_nonanticip_v_n_using(vn0, Gk);
     //PVPQSmoothing=1e-8;
     //add_cons_PVPQ_using(vn0, Gk);
 
     assert(vars_primal->provides_start());
-
+    
     if(NULL==vars_duals_bounds_L || NULL==vars_duals_bounds_U || NULL==vars_duals_cons) {
       //force allocation of duals
       dual_problem_changed();
@@ -1225,6 +1225,10 @@ namespace gollnlp {
       const string b0_name = b->id.substr(0, pos+1) + "0";
       auto b0p = dict_basecase_vars.find(b0_name);
       if(b0p == dict_basecase_vars.end()) {
+
+	if(b->id.find("delta") == string::npos && 
+	   b->id.find("AGC")   == string::npos) return false;
+	
 	assert(b->id.find("delta") != string::npos || 
 	       b->id.find("AGC") != string::npos); //!remove agc later
 	continue;

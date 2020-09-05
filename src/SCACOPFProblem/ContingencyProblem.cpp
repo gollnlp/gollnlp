@@ -177,25 +177,34 @@ namespace gollnlp {
 
   void ContingencyProblem::get_solution_simplicial_vectorized(std::vector<double>& vsln)
   {
+    print_summary(); fflush(stdout);
     SCACOPFData& dK = *data_K[0];
 
+    assert(v_n0);
+    assert(theta_n0);
+    assert(b_s0);
+    assert(p_g0);
+    assert(q_g0);
+    
     int n_sln = v_n0->n + theta_n0->n + b_s0->n + p_g0->n + q_g0->n + 1;
     vsln = vector<double>(n_sln);
 
     auto v_nk = variable("v_n", dK);
+    assert(v_nk);
     assert(v_nk->n == v_n0->n);
     memcpy(&vsln[0], v_nk->x, v_nk->n*sizeof(double));
 
     auto theta_nk = variable("theta_n", dK);
+    assert(theta_n0);
     assert(theta_nk->n == theta_n0->n);
     memcpy(&vsln[v_nk->n], theta_nk->x, theta_nk->n*sizeof(double));
 
-    auto b_sk = variable("b_s", dK);
+    auto b_sk = variable("b_s", dK); assert(b_sk);
     assert(b_sk->n == b_s0->n);
     memcpy(&vsln[v_nk->n + theta_nk->n], b_sk->x, b_sk->n*sizeof(double));
 
-    auto p_gk = variable("p_g", dK);
-    auto q_gk = variable("q_g", dK);
+    auto p_gk = variable("p_g", dK); assert(p_gk);
+    auto q_gk = variable("q_g", dK); assert(q_gk);
 
     assert(dK.K_Contingency.size()==1); assert(dK.K_IDout.size()==1); 
     assert(dK.K_ConType.size()==1);

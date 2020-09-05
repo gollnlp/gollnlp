@@ -20,8 +20,11 @@ namespace gollnlp {
     virtual ~ContingencyProblemKronRed();
 
     virtual bool default_assembly(OptVariablesBlock* pg0, OptVariablesBlock* vn0);
-    virtual bool default_assembly(OptVariablesBlock* vn0, OptVariablesBlock* thetan0, OptVariablesBlock* bs0, 
-				  OptVariablesBlock* pg0, OptVariablesBlock* qg0);
+    virtual bool default_assembly(OptVariablesBlock* vn0,
+				  OptVariablesBlock* thetan0,
+				  OptVariablesBlock* bs0, 
+				  OptVariablesBlock* pg0,
+				  OptVariablesBlock* qg0);
 
     //evaluates objective/penalty given pg0 and vn0 (these are 'in' arguments)
     virtual bool eval_obj(OptVariablesBlock* pg0, OptVariablesBlock* vn0, double& f);
@@ -69,7 +72,7 @@ namespace gollnlp {
     std::vector<int> pgK_partic_idxs, pg0_partic_idxs;
     //indexes of data_K[0].G_Generator in data_sc.G_Generator
     //these indexes exclude 'outidx' when K_idx is a generator contingency; otherwise Gk=0,1,2,...
-    std::vector<int> Gk;
+    std::vector<int> Gk_;
 
     void add_cons_AGC_using(OptVariablesBlock* pg0);
     void update_cons_AGC_using(OptVariablesBlock* pg0);

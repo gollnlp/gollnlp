@@ -50,11 +50,15 @@ namespace gollnlp {
 	   data_sc.cont_type_string(K_idx).c_str(), K_avg_time_so_far, my_rank); fflush(stdout);
 
     p_g0=pg0; v_n0=vn0;
-
+    prob_mds_->v_n0 = vn0;
+    prob_mds_->p_g0 = pg0;
+    
 
     assert(data_K.size()==1);
     SCACOPFData& dK = *data_K[0];
+    
     useQPen = true;
+    prob_mds_->useQPen = true;
 
     ////////////////////////////////////////////////////////////
     // setup for indexes used in non-anticip and AGC coupling 
@@ -90,6 +94,8 @@ namespace gollnlp {
       
 #endif
 
+    prob_mds_->Gk_ = Gk;
+    
     prob_mds_->add_variables(dK,false);
 
     if(!warm_start_variable_from_basecase_dict(*prob_mds_->vars_primal)) {
@@ -145,7 +151,7 @@ namespace gollnlp {
 
     this->add_cons_pg_nonanticip_using(pg0, solv1_pg0_nonpartic_idxs, solv1_pgK_nonpartic_idxs);
     //add_cons_AGC_using(pg0);
-
+    
     if(solv1_pg0_partic_idxs.size() > 0) {
       this->add_cons_AGC_simplified(dK, solv1_pg0_partic_idxs, solv1_pgK_partic_idxs, pg0);
       auto deltav = prob_mds_->variable("delta", dK); assert(deltav);
@@ -161,13 +167,13 @@ namespace gollnlp {
       deltaK->lb[0] = deltaK->ub[0] = solv1_delta_out;
       prob_mds_->append_objterm(new QuadrRegularizationObjTerm("delta_regul", deltaK, 1., solv1_delta_out));
     }
-    
+
     prob_mds_->add_const_nonanticip_v_n_using(vn0, Gk);
     //PVPQSmoothing=1e-8;
     //add_cons_PVPQ_using(vn0, Gk);
 
     assert(prob_mds_->vars_primal->provides_start());
-
+    
     if(NULL==prob_mds_->vars_duals_bounds_L ||
        NULL==prob_mds_->vars_duals_bounds_U ||
        NULL==prob_mds_->vars_duals_cons) {
@@ -175,18 +181,27 @@ namespace gollnlp {
       prob_mds_->dual_problem_changed();
     }
 
-    if(!warm_start_variable_from_basecase_dict(*prob_mds_->vars_duals_bounds_L)) return false;
+    if(!warm_start_variable_from_basecase_dict(*prob_mds_->vars_duals_bounds_L)) {
+      assert(false);
+      return false;
+    }
     if( prob_mds_->variable_duals_lower("duals_bndL_delta", dK) )
       prob_mds_->variable_duals_lower("duals_bndL_delta", dK)->set_start_to(0.0);
     assert(prob_mds_->vars_duals_bounds_L->provides_start());
 
-    if(!warm_start_variable_from_basecase_dict(*prob_mds_->vars_duals_bounds_U)) return false;
+    if(!warm_start_variable_from_basecase_dict(*prob_mds_->vars_duals_bounds_U))  {
+      assert(false);
+      return false;
+    }
     if(prob_mds_->variable_duals_upper("duals_bndU_delta", dK))
       prob_mds_->variable_duals_upper("duals_bndU_delta", dK)->set_start_to(0.0);
     assert(prob_mds_->vars_duals_bounds_U->provides_start());
-
+    
     //AGC_simple_fixedpg0
-    if(!warm_start_variable_from_basecase_dict(*prob_mds_->vars_duals_cons)) return false;
+    if(!warm_start_variable_from_basecase_dict(*prob_mds_->vars_duals_cons))  {
+      assert(false);
+      return false;
+    }
     if(prob_mds_->variable_duals_cons("duals_AGC_simple_fixedpg0", dK))
       prob_mds_->variable_duals_cons("duals_AGC_simple_fixedpg0", dK)->set_start_to(0.0);
     assert(prob_mds_->vars_duals_cons->provides_start());
@@ -208,12 +223,12 @@ namespace gollnlp {
     vars_last = prob_mds_->vars_primal->new_copy();
     vars_ini  = prob_mds_->vars_primal->new_copy();
     
-    double* x = new double[vars_primal->n()];
+    double* x = new double[prob_mds_->vars_primal->n()];
     double obj;
     prob_mds_->vars_primal->copy_to(x);
     //will copy the values
     best_known_iter.initialize(prob_mds_->vars_primal);
-    if(prob_mds_->eval_obj(x, true, obj)) {
+    if(prob_mds_->OptProblem::eval_obj(x, true, obj)) {
       best_known_iter.set_objective(obj);
     }
     delete [] x;
@@ -506,7 +521,7 @@ namespace gollnlp {
       
       if(obj_solve2>pen_accept) { 
 	double delta_optim = 0.;//
-	if(variable("delta", d))
+	if(prob_mds_->variable("delta", d))
 	  delta_optim = prob_mds_->variable("delta", d)->x[0];
 #ifdef BE_VERBOSE
 	//print_objterms_evals();
@@ -568,7 +583,7 @@ namespace gollnlp {
     int n_solves=0; 
     while(!done) {
 
-      printf("loop do_solve1: nsolves=%d\n", n_solves);
+      printf("!!!!!!!!!!!!!!!!!!!!!!! loop do_solve1: nsolves=%d\n", n_solves);
       
       bool opt_ok=false; bool PDRestart=true;
 
@@ -579,7 +594,6 @@ namespace gollnlp {
       switch(n_solves) {
       case 0: 
 	{
-
 	  PDRestart=false;
 	  prob_mds_->set_solver_option("mu_target", 5e-9);
 	  prob_mds_->set_solver_option("mu_init", 1e-1);
@@ -587,14 +601,13 @@ namespace gollnlp {
 	  prob_mds_->set_solver_option("linear_solver", "ma57"); 
 	  prob_mds_->set_solver_option("linear_system_scaling", "mc19");
 	  prob_mds_->set_solver_option("linear_scaling_on_demand", "yes");
-
+	  
 	  const double gamma = 1e-3;
 	  prob_mds_->regularize_vn(gamma);
 	  prob_mds_->regularize_thetan(gamma);
 	  prob_mds_->regularize_bs(gamma);
 	  prob_mds_->regularize_pg(gamma);
 	  prob_mds_->regularize_qg(gamma);
-
 	}
 	break;
       case 1: 
@@ -805,18 +818,18 @@ namespace gollnlp {
 	prob_mds_->obj_value = 1e+20;
 	if(PDRestart) {
 	  //opt_ok = OptProblem::reoptimize(OptProblem::primalDualRestart);
-	  prob_mds_->reoptimize(OptProblem::primalDualRestart);
+	  opt_ok = prob_mds_->reoptimize(OptProblem::primalDualRestart);
 	} else {
 	  //opt_ok = OptProblem::reoptimize(OptProblem::primalRestart);
-	  prob_mds_->reoptimize(OptProblem::primalRestart);
+	  opt_ok = prob_mds_->reoptimize(OptProblem::primalRestart);
 	}
-	
+
 	n_solves++;
-	last_opt_status = OptProblem::optimization_status();
+	last_opt_status = prob_mds_->OptProblem::optimization_status();
 
-	hist_iter.push_back(number_of_iterations());
-	hist_obj.push_back(this->obj_value);
-
+	hist_iter.push_back(prob_mds_->number_of_iterations());
+	hist_obj.push_back(prob_mds_->obj_value);
+	
 	if(opt_ok) {
 	  done = true;
 	} else {
@@ -825,29 +838,34 @@ namespace gollnlp {
 	    done = true;
 	  } else {
 	    //something bad happened, will resolve
-	    printf("[warning] ContProbWithFixing K_idx=%d opt1 failed at try %d rank=%d  %g sec\n", 
+	    printf("[warning] ContProbKronRedWithFixing K_idx=%d opt1 failed at try %d rank=%d  %g sec\n", 
 		   K_idx, n_solves, my_rank, tmrec.measureElapsedTime()); 
 	  }
 	}
       
 	if(n_solves>9) done = true;
 	if(tmTotal.measureElapsedTime() > timeout) {
-	  printf("[warning] ContProbWithFixing K_idx=%d opt1 timeout  %g sec; rank=%d; tries %d\n", 
+	  printf("[warning] ContProbKronRedWithFixing K_idx=%d opt1 timeout  %g sec; rank=%d; tries %d\n", 
 		 K_idx, tmTotal.measureElapsedTime(), my_rank, n_solves);
 	  done = true;
 	  bret = false;
 	}
       } //end of else best_know_iter<monitor.pen_accept
     } //end of outer while
-
-    if(this->obj_value > best_known_iter.obj_value) {
-      this->obj_value = best_known_iter.obj_value;
-      vars_primal->set_start_to(*best_known_iter.vars_primal);
-      printf("ContProbWithFixing K_idx=%d opt1 return best_known obj=%g on rank=%d\n", 
-	     K_idx, this->obj_value, my_rank);
+    
+    if(prob_mds_->obj_value > best_known_iter.obj_value) {
+      assert(false);
+      prob_mds_->obj_value = best_known_iter.obj_value;
+      prob_mds_->vars_primal->set_start_to(*best_known_iter.vars_primal);
+      printf("ContProbWithKronRedFixing K_idx=%d opt1 return best_known obj=%g on rank=%d\n", 
+	     K_idx, prob_mds_->obj_value, my_rank);
     }
-    get_solution_simplicial_vectorized(sln_solve1);
-    obj_solve1 = this->obj_value;
+
+            printf(" !!!!!! SOLVE 1step 1444 : \n"); fflush(stdout);
+    sleep(1.);
+
+    prob_mds_->get_solution_simplicial_vectorized(sln_solve1);
+    obj_solve1 = prob_mds_->obj_value;
     
 #ifdef BE_VERBOSE
     string sit = "["; for(auto iter:  hist_iter) sit += to_string(iter)+'/'; sit[sit.size()-1] = ']';
@@ -857,6 +875,9 @@ namespace gollnlp {
     fflush(stdout);
 #endif
 
+    printf(" !!!!!! SOLVE 1 REOPTIMIZING DONE : \n"); fflush(stdout);
+    sleep(1.);
+    
     return bret;
   }
   //
@@ -1563,6 +1584,8 @@ namespace gollnlp {
 			       const std::vector<int>& idxs_pg0_nonparticip, 
 			       const std::vector<int>& idxs_pgK_nonparticip)
   {
+    assert(pg0 == p_g0);
+    assert(pg0 == prob_mds_->p_g0);
     SCACOPFData& dK = *data_K[0]; assert(dK.id-1 == K_idx);
     OptVariablesBlock* pgK = prob_mds_->variable("p_g", dK);
     if(NULL==pgK) {
@@ -1591,6 +1614,8 @@ namespace gollnlp {
 			  const std::vector<int>& idxsK_AGC_particip,
 			  OptVariablesBlock* pg0)
   {
+    assert(pg0 == p_g0);
+    assert(pg0 == prob_mds_->p_g0);
     assert(idxs0_AGC_particip.size()==idxsK_AGC_particip.size());
     assert(prob_mds_->variable("p_g", dB));
 

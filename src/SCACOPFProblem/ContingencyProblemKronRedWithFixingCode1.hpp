@@ -33,6 +33,7 @@ namespace gollnlp {
 				  OptVariablesBlock* pg0, OptVariablesBlock* qg0)
     {
       theta_n0=thetan0; b_s0=bs0; q_g0=qg0;
+      prob_mds_->theta_n0=thetan0; prob_mds_->b_s0=bs0; prob_mds_->q_g0=qg0;
       return default_assembly(pg0, vn0);
     }
     
@@ -45,6 +46,11 @@ namespace gollnlp {
     {
       p_li10=pli10; q_li10=qli10; p_li20=pli20; q_li20=qli20;
       p_ti10=pti10; q_ti10=qti10; p_ti20=pti20; q_ti20=qti20;
+
+      //prob_mds_->p_li10=pli10; prob_mds_->q_li10=qli10;
+      //prob_mds_->p_li20=pli20; prob_mds_->q_li20=qli20;
+      //prob_mds_->p_ti10=pti10; prob_mds_->q_ti10=qti10;
+      //prob_mds_->p_ti20=pti20; prob_mds_->q_ti20=qti20;
       return default_assembly(vn0, thetan0, bs0, pg0, qg0);
     }
     

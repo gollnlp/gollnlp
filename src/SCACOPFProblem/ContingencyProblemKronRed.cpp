@@ -42,6 +42,9 @@ namespace gollnlp {
 
   bool ContingencyProblemKronRed::default_assembly(OptVariablesBlock* pg0, OptVariablesBlock* vn0) 
   {
+    assert(false); //assembled outside the class
+
+    
     //printf("ContProb K_idx=%d: IDOut=%d outidx=%d Type=%s\n",
     //	   K_idx, data_sc.K_IDout[K_idx], data_sc.K_outidx[K_idx],
     //	   data_sc.cont_type_string(K_idx).c_str());
@@ -69,8 +72,8 @@ namespace gollnlp {
     // setup for indexes used in non-anticip and AGC coupling 
     //
     //indexes in data_sc.G_Generator; exclude 'outidx' if K_idx is a generator contingency
-    data_sc.get_AGC_participation(K_idx, Gk, pg0_partic_idxs, pg0_nonpartic_idxs);
-    assert(pg0->n == Gk.size() || pg0->n == 1+Gk.size());
+    data_sc.get_AGC_participation(K_idx, Gk_, pg0_partic_idxs, pg0_nonpartic_idxs);
+    assert(pg0->n == Gk_.size() || pg0->n == 1+Gk_.size());
 
     //pg0_nonpartic_idxs=Gk;
     //pg0_partic_idxs={};
@@ -105,7 +108,7 @@ namespace gollnlp {
     add_cons_AGC_using(pg0);
     
     //add_const_nonanticip_v_n_using(vn0, Gk);
-    add_cons_PVPQ_using(vn0, Gk);
+    add_cons_PVPQ_using(vn0, Gk_);
     
 
     //print_summary();
@@ -178,6 +181,12 @@ namespace gollnlp {
   void ContingencyProblemKronRed::get_solution_simplicial_vectorized(std::vector<double>& vsln)
   {
     SCACOPFData& dK = *data_K[0];
+    
+    assert(v_n0);
+    //assert(theta_n0);
+    assert(b_s0);
+    assert(p_g0);
+    assert(q_g0);
 
     int n_sln = v_n0->n + theta_n0->n + b_s0->n + p_g0->n + q_g0->n + 1;
     vsln = vector<double>(n_sln);
@@ -205,18 +214,19 @@ namespace gollnlp {
 #ifdef DEBUG
       for(int i=0; i<p_g0->n + q_g0->n; i++) vsln[offset+i]= -10117.;
 #endif
-      int ngk = Gk.size(); assert(ngk==p_g0->n-1);
+
+      int ngk = Gk_.size(); assert(ngk==p_g0->n-1);
       for(int i=0; i<ngk; i++) {
-	assert(Gk[i]>=0 && Gk[i]<p_g0->n);
-	vsln[offset+Gk[i]] = p_gk->x[i];
+	assert(Gk_[i]>=0 && Gk_[i]<p_g0->n);
+	vsln[offset+Gk_[i]] = p_gk->x[i];
       }
       assert(vsln[offset+dK.K_outidx[0]]==-10117.);
       vsln[offset+dK.K_outidx[0]] = 0.;
 
       offset += p_g0->n;
       for(int i=0; i<ngk; i++) {
-	assert(Gk[i]>=0 && Gk[i]<q_g0->n);
-	vsln[offset+Gk[i]] = q_gk->x[i];
+	assert(Gk_[i]>=0 && Gk_[i]<q_g0->n);
+	vsln[offset+Gk_[i]] = q_gk->x[i];
       }
 #ifdef DEBUG
       assert(vsln[offset+dK.K_outidx[0]]==-10117.);
@@ -239,8 +249,9 @@ namespace gollnlp {
   // PVPQ
   //
   void ContingencyProblemKronRed::add_const_nonanticip_v_n_using(OptVariablesBlock* v_n0, 
-							  const vector<int>& Gk) 
+								 const vector<int>& Gk) 
   {
+    assert(Gk_ == Gk);
     assert(data_K.size()==1);
     SCACOPFData& dB = *data_K[0];
     auto G_Nidx_Gk = selectfrom(data_sc.G_Nidx, Gk);
@@ -328,6 +339,7 @@ namespace gollnlp {
   void ContingencyProblemKronRed::add_cons_PVPQ_using(OptVariablesBlock* vn0, 
 					       const vector<int>& Gk) 
   {
+    assert(Gk_ == Gk);
     assert(data_K.size()==1);
     assert(v_n0 == vn0);
     SCACOPFData& dB = *data_K[0];
@@ -490,9 +502,15 @@ namespace gollnlp {
   void ContingencyProblemKronRed::regularize_vn(const double& gamma)
   {
     assert(data_K.size()==1);
-    SCACOPFData& dK = *data_K[0]; assert(dK.id==K_idx+1);
-    assert(variable("v_n", dK)->n == v_n0->n);
 
+    SCACOPFData& dK = *data_K[0];
+    assert(dK.id==K_idx+1);
+
+    assert(variable("v_n", dK));
+    assert(v_n0);
+    
+    assert(variable("v_n", dK)->n == v_n0->n);
+    
     OptObjectiveTerm* ot = obj->objterm("regul_vn");
     if(NULL==ot) {
       append_objterm(new QuadrRegularizationObjTerm("regul_vn", variable("v_n", dK),
