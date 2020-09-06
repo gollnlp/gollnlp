@@ -177,7 +177,6 @@ namespace gollnlp {
 
   void ContingencyProblem::get_solution_simplicial_vectorized(std::vector<double>& vsln)
   {
-    print_summary(); fflush(stdout);
     SCACOPFData& dK = *data_K[0];
 
     assert(v_n0);

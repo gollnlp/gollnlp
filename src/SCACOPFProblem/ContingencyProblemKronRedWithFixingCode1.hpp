@@ -87,12 +87,7 @@ namespace gollnlp {
 				      const std::vector<int>& idxs_pg0_nonparticip, 
 				      const std::vector<int>& idxs_pgK_nonparticip);
     
-    bool do_qgen_fixing_for_PVPQ(OptVariablesBlock* vnk, OptVariablesBlock* qgk)
-    {
-      //see ContingencyProblemWithFixing
-      assert(false);
-      return true;
-    }
+    //bool do_qgen_fixing_for_PVPQ(OptVariablesBlock* vnk, OptVariablesBlock* qgk);
 
     void get_objective_penalties(double& pen_p_balance, double& pen_q_balance, 
 				 double& pen_line_limits, double& pen_trans_limits);
@@ -104,6 +99,9 @@ namespace gollnlp {
 
     //this is the MDS Contigency Problem evaluation to which ops are delegated
     ContingencyProblemKronRed* prob_mds_;
+
+  public:
+    
   };
 
 } //end namespace

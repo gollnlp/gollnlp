@@ -1144,7 +1144,7 @@ namespace gollnlp {
 
 #ifdef DEBUG
       if(bFirstSolveOK) {
-	if(!vars_duals_bounds_L->provides_start()) print_summary();
+	if(!vars_duals_bounds_L->provides_start()) { assert(false); print_summary(); }
 	assert(vars_duals_bounds_L->provides_start()); 	assert(vars_duals_bounds_U->provides_start()); 	
 	assert(vars_duals_cons->provides_start());
       }
