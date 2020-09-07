@@ -914,10 +914,8 @@ namespace gollnlp {
     while(!done) {
       bool opt_ok=false; bool PDRestart=true;
       solve2_emer_mode=false;
+      printf("ContProbKron_wfix - do_solve2: K_idx=%d nsolves=%d\n", K_idx, n_solves);
       switch(n_solves) {
-
-	printf("ContProbKron_wfix - do_solve2: K_idx=%d nsolves=%d\n", K_idx, n_solves);
-	
       case 0: 
 	{ 
 	  if(bFirstSolveOK) {
