@@ -1798,8 +1798,8 @@ bool MyCode1::do_phase2_evaluator_part(int& switchToSolver)
 	    if(phase3_scacopf_pass_solution==-1) {
 	      //an approx solution is already available from the quick bcast
 #ifdef DEBUG_COMM
-	      printf("[comm] [warning] Evaluator Rank %d first approx basecase solution should be fine\n",
-		     my_rank);
+	      printf("[comm] [warning] Evaluator Rank %d first approx basecase solution should be fine [K_idx=%d]\n",
+		     my_rank, K_phase2[K_idx]);
 #endif
 	      break;
 	    }
@@ -1809,7 +1809,14 @@ bool MyCode1::do_phase2_evaluator_part(int& switchToSolver)
 	
 	int scacopf_pass_solution = std::max(0, phase3_scacopf_pass_solution);
 	//assert(phase3_scacopf_pass_solution>=0);
-	assert(scacopf_pass_from_Kidxreq <= scacopf_pass_solution);
+	if(scacopf_pass_from_Kidxreq > scacopf_pass_solution) {
+
+	  printf("[warning] scacopf_pass_from_Kidxreq=%d  scacopf_pass_solution=%d  my_rank=%d K_idx=%d\n",
+		 scacopf_pass_from_Kidxreq, scacopf_pass_solution, my_rank, K_phase2[K_idx]); fflush(stdout);
+
+	  //! assert(scacopf_pass_from_Kidxreq <= scacopf_pass_solution);
+	}
+	
 
 	assert(req_send_penalty == NULL);
 	req_send_penalty = new ReqPenalty(K_idx, -1e+20, scacopf_pass_solution);

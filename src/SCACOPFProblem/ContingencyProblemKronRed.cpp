@@ -5,6 +5,8 @@
 #include "OptObjTerms.hpp"
 #include "OPFConstraints.hpp"
 
+#include "ContingencyProblemKronRedWithFixingCode1.hpp"
+
 #include "goUtils.hpp"
 #include "goTimer.hpp"
 #include "unistd.h"
@@ -15,7 +17,7 @@ using namespace std;
 namespace gollnlp {
   
   ContingencyProblemKronRed::ContingencyProblemKronRed(SCACOPFData& d_in, int K_idx_, int my_rank_) 
-    : SCACOPFProblem(d_in), K_idx(K_idx_), my_rank(my_rank_)
+    : SCACOPFProblem(d_in), K_idx(K_idx_), my_rank(my_rank_), cc_callbacks_(NULL)
   {
     int numK = 1; //!
 
@@ -138,7 +140,7 @@ namespace gollnlp {
 
     tmrec.stop();
 #ifdef BE_VERBOSE
-    printf("ContProb K_idx=%d: optimize took %g sec  %d iterations on rank=%d\n", 
+    printf("ContProbKron K_idx=%d: optimize took %g sec  %d iterations on rank=%d\n", 
 	   K_idx, tmrec.getElapsedTime(), number_of_iterations(), my_rank);
     fflush(stdout);
 #endif
@@ -171,7 +173,7 @@ namespace gollnlp {
 
     tmrec.stop();
 #ifdef BE_VERBOSE
-    printf("ContProb K_id %d: eval_obj took %g sec  %d iterations on rank=%d\n", 
+    printf("ContProbKron K_id %d: eval_obj took %g sec  %d iterations on rank=%d\n", 
 	   K_idx, tmrec.getElapsedTime(), number_of_iterations(), my_rank);
     fflush(stdout);
 #endif
@@ -360,11 +362,13 @@ namespace gollnlp {
     auto q_gk = variable("q_g", dB);
 
     if(NULL==v_nk) {
-      printf("Contingency %d: v_n var not found in conting problem; will NOT add PVPQ constraints.\n", dB.id);
+      printf("Contingency(Kron) %d: v_n var not found in conting problem; will NOT add PVPQ constraints.\n",
+	     dB.id);
       return;
     }
     if(NULL==q_gk) {
-      printf("Contingency %d: q_g var not found in the base case; will NOT add PVPQ constraints.\n", dB.id);
+      printf("Contingency(Kron) %d: q_g var not found in the base case; will NOT add PVPQ constraints.\n",
+	     dB.id);
       return;
     }
     
@@ -386,7 +390,7 @@ namespace gollnlp {
     append_objterm(new LinearPenaltyObjTerm(string("bigMpen_")+num->id, num, 1.));
     append_objterm(new LinearPenaltyObjTerm(string("bigMpen_")+nup->id, nup, 1.));
 #ifdef BE_VERBOSE
-    printf("ContProb K_idx=%d: PVPQ: participating %d gens at %lu buses: "
+    printf("ContProbKron K_idx=%d: PVPQ: participating %d gens at %lu buses: "
 	   "added %d constraints; PVPQSmoothing=%g; "
 	   "total PVPQ: %lu gens | %d buses; fixed: %d gens | %d buses with all gens fixed.\n",
 	   K_idx,
@@ -403,7 +407,7 @@ namespace gollnlp {
   void ContingencyProblemKronRed::add_cons_nonanticip_using(OptVariablesBlock* pg0) {
     bodyof_cons_nonanticip_using(pg0);
 #ifdef BE_VERBOSE
-    printf("ContProb K_idx=%d on rank %d: "
+    printf("ContProbKron K_idx=%d on rank %d: "
 	   "AGC: %lu gens NOT participating: fixed all of them.\n",
 	   K_idx, my_rank, pg0_nonpartic_idxs.size());
 #endif
@@ -413,7 +417,7 @@ namespace gollnlp {
     SCACOPFData& dK = *data_K[0]; assert(dK.id-1 == K_idx);
     OptVariablesBlock* pgK = variable("p_g", dK);
     if(NULL==pgK) {
-      printf("[warning] ContingencyProblemKronRed K_idx=%d: p_g var not found in contingency  "
+      printf("[warning] ContingencyProblemKron K_idx=%d: p_g var not found in contingency  "
 	     "problem; will not enforce non-ACG coupling constraints.\n", dK.id);
       return;
     }
@@ -442,7 +446,7 @@ namespace gollnlp {
     if(pgK_partic_idxs.size()==0) {
       //assert(pg0_partic_idxs.size()==0);
 #ifdef BE_VERBOSE
-      printf("ContingencyProblemKronRed: add_cons_AGC_using: NO gens participating !?!\n");
+      printf("ContingencyProblemKron: add_cons_AGC_using: NO gens participating !?!\n");
 #endif
       return;
     }
@@ -450,7 +454,7 @@ namespace gollnlp {
     SCACOPFData& dK = *data_K[0];
     OptVariablesBlock* pgK = variable("p_g", dK);
     if(NULL==pgK) {
-      printf("[warning] ContingencyProblemKronRed K_idx=%d: p_g var not found in contingency  "
+      printf("[warning] ContingencyProblemKron K_idx=%d: p_g var not found in contingency  "
 	     "recourse problem; will not enforce non-ACG coupling constraints.\n", dK.id);
       assert(false);
       return;
@@ -478,7 +482,7 @@ namespace gollnlp {
     append_objterm(new LinearPenaltyObjTerm(string("bigMpen_")+rhom->id, rhom, 1));
     append_objterm(new LinearPenaltyObjTerm(string("bigMpen_")+rhop->id, rhop, 1));
 #ifdef BE_VERBOSE
-    printf("ContProb K_idx=%d: AGC %lu gens participating (out of %d) AGCSmoothing=%g\n", 
+    printf("ContProbKron K_idx=%d: AGC %lu gens participating (out of %d) AGCSmoothing=%g\n", 
     	   K_idx, pgK_partic_idxs.size(), pgK->n, AGCSmoothing);
 #endif
     //printvec(pg0_partic_idxs, "partic idxs");
@@ -1596,7 +1600,7 @@ namespace gollnlp {
     bool bfound = false;
     for(auto d : srcProb.data_K) if(d->id == dK.id) bfound=true;
     if(!bfound) {
-      printf("set_warm_start_from_contingency_of SCACOPFProblem: src does not have "
+      printf("(Kron) set_warm_start_from_contingency_of SCACOPFProblem: src does not have "
 	     "the contingency id %d required by destination\n", dK.id);
       return false;
     }
@@ -1609,4 +1613,25 @@ namespace gollnlp {
     }
     return true;
   }
+
+  bool ContingencyProblemKronRed::
+  iterate_callback(int iter, const double& obj_value,
+		   const double* primals,
+		   const double& inf_pr, const double& inf_pr_orig_pr, 
+		   const double& inf_du, 
+		   const double& mu, 
+		   const double& alpha_du, const double& alpha_pr,
+		   int ls_trials, OptimizationMode mode,
+		   const double* duals_con,
+		   const double* duals_lb, const double* duals_ub)
+  {
+    if(cc_callbacks_) {
+      return cc_callbacks_->
+	iterate_callback(iter, obj_value, primals, inf_pr, inf_pr_orig_pr, inf_du, mu,
+			 alpha_du, alpha_pr, ls_trials, mode, duals_con, duals_lb, duals_ub);
+    }
+    
+    return true;
+  }
+  
 } //end of namespace

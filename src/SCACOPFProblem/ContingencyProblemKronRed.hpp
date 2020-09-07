@@ -12,6 +12,8 @@ extern volatile sig_atomic_t solve_is_alive;
 
 namespace gollnlp {
 
+  class ContingencyProblemKronRedWithFixingCode1;
+  
   class ContingencyProblemKronRed : public SCACOPFProblem
   {
   friend class ContingencyProblemKronRedWithFixingCode1;
@@ -100,7 +102,28 @@ namespace gollnlp {
     int my_rank;
 
   protected:
-    OptVariablesBlock *v_n0, *theta_n0, *b_s0, *p_g0, *q_g0; 
+    OptVariablesBlock *v_n0, *theta_n0, *b_s0, *p_g0, *q_g0;
+  protected:
+    /* Member to which any callbacks to this class, e.g., @iterate_callback, are carbon-copied. 
+     * This class usually does a great deal of work/logic to monitor performance and troubleshoot
+     * abnormalities. For example 'XXXWithFixing' classes have a  complicated logic to for premature exit 
+     * or deal with convergence issues.*/
+    ContingencyProblemKronRedWithFixingCode1* cc_callbacks_;
+  public:
+    inline void set_cc_callback(ContingencyProblemKronRedWithFixingCode1* p)
+    {
+      cc_callbacks_ = p;
+    }
+  public:
+    virtual bool iterate_callback(int iter, const double& obj_value,
+				  const double* primals,
+				  const double& inf_pr, const double& inf_pr_orig_pr, 
+				  const double& inf_du, 
+				  const double& mu, 
+				  const double& alpha_du, const double& alpha_pr,
+				  int ls_trials, OptimizationMode mode,
+				  const double* duals_con=NULL,
+				  const double* duals_lb=NULL, const double* duals_ub=NULL);
   };
 
 } //end namespace

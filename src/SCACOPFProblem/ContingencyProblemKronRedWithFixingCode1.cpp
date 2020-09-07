@@ -134,7 +134,7 @@ namespace gollnlp {
       }
       solv1_gens_pushed = pg0_partic_idxs.size()-solv1_pg0_partic_idxs.size();
 #ifdef BE_VERBOSE
-      printf("ContProbWithFixing K_idx=%d def_ass (extra gener) %.8f gen missing; "
+      printf("ContProbKronWithFixing K_idx=%d def_ass (extra gener) %.8f gen missing; "
 	     "fixed %lu gens; delta out=%g needed=%g blocking=%g residualPg=%g feasib=%d\n",
 	     K_idx, gen_K_diff, pg0_partic_idxs.size()-solv1_pg0_partic_idxs.size(),
 	     solv1_delta_out, solv1_delta_needed, solv1_delta_blocking, residual_Pg, solv1_Pg_was_enough);
@@ -253,7 +253,7 @@ namespace gollnlp {
       prob_mds_->obj_value = best_known_iter.obj_value;
 
 #ifdef BE_VERBOSE
-      printf("ContProb_wfix K_idx=%d opt1 ini point is acceptable on rank=%d\n", K_idx, my_rank);
+      printf("ContProbKron_wfix K_idx=%d opt1 ini point is acceptable on rank=%d\n", K_idx, my_rank);
       fflush(stdout);
 #endif
       f = prob_mds_->obj_value;
@@ -286,10 +286,10 @@ namespace gollnlp {
     if(tmTotal.measureElapsedTime() > 0.95*timeout) {
       skip_2nd_solve = true;
       if(bFirstSolveOK) {
-	printf("ContProb_wfix K_idx=%d premature exit opt1 too long %g sec on rank=%d\n", 
+	printf("ContProbKron_wfix K_idx=%d premature exit opt1 too long %g sec on rank=%d\n", 
 	       K_idx, tmrec.measureElapsedTime(), my_rank);
       } else {
-	printf("ContProb_wfix K_idx=%d premature exit inipt returned opt1 took too long %g sec on rank=%d\n", 
+	printf("ContProbKron_wfix K_idx=%d premature exit inipt returned opt1 took too long %g sec on rank=%d\n", 
 	       K_idx, tmrec.measureElapsedTime(), my_rank);
 	//return ini point to make sure we stay feasible
 	prob_mds_->vars_primal->set_start_to(*vars_ini);
@@ -306,13 +306,13 @@ namespace gollnlp {
       //#ifdef BE_VERBOSE
       //print_objterms_evals();
       //print_p_g_with_coupling_info(*data_K[0], pg0);
-      //printf("ContProb_wfix K_idx=%d first pass resulted in high pen; delta=%g\n", K_idx, solv1_delta_optim);
+      //printf("ContProbKron_wfix K_idx=%d first pass resulted in high pen; delta=%g\n", K_idx, solv1_delta_optim);
       //#endif
 
       double pplus, pminus, poverall;
       estimate_active_power_deficit(pplus, pminus, poverall);
 #ifdef BE_VERBOSE
-      printf("ContProb_wfix K_idx=%d (after solv1) act pow imbalances p+ p- poveral %g %g %g; delta=%g\n",
+      printf("ContProbKron_wfix K_idx=%d (after solv1) act pow imbalances p+ p- poveral %g %g %g; delta=%g\n",
 	     K_idx, pplus, pminus, poverall, solv1_delta_optim);
 #endif
 
@@ -425,7 +425,7 @@ namespace gollnlp {
 	    pgK->x[pgK_partic_idxs_u[it]] = pg0->x[i0]+data_sc.G_alpha[i0]*delta_out;
 	  }
 #ifdef BE_VERBOSE
-	  printf("ContProb_wfix K_idx=%d (gener)(after solv1) fixed %lu gens; "
+	  printf("ContProbKron_wfix K_idx=%d (gener)(after solv1) fixed %lu gens; "
 		 "adtl deltas out=%g needed=%g blocking=%g "
 		 "residualPg=%g feasib=%d\n",
 		 K_idx, solv1_pg0_partic_idxs.size()-pg0_partic_idxs_u.size(),
@@ -499,7 +499,7 @@ namespace gollnlp {
 	  f = obj_solve1;
 	  //recourse actions were already determined
 	} else {
-	  printf("[warning][panic] ContProb_wfix K_idx=%d return bestknown; "
+	  printf("[warning][panic] ContProbKron_wfix K_idx=%d return bestknown; "
 		 "opt1 and opt2 failed on rank=%d\n", K_idx, my_rank);
 	  prob_mds_->vars_primal->set_start_to(*best_known_iter.vars_primal);
 	  //get_solution_simplicial_vectorized(sln_solve1);
@@ -532,26 +532,24 @@ namespace gollnlp {
 	//print_active_power_balance_info(*data_K[0]);
 	//print_reactive_power_balance_info(*data_K[0]);
 	//print_p_g_with_coupling_info(*data_K[0], pg0);
-	printf("ContProb_wfix K_idx=%d opt1 opt2 resulted in high pen delta=%g\n", K_idx, delta_optim);
+	printf("ContProbKron_wfix K_idx=%d opt1 opt2 resulted in high pen delta=%g\n", K_idx, delta_optim);
 #endif
       }  
     } else {
       //sln = sln_solve1;
       f = obj_solve1;
       if(prob_mds_->obj_value>acceptable_penalty && skip_2nd_solve)
-	printf("ContProb_wfix K_idx=%d opt2 needed but not done insufic time rank=%d\n", K_idx, my_rank);
+	printf("ContProbKron_wfix K_idx=%d opt2 needed but not done insufic time rank=%d\n", K_idx, my_rank);
       if(prob_mds_->obj_value>acceptable_penalty)
 	determine_recourse_action(data_for_master);
     }
     
     tmrec.stop();
 #ifdef BE_VERBOSE
-    printf("ContProb_wfix K_id %d: eval_obj took %g sec  %d iterations on rank=%d\n", 
+    printf("ContProbKron_wfix K_id %d: eval_obj took %g sec  %d iterations on rank=%d\n", 
 	   K_idx, tmrec.getElapsedTime(), number_of_iterations(), my_rank);
     fflush(stdout);
 #endif
-
-    printf("\n DO SOLVE 2 DDOONNEEEEEEEEEEEEEEEEEE\n\n");
     
     return true;
   }
@@ -589,7 +587,7 @@ namespace gollnlp {
     int n_solves=0; 
     while(!done) {
 
-      printf("!!!!!!!!!!!!!!!!!!!!!!! loop do_solve1: nsolves=%d\n", n_solves);
+      printf("ContProbKron_wfix - do_solve1: K_idx=%d nsolves=%d\n", K_idx, n_solves);
       
       bool opt_ok=false; bool PDRestart=true;
 
@@ -656,10 +654,10 @@ namespace gollnlp {
 	{
 	  PDRestart=false;
 	  solve1_emer_mode=true;
-	  reallocate_nlp_solver();
-	  printf("[warning] ContProbWithFixing K_idx=%d opt1 will switch to ma27 at try %d rank=%d\n", 
+	  prob_mds_->reallocate_nlp_solver();
+	  printf("[warning] ContProbKronWithFixing K_idx=%d opt1 will switch to ma27 at try %d rank=%d\n", 
 		 K_idx, n_solves+1, my_rank); 
-	  set_solver_option("linear_solver", "ma27"); 
+	  prob_mds_->set_solver_option("linear_solver", "ma27"); 
 
 	  if(last_opt_status!=User_Requested_Stop && last_opt_status!=Unrecoverable_Exception &&
 	     last_opt_status!=Maximum_Iterations_Exceeded) {
@@ -722,7 +720,7 @@ namespace gollnlp {
 	  prob_mds_->set_solver_option("mu_init", 1.);
 	  prob_mds_->set_solver_option("mu_target", 5e-8);
 
-	  printf("[warning] ContProbWithFixing K_idx=%d opt1 will switch to ma57 at try %d rank=%d\n", 
+	  printf("[warning] ContProbKronWithFixing K_idx=%d opt1 will switch to ma57 at try %d rank=%d\n", 
 		 K_idx, n_solves+1, my_rank); 
 	  prob_mds_->set_solver_option("linear_solver", "ma57"); 
 	  prob_mds_->set_solver_option("ma57_automatic_scaling", "yes");
@@ -780,9 +778,9 @@ namespace gollnlp {
       double bound_frac = 1e-2;//std::min(1e-2, pow(10., 3*n_solves-10));
       prob_mds_->set_solver_option("bound_frac", bound_frac);
       prob_mds_->set_solver_option("slack_bound_frac", bound_frac);
-      
-      prob_mds_->set_solver_option("neg_curv_test_reg", "no"); //default yes ->ChiangZavala primal regularization
 
+      //default yes ->ChiangZavala primal regularization
+      prob_mds_->set_solver_option("neg_curv_test_reg", "no"); 
 
       monitor.timer.restart();
       monitor.hist_tm.clear();
@@ -804,14 +802,14 @@ namespace gollnlp {
 	ok_to_exit = true;
 	prob_mds_->obj_value = best_known_iter.obj_value;
 	prob_mds_->vars_primal->set_start_to(*best_known_iter.vars_primal);
-	printf("[warning] ContProbWithFixing K_idx=%d opt1 exit best_known < pen_accept(%g) rank=%d  %g sec\n", 
+	printf("[warning] ContProbKronWithFixing K_idx=%d opt1 exit best_known < pen_accept(%g) rank=%d  %g sec\n", 
 	       K_idx,  monitor.pen_accept, my_rank, tmrec.measureElapsedTime()); 
       }
       if(monitor.emergency && best_known_iter.obj_value <= monitor.pen_accept_emer) {
 	ok_to_exit = true;
 	prob_mds_->obj_value = best_known_iter.obj_value;
 	prob_mds_->vars_primal->set_start_to(*best_known_iter.vars_primal);
-	printf("[warning] ContProbWithFixing K_idx=%d opt1 exit best_known < pen_accept_emer(%g) "
+	printf("[warning] ContProbKronWithFixing K_idx=%d opt1 exit best_known < pen_accept_emer(%g) "
 	       "rank=%d  %g sec\n", 
 	       K_idx,  monitor.pen_accept_emer, my_rank, tmrec.measureElapsedTime()); 
       }
@@ -860,7 +858,6 @@ namespace gollnlp {
     } //end of outer while
     
     if(prob_mds_->obj_value > best_known_iter.obj_value) {
-      assert(false);
       prob_mds_->obj_value = best_known_iter.obj_value;
       prob_mds_->vars_primal->set_start_to(*best_known_iter.vars_primal);
       printf("ContProbWithKronRedFixing K_idx=%d opt1 return best_known obj=%g on rank=%d\n", 
@@ -873,7 +870,7 @@ namespace gollnlp {
 #ifdef BE_VERBOSE
     string sit = "["; for(auto iter:  hist_iter) sit += to_string(iter)+'/'; sit[sit.size()-1] = ']';
     string sobj="["; for(auto obj: hist_obj) sobj += to_string(obj)+'/'; sobj[sobj.size()-1]=']';
-    printf("ContProbWithFixing K_idx=%d opt1 took %g sec - iters %s objs %s tries %d on rank=%d\n", 
+    printf("ContProbKronWithFixing K_idx=%d opt1 took %g sec - iters %s objs %s tries %d on rank=%d\n", 
 	   K_idx, tmrec.measureElapsedTime(), sit.c_str(), sobj.c_str(), n_solves, my_rank);
     fflush(stdout);
 #endif
@@ -918,6 +915,9 @@ namespace gollnlp {
       bool opt_ok=false; bool PDRestart=true;
       solve2_emer_mode=false;
       switch(n_solves) {
+
+	printf("ContProbKron_wfix - do_solve2: K_idx=%d nsolves=%d\n", K_idx, n_solves);
+	
       case 0: 
 	{ 
 	  if(bFirstSolveOK) {
@@ -926,7 +926,7 @@ namespace gollnlp {
 	    prob_mds_->set_solver_option("mu_init", 1e-2);
 	  } else {
 	    PDRestart=false;
-	    set_solver_option("mu_init", 1e-1);
+	    prob_mds_->set_solver_option("mu_init", 1e-1);
 	  }
 	  prob_mds_->set_solver_option("tol", 5e-8);
 	  prob_mds_->set_solver_option("linear_solver", "ma57"); 
@@ -981,7 +981,7 @@ namespace gollnlp {
 	  PDRestart=false;
 	  solve2_emer_mode=true;
 	  prob_mds_->reallocate_nlp_solver();
-	  printf("[warning] ContProbWithFixing K_idx=%d opt2 will switch to ma27 at try %d rank=%d\n", 
+	  printf("[warning] ContProbKronWithFixing K_idx=%d opt2 will switch to ma27 at try %d rank=%d\n", 
 		 K_idx, n_solves+1, my_rank); 
 	  prob_mds_->set_solver_option("linear_solver", "ma27"); 
 
@@ -1057,7 +1057,7 @@ namespace gollnlp {
 
 	  prob_mds_->set_solver_option("mu_target", 5e-8);
 
-	  printf("[warning] ContProbWithFixing K_idx=%d opt2 will switch to ma57 at try %d rank=%d\n", 
+	  printf("[warning] ContProbKronWithFixing K_idx=%d opt2 will switch to ma57 at try %d rank=%d\n", 
 		 K_idx, n_solves+1, my_rank); 
 	  prob_mds_->set_solver_option("linear_solver", "ma57"); 
 	  prob_mds_->set_solver_option("ma57_automatic_scaling", "yes");
@@ -1151,7 +1151,8 @@ namespace gollnlp {
 	ok_to_exit = true;
 	prob_mds_->obj_value = best_known_iter.obj_value;
 	prob_mds_->vars_primal->set_start_to(*best_known_iter.vars_primal);
-	printf("[warning] ContProbWithFixing K_idx=%d opt2 exit best_known < pen_accept(%g) rank=%d  %g sec\n", 
+	printf("[warning] ContProbKronWithFixing K_idx=%d opt2 exit best_known < pen_accept(%g) "
+	       "rank=%d  %g sec\n", 
 	       K_idx,  monitor.pen_accept, my_rank, tmrec.measureElapsedTime()); 
       }
 
@@ -1159,7 +1160,7 @@ namespace gollnlp {
 	ok_to_exit = true;
 	prob_mds_->obj_value = best_known_iter.obj_value;
 	prob_mds_->vars_primal->set_start_to(*best_known_iter.vars_primal);
-	printf("[warning] ContProbWithFixing K_idx=%d opt2 exit best_known < pen_accept_emer(%g) "
+	printf("[warning] ContProbKronWithFixing K_idx=%d opt2 exit best_known < pen_accept_emer(%g) "
 	       "rank=%d  %g sec\n", 
 	       K_idx,  monitor.pen_accept_emer, my_rank, tmrec.measureElapsedTime()); 
       }
@@ -1190,14 +1191,14 @@ namespace gollnlp {
 	    done = true; 
 	  } else {
 	    //something bad happened, will resolve
-	    printf("[warning] ContProbWithFixing K_idx=%d opt2 failed at try %d rank=%d time %g\n", 
+	    printf("[warning] ContProbKronWithFixing K_idx=%d opt2 failed at try %d rank=%d time %g\n", 
 		   K_idx, n_solves, my_rank, tmrec.measureElapsedTime()); 
 	  }
 	}
 	
 	if(n_solves>9) done = true;
 	if(tmTotal.measureElapsedTime() > timeout) {
-	  printf("[warning] ContProbWithFixing K_idx=%d opt2 timeout  rank=%d; tries %d took %g sec\n", 
+	  printf("[warning] ContProbKronWithFixing K_idx=%d opt2 timeout  rank=%d; tries %d took %g sec\n", 
 		 K_idx, my_rank, n_solves, tmTotal.measureElapsedTime());
 	  done = true;
 	  bret = false;
@@ -1209,7 +1210,7 @@ namespace gollnlp {
       
       prob_mds_->obj_value = best_known_iter.obj_value;
       prob_mds_->vars_primal->set_start_to(*best_known_iter.vars_primal);
-      printf("ContProbWithFixing K_idx=%d opt2 return best_known obj=%g on rank=%d\n", 
+      printf("ContProbKronWithFixing K_idx=%d opt2 return best_known obj=%g on rank=%d\n", 
 	     K_idx, prob_mds_->obj_value, my_rank);
     }
     prob_mds_->get_solution_simplicial_vectorized(sln_solve2);
@@ -1220,7 +1221,7 @@ namespace gollnlp {
 #ifdef BE_VERBOSE
     string sit = "["; for(auto iter:  hist_iter) sit += to_string(iter)+'/'; sit[sit.size()-1] = ']';
     string sobj="["; for(auto obj: hist_obj) sobj += to_string(obj)+'/'; sobj[sobj.size()-1]=']';
-    printf("ContProbWithFixing K_idx=%d opt2 took %g sec - iters %s objs %s tries %d on rank=%d\n", 
+    printf("ContProbKronWithFixing K_idx=%d opt2 took %g sec - iters %s objs %s tries %d on rank=%d\n", 
 	   K_idx, tmrec.measureElapsedTime(), sit.c_str(), sobj.c_str(), n_solves, my_rank);
     fflush(stdout);
 #endif
@@ -1251,8 +1252,6 @@ namespace gollnlp {
       if(ot1) ot1->eval_f(*prob_mds_->vars_primal, new_x, pen_line_limits);
       else assert(false);
 
-      printf("pen_line !!!!!!!!!!!!!!  =%18.10f\n", pen_line_limits);
-      
       auto ot2 = prob_mds_->obj->objterm(objterm_name("quadr_pen_sslack_li_line_limits2", d));
       if(ot2) ot2->eval_f(*prob_mds_->vars_primal, new_x, pen_line_limits);
       else assert(false);

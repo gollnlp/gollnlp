@@ -564,9 +564,9 @@ readinstance(const std::string& raw, const std::string& rop, const std::string& 
 
 
     //!
-    contingencies_label = sub_vector(contingencies_label, 0, 10);
-    contingencies_type = sub_vector(contingencies_type, 0, 10);
-    contingencies_con = sub_vector(contingencies_con, 0, 10);
+    //contingencies_label = sub_vector(contingencies_label, 0, 100);
+    //contingencies_type = sub_vector(contingencies_type, 0, 100);
+    //contingencies_con = sub_vector(contingencies_con, 0, 100);
 
 
     

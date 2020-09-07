@@ -18,7 +18,8 @@ namespace gollnlp {
     				     num_K_done_in, time_so_far_in, safe_mode)
     {
 
-      prob_mds_ = new ContingencyProblemKronRed(d_in, K_idx_in, my_rank); 
+      prob_mds_ = new ContingencyProblemKronRed(d_in, K_idx_in, my_rank);
+      prob_mds_-> set_cc_callback(this);
       p_li10=q_li10=p_li20=q_li20=p_ti10=q_ti10=p_ti20=q_ti20=NULL;
     }
 
