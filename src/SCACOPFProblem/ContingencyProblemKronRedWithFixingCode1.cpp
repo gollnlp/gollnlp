@@ -95,8 +95,10 @@ namespace gollnlp {
 #endif
 
     prob_mds_->Gk_ = Gk;
+
+    prob_mds_->initialize(false);
     
-    prob_mds_->add_variables(dK,false);
+    prob_mds_->add_variables(dK, false);
 
     if(!warm_start_variable_from_basecase_dict(*prob_mds_->vars_primal)) {
       assert(false);
@@ -141,13 +143,17 @@ namespace gollnlp {
 #endif
     }
 
-    prob_mds_->add_cons_lines_pf(dK);
-    prob_mds_->add_cons_transformers_pf(dK);
-    prob_mds_->add_cons_active_powbal(dK);
-    prob_mds_->add_cons_reactive_powbal(dK);
-    bool SysCond_BaseCase = false;
-    prob_mds_->add_cons_thermal_li_lims(dK,SysCond_BaseCase);
-    prob_mds_->add_cons_thermal_ti_lims(dK,SysCond_BaseCase);
+    //! removed prob_mds_->add_cons_lines_pf(dK);
+    //! removed prob_mds_->add_cons_transformers_pf(dK);
+
+    
+    //! replaced prob_mds_->add_cons_active_powbal(dK);
+    //! replaced prob_mds_->add_cons_reactive_powbal(dK);
+    prob_mds_->add_cons_pf(dK);
+    
+    //! removed bool SysCond_BaseCase = false;
+    //! removed prob_mds_->add_cons_thermal_li_lims(dK,SysCond_BaseCase);
+    //! removed prob_mds_->add_cons_thermal_ti_lims(dK,SysCond_BaseCase);
 
     this->add_cons_pg_nonanticip_using(pg0, solv1_pg0_nonpartic_idxs, solv1_pgK_nonpartic_idxs);
     //add_cons_AGC_using(pg0);

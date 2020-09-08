@@ -17,7 +17,7 @@ namespace gollnlp {
   public:
     ContingencyProblem(SCACOPFData& d_in, int K_idx_, int my_rank);
     virtual ~ContingencyProblem();
-
+    
     virtual bool default_assembly(OptVariablesBlock* pg0, OptVariablesBlock* vn0);
     virtual bool default_assembly(OptVariablesBlock* vn0, OptVariablesBlock* thetan0, OptVariablesBlock* bs0, 
 				  OptVariablesBlock* pg0, OptVariablesBlock* qg0);

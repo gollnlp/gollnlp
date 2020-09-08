@@ -1,4 +1,4 @@
-#include "ACOPFKronRedProblem.hpp"
+#include "ACOPFProblemKronRed.hpp"
 
 #include "OPFObjectiveTerms.hpp"
 #include "OPFConstraints.hpp"
@@ -14,36 +14,37 @@ using namespace std;
 
 namespace gollnlp {
 
-  ACOPFKronRedProblem::ACOPFKronRedProblem(SCACOPFData& d_in) 
-    : data_sc(d_in), Ybus_red_(NULL)
+  ACOPFProblemKronRed::ACOPFProblemKronRed(SCACOPFData& d_in) 
+    : data_sc(d_in), Ybus_red_(NULL),
+      useQPen(true)
   {
   }
   
-  ACOPFKronRedProblem::~ACOPFKronRedProblem() 
+  ACOPFProblemKronRed::~ACOPFProblemKronRed() 
   {
     delete Ybus_red_;
   }
   
-  /* initialization method: performs Kron reduction and builds the OptProblem */
-  bool ACOPFKronRedProblem::assemble()
-  {   
+  /* initialization method: performs Kron reduction
+   */
+  bool ACOPFProblemKronRed::initialize(bool SysCond_BaseCase/* = true*/)
+  {
     hiopMatrixComplexSparseTriplet* YBus_ = construct_YBus_matrix();
     //YBus_->print();
     construct_buses_idxs(idxs_buses_nonaux, idxs_buses_aux);
-
+    
     printf("Total %lld buses: %lu nonaux    %lu aux\n",
 	   YBus_->m(),
 	   idxs_buses_nonaux.size(),
 	   idxs_buses_aux.size());
     
     if(Ybus_red_) delete Ybus_red_;
-
+    
     Ybus_red_ = new hiopMatrixComplexDense(idxs_buses_nonaux.size(),idxs_buses_nonaux.size());
-
+    
     if(!reduction_.go(idxs_buses_nonaux, idxs_buses_aux, *YBus_, *Ybus_red_)) {
       return false;
     }
-
     
 #ifdef DEBUG
     if(Ybus_red_->assertSymmetry(1e-12))
@@ -51,6 +52,13 @@ namespace gollnlp {
     else
       printf("!!!!! Ybus matrix is NOT symmetric\n");
 #endif
+    return true;
+  }
+  
+
+   /* builds the OptProblem */
+  bool ACOPFProblemKronRed::assemble()
+  {   
     add_variables(data_sc);
     add_cons_pf(data_sc);
 
@@ -62,7 +70,7 @@ namespace gollnlp {
     return true;
   }
   
-  bool ACOPFKronRedProblem::optimize(const std::string& nlpsolver)
+  bool ACOPFProblemKronRed::optimize(const std::string& nlpsolver)
   {
     bool bret = OptProblemMDS::optimize(nlpsolver);
     
@@ -441,7 +449,7 @@ namespace gollnlp {
     return bret; 
   }
 
-  bool ACOPFKronRedProblem::reoptimize(RestartType t/*=primalRestart*/)
+  bool ACOPFProblemKronRed::reoptimize(RestartType t/*=primalRestart*/)
   {
     bool bret = OptProblemMDS::reoptimize(t);
 
@@ -449,9 +457,8 @@ namespace gollnlp {
   }
   
   
-  void ACOPFKronRedProblem::add_variables(SCACOPFData& d, bool SysCond_BaseCase/* = true*/)
+  void ACOPFProblemKronRed::add_variables(SCACOPFData& d, bool SysCond_BaseCase/* = true*/)
   {
-    
     /******************************************************************************
      * WARNING: "sparse" variables need to be added first, before "dense" variables
      *
@@ -510,8 +517,12 @@ namespace gollnlp {
       vector<double> theta0_n;
       selectfrom(data_sc.N_theta0, idxs_buses_nonaux, theta0_n);
       theta_n->set_start_to(theta0_n.data());
+      
+      int RefBusIdx = data_sc.bus_with_largest_gen();
+      int RefBusIdx_nonaux;
 
-      int RefBusIdx = data_sc.bus_with_largest_gen(), RefBusIdx_nonaux;
+      printf("RefBusIdx = %d !!!!!!!!!!!!!!!!!\n", RefBusIdx);
+      
       auto it = std::find(idxs_buses_nonaux.begin(), idxs_buses_nonaux.end(), RefBusIdx);
       if(it==idxs_buses_nonaux.end()) {
 	assert(false && "check this");
@@ -556,8 +567,10 @@ namespace gollnlp {
     }
   }
 
-  void ACOPFKronRedProblem::add_cons_pf(SCACOPFData& d)
+  void ACOPFProblemKronRed::add_cons_pf(SCACOPFData& d)
   {
+    assert(useQPen==true);
+    
     auto p_g = vars_block(var_name("p_g",d)), 
       v_n = vars_block(var_name("v_n",d)), 
       theta_n = vars_block(var_name("theta_n",d));
@@ -585,7 +598,7 @@ namespace gollnlp {
     }
   }
     
-  void ACOPFKronRedProblem::add_obj_prod_cost(SCACOPFData& d)
+  void ACOPFProblemKronRed::add_obj_prod_cost(SCACOPFData& d)
   {
     vector<int> gens(d.G_Generator.size()); iota(gens.begin(), gens.end(), 0);
     auto p_g = vars_block(var_name("p_g", d));
@@ -605,7 +618,7 @@ namespace gollnlp {
 						     d.G_CostPi));
   }
 
-  void ACOPFKronRedProblem::construct_buses_idxs(std::vector<int>& idxs_nonaux, std::vector<int>& idxs_aux)
+  void ACOPFProblemKronRed::construct_buses_idxs(std::vector<int>& idxs_nonaux, std::vector<int>& idxs_aux)
   {
     const double SMALL=1e-8;
 
@@ -625,7 +638,7 @@ namespace gollnlp {
     assert(data_sc.Gn.size() == idxs_nonaux.size()+idxs_aux.size());
   }
 
-  hiopMatrixComplexSparseTriplet* ACOPFKronRedProblem::construct_YBus_matrix()
+  hiopMatrixComplexSparseTriplet* ACOPFProblemKronRed::construct_YBus_matrix()
   {
     //
     // details at 
@@ -737,7 +750,7 @@ namespace gollnlp {
     return Ybus;
   }
 
-  void ACOPFKronRedProblem::compute_voltages_nonaux(const OptVariablesBlock* v_nonaux,
+  void ACOPFProblemKronRed::compute_voltages_nonaux(const OptVariablesBlock* v_nonaux,
 						    const OptVariablesBlock* theta_nonaux,
 						    std::vector<std::complex<double> >& v_complex_all)
   {
@@ -775,7 +788,7 @@ namespace gollnlp {
     }
   }
 
-  void ACOPFKronRedProblem::compute_power_flows(const std::vector<std::complex<double> >& v_complex_all,
+  void ACOPFProblemKronRed::compute_power_flows(const std::vector<std::complex<double> >& v_complex_all,
 						std::vector<std::vector<std::complex<double> > >& pli,
 						std::vector<std::vector<std::complex<double> > >& pti)
   {
@@ -823,7 +836,7 @@ namespace gollnlp {
   }
 
 #define EPSILON 1e-6
-  void ACOPFKronRedProblem::find_voltage_viol_busidxs(const std::vector<std::complex<double> >& v_complex_all,
+  void ACOPFProblemKronRed::find_voltage_viol_busidxs(const std::vector<std::complex<double> >& v_complex_all,
 						      std::vector<int>& Nidx_voltoutofbnds)
   {
     Nidx_voltoutofbnds.clear();
@@ -840,7 +853,7 @@ namespace gollnlp {
   /** Finds indexes in lines/transformers and in to/from arrays corresponding to lines/transformers
    * that are overloaded
    */
-  void ACOPFKronRedProblem::
+  void ACOPFProblemKronRed::
   find_power_viol_LTidxs(const std::vector<std::complex<double> >& v_complex_all,
 			 const std::vector<std::vector<std::complex<double> > >& pli,
 			 const std::vector<std::vector<std::complex<double> > >& pti,
@@ -883,7 +896,71 @@ namespace gollnlp {
       }
     }
   }
-  
+
+
+  void ACOPFProblemKronRed::get_idxs_PVPQ(SCACOPFData& dB, const std::vector<int>& Gk,
+					  vector<vector<int> >& idxs_gen_agg, vector<int>& idxs_bus_pvpq,
+					  std::vector<double>& Qlb, std::vector<double>& Qub,
+					  int& nPVPQGens, int &num_qgens_fixed, 
+					  int& num_N_PVPQ, int& num_buses_all_qgen_fixed)
+  {
+    auto G_Nidx_Gk = selectfrom(data_sc.G_Nidx, Gk);
+    //extra check
+    assert(G_Nidx_Gk == dB.G_Nidx);
+    
+    sort(G_Nidx_Gk.begin(), G_Nidx_Gk.end());
+    //printvec(G_Nidx_Gk);
+    auto last = unique(G_Nidx_Gk.begin(), G_Nidx_Gk.end());
+    G_Nidx_Gk.erase(last, G_Nidx_Gk.end());
+    //printvec(G_Nidx_Gk);
+    auto &N_PVPQ = G_Nidx_Gk; //nodes with PVPQ generators;
+    
+    int nPVPQCons=0; nPVPQGens=0; num_buses_all_qgen_fixed=0; num_qgens_fixed=0;
+    
+    for(auto n: N_PVPQ) {
+      assert(dB.Gn[n].size()>0);
+      double Qagglb=0., Qaggub=0.;
+      
+      int numfixed = 0;
+      idxs_gen_agg.push_back( vector<int>() );
+      for(auto g: dB.Gn[n]) {
+#ifdef DEBUG
+	assert(dB.K_Contingency.size()==1);
+	assert(dB.K_outidx.size()==1);
+	if(dB.K_ConType[0]==SCACOPFData::kGenerator) 
+	  assert(data_sc.G_Generator[dB.K_outidx[0]]!=dB.G_Generator[g]);
+#endif
+	if(abs(dB.G_Qub[g]-dB.G_Qlb[g])<=1e-8) {
+	  numfixed++; num_qgens_fixed++;
+	  //printf("PVPQ: gen ID=%d p_q at bus idx %d id %d is fixed; will not add PVPQ constraint\n",
+	  //       dB.G_Generator[g], dB.G_Nidx[g], data_sc.N_Bus[dB.G_Nidx[g]]);
+	  continue;
+	}
+	idxs_gen_agg.back().push_back(g);
+	Qagglb += dB.G_Qlb[g];
+	Qaggub += dB.G_Qub[g];
+      }
+      
+      assert(idxs_gen_agg.back().size()+numfixed == dB.Gn[n].size());
+      nPVPQGens += idxs_gen_agg.back().size()+numfixed;
+      
+      if(idxs_gen_agg.back().size()==0) {
+	assert(Qagglb==0. && Qaggub==0.);
+	idxs_gen_agg.pop_back();
+	num_buses_all_qgen_fixed++;
+      } else {
+	Qlb.push_back(Qagglb);
+	Qub.push_back(Qaggub);
+	idxs_bus_pvpq.push_back(n);
+      }
+    }
+    assert(idxs_gen_agg.size() == Qlb.size());
+    assert(idxs_gen_agg.size() == Qub.size());
+    assert(N_PVPQ.size()  == num_buses_all_qgen_fixed+idxs_gen_agg.size());
+    assert(idxs_bus_pvpq.size() == idxs_gen_agg.size());
+    num_N_PVPQ = N_PVPQ.size();
+  }
+
 } //end namespace
     
 

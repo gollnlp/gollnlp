@@ -4,6 +4,7 @@
 #include "OptProblemMDS.hpp"
 #include "SCACOPFData.hpp"
 
+#include "SCACOPFUtils.hpp"
 #include "goTimer.hpp"
 
 #include "hiopKronReduction.hpp"
@@ -14,13 +15,21 @@
 namespace gollnlp {
 
   /* ACOPF with Kron reduction */
-  class ACOPFKronRedProblem : public OptProblemMDS
+  class ACOPFProblemKronRed : public OptProblemMDS
   {
   public:
-    ACOPFKronRedProblem(SCACOPFData& d_in);
-    virtual ~ACOPFKronRedProblem();
+    ACOPFProblemKronRed(SCACOPFData& d_in);
+    virtual ~ACOPFProblemKronRed();
+
     
-    /* initialization method: performs Kron reduction and builds the OptProblem */
+    /* initialization method: performs Kron reduction and prepares everything needed to 
+     * assemble the problem.
+     */
+    bool initialize(bool SysCond_BaseCase = true);
+
+    /*builds the OptProblem if requested. In some cases, the calling code assemble the problems, and, 
+    * as a result, the function is not called.
+    */
     virtual bool assemble();
 
     /** Override of the parent @optimize method that performs the solve of the Kron
@@ -104,6 +113,46 @@ namespace gollnlp {
      *  - -1 for aux buses non included in the optimization
      */
     std::vector<int> map_idxbuses_idxsoptimiz_;
+  /** ACOPF interface - similar to SCACOPFProblem
+   */
+  protected:
+
+    bool useQPen;
+
+  protected:
+    // returns the idxs of PVPQ gens and corresponding buses
+    // generators at the same PVPQ bus are aggregated
+    //
+    // Gk are the indexes of all gens other than the outgen (for generator contingencies) 
+    // in data_sc.G_Generator
+    void get_idxs_PVPQ(SCACOPFData& dB, const std::vector<int>& Gk,
+		       std::vector<std::vector<int> >& idxs_gen_agg, std::vector<int>& idxs_bus_pvpq,
+		       std::vector<double>& Qlb, std::vector<double>& Qub,
+		       int& nPVPQGens, int &num_qgens_fixed, 
+		       int& num_N_PVPQ, int& num_buses_all_qgen_fixed);
+  public:
+    inline OptVariablesBlock* variable(const std::string& prefix, const SCACOPFData& d) { 
+      return vars_block(var_name(prefix, d));
+    }
+    inline OptVariablesBlock* variable(const std::string& prefix, int Kid) { 
+      return vars_block(var_name(prefix, Kid));
+    }
+    inline OptConstraintsBlock* constraint(const std::string& prefix, const SCACOPFData& d) { 
+      return constraints_block(con_name(prefix, d));
+    }
+    inline OptConstraintsBlock* constraint(const std::string& prefix, int Kid) {
+      return constraints_block(con_name(prefix, Kid));
+    }
+    
+    inline OptVariablesBlock* variable_duals_lower(const std::string& prefix, const SCACOPFData& d) {
+      return vars_block_duals_bounds_lower(prefix+"_"+std::to_string(d.id));
+    }
+    inline OptVariablesBlock* variable_duals_upper(const std::string& prefix, const SCACOPFData& d) {
+      return vars_block_duals_bounds_upper(prefix+"_"+std::to_string(d.id));
+    }
+    inline OptVariablesBlock* variable_duals_cons(const std::string& prefix, const SCACOPFData& d) {
+      return vars_block_duals_cons(prefix+"_"+std::to_string(d.id));
+    }
   };
 
 } //end namespace

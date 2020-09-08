@@ -1598,4 +1598,6 @@ namespace gollnlp {
     }
     return true;
   }
+
+  
 } //end of namespace

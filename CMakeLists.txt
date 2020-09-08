@@ -196,7 +196,7 @@ target_link_libraries(MyExe2 gollnlp ipopt coinhsl coinmetis
 
 if(GOLLNLP_WITH_KRON_REDUCTION)
 add_executable(MyExe1Kron.exe MyCpp1Kron.cpp)
-target_link_libraries(MyExe1Kron.exe gollnlp goKronRed ipopt coinhsl coinmetis 
+target_link_libraries(MyExe1Kron.exe goKronRed gollnlp ipopt coinhsl coinmetis 
                       hiop ${GOLLNLP_LIBS_EXTRA} 
 		      ${OpenMP_CXX_LIBRARIES} ${LAPACK_LIBRARIES})
 endif(GOLLNLP_WITH_KRON_REDUCTION)

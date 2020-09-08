@@ -1,4 +1,4 @@
-#include "ACOPFKronRedProblem.hpp"
+#include "ACOPFProblemKronRed.hpp"
 
 using namespace std;
 using namespace gollnlp;
@@ -41,7 +41,8 @@ int main(int argc, char *argv[])
       retcode=-2;
     }
     
-    ACOPFKronRedProblem prob(data);
+    ACOPFProblemKronRed prob(data);
+    prob.initialize();
     prob.assemble();
 
     //prob.use_nlp_solver("ipopt");

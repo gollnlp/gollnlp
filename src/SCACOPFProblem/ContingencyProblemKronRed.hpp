@@ -1,7 +1,9 @@
 #ifndef SC_CONTINGENCY_PROBLEMKRON
 #define SC_CONTINGENCY_PROBLEMKRON
 
+#include "ACOPFProblemKronRed.hpp"
 #include "SCACOPFProblem.hpp"
+
 #include <vector>
 #include "goUtils.hpp"
 
@@ -10,17 +12,20 @@
 extern volatile sig_atomic_t solve_is_alive;
 #endif
 
+
 namespace gollnlp {
 
   class ContingencyProblemKronRedWithFixingCode1;
   
-  class ContingencyProblemKronRed : public SCACOPFProblem
+  class ContingencyProblemKronRed : public ACOPFProblemKronRed
   {
   friend class ContingencyProblemKronRedWithFixingCode1;
   public:
     ContingencyProblemKronRed(SCACOPFData& d_in, int K_idx_, int my_rank);
     virtual ~ContingencyProblemKronRed();
 
+    virtual bool assemble();
+    
     virtual bool default_assembly(OptVariablesBlock* pg0, OptVariablesBlock* vn0);
     virtual bool default_assembly(OptVariablesBlock* vn0,
 				  OptVariablesBlock* thetan0,
@@ -76,14 +81,14 @@ namespace gollnlp {
     //these indexes exclude 'outidx' when K_idx is a generator contingency; otherwise Gk=0,1,2,...
     std::vector<int> Gk_;
 
-    void add_cons_AGC_using(OptVariablesBlock* pg0);
+    // commented in cpp void add_cons_AGC_using(OptVariablesBlock* pg0);
     void update_cons_AGC_using(OptVariablesBlock* pg0);
 
     //
     // PVPQ
     //
     void add_const_nonanticip_v_n_using(OptVariablesBlock* vn0, const std::vector<int>& Gk);
-    void add_cons_PVPQ_using(OptVariablesBlock* vn0, const std::vector<int>& Gk);
+    // commented in cpp void add_cons_PVPQ_using(OptVariablesBlock* vn0, const std::vector<int>& Gk);
     void update_cons_PVPQ_using(OptVariablesBlock* vn0, const std::vector<int>& Gk);
   public:
     //if no regularization term exists in the problem, one is added and 'primal_problem_changed' is called; 
@@ -124,6 +129,11 @@ namespace gollnlp {
 				  int ls_trials, OptimizationMode mode,
 				  const double* duals_con=NULL,
 				  const double* duals_lb=NULL, const double* duals_ub=NULL);
+    /** methods from SCACOPFProblem */
+    
+  public:
+    //contingencies' SCACOPFData
+    std::vector<SCACOPFData*> data_K;
   };
 
 } //end namespace

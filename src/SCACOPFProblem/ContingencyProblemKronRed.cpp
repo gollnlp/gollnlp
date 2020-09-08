@@ -17,7 +17,7 @@ using namespace std;
 namespace gollnlp {
   
   ContingencyProblemKronRed::ContingencyProblemKronRed(SCACOPFData& d_in, int K_idx_, int my_rank_) 
-    : SCACOPFProblem(d_in), K_idx(K_idx_), my_rank(my_rank_), cc_callbacks_(NULL)
+    : ACOPFProblemKronRed(d_in), K_idx(K_idx_), my_rank(my_rank_), cc_callbacks_(NULL)
   {
     int numK = 1; //!
 
@@ -32,12 +32,35 @@ namespace gollnlp {
 
   ContingencyProblemKronRed::~ContingencyProblemKronRed()
   {
+    assert(data_K.size() == 1);
+    for(auto p : data_K)
+      delete p;
   }
 
-  bool ContingencyProblemKronRed::default_assembly(OptVariablesBlock* vn0, OptVariablesBlock* thetan0, 
-					    OptVariablesBlock* bs0, 
-					    OptVariablesBlock* pg0, OptVariablesBlock* qg0)
+  bool ContingencyProblemKronRed::assemble()
   {
+    assert(false && "this method has not been tested");
+
+    assert(data_K.size() == 1);
+    SCACOPFData& dK = *data_K[0];
+    
+    add_variables(dK);
+    add_cons_pf(dK);
+
+    //objective
+    add_obj_prod_cost(dK);
+    
+    print_summary();
+
+    return true;
+  }
+  
+  
+  bool ContingencyProblemKronRed::default_assembly(OptVariablesBlock* vn0, OptVariablesBlock* thetan0, 
+						   OptVariablesBlock* bs0, 
+						   OptVariablesBlock* pg0, OptVariablesBlock* qg0)
+  {
+    assert(false); //assembled outside the class
     theta_n0=thetan0; b_s0=bs0; q_g0=qg0;
     return default_assembly(pg0, vn0);
   }
@@ -46,78 +69,67 @@ namespace gollnlp {
   {
     assert(false); //assembled outside the class
 
-    
-    //printf("ContProb K_idx=%d: IDOut=%d outidx=%d Type=%s\n",
-    //	   K_idx, data_sc.K_IDout[K_idx], data_sc.K_outidx[K_idx],
-    //	   data_sc.cont_type_string(K_idx).c_str());
-    //fflush(stdout);
 
-    p_g0=pg0; v_n0=vn0;
+//     p_g0=pg0; v_n0=vn0;
 
-    assert(data_K.size()==1);
-    SCACOPFData& dK = *data_K[0];
+//     assert(data_K.size()==1);
+//     SCACOPFData& dK = *data_K[0];
 
-    useQPen = true;
-    //slacks_scale = 1.;
+//     useQPen = true;
+//     //slacks_scale = 1.;
 
-    add_variables(dK,false);
+//     add_variables(dK,false);
 
-    add_cons_lines_pf(dK);
-    add_cons_transformers_pf(dK);
-    add_cons_active_powbal(dK);
-    add_cons_reactive_powbal(dK);
-    bool SysCond_BaseCase = false;
-    add_cons_thermal_li_lims(dK,SysCond_BaseCase);
-    add_cons_thermal_ti_lims(dK,SysCond_BaseCase);
+//     add_cons_lines_pf(dK);
+//     add_cons_transformers_pf(dK);
+//     add_cons_active_powbal(dK);
+//     add_cons_reactive_powbal(dK);
+//     bool SysCond_BaseCase = false;
+//     add_cons_thermal_li_lims(dK,SysCond_BaseCase);
+//     add_cons_thermal_ti_lims(dK,SysCond_BaseCase);
 
-    //
-    // setup for indexes used in non-anticip and AGC coupling 
-    //
-    //indexes in data_sc.G_Generator; exclude 'outidx' if K_idx is a generator contingency
-    data_sc.get_AGC_participation(K_idx, Gk_, pg0_partic_idxs, pg0_nonpartic_idxs);
-    assert(pg0->n == Gk_.size() || pg0->n == 1+Gk_.size());
+//     //
+//     // setup for indexes used in non-anticip and AGC coupling 
+//     //
+//     //indexes in data_sc.G_Generator; exclude 'outidx' if K_idx is a generator contingency
+//     data_sc.get_AGC_participation(K_idx, Gk_, pg0_partic_idxs, pg0_nonpartic_idxs);
+//     assert(pg0->n == Gk_.size() || pg0->n == 1+Gk_.size());
 
-    //pg0_nonpartic_idxs=Gk;
-    //pg0_partic_idxs={};
+//     //pg0_nonpartic_idxs=Gk;
+//     //pg0_partic_idxs={};
 
-    // indexes in data_K (for the recourse's contingency)
-    auto ids_no_AGC = selectfrom(data_sc.G_Generator, pg0_nonpartic_idxs);
-    pgK_nonpartic_idxs = indexin(dK.G_Generator, ids_no_AGC);
-    pgK_nonpartic_idxs = findall(pgK_nonpartic_idxs, [](int val) {return val!=-1;});
+//     // indexes in data_K (for the recourse's contingency)
+//     auto ids_no_AGC = selectfrom(data_sc.G_Generator, pg0_nonpartic_idxs);
+//     pgK_nonpartic_idxs = indexin(dK.G_Generator, ids_no_AGC);
+//     pgK_nonpartic_idxs = findall(pgK_nonpartic_idxs, [](int val) {return val!=-1;});
 
-    auto ids_AGC = selectfrom(data_sc.G_Generator, pg0_partic_idxs);
-    pgK_partic_idxs = indexin(dK.G_Generator, ids_AGC);
-    pgK_partic_idxs = findall(pgK_partic_idxs, [](int val) {return val!=-1;});
-#ifdef DEBUG
-    assert(pg0_nonpartic_idxs.size() == pgK_nonpartic_idxs.size());
-    for(int i0=0, iK=0; i0<pg0_nonpartic_idxs.size(); i0++, iK++) {
-      //all dB.G_Generator should be in data_sc.G_Generator
-      assert(pgK_nonpartic_idxs[iK]>=0); 
-      //all ids should match in order
-      assert(dK.G_Generator[pgK_nonpartic_idxs[iK]] ==
-	     data_sc.G_Generator[pg0_nonpartic_idxs[i0]]);
-    }
-    assert(pg0_partic_idxs.size() == pgK_partic_idxs.size());
-    for(int i=0; i<pg0_partic_idxs.size(); i++) {
-      assert(pgK_partic_idxs[i]>=0); 
-      //all ids should match in order
-      assert(dK.G_Generator[pgK_partic_idxs[i]] ==
-	     data_sc.G_Generator[pg0_partic_idxs[i]]);
-    }
+//     auto ids_AGC = selectfrom(data_sc.G_Generator, pg0_partic_idxs);
+//     pgK_partic_idxs = indexin(dK.G_Generator, ids_AGC);
+//     pgK_partic_idxs = findall(pgK_partic_idxs, [](int val) {return val!=-1;});
+// #ifdef DEBUG
+//     assert(pg0_nonpartic_idxs.size() == pgK_nonpartic_idxs.size());
+//     for(int i0=0, iK=0; i0<pg0_nonpartic_idxs.size(); i0++, iK++) {
+//       //all dB.G_Generator should be in data_sc.G_Generator
+//       assert(pgK_nonpartic_idxs[iK]>=0); 
+//       //all ids should match in order
+//       assert(dK.G_Generator[pgK_nonpartic_idxs[iK]] ==
+// 	     data_sc.G_Generator[pg0_nonpartic_idxs[i0]]);
+//     }
+//     assert(pg0_partic_idxs.size() == pgK_partic_idxs.size());
+//     for(int i=0; i<pg0_partic_idxs.size(); i++) {
+//       assert(pgK_partic_idxs[i]>=0); 
+//       //all ids should match in order
+//       assert(dK.G_Generator[pgK_partic_idxs[i]] ==
+// 	     data_sc.G_Generator[pg0_partic_idxs[i]]);
+//     }
       
-#endif
-    add_cons_nonanticip_using(pg0);
-    add_cons_AGC_using(pg0);
+// #endif
+//     add_cons_nonanticip_using(pg0);
+//     add_cons_AGC_using(pg0);
     
-    //add_const_nonanticip_v_n_using(vn0, Gk);
-    add_cons_PVPQ_using(vn0, Gk_);
+//     //add_const_nonanticip_v_n_using(vn0, Gk);
+//     add_cons_PVPQ_using(vn0, Gk_);
     
-
-    //print_summary();
-    //PVPQSmoothing  = 1e-2;
-    //coupling AGC and PVPQ; also creates delta_k
-    //add_cons_coupling(dK);
-
     return true;
   }
   bool ContingencyProblemKronRed::optimize(OptVariablesBlock* pg0, OptVariablesBlock* vn0, double& f)
@@ -162,9 +174,13 @@ namespace gollnlp {
     //if(!optimize("ipopt")) {
     if(!reoptimize(OptProblem::primalDualRestart)) {
       //if(!reoptimize(OptProblem::primalRestart)) {
-      if(!monitor.user_stopped) {
-	f = 1e+6;
-	return false;
+      //if(!monitor.user_stopped) {
+      assert(cc_callbacks_);
+      if(cc_callbacks_) {
+	if(!cc_callbacks_->monitor.user_stopped) {
+	  f = 1e+6;
+	  return false;
+	}
       }
     }
     
@@ -250,6 +266,7 @@ namespace gollnlp {
   //
   // PVPQ
   //
+
   void ContingencyProblemKronRed::add_const_nonanticip_v_n_using(OptVariablesBlock* v_n0, 
 								 const vector<int>& Gk) 
   {
@@ -336,10 +353,10 @@ namespace gollnlp {
       v_nk->ub[b] = v_n0->xref[b];
 
     }
-
   }
+  /*
   void ContingencyProblemKronRed::add_cons_PVPQ_using(OptVariablesBlock* vn0, 
-					       const vector<int>& Gk) 
+						      const vector<int>& Gk) 
   {
     assert(Gk_ == Gk);
     assert(data_K.size()==1);
@@ -399,6 +416,7 @@ namespace gollnlp {
 	   num_qgens_fixed, num_buses_all_qgen_fixed);
 #endif
   }
+  */
   void ContingencyProblemKronRed::update_cons_PVPQ_using(OptVariablesBlock* vn0, 
 						  const vector<int>& Gk) {
     assert(false);
@@ -414,6 +432,7 @@ namespace gollnlp {
   }
   void ContingencyProblemKronRed::bodyof_cons_nonanticip_using(OptVariablesBlock* pg0)
   {
+    assert(1==data_K.size());
     SCACOPFData& dK = *data_K[0]; assert(dK.id-1 == K_idx);
     OptVariablesBlock* pgK = variable("p_g", dK);
     if(NULL==pgK) {
@@ -440,7 +459,7 @@ namespace gollnlp {
       //printf("%g lb[%g %g]\n",  pg0->x[pg0_idxs[i]], pgK->lb[idxK], pgK->ub[idxK]);
     }
   }
-
+  /*
   void ContingencyProblemKronRed::add_cons_AGC_using(OptVariablesBlock* pg0)
   {
     if(pgK_partic_idxs.size()==0) {
@@ -487,6 +506,9 @@ namespace gollnlp {
 #endif
     //printvec(pg0_partic_idxs, "partic idxs");
   }
+  */
+
+
   void ContingencyProblemKronRed::update_cons_AGC_using(OptVariablesBlock* pg0)
   {
     if(pgK_partic_idxs.size()==0) {
