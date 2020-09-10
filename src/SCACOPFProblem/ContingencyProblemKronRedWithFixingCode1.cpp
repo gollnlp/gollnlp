@@ -179,6 +179,13 @@ namespace gollnlp {
     //add_cons_PVPQ_using(vn0, Gk);
 
     assert(prob_mds_->vars_primal->provides_start());
+
+    const double gamma = 1e-6;
+    //prob_mds_->regularize_vn(gamma);
+    //prob_mds_->regularize_thetan(gamma);
+    prob_mds_->regularize_bs(gamma);
+    prob_mds_->regularize_pg(gamma);
+    prob_mds_->regularize_qg(gamma);
     
     if(NULL==prob_mds_->vars_duals_bounds_L ||
        NULL==prob_mds_->vars_duals_bounds_U ||
@@ -191,8 +198,12 @@ namespace gollnlp {
       assert(false);
       return false;
     }
-    if( prob_mds_->variable_duals_lower("duals_bndL_delta", dK) )
+    
+    if(prob_mds_->variable_duals_lower("duals_bndL_delta", dK)) {
       prob_mds_->variable_duals_lower("duals_bndL_delta", dK)->set_start_to(0.0);
+    } else {
+      assert(false);
+    }
     assert(prob_mds_->vars_duals_bounds_L->provides_start());
 
     if(!warm_start_variable_from_basecase_dict(*prob_mds_->vars_duals_bounds_U))  {
@@ -208,8 +219,12 @@ namespace gollnlp {
       assert(false);
       return false;
     }
-    if(prob_mds_->variable_duals_cons("duals_AGC_simple_fixedpg0", dK))
-      prob_mds_->variable_duals_cons("duals_AGC_simple_fixedpg0", dK)->set_start_to(0.0);
+
+    //! no obvious way to start the duals from the base case.
+    prob_mds_->duals_constraints()->set_start_to(0.0);
+    //if(prob_mds_->variable_duals_cons("duals_AGC_simple_fixedpg0", dK))
+    //prob_mds_->variable_duals_cons("duals_AGC_simple_fixedpg0", dK)->set_start_to(0.0);
+    
     assert(prob_mds_->vars_duals_cons->provides_start());
 
 
@@ -234,8 +249,11 @@ namespace gollnlp {
     prob_mds_->vars_primal->copy_to(x);
     //will copy the values
     best_known_iter.initialize(prob_mds_->vars_primal);
-    if(prob_mds_->OptProblem::eval_obj(x, true, obj)) {
+    if(prob_mds_->OptProblemMDS::eval_obj(x, true, obj)) {
       best_known_iter.set_objective(obj);
+    } else {
+      assert(false);
+      best_known_iter.set_objective(1e+10);
     }
     delete [] x;
     return true;
@@ -246,6 +264,8 @@ namespace gollnlp {
 						   double& f,
 						   double* data_for_master)
   {
+    //prob_mds_->print_summary(); fflush(stdout);
+
     goTimer tmrec; tmrec.start();
     SCACOPFData& d = *data_K[0];
     assert(p_g0 == pg0); assert(v_n0 == vn0);
@@ -253,6 +273,9 @@ namespace gollnlp {
 
     set_no_recourse_action(data_for_master);
 
+    //!
+    //this is disabled for now
+    if(false) {
     if(best_known_iter.obj_value <= pen_accept_initpt) {
       assert(prob_mds_->vars_primal->n() == best_known_iter.vars_primal->n());
       prob_mds_->vars_primal->set_start_to(*best_known_iter.vars_primal);
@@ -266,8 +289,16 @@ namespace gollnlp {
       set_no_recourse_action(data_for_master, f);
       return true;
     }
+    }
+    //!
+    best_known_iter.set_objective(1e+10);
+    
+    printf("!!!!!!!!!!!!!!!!!!!!   DO SOLVE 1 !!!!!!!!!!!!\n");
+    
     bool bFirstSolveOK = do_solve1();
 
+    printf("!!!!!!!!!!!!!!!!!!!!   DO SOLVE 1 DONE !!!!!!!!!!!!\n");
+    
     f = prob_mds_->obj_value;
     
     if(prob_mds_->variable("delta", d))
@@ -485,7 +516,6 @@ namespace gollnlp {
       if(bFirstSolveOK) {
 	if(!prob_mds_->vars_duals_bounds_L->provides_start()) {
 	  assert(false);
-	  print_summary();
 	}
 	assert(prob_mds_->vars_duals_bounds_L->provides_start());
 	assert(prob_mds_->vars_duals_bounds_U->provides_start()); 	
@@ -808,7 +838,8 @@ namespace gollnlp {
 	ok_to_exit = true;
 	prob_mds_->obj_value = best_known_iter.obj_value;
 	prob_mds_->vars_primal->set_start_to(*best_known_iter.vars_primal);
-	printf("[warning] ContProbKronWithFixing K_idx=%d opt1 exit best_known < pen_accept(%g) rank=%d  %g sec\n", 
+	printf("[warning] ContProbKronWithFixing K_idx=%d opt1 exit "
+	       "best_known < pen_accept(%g) rank=%d  %g sec\n", 
 	       K_idx,  monitor.pen_accept, my_rank, tmrec.measureElapsedTime()); 
       }
       if(monitor.emergency && best_known_iter.obj_value <= monitor.pen_accept_emer) {
@@ -1649,6 +1680,137 @@ namespace gollnlp {
 
     return true;
   }
+
+  bool ContingencyProblemKronRedWithFixingCode1::
+  warm_start_variable_from_basecase_dict(OptVariables& v)
+  {
+    SCACOPFData& dK = *data_K[0];
+
+    OptVariablesBlock *v_n_0 = NULL, *theta_n_0 = NULL; //source, fs, from dict_basecase_vars
+    OptVariablesBlock *v_n_k = NULL, *theta_n_k = NULL; //destination, reduced-space, from 'v'
+    OptVariablesBlock *v_aux_n_k = NULL, *theta_aux_n_k = NULL; //destination, reduced-space, from 'v'
+    
+    for(auto& b : v.vblocks) {
+      
+      size_t pos = b->id.find_last_of("_");
+      if(pos == string::npos) { 
+	assert(false);
+	b->set_start_to(0.0);
+	b->providesStartingPoint = false; 
+	continue; 
+      }
+
+      const string b0_name = b->id.substr(0, pos+1) + "0";
+      auto b0p = dict_basecase_vars.find(b0_name);
+      if(b0p == dict_basecase_vars.end()) {
+
+	//if(b->id.find("delta") == string::npos && 
+	//   b->id.find("AGC")   == string::npos) return false;
+
+	//these will be done the same warm-start procedure with v_n and theta_n
+	//if(b->id.find("v_aux") != string::npos ||
+	//   b->id.find("theta_aux") != string::npos) continue;
+	
+	//assert(b->id.find("delta") != string::npos || 
+	//       b->id.find("AGC") != string::npos); //!remove agc later
+	continue;
+      }
+
+      //
+      //v_n and theta_n are done separately (this includes primal and Low/Upp dual bounds)
+      //
+      if(b->id.find("v_n") != string::npos) {
+	assert(v_n_0 == NULL);
+	assert(v_n_k == NULL);
+	v_n_0 =  b0p->second;
+	v_n_k =  b;
+	continue;
+      }
+      if(b->id.find("theta_n") != string::npos) {
+	assert(theta_n_0 == NULL);
+	assert(theta_n_k == NULL);
+	theta_n_0 = b0p->second;
+	theta_n_k = b;
+	continue;
+      }
+      if(b->id.find("v_aux") != string::npos) {
+	assert(v_aux_n_k == NULL);
+	v_aux_n_k = b;
+      }
+      if(b->id.find("theta_aux") != string::npos) {
+	assert(v_aux_n_k == NULL);
+	v_aux_n_k = b;
+      }
+     
+      auto b0 = b0p->second; assert(b0);
+
+      if(b0->n == b->n) {
+	b->set_start_to(*b0);
+      } else {
+
+	if(b0->n - 1 != b->n) {
+	  printf("b0 [%s]=%d    b [%s]=%d\n", b0->id.c_str(), b0->n, b->id.c_str(), b->n);
+	}
+	
+	assert(b0->n - 1 == b->n);
+	if(dK.K_ConType[0] == SCACOPFData::kGenerator) {
+	  assert(b->id.find("_g_") != string::npos);
+	  for(int i=0; i<pg0_nonpartic_idxs.size(); i++) {
+	    assert(pgK_nonpartic_idxs[i] < b->n);
+	    assert(pg0_nonpartic_idxs[i] < b0->n);
+	    b->x[pgK_nonpartic_idxs[i]] = b0->x[pg0_nonpartic_idxs[i]];
+	  }
+
+	  for(int i=0; i<pg0_partic_idxs.size(); i++) {
+	    assert(pgK_partic_idxs[i] < b->n);
+	    assert(pg0_partic_idxs[i] < b0->n);
+	    b->x[pgK_partic_idxs[i]] = b0->x[pg0_partic_idxs[i]];
+	  }
+	  b->providesStartingPoint = true; 
+
+	} else if(dK.K_ConType[0] == SCACOPFData::kLine) {
+	  assert(b->id.find("_li") != string::npos);
+	  int i=0, i0=0;
+	  for(; i0<b0->n; i0++) {
+	    if(i0 != dK.K_outidx[0]) {
+	      b->x[i] = b0->x[i0];
+	      i++;
+	    }
+	  }
+	  assert(i0 == b0->n);
+	  assert(i  == b->n);
+	  b->providesStartingPoint = true; 
+
+	} else if(dK.K_ConType[0] == SCACOPFData::kTransformer) {
+	  assert(b->id.find("_ti") != string::npos || b->id.find("_trans_") != string::npos);
+	  int i=0, i0=0;
+	  for(; i0<b0->n; i0++) {
+	    if(i0 != dK.K_outidx[0]) {
+	      b->x[i] = b0->x[i0];
+	      i++;
+	    }
+	  }
+	  assert(i0 == b0->n);
+	  assert(i  == b->n);
+	  b->providesStartingPoint = true; 
+
+	} else { assert(false); }
+      }
+    }
+
+    //take care of voltages and angles
+    if(v_n_0 && theta_n_0) prob_mds_->v_and_theta_start_from_fs(dK,
+								v_n_k,
+								theta_n_k,
+								v_aux_n_k,
+								theta_aux_n_k,
+								*v_n_0,
+								*theta_n_0);
+    
+    return true;
+  }
+  
+  
 
   // bool ContingencyProblemKronRedWithFixingCode1::
   // do_qgen_fixing_for_PVPQ(OptVariablesBlock* vnk, OptVariablesBlock* qgk)

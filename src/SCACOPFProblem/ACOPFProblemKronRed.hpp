@@ -43,6 +43,66 @@ namespace gollnlp {
     
     /** See @optimize above */
     virtual bool reoptimize(RestartType t=primalRestart);
+
+    /** Sets the voltages (both aux and nonaux) to their values in the full-space (fs) 
+     * voltages variable 'v_fs'
+     */
+    virtual bool v_and_theta_start_from_fs(SCACOPFData& d,
+					   OptVariablesBlock* v_n,
+					   OptVariablesBlock* theta_n,
+					   OptVariablesBlock* v_aux_n,
+					   OptVariablesBlock* theta_aux_n,
+					   const OptVariablesBlock& v_fs,
+					   const OptVariablesBlock& th_fs)
+    {
+      assert(th_fs.n == v_fs.n);
+      assert(v_fs.n == idxs_buses_nonaux.size() + idxs_buses_aux.size());
+      assert(map_idxbuses_idxsoptimiz_.size() == v_fs.n);
+
+      //auto v_n     = vars_block(var_name("v_n", d));
+      //auto v_aux_n = vars_block(var_name("v_aux_n", d));
+      //auto theta_n     = vars_block(var_name("theta_n", d));
+      //auto theta_aux_n = vars_block(var_name("theta_aux_n", d));
+      
+      assert(v_n);
+      assert(theta_n);
+      
+      for(int i=0; i<map_idxbuses_idxsoptimiz_.size(); i++) {
+
+	assert(i<v_fs.n);
+
+	//not part of the optimization
+	if(map_idxbuses_idxsoptimiz_[i]==-1) continue;
+	
+	if(map_idxbuses_idxsoptimiz_[i]<0) {
+	  const int idx_aux = -map_idxbuses_idxsoptimiz_[i]-2;
+	  assert(idx_aux>=0);
+	  assert(idx_aux<idxs_buses_aux.size());
+
+	  assert(v_aux_n);
+	  assert(v_aux_n->n == idxs_buses_aux.size());
+
+	  assert(theta_aux_n);
+	  assert(theta_aux_n->n == idxs_buses_aux.size());
+
+	  v_aux_n->x[idx_aux] = v_fs.x[i];
+	  theta_aux_n->x[idx_aux] = th_fs.x[i];
+	  
+	} else {
+	  const int idx_nonaux = map_idxbuses_idxsoptimiz_[i];
+	  assert(idx_nonaux>=0); assert(idx_nonaux<idxs_buses_nonaux.size());
+
+	  v_n->x[idx_nonaux] = v_fs.x[i];
+	  theta_n->x[idx_nonaux] = th_fs.x[i];
+	}
+      }
+
+      v_n->providesStartingPoint = true;
+      theta_n->providesStartingPoint = true; 
+      
+      return true;
+    }
+    
   protected: 
     void add_variables(SCACOPFData& dB, bool SysCond_BaseCase = true);
     void add_cons_pf(SCACOPFData& d);
@@ -83,7 +143,7 @@ namespace gollnlp {
 				std::vector<int>& Lin_overload,
 				std::vector<int>& Tidx_overload,
 				std::vector<int>& Tin_overload);
-				  
+
   protected: 
     //members
     
@@ -110,9 +170,11 @@ namespace gollnlp {
      * (as the result of voltage bounds and thermal limit violations)
      * !!!  for these buses, we store -i-2, where i is the index in v_aux_n and theta_aux_n
      *
-     *  - -1 for aux buses non included in the optimization
+     *  - -1 for aux buses not included in the optimization
      */
     std::vector<int> map_idxbuses_idxsoptimiz_;
+
+    
   /** ACOPF interface - similar to SCACOPFProblem
    */
   protected:

@@ -101,6 +101,8 @@ namespace gollnlp {
     //this is the MDS Contigency Problem evaluation to which ops are delegated
     ContingencyProblemKronRed* prob_mds_;
 
+  protected:
+    bool warm_start_variable_from_basecase_dict(OptVariables& v);
   public:
     
   };

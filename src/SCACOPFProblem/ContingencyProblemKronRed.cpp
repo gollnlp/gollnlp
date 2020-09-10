@@ -339,19 +339,38 @@ namespace gollnlp {
     assert(idxs_bus_pvpq.size() == idxs_gen_agg.size());
 
     auto v_nk = variable("v_n", dB);
-    assert(v_n0->n == v_nk->n);
+    auto v_aux_nk = variable("v_aux_n", dB);
+    assert(v_n0->n >= v_nk->n);
 
     assert(v_n0->xref == v_n0->x);
 
-    for(int b : idxs_bus_pvpq) {
-      assert(b>=0);
-      assert(b<v_nk->n);
+    assert(map_idxbuses_idxsoptimiz_.size() == v_n0->n);
+    
+    for(int bidx : idxs_bus_pvpq) {
+      assert(bidx>=0);
+      assert(bidx<v_n0->n);
 
-      //v_nk->lb[b] = 0.99*v_n0->xref[b];
-      //v_nk->ub[b] = 1.01*v_n0->xref[b];
-      v_nk->lb[b] = v_n0->xref[b];
-      v_nk->ub[b] = v_n0->xref[b];
-
+      //printf("[warning] nothing really: bidx=%d K_idx=%d\n", bidx, K_idx); 
+      
+      if(map_idxbuses_idxsoptimiz_[bidx]==-1) {
+	printf("[warning] bus idx %d is PVPQ but not in v_n or v_n_aux of Kron\n", bidx);
+	continue;
+      } else {
+	if(map_idxbuses_idxsoptimiz_[bidx]>=0) {
+	  const int idx_nonaux = map_idxbuses_idxsoptimiz_[bidx];
+	  assert(idx_nonaux < v_nk->n);
+	  v_nk->lb[idx_nonaux] = v_n0->xref[bidx];
+	  v_nk->ub[idx_nonaux] = v_n0->xref[bidx];
+	} else {
+	  const int idx_aux = -map_idxbuses_idxsoptimiz_[bidx]-2;
+	  assert(idx_aux < v_aux_nk->n);
+	  assert(idx_aux >= 0);
+	  v_aux_nk->lb[idx_aux] = v_n0->xref[bidx];
+	  v_aux_nk->ub[idx_aux] = v_n0->xref[bidx];
+	}
+      }
+      //v_nk->lb[b] = v_n0->xref[b];
+      //v_nk->ub[b] = v_n0->xref[b]; 
     }
   }
   /*
@@ -534,8 +553,8 @@ namespace gollnlp {
 
     assert(variable("v_n", dK));
     assert(v_n0);
-    
-    assert(variable("v_n", dK)->n == v_n0->n);
+    //! todo: map v_n0 into v_n nonaux
+    assert(variable("v_n", dK)->n <= v_n0->n);
     
     OptObjectiveTerm* ot = obj->objterm("regul_vn");
     if(NULL==ot) {
@@ -551,8 +570,9 @@ namespace gollnlp {
   {
     assert(data_K.size()==1);
     SCACOPFData& dK = *data_K[0]; assert(dK.id==K_idx+1);
-    assert(variable("theta_n", dK)->n == v_n0->n);
-
+    assert(variable("theta_n", dK)->n <= v_n0->n);
+    
+    //! todo: map theta_n0 into theta_n nonaux
     OptObjectiveTerm* ot = obj->objterm("regul_thetan");
     if(NULL==ot) {
       append_objterm(new QuadrRegularizationObjTerm("regul_thetan", variable("theta_n", dK),
@@ -570,6 +590,7 @@ namespace gollnlp {
 
     OptObjectiveTerm* ot = obj->objterm("regul_bs");
     if(NULL==ot) {
+      //! todo should not use v_n0
       append_objterm(new QuadrRegularizationObjTerm("regul_bs", variable("b_s", dK),
 						    gamma, v_n0->x));
       primal_problem_changed();
@@ -585,6 +606,7 @@ namespace gollnlp {
 
     OptObjectiveTerm* ot = obj->objterm("regul_pg");
     if(NULL==ot) {
+      //! todo should not use v_n0
       append_objterm(new QuadrRegularizationObjTerm("regul_pg", variable("p_g", dK),
 						    gamma, v_n0->x));
       primal_problem_changed();
@@ -600,6 +622,7 @@ namespace gollnlp {
 
     OptObjectiveTerm* ot = obj->objterm("regul_qg");
     if(NULL==ot) {
+      //! todo should not use v_n0
       append_objterm(new QuadrRegularizationObjTerm("regul_qg", variable("q_g", dK),
 						    gamma, v_n0->x));
       primal_problem_changed();

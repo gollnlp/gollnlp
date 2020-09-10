@@ -80,7 +80,7 @@ namespace gollnlp {
 			   OptVariablesBlock* delta);
 
     //also looks up 'dict_basecase_vars'
-    bool warm_start_variable_from_basecase_dict(OptVariables& v);
+    virtual bool warm_start_variable_from_basecase_dict(OptVariables& v);
 
     void default_primal_start();
     

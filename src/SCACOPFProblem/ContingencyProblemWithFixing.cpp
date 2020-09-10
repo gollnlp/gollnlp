@@ -1240,6 +1240,11 @@ namespace gollnlp {
       if(b0->n == b->n) {
 	b->set_start_to(*b0);
       } else {
+
+	if(b0->n - 1 != b->n) {
+	  printf("b0 [%s]=%d    b [%s]=%d\n", b0->id.c_str(), b0->n, b->id.c_str(), b->n);
+	}
+	
 	assert(b0->n - 1 == b->n);
 	if(dK.K_ConType[0] == SCACOPFData::kGenerator) {
 	  assert(b->id.find("_g_") != string::npos);

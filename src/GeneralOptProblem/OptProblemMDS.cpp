@@ -24,21 +24,30 @@ namespace gollnlp {
     for(auto& con_gen: cons->vblocks) {
       
       OptConstraintsBlockMDS* con = dynamic_cast<OptConstraintsBlockMDS*>(con_gen);
-      assert(NULL!=con);
-      if(!con) continue;
-      
-      if(!con->eval_Jac_eq(*vars_primal, new_x,
-			nxsparse, nxdense,
-			nnzJacS, iJacS, jJacS, MJacS,
-			JacD)) {
-	return false;
-      }
 
-      if(!con->eval_Jac_ineq(*vars_primal, new_x,
-			   nxsparse, nxdense,
-			   nnzJacS, iJacS, jJacS, MJacS,
-			   JacD)) {
-	return false;
+      if(!con) {
+
+	//!it's a general OptConstraintsBlock -
+	//this means it involves only sparse variables and it is of equality type
+	if(!con_gen->eval_Jac(*vars_primal, new_x, nnzJacS, iJacS, jJacS, MJacS)) {
+	    return false;
+	  }
+
+      } else {
+	
+	if(!con->eval_Jac_eq(*vars_primal, new_x,
+			     nxsparse, nxdense,
+			     nnzJacS, iJacS, jJacS, MJacS,
+			     JacD)) {
+	  return false;
+	}
+	
+	if(!con->eval_Jac_ineq(*vars_primal, new_x,
+			       nxsparse, nxdense,
+			       nnzJacS, iJacS, jJacS, MJacS,
+			       JacD)) {
+	  return false;
+	}
       }
       //print_spmat_triplet(nnzJacS, cons->m(), nxsparse, iJacS, jJacS, MJacS, "Jac_eq");
 
@@ -189,11 +198,16 @@ namespace gollnlp {
 	  
 	  OptConstraintsBlockMDS* con = dynamic_cast<OptConstraintsBlockMDS*>(con_gen);
 	  if(NULL==con) {
-	    assert(false && "check this: incorrect/unsupported type for constraints");
-	    continue;
+	    printf("[warning] constraints '%s' are not MDS - will be treated "
+		   "as sparse (not involving dense vars) and as equalitites\n",
+		   con_gen->id.c_str());
+	    //assert(false && "check this: incorrect/unsupported type for constraints");
+	    con_gen->get_Jacob_ij(ij_Jac_eq);
+	   
+	  } else {
+	    con->get_spJacob_eq_ij(ij_Jac_eq);
+	    con->get_spJacob_ineq_ij(ij_Jac_ineq);
 	  }
-	  con->get_spJacob_eq_ij(ij_Jac_eq);
-	  con->get_spJacob_ineq_ij(ij_Jac_ineq);
 
 	  for(auto el : ij_Jac_eq)
 	    ij_Jac.push_back(el);
@@ -242,7 +256,11 @@ namespace gollnlp {
     for(auto& con_gen: cons->vblocks) {
       OptConstraintsBlockMDS* con = dynamic_cast<OptConstraintsBlockMDS*>(con_gen);
       if(NULL==con) {
-	assert(false && "check this");
+	printf("[warning] constraints '%s' are not MDS - will be treated as "
+	       "sparse (not involving dense vars) and as equalitites",
+	       con_gen->id.c_str());
+	//assert(false && "check this");
+	con_gen->get_HessLagr_ij(ij_HessLagr_SSblock);
 	continue;
       }
       con->get_HessLagr_SSblock_ij(ij_HessLagr_SSblock);
