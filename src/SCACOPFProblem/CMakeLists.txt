@@ -25,6 +25,16 @@ if(GOLLNLP_WITH_KRON_REDUCTION)
   if(GOLLNLP_USE_GPU)
     target_link_libraries(acopf_kron_driver.exe hiop_cuda)
   endif(GOLLNLP_USE_GPU)
+
+  add_executable(test_cont_kron_driver.exe test_ContingencyProblemKron.cpp)
+  target_link_libraries(test_cont_kron_driver.exe 
+                        goKronRed gollnlp ipopt coinhsl coinmetis 
+			hiop ${UMFPACK_LIB} ${LAPACK_LIBRARIES} ${OpenMP_CXX_LIBRARIES}
+			${GOLLNLP_LIBS_EXTRA} )
+
+  if(GOLLNLP_USE_GPU)
+    target_link_libraries(test_cont_kron_driver.exe hiop_cuda)
+  endif(GOLLNLP_USE_GPU)
 endif(GOLLNLP_WITH_KRON_REDUCTION)
 
 #add_executable(acopf_driver.exe ACOPFDriver.cpp)

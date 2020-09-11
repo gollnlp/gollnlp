@@ -14,7 +14,7 @@ namespace gollnlp {
 					   const std::vector<double>& N_Pd_full_space_)
     : OptConstraintsBlockMDS(id_, numcons), p_g(p_g_), v_n(v_n_), theta_n(theta_n_),
       bus_nonaux_idxs(bus_nonaux_idxs_), Gn_fs(Gn_full_space_), Ybus_red(Ybus_red_), 
-      J_nz_idxs(NULL), H_nz_idxs(NULL)
+      J_nz_idxs(NULL), H_nz_idxs(NULL), pslack_n_(NULL)
   {
     assert(numcons==bus_nonaux_idxs_.size());
 
@@ -46,10 +46,13 @@ namespace gollnlp {
   ///////////////////////////////////////////////////////////////////////////////
   bool PFActiveBalanceKron::eval_body (const OptVariables& vars_primal, bool new_x, double* body_)
   {
+    assert(pslack_n_);
     double* body = body_ + this->index;
     assert(n==N_Pd.size());
     assert(n==bus_nonaux_idxs.size());
 
+    double* slacks = const_cast<double*>(pslack_n_->xref);
+    
     double *NPd=N_Pd.data();
     //for(int i=0; i<n; i++) {
     //  *body -= NPd[i];
@@ -57,7 +60,13 @@ namespace gollnlp {
     //}
     //body -= n;
     DAXPY(&n, &dminusone, NPd, &ione, body, &ione);
-
+    
+    double r=1.;
+    r = 0-r;
+    DAXPY(&n, &r, slacks,   &ione, body, &ione);
+    r = 0-r;
+    DAXPY(&n, &r, slacks+n, &ione, body, &ione);
+    
     const int *Gnv; int nGn;
     //for(int i=0; i<n; i++) {
     for(auto& i : bus_nonaux_idxs) {
@@ -146,6 +155,13 @@ namespace gollnlp {
 	  iJacS[*itnz]=row; 
 	  jJacS[*itnz++]=p_g->indexSparse+Gn_fs[idxBusNonAux][ig]; 
 	}
+
+	//pslack_n_
+	iJacS[*itnz]=row; 
+	jJacS[*itnz++]=pslack_n_->indexSparse+it;
+	iJacS[*itnz]=row; 
+	jJacS[*itnz++]=pslack_n_->indexSparse+it+n;
+	
 	++row;
       }
 #ifdef DEBUG
@@ -161,6 +177,10 @@ namespace gollnlp {
 	for(int ig=0; ig<sz; ++ig) { 
 	  MJacS[*itnz++] += 1; 
 	}
+
+	//pslack_n
+	MJacS[*itnz++] -= 1.;
+	MJacS[*itnz++] += 1.;
       }
     }
 
@@ -268,12 +288,20 @@ namespace gollnlp {
     int nnz = 0; 
     for(auto& i : bus_nonaux_idxs)
       nnz += Gn_fs[i].size();
+    //pslack_n
+    assert(pslack_n_);
+    assert(2*n == pslack_n_->n);
+    nnz += pslack_n_->n;
     return nnz; 
   }
   
   bool PFActiveBalanceKron::get_spJacob_eq_ij(std::vector<OptSparseEntry>& vij)
   {
     if(n<=0) return true;
+
+    assert(pslack_n_);
+    assert(2*n == pslack_n_->n);
+    assert(p_g->indexSparse>=0);
     
     int nnz = get_spJacob_eq_nnz();
     if(!J_nz_idxs) 
@@ -287,8 +315,11 @@ namespace gollnlp {
       //p_g
       for(auto g: Gn_fs[bus_nonaux_idxs[it]]) 
 	vij.push_back(OptSparseEntry(row, p_g->indexSparse+g, itnz++));
-    
-      //if(Gn_fs[bus_nonaux_idxs[it]].size()>0)
+
+      //pslack_n
+      vij.push_back(OptSparseEntry(row, p_g->indexSparse+it, itnz++));
+      vij.push_back(OptSparseEntry(row, p_g->indexSparse+it+n, itnz++));
+
       ++row;
     }
     //printf("nnz=%d vijsize=%d\n", nnz, vij.size());
@@ -605,7 +636,7 @@ namespace gollnlp {
       bus_nonaux_idxs(bus_nonaux_idxs_),
       Gn_fs(Gn_full_space_), SShn_fs(SShn_full_space_in),
       Ybus_red(Ybus_red_), 
-      J_nz_idxs(NULL), H_nz_idxs(NULL)
+      J_nz_idxs(NULL), H_nz_idxs(NULL), qslack_n_(NULL)
   {
     assert(numcons==bus_nonaux_idxs_.size());
 
@@ -639,10 +670,20 @@ namespace gollnlp {
    */
   bool PFReactiveBalanceKron::eval_body (const OptVariables& vars_primal, bool new_x, double* body_)
   {
-    double* body = body_ + this->index;
     assert(n==N_Qd.size());
     assert(n==bus_nonaux_idxs.size());
 
+    assert(qslack_n_);
+    assert(qslack_n_->n = 2*n);
+    double* body = body_ + this->index;
+    double* slacks = const_cast<double*>(qslack_n_->xref);
+
+    double r=1.;
+    r = 0-r;
+    DAXPY(&n, &r, slacks,   &ione, body, &ione);
+    r = 0-r;
+    DAXPY(&n, &r, slacks+n, &ione, body, &ione);
+    
     double *NQd=N_Qd.data();
     DAXPY(&n, &dminusone, NQd, &ione, body, &ione);
 
@@ -736,12 +777,12 @@ namespace gollnlp {
     //
     assert(nxsparse+nxdense == x.n());
     int row, *itnz;
- #ifdef DEBUG
+#ifdef DEBUG
     int nnz_loc=get_spJacob_eq_nnz();
     int row2=-1;
 #endif
     if(iJacS && jJacS) {
-      
+      assert(qslack_n_->indexSparse>=0);
       itnz = J_nz_idxs; row=this->index;
       for(int it=0; it<n; it++) {
 	const int idxBusNonAux = bus_nonaux_idxs[it];
@@ -751,6 +792,13 @@ namespace gollnlp {
 	  iJacS[*itnz]=row; 
 	  jJacS[*itnz++]=q_g->indexSparse+Gn_fs[idxBusNonAux][ig]; 
 	}
+	//qslack_n_
+	assert(q_g->indexSparse+it<nxsparse);
+	iJacS[*itnz]=row;
+	jJacS[*itnz++]=qslack_n_->indexSparse+it;
+	assert(q_g->indexSparse+it+n<nxsparse);
+	iJacS[*itnz]=row;
+	jJacS[*itnz++]=qslack_n_->indexSparse+it+n;
 	++row;
       }
 #ifdef DEBUG
@@ -761,13 +809,17 @@ namespace gollnlp {
     }
     
     if(MJacS) {
+      assert(qslack_n_->indexSparse>=0);
       itnz = J_nz_idxs; 
       for(int it=0; it<n; it++) {
-	//p_g 
+	//q_g 
 	const size_t sz = Gn_fs[bus_nonaux_idxs[it]].size();
 	for(int ig=0; ig<sz; ++ig) { 
 	  MJacS[*itnz++] += 1.; 
 	}
+	//qslack_n_
+	MJacS[*itnz++] -= 1.;
+	MJacS[*itnz++] += 1.;
       }
     }
 
@@ -897,12 +949,20 @@ namespace gollnlp {
     int nnz = 0; 
     for(auto& i : bus_nonaux_idxs)
       nnz += Gn_fs[i].size();
+
+    //nnz from slacks
+    assert(qslack_n_);
+    assert(qslack_n_->n == 2*n);
+    nnz += qslack_n_->n;
     return nnz; 
   }
   
   bool PFReactiveBalanceKron::get_spJacob_eq_ij(std::vector<OptSparseEntry>& vij)
   {
     if(n<=0) return true;
+
+    assert(qslack_n_);
+    assert(qslack_n_->indexSparse>=0);
     
     int nnz = get_spJacob_eq_nnz();
     if(!J_nz_idxs) {
@@ -918,8 +978,11 @@ namespace gollnlp {
       for(auto g: Gn_fs[bus_nonaux_idxs[it]]) {
 	vij.push_back(OptSparseEntry(row, q_g->indexSparse+g, itnz++));
       }
-    
-      //if(Gn_fs[bus_nonaux_idxs[it]].size()>0)
+
+      //qslack_n_
+      vij.push_back(OptSparseEntry(row, qslack_n_->indexSparse+it,   itnz++));
+      vij.push_back(OptSparseEntry(row, qslack_n_->indexSparse+it+n, itnz++));
+      
       ++row;
     }
 

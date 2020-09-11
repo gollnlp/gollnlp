@@ -24,6 +24,7 @@ namespace gollnlp {
   // - sum(v_n[i]*v_n[j]*
   //      ( Gred[i,j]*cos(theta_n[i]-theta_n[j]) 
   //      + Bred[i,j]*sin(theta_n[i]-theta_n[j])) for j=1:length(nonaux))
+  // - pslackp_n[i] + r*pslackm_n[i]
   // ==  N[:Pd][nonaux[i]]
   ///////////////////////////////////////////////////////////////////////////////
   class PFActiveBalanceKron : public OptConstraintsBlockMDS
@@ -86,7 +87,14 @@ namespace gollnlp {
 	delete[] H_nz_idxs;
       H_nz_idxs = NULL;
     }
-
+    // 
+    virtual OptVariablesBlock* create_varsblock() 
+    {
+      assert(pslack_n_==NULL);
+      pslack_n_ = new OptVariablesBlock(2*n, "pslack_n_"+id, 0, 1e+20);
+      return pslack_n_; 
+    }
+    inline OptVariablesBlock* slacks() { return pslack_n_; }
   protected:
     OptVariablesBlock *p_g, *v_n, *theta_n;
     const std::vector<int> &bus_nonaux_idxs;
@@ -96,6 +104,8 @@ namespace gollnlp {
 
     int* J_nz_idxs;
     int* H_nz_idxs;
+
+    OptVariablesBlock *pslack_n_; //2*n -> containss pslackp_n, pslackm_n;
   };
 
 
@@ -171,6 +181,13 @@ namespace gollnlp {
 	delete[] H_nz_idxs;
       H_nz_idxs = NULL;
     }
+    virtual OptVariablesBlock* create_varsblock() 
+    { 
+      assert(qslack_n_==NULL);
+      qslack_n_ = new OptVariablesBlock(2*n, "qslack_n_"+id, 0, 1e+20);
+      return qslack_n_; 
+    }
+    inline OptVariablesBlock* slacks() { return qslack_n_; }
   protected:
     OptVariablesBlock *q_g, *v_n, *theta_n, *b_s;
     const std::vector<int> &bus_nonaux_idxs;
@@ -181,6 +198,8 @@ namespace gollnlp {
 
     int* J_nz_idxs;
     int* H_nz_idxs;
+
+    OptVariablesBlock *qslack_n_; //2*n -> containss pslackp_n, pslackm_n;
   };
 
   /*********************************************************************************************

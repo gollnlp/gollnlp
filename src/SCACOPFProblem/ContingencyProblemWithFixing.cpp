@@ -452,7 +452,7 @@ namespace gollnlp {
 	}
       }
       set_solver_option("print_user_options", "no");
-      set_solver_option("print_level", 2);
+      //!set_solver_option("print_level", 2);
       set_solver_option("sb","yes");
 
       set_solver_option("max_iter", 300);
@@ -794,7 +794,7 @@ namespace gollnlp {
 	}
       }
       set_solver_option("print_user_options", "no");
-      set_solver_option("print_level", 2);
+      //!set_solver_option("print_level", 2);
       set_solver_option("sb","yes");
 
       set_solver_option("max_iter", 500);

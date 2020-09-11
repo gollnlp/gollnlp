@@ -16,7 +16,7 @@ namespace gollnlp {
 
   ACOPFProblemKronRed::ACOPFProblemKronRed(SCACOPFData& d_in) 
     : data_sc(d_in), Ybus_red_(NULL),
-      useQPen(true)
+      useQPen(true), SysCond_BaseCase_(true)
   {
   }
   
@@ -29,6 +29,8 @@ namespace gollnlp {
    */
   bool ACOPFProblemKronRed::initialize(bool SysCond_BaseCase/* = true*/)
   {
+    SysCond_BaseCase_ = SysCond_BaseCase;
+    
     hiopMatrixComplexSparseTriplet* YBus_ = construct_YBus_matrix();
     //YBus_->print();
     construct_buses_idxs(idxs_buses_nonaux, idxs_buses_aux);
@@ -40,17 +42,15 @@ namespace gollnlp {
     
     if(Ybus_red_) delete Ybus_red_;
     
-    Ybus_red_ = new hiopMatrixComplexDense(idxs_buses_nonaux.size(),idxs_buses_nonaux.size());
+    Ybus_red_ = new hiopMatrixComplexDense(idxs_buses_nonaux.size(), idxs_buses_nonaux.size());
     
     if(!reduction_.go(idxs_buses_nonaux, idxs_buses_aux, *YBus_, *Ybus_red_)) {
       return false;
     }
     
 #ifdef DEBUG
-    if(Ybus_red_->assertSymmetry(1e-12))
-      printf("!!!!! Ybus matrix is symmetric\n");
-    else
-      printf("!!!!! Ybus matrix is NOT symmetric\n");
+    if(!Ybus_red_->assertSymmetry(1e-12))
+      printf("[warning] !!!!! Ybus matrix is NOT symmetric\n");
 #endif
     return true;
   }
@@ -58,7 +58,8 @@ namespace gollnlp {
 
    /* builds the OptProblem */
   bool ACOPFProblemKronRed::assemble()
-  {   
+  {
+    assert(false && "temporarily disabled");
     add_variables(data_sc);
     add_cons_pf(data_sc);
 
@@ -262,8 +263,8 @@ namespace gollnlp {
 	    assert(v_aux_n->n == theta_aux_n->n);
 	    map_idxbuses_idxsoptimiz_[bus_idx] = -(v_aux_n->n + v_lb.size())-2;
 
-	    v_lb.push_back(data_sc.N_Vlb[bus_idx]);
-	    v_ub.push_back(data_sc.N_Vub[bus_idx]);
+	    v_lb.push_back(SysCond_BaseCase_==true ? data_sc.N_Vlb[bus_idx] : data_sc.N_EVlb[bus_idx]);
+	    v_ub.push_back(SysCond_BaseCase_==true ? data_sc.N_Vub[bus_idx] : data_sc.N_EVub[bus_idx]);
 	    assert(bus_idx<v_n_all_complex.size());
 
 	    assert(data_sc.N_v0.size() == v_n_all_complex.size());
@@ -459,6 +460,7 @@ namespace gollnlp {
   
   void ACOPFProblemKronRed::add_variables(SCACOPFData& d, bool SysCond_BaseCase/* = true*/)
   {
+    assert(SysCond_BaseCase_ == SysCond_BaseCase);
     /******************************************************************************
      * WARNING: "sparse" variables need to be added first, before "dense" variables
      *
@@ -583,6 +585,16 @@ namespace gollnlp {
 					      idxs_buses_nonaux,
 					      d.Gn, *Ybus_red_, data_sc.N_Pd);
       append_constraints(pf_p_bal);
+
+      OptVariablesBlock* pslacks_n = pf_p_bal->slacks();
+      pslacks_n->set_start_to(0.0);
+      assert(pslacks_n->providesStartingPoint);
+
+      const int slacks_scale = 1.;
+      append_objterm( new PFPenaltyQuadrApproxObjTerm("quadr_pen_" + pslacks_n->id, pslacks_n, 
+						      d.P_Penalties[SCACOPFData::pP],
+						      d.P_Quantities[SCACOPFData::pP], 
+						      d.PenaltyWeight, slacks_scale) );
     }
     
     auto b_s = vars_block(var_name("b_s", d));
@@ -595,6 +607,16 @@ namespace gollnlp {
 						d.Gn, d.SShn,
 						*Ybus_red_, data_sc.N_Qd);
       append_constraints(pf_q_bal);
+
+      OptVariablesBlock* qslacks_n = pf_q_bal->slacks();
+      qslacks_n->set_start_to(0.0);
+      assert(qslacks_n->providesStartingPoint);
+
+      const int slacks_scale = 1.;
+      append_objterm( new PFPenaltyQuadrApproxObjTerm("quadr_pen_" + qslacks_n->id, qslacks_n, 
+						      d.P_Penalties[SCACOPFData::pQ],
+						      d.P_Quantities[SCACOPFData::pQ], 
+						      d.PenaltyWeight, slacks_scale) );
     }
   }
     

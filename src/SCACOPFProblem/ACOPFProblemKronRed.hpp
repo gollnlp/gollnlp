@@ -180,7 +180,10 @@ namespace gollnlp {
   protected:
 
     bool useQPen;
-
+    
+    //true for BaseCase (use N_Vlb and N_Vub) (DEFAULT)
+    //false for contingency response N_EVlb and N_EVub)
+    bool SysCond_BaseCase_;
   protected:
     // returns the idxs of PVPQ gens and corresponding buses
     // generators at the same PVPQ bus are aggregated

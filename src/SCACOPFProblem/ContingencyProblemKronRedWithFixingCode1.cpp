@@ -624,6 +624,7 @@ namespace gollnlp {
     while(!done) {
 
       printf("ContProbKron_wfix - do_solve1: K_idx=%d nsolves=%d\n", K_idx, n_solves);
+      //prob_mds_->set_solver_option("derivative_test", "only-second-order");
       
       bool opt_ok=false; bool PDRestart=true;
 
@@ -643,8 +644,8 @@ namespace gollnlp {
 	  prob_mds_->set_solver_option("linear_scaling_on_demand", "yes");
 	  
 	  const double gamma = 1e-3;
-	  prob_mds_->regularize_vn(gamma);
-	  prob_mds_->regularize_thetan(gamma);
+	  //prob_mds_->regularize_vn(gamma);
+	  //prob_mds_->regularize_thetan(gamma);
 	  prob_mds_->regularize_bs(gamma);
 	  prob_mds_->regularize_pg(gamma);
 	  prob_mds_->regularize_qg(gamma);
@@ -675,8 +676,8 @@ namespace gollnlp {
 	  prob_mds_->set_solver_option("mu_superlinear_decrease_power", 1.25);
 	  
 	  const double gamma = 1e-3;
-	  prob_mds_->regularize_vn(gamma);
-	  prob_mds_->regularize_thetan(gamma);
+	  //prob_mds_->regularize_vn(gamma);
+	  //prob_mds_->regularize_thetan(gamma);
 	  prob_mds_->regularize_bs(gamma);
 	  prob_mds_->regularize_pg(gamma);
 	  prob_mds_->regularize_qg(gamma);
@@ -796,7 +797,7 @@ namespace gollnlp {
 	}
       }
       prob_mds_->set_solver_option("print_user_options", "no");
-      prob_mds_->set_solver_option("print_level", 2);
+      //!prob_mds_->set_solver_option("print_level", 2);
       prob_mds_->set_solver_option("sb","yes");
 
       prob_mds_->set_solver_option("max_iter", 300);
@@ -969,8 +970,8 @@ namespace gollnlp {
 	  prob_mds_->set_solver_option("linear_scaling_on_demand", "yes");
 
 	  const double gamma = 1e-3;
-	  prob_mds_->regularize_vn(gamma);
-	  prob_mds_->regularize_thetan(gamma);
+	  //prob_mds_->regularize_vn(gamma);
+	  //prob_mds_->regularize_thetan(gamma);
 	  prob_mds_->regularize_bs(gamma);
 	  prob_mds_->regularize_pg(gamma);
 	  prob_mds_->regularize_qg(gamma);
@@ -1001,8 +1002,8 @@ namespace gollnlp {
 	  prob_mds_->set_solver_option("mu_superlinear_decrease_power", 1.25);
 
 	  const double gamma = 1e-3;
-	  prob_mds_->regularize_vn(gamma);
-	  prob_mds_->regularize_thetan(gamma);
+	  //prob_mds_->regularize_vn(gamma);
+	  //prob_mds_->regularize_thetan(gamma);
 	  prob_mds_->regularize_bs(gamma);
 	  prob_mds_->regularize_pg(gamma);
 	  prob_mds_->regularize_qg(gamma);
@@ -1144,7 +1145,7 @@ namespace gollnlp {
 	}
       }
       prob_mds_->set_solver_option("print_user_options", "no");
-      prob_mds_->set_solver_option("print_level", 2);
+      //!prob_mds_->set_solver_option("print_level", 2);
       prob_mds_->set_solver_option("sb","yes");
 
       prob_mds_->set_solver_option("max_iter", 500);
@@ -1691,6 +1692,11 @@ namespace gollnlp {
     OptVariablesBlock *v_aux_n_k = NULL, *theta_aux_n_k = NULL; //destination, reduced-space, from 'v'
     
     for(auto& b : v.vblocks) {
+
+      if(b->id.find("balance_kron")!=string::npos) {
+	b->set_start_to(0.);
+	continue;
+      }
       
       size_t pos = b->id.find_last_of("_");
       if(pos == string::npos) { 

@@ -717,6 +717,7 @@ bool PFReactiveBalance::eval_body (const OptVariables& vars_primal, bool new_x, 
   assert(qslack_n); 
   double* body = body_ + this->index;
   double* slacks = const_cast<double*>(qslack_n->xref);
+
   r = 0-r;
   DAXPY(&n, &r, slacks,   &ione, body, &ione);
   r = 0-r;

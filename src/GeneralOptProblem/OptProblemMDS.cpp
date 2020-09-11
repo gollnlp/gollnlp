@@ -50,8 +50,8 @@ namespace gollnlp {
 	}
       }
       //print_spmat_triplet(nnzJacS, cons->m(), nxsparse, iJacS, jJacS, MJacS, "Jac_eq");
-
     }
+    //printf("!!!!!! OptProblemMDS::eval_Jac_cons \n");
     return true;
   }
 
@@ -99,18 +99,29 @@ namespace gollnlp {
       // constraints
       //
       for(auto& con_gen: cons->vblocks) {
+
+	//printf("--- HessLagr[1] eval con '%s'\n", con_gen->id.c_str());
+	
 	OptConstraintsBlockMDS* con = dynamic_cast<OptConstraintsBlockMDS*>(con_gen);
 	if(NULL==con) {
-	  assert(false && "check this");
-	  continue;
+	  //assert(false && "check this");
+	  //printf("[warning] HessLagr[1]: constraints '%s' are not MDS - will be treated as "
+	  //	 "sparse (not involving dense vars) and as equalitites\n",
+	  //	 con_gen->id.c_str());
+	  if(!con_gen->eval_HessLagr(*vars_primal, new_x, *vars_duals_cons, new_lambda,
+				     nnzHSS, iHSS, jHSS, NULL)) {
+	    return false;
+	  }
+	} else {
+	  if(!con->eval_HessLagr(*vars_primal, new_x, *vars_duals_cons, new_lambda, 
+				 nxsparse, nxdense,
+				 nnzHSS, iHSS, jHSS, NULL,
+				 NULL,
+				 nnzHSD, iHSD, jHSD, NULL)) {
+	    assert(false && "eval_HessLagr should be called after get_nnzHessLagr");
+	  }
 	}
-	if(!con->eval_HessLagr(*vars_primal, new_x, *vars_duals_cons, new_lambda, 
-			       nxsparse, nxdense,
-			       nnzHSS, iHSS, jHSS, NULL,
-			       NULL,
-			       nnzHSD, iHSD, jHSD, NULL)) {
-	  assert(false && "eval_HessLagr should be called after get_nnzHessLagr");
-	}
+	//printf("--- HessLagr[1] eval con '%s' DONE\n", con_gen->id.c_str());
       }
     }
 
@@ -121,7 +132,9 @@ namespace gollnlp {
       assert(nnzHSD==0);
 	
       for(auto& ot_gen: obj->vterms) {
-	  
+
+	//printf("--- HessLagr[2] eval obj '%s'\n", ot_gen->id.c_str());
+	
 	OptObjectiveTermMDS* ot = dynamic_cast<OptObjectiveTermMDS*>(ot_gen);
 	if(NULL==ot) {
 	  //this is a general 'OptObjectiveTerm' which is sparse and contributes only to the
@@ -138,23 +151,37 @@ namespace gollnlp {
 				nnzHSD, iHSD, jHSD, MHSD))
 	    return false;
 	}
+	//printf("--- HessLagr[2] eval obj '%s' DONE\n", ot_gen->id.c_str());
       }
 	
       for(auto& con_gen: cons->vblocks) {
+
+	//printf("--- HessLagr[2] eval con '%s'\n", con_gen->id.c_str());
+	
 	OptConstraintsBlockMDS* con = dynamic_cast<OptConstraintsBlockMDS*>(con_gen);
 	if(NULL==con) {
-	  assert(false && "check this");
-	  continue;
+	  //assert(false && "check this");
+	  //printf("[warning] HessLagr[2]: constraints '%s' are not MDS - will be treated as "
+	  //	 "sparse (not involving dense vars) and as equalitites\n",
+	  //	 con_gen->id.c_str());
+	  if(!con_gen->eval_HessLagr(*vars_primal, new_x, *vars_duals_cons, new_lambda,
+				     nnzHSS, iHSS, jHSS, MHSS)) {
+	    return false;
+	  }
+	} else {
+
+	  if(!con->eval_HessLagr(*vars_primal, new_x, *vars_duals_cons, new_lambda, 
+				 nxsparse, nxdense,
+				 nnzHSS, iHSS, jHSS, MHSS,
+				 HDD,
+				 nnzHSD, iHSD, jHSD, MHSD))
+	    return false;
 	}
-	//continue;
-	if(!con->eval_HessLagr(*vars_primal, new_x, *vars_duals_cons, new_lambda, 
-			       nxsparse, nxdense,
-			       nnzHSS, iHSS, jHSS, MHSS,
-			       HDD,
-			       nnzHSD, iHSD, jHSD, MHSD))
-	  return false;
+	//printf("--- HessLagr[2] eval con '%s' DONE\n", con_gen->id.c_str());
       }
+      
     }
+    //printf("!!!!!! OptProblemMDS::eval_HessLagr \n");
     return true;
   } // end of eval_HessLagr
 
@@ -256,9 +283,9 @@ namespace gollnlp {
     for(auto& con_gen: cons->vblocks) {
       OptConstraintsBlockMDS* con = dynamic_cast<OptConstraintsBlockMDS*>(con_gen);
       if(NULL==con) {
-	printf("[warning] constraints '%s' are not MDS - will be treated as "
-	       "sparse (not involving dense vars) and as equalitites",
-	       con_gen->id.c_str());
+	//printf("[warning] constraints '%s' are not MDS - will be treated as "
+	//     "sparse (not involving dense vars) and as equalitites",
+	//     con_gen->id.c_str());
 	//assert(false && "check this");
 	con_gen->get_HessLagr_ij(ij_HessLagr_SSblock);
 	continue;
