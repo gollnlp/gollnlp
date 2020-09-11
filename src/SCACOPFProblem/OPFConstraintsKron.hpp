@@ -115,7 +115,9 @@ namespace gollnlp {
    * for i=1:length(nonaux)
    *
    * sum(q_g[g] for g=Gn[nonaux[i]]) - N[:Qd][nonaux[i]] +
-   * v_n[i]^2*sum(b_s[s] for s=SShn[nonaux[i]]) ==
+   * v_n[i]^2*sum(b_s[s] for s=SShn[nonaux[i]]) 
+   * - pslackp_n[i] + r*pslackm_n[i]
+   * ==
    *   sum(v_n[i]*v_n[j]*(Gred[i,j]*sin(theta_n[i]-theta_n[j]) -
    *   Bred[i,j]*cos(theta_n[i]-theta_n[j])) for j=1:length(nonaux)))
    */
