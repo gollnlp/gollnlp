@@ -27,7 +27,7 @@ namespace gollnlp {
      */
     bool initialize(bool SysCond_BaseCase = true);
 
-    /*builds the OptProblem if requested. In some cases, the calling code assemble the problems, and, 
+    /* Method to build the OptProblemMDS. In some cases, the calling code assemble the problems, and, 
     * as a result, the function is not called.
     */
     virtual bool assemble();
@@ -44,6 +44,7 @@ namespace gollnlp {
     /** See @optimize above */
     virtual bool reoptimize(RestartType t=primalRestart);
 
+    
     /** Sets the voltages (both aux and nonaux) to their values in the full-space (fs) 
      * voltages variable 'v_fs'
      */
@@ -143,11 +144,29 @@ namespace gollnlp {
 				std::vector<int>& Lin_overload,
 				std::vector<int>& Tidx_overload,
 				std::vector<int>& Tin_overload);
+    /** Compute (real) v and theta from complex voltages */
+    static inline void
+    compute_v_and_theta_from_v_complex(const std::vector<std::complex<double> >& v_complex_all,
+				       std::vector<double>& v,
+				       std::vector<double>& theta)
+    {
+      v.clear(); theta.clear();
+      for( auto cv : v_complex_all) {
+	v.push_back(std::abs(cv));
+	theta.push_back(std::arg(cv));
+      }
+    }
 
   protected: 
     //members
     
-    SCACOPFData& data_sc;
+    SCACOPFData& data_sc_;
+    //contingencies' SCACOPFData
+    // - for now size is 0 (for ACOPF base case, in which case just use data_sc
+    // instead) or 1 (for ContingACOPF)
+    std::vector<SCACOPFData*> data_K_;
+
+    virtual SCACOPFData& data_K() { assert(data_K_.size()==0); return data_sc_; }
     
     //indexes in N_Bus
     std::vector<int> idxs_buses_nonaux, idxs_buses_aux;
@@ -162,7 +181,7 @@ namespace gollnlp {
     std::vector<int> Tidx_overload_;
     std::vector<int> Tin_overload_;
 
-
+    std::vector<std::complex<double> > v_n_all_complex_;
     /* Mapping of bus N indexes into 
      *  - the index inside of the optimization variable v_n and theta_n for nonaux buses
      *
@@ -184,6 +203,7 @@ namespace gollnlp {
     //true for BaseCase (use N_Vlb and N_Vub) (DEFAULT)
     //false for contingency response N_EVlb and N_EVub)
     bool SysCond_BaseCase_;
+
   protected:
     // returns the idxs of PVPQ gens and corresponding buses
     // generators at the same PVPQ bus are aggregated

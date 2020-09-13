@@ -15,7 +15,7 @@ using namespace std;
 namespace gollnlp {
 
   ACOPFProblemKronRed::ACOPFProblemKronRed(SCACOPFData& d_in) 
-    : data_sc(d_in), Ybus_red_(NULL),
+    : data_sc_(d_in), Ybus_red_(NULL),
       useQPen(true), SysCond_BaseCase_(true)
   {
   }
@@ -33,6 +33,7 @@ namespace gollnlp {
     
     hiopMatrixComplexSparseTriplet* YBus_ = construct_YBus_matrix();
     //YBus_->print();
+
     construct_buses_idxs(idxs_buses_nonaux, idxs_buses_aux);
     
     printf("Total %lld buses: %lu nonaux    %lu aux\n",
@@ -60,11 +61,11 @@ namespace gollnlp {
   bool ACOPFProblemKronRed::assemble()
   {
     assert(false && "temporarily disabled");
-    add_variables(data_sc);
-    add_cons_pf(data_sc);
+    add_variables(data_K());
+    add_cons_pf(data_K());
 
-    //objective
-    add_obj_prod_cost(data_sc);
+    //Objective
+    add_obj_prod_cost(data_K());
     
     print_summary();
     
@@ -73,6 +74,8 @@ namespace gollnlp {
   
   bool ACOPFProblemKronRed::optimize(const std::string& nlpsolver)
   {
+    v_n_all_complex_.clear();
+    
     bool bret = OptProblemMDS::optimize(nlpsolver);
     
     int n_iter = 1;
@@ -84,29 +87,28 @@ namespace gollnlp {
 	return false;
       }
 
-      vector<complex<double> > v_n_all_complex;
-      compute_voltages_nonaux(vars_block(var_name("v_n", data_sc)), 
-			      vars_block(var_name("theta_n", data_sc)),
-			      v_n_all_complex);
+      compute_voltages_nonaux(vars_block(var_name("v_n", data_K())), 
+			      vars_block(var_name("theta_n", data_K())),
+			      v_n_all_complex_);
 
       //!
-      //printvec(v_n_all_complex, "v_n_all_complex");
+      //printvec(v_n_all_complex_, "v_n_all_complex_");
 
-      //s_li, s_ti = power_flows(v_n_all_complex, L, L_Nidx, T, T_Nidx)
+      //s_li, s_ti = power_flows(v_n_all_complex_, L, L_Nidx, T, T_Nidx)
       vector<vector<complex<double> > > s_li, s_ti;
-      compute_power_flows(v_n_all_complex, s_li, s_ti);
+      compute_power_flows(v_n_all_complex_, s_li, s_ti);
 
       //!
       //printvecvec(s_li, "s_li");
       //printvecvec(s_ti, "s_ti");
       
       vector<int> N_idx_voutofbounds_pass;
-      find_voltage_viol_busidxs(v_n_all_complex, N_idx_voutofbounds_pass);
+      find_voltage_viol_busidxs(v_n_all_complex_, N_idx_voutofbounds_pass);
       if(N_idx_voutofbounds_pass.size()>0) 
 	printvec(N_idx_voutofbounds_pass, "Bus indexes with voltage out of bounds: ");
 
       std::vector<int> Lidx_overload_pass, Lin_overload_pass, Tidx_overload_pass, Tin_overload_pass;
-      find_power_viol_LTidxs(v_n_all_complex, s_li, s_ti,
+      find_power_viol_LTidxs(v_n_all_complex_, s_li, s_ti,
 			     Lidx_overload_pass, Lin_overload_pass,
 			     Tidx_overload_pass, Tin_overload_pass);
 
@@ -121,7 +123,7 @@ namespace gollnlp {
 	printvec(Tin_overload_pass, "Tin:");
       }
 
-      // verify that all included constraints are respected
+      // verify that all included constraints are satisfied
       auto Lfails = Lidx_overload_;
       for(int i=0; i<Lfails.size(); i++)
 	Lfails[i] = 10*Lfails[i]+Lin_overload_[i];
@@ -146,10 +148,10 @@ namespace gollnlp {
       
       //warnings 
       if(LfailIdxs.size()) {
-	printvec(LfailIdxs, "warning / error: unexpected lines overloaded - they should not be");
+	printvec(LfailIdxs, "warning / error: unexpected lines overloaded - they should not be: ");
       }
       if(TfailIdxs.size()) {
-	printvec(TfailIdxs, "warning / error: unexpected transformers overloaded - they should not be");
+	printvec(TfailIdxs, "warning / error: unexpected transformers overloaded - they should not be: ");
       }
       
       //remove failed transmission elements that were previously added to avoid adding
@@ -175,18 +177,18 @@ namespace gollnlp {
       }
 
       //create/get auxiliary voltages and theta variables
-      OptVariablesBlock* v_aux_n = vars_block(var_name("v_aux_n",data_sc));
+      OptVariablesBlock* v_aux_n = vars_block(var_name("v_aux_n",data_K()));
       if(NULL == v_aux_n) {
 	assert(1==n_iter);
-	v_aux_n = new OptVariablesBlock(0, var_name("v_aux_n", data_sc));
+	v_aux_n = new OptVariablesBlock(0, var_name("v_aux_n", data_K()));
 	v_aux_n->sparseBlock = false;
 	append_varsblock(v_aux_n);
       }
 
-      OptVariablesBlock* theta_aux_n = vars_block(var_name("theta_aux_n",data_sc));
+      OptVariablesBlock* theta_aux_n = vars_block(var_name("theta_aux_n",data_K()));
       if(NULL == theta_aux_n) {
 	assert(n_iter==1);
-	theta_aux_n = new OptVariablesBlock(0, var_name("theta_aux_n", data_sc));
+	theta_aux_n = new OptVariablesBlock(0, var_name("theta_aux_n", data_K()));
 	theta_aux_n->sparseBlock = false;
 	append_varsblock(theta_aux_n);
       }
@@ -207,22 +209,22 @@ namespace gollnlp {
 	//!
 	printf("for line [%d][%d] adding i bus %d\n",
 	       Lin_overload_pass[it], Lidx_overload_pass[it],
-	       data_sc.L_Nidx[Lin_overload_pass[it]][Lidx_overload_pass[it]]);
+	       data_sc_.L_Nidx[Lin_overload_pass[it]][Lidx_overload_pass[it]]);
 	
-	reqbuses.push_back(data_sc.L_Nidx[Lin_overload_pass[it]][Lidx_overload_pass[it]]);
+	reqbuses.push_back(data_sc_.L_Nidx[Lin_overload_pass[it]][Lidx_overload_pass[it]]);
 
 	//!
 	printf("for line [%d][%d] adding i bus %d\n",
 	       1-Lin_overload_pass[it], Lidx_overload_pass[it],
-	       data_sc.L_Nidx[1-Lin_overload_pass[it]][Lidx_overload_pass[it]]);
+	       data_sc_.L_Nidx[1-Lin_overload_pass[it]][Lidx_overload_pass[it]]);
 	
-	reqbuses.push_back(data_sc.L_Nidx[1-Lin_overload_pass[it]][Lidx_overload_pass[it]]);
+	reqbuses.push_back(data_sc_.L_Nidx[1-Lin_overload_pass[it]][Lidx_overload_pass[it]]);
       }
 
       assert(Tidx_overload_pass.size() == Tin_overload_pass.size());
       for(size_t it=0; it<Tin_overload_pass.size(); it++) {
 	assert( Tin_overload_pass[it]==0 || Tin_overload_pass[it]==1 );
-	reqbuses.push_back(data_sc.T_Nidx[Tin_overload_pass[it]  ][Tidx_overload_pass[it]]);
+	reqbuses.push_back(data_sc_.T_Nidx[Tin_overload_pass[it]  ][Tidx_overload_pass[it]]);
       }
 
       // sort and remove duplicates
@@ -247,8 +249,8 @@ namespace gollnlp {
 			    
 	  const int bus_idx = idxs_buses_aux[nix];
 
-	  assert(map_idxbuses_idxsoptimiz_.size() == data_sc.N_Bus.size());
-	  assert(map_idxbuses_idxsoptimiz_.size() == v_n_all_complex.size());
+	  assert(map_idxbuses_idxsoptimiz_.size() == data_sc_.N_Bus.size());
+	  assert(map_idxbuses_idxsoptimiz_.size() == v_n_all_complex_.size());
 	  assert(bus_idx < map_idxbuses_idxsoptimiz_.size());
 
 	  //should not be optimized over previously
@@ -263,14 +265,14 @@ namespace gollnlp {
 	    assert(v_aux_n->n == theta_aux_n->n);
 	    map_idxbuses_idxsoptimiz_[bus_idx] = -(v_aux_n->n + v_lb.size())-2;
 
-	    v_lb.push_back(SysCond_BaseCase_==true ? data_sc.N_Vlb[bus_idx] : data_sc.N_EVlb[bus_idx]);
-	    v_ub.push_back(SysCond_BaseCase_==true ? data_sc.N_Vub[bus_idx] : data_sc.N_EVub[bus_idx]);
-	    assert(bus_idx<v_n_all_complex.size());
+	    v_lb.push_back(SysCond_BaseCase_==true ? data_sc_.N_Vlb[bus_idx] : data_sc_.N_EVlb[bus_idx]);
+	    v_ub.push_back(SysCond_BaseCase_==true ? data_sc_.N_Vub[bus_idx] : data_sc_.N_EVub[bus_idx]);
+	    assert(bus_idx<v_n_all_complex_.size());
 
-	    assert(data_sc.N_v0.size() == v_n_all_complex.size());
-	    v_start.push_back(std::abs(v_n_all_complex[bus_idx]));
+	    assert(data_sc_.N_v0.size() == v_n_all_complex_.size());
+	    v_start.push_back(std::abs(v_n_all_complex_[bus_idx]));
 	    
-	    theta_start.push_back(std::arg(v_n_all_complex[bus_idx]));
+	    theta_start.push_back(std::arg(v_n_all_complex_[bus_idx]));
 
 	  }
 	} // end of for loop over reqauxidxs
@@ -295,22 +297,22 @@ namespace gollnlp {
 	// cold starting 
 	//
 	if(false) {
-	  vars_block(var_name("p_g",data_sc))->set_start_to(data_sc.G_p0.data());
-	  vars_block(var_name("q_g",data_sc))->set_start_to(data_sc.G_q0.data());
+	  vars_block(var_name("p_g",data_K()))->set_start_to(data_sc_.G_p0.data());
+	  vars_block(var_name("q_g",data_K()))->set_start_to(data_sc_.G_q0.data());
 	  
 	  vector<double> v0_na;
-	  selectfrom(data_sc.N_v0, idxs_buses_nonaux, v0_na);
-	  vars_block(var_name("v_n",data_sc))->set_start_to(v0_na.data());
+	  selectfrom(data_sc_.N_v0, idxs_buses_nonaux, v0_na);
+	  vars_block(var_name("v_n",data_K()))->set_start_to(v0_na.data());
 
 	  //
 	  //for theta is a bit more complicated
 	  //
-	  auto theta_n = vars_block(var_name("theta_n",data_sc));
+	  auto theta_n = vars_block(var_name("theta_n",data_K()));
 	  vector<double> theta0_n;
-	  selectfrom(data_sc.N_theta0, idxs_buses_nonaux, theta0_n);
+	  selectfrom(data_sc_.N_theta0, idxs_buses_nonaux, theta0_n);
 	  theta_n->set_start_to(theta0_n.data());
 
-	  int RefBusIdx = data_sc.bus_with_largest_gen(), RefBusIdx_nonaux;
+	  int RefBusIdx = data_sc_.bus_with_largest_gen(), RefBusIdx_nonaux;
 	  auto it = std::find(idxs_buses_nonaux.begin(), idxs_buses_nonaux.end(), RefBusIdx);
 	  if(it==idxs_buses_nonaux.end()) {
 	    assert(false && "check this");
@@ -319,7 +321,7 @@ namespace gollnlp {
 	    RefBusIdx_nonaux = std::distance(idxs_buses_nonaux.begin(), it);
 	  }
 
-	  const double& theta0_ref = data_sc.N_theta0[RefBusIdx];
+	  const double& theta0_ref = data_sc_.N_theta0[RefBusIdx];
 	  if(theta0_ref!=0.) {
 	    //check indexing again
 	    assert(theta_n->x[RefBusIdx_nonaux] == theta0_ref);
@@ -335,7 +337,7 @@ namespace gollnlp {
 	  assert(theta_n->x[RefBusIdx_nonaux]==0.);
 	  
 
-	  vars_block(var_name("b_s",data_sc))->set_start_to(data_sc.SSh_B0.data());
+	  vars_block(var_name("b_s",data_K()))->set_start_to(data_sc_.SSh_B0.data());
 	} // end of cold starting
 	
 	//
@@ -345,7 +347,7 @@ namespace gollnlp {
 	
 	const hiop::hiopMatrixComplexDense& vmap = reduction_.map_nonaux_to_aux();
 	
-	auto cons_volt_viol = this->constraints_block(con_name("voltage_viol_aux", data_sc));
+	auto cons_volt_viol = this->constraints_block(con_name("voltage_viol_aux", data_K()));
 	if(cons_volt_viol) {
 	  VoltageConsAuxBuses* cons = dynamic_cast<VoltageConsAuxBuses*>(cons_volt_viol);
 	  assert(NULL!=cons);
@@ -355,10 +357,10 @@ namespace gollnlp {
 	  }
 	} else {
 	  VoltageConsAuxBuses* cons_block =
-	    new VoltageConsAuxBuses(con_name("voltage_viol_aux", data_sc),
+	    new VoltageConsAuxBuses(con_name("voltage_viol_aux", data_K()),
 				    2*reqauxidxs.size(),
-				    vars_block(var_name("v_n", data_sc)), 
-				    vars_block(var_name("theta_n", data_sc)),
+				    vars_block(var_name("v_n", data_K())), 
+				    vars_block(var_name("theta_n", data_K())),
 				    v_aux_n, theta_aux_n,
 				    reqauxidxs,
 				    vmap);
@@ -375,7 +377,7 @@ namespace gollnlp {
       
       if(Lidx_overload_pass.size()>0) {
 
-	auto cons_block = this->constraints_block(con_name("line_thermal_viol", data_sc));
+	auto cons_block = this->constraints_block(con_name("line_thermal_viol", data_K()));
 	if(cons_block) {
 	  LineThermalViolCons* cons_viol = dynamic_cast<LineThermalViolCons*>(cons_block);
 	  if(cons_viol) {
@@ -387,18 +389,18 @@ namespace gollnlp {
 	  printvec(map_idxbuses_idxsoptimiz_, "map_idxbuses_idxsoptimiz:");
 
 	  LineThermalViolCons* cons_block =
-	    new LineThermalViolCons(con_name("line_thermal_viol", data_sc),				   
+	    new LineThermalViolCons(con_name("line_thermal_viol", data_K()),				   
 				    Lidx_overload_pass.size(),
 	  			    Lidx_overload_pass,
 	  			    Lin_overload_pass,
-	  			    data_sc.L_Nidx,
-				    data_sc.L_RateBase,
-				    data_sc.L_G,
-				    data_sc.L_B,
-				    data_sc.L_Bch,
+	  			    data_sc_.L_Nidx,
+				    data_sc_.L_RateBase,
+				    data_sc_.L_G,
+				    data_sc_.L_B,
+				    data_sc_.L_Bch,
 				    map_idxbuses_idxsoptimiz_,
-				    vars_block(var_name("v_n", data_sc)), 
-				    vars_block(var_name("theta_n", data_sc)),
+				    vars_block(var_name("v_n", data_K())), 
+				    vars_block(var_name("theta_n", data_K())),
 				    v_aux_n,
 				    theta_aux_n);
 	  append_constraints(cons_block);
@@ -452,8 +454,8 @@ namespace gollnlp {
 
   bool ACOPFProblemKronRed::reoptimize(RestartType t/*=primalRestart*/)
   {
-    bool bret = OptProblemMDS::reoptimize(t);
-
+    //bool bret = OptProblemMDS::reoptimize(t);
+    bool bret = this->optimize("ipopt");
     return bret;
   }
   
@@ -461,6 +463,7 @@ namespace gollnlp {
   void ACOPFProblemKronRed::add_variables(SCACOPFData& d, bool SysCond_BaseCase/* = true*/)
   {
     assert(SysCond_BaseCase_ == SysCond_BaseCase);
+    //assert(d == data_K());
     /******************************************************************************
      * WARNING: "sparse" variables need to be added first, before "dense" variables
      *
@@ -487,14 +490,15 @@ namespace gollnlp {
      ******************************************************************************
      */
     { //voltages
-      vector<double>& vlb = SysCond_BaseCase==true ? data_sc.N_Vlb : data_sc.N_EVlb;
-      vector<double>& vub = SysCond_BaseCase==true ? data_sc.N_Vub : data_sc.N_EVub;
+      vector<double>& vlb = SysCond_BaseCase==true ? data_sc_.N_Vlb : data_sc_.N_EVlb;
+      vector<double>& vub = SysCond_BaseCase==true ? data_sc_.N_Vub : data_sc_.N_EVub;
       
       vector<double> vlb_na, vub_na, v0_na;
+
       selectfrom(vlb, idxs_buses_nonaux, vlb_na);
       selectfrom(vub, idxs_buses_nonaux, vub_na);
-      selectfrom(data_sc.N_v0, idxs_buses_nonaux, v0_na);
-      
+      selectfrom(data_sc_.N_v0, idxs_buses_nonaux, v0_na);
+
       auto v_n = new OptVariablesBlock(idxs_buses_nonaux.size(),
 				       var_name("v_n",d),
 				       vlb_na.data(),
@@ -504,9 +508,9 @@ namespace gollnlp {
       v_n->set_start_to(v0_na.data());
 
       assert(map_idxbuses_idxsoptimiz_.size() == 0);
-      map_idxbuses_idxsoptimiz_ = vector<int>(data_sc.N_Bus.size(), -1);
+      map_idxbuses_idxsoptimiz_ = vector<int>(data_sc_.N_Bus.size(), -1);
       for(int i=0; i<idxs_buses_nonaux.size(); i++) {
-	assert(0<=idxs_buses_nonaux[i] && idxs_buses_nonaux[i]<=data_sc.N_Bus.size());
+	assert(0<=idxs_buses_nonaux[i] && idxs_buses_nonaux[i]<=data_sc_.N_Bus.size());
 	map_idxbuses_idxsoptimiz_[idxs_buses_nonaux[i]] = i;
       }
     }
@@ -517,10 +521,10 @@ namespace gollnlp {
       append_varsblock(theta_n);
       
       vector<double> theta0_n;
-      selectfrom(data_sc.N_theta0, idxs_buses_nonaux, theta0_n);
+      selectfrom(data_sc_.N_theta0, idxs_buses_nonaux, theta0_n);
       theta_n->set_start_to(theta0_n.data());
       
-      int RefBusIdx = data_sc.bus_with_largest_gen();
+      int RefBusIdx = data_sc_.bus_with_largest_gen();
       int RefBusIdx_nonaux;
 
       printf("RefBusIdx = %d !!!!!!!!!!!!!!!!!\n", RefBusIdx);
@@ -533,7 +537,7 @@ namespace gollnlp {
 	RefBusIdx_nonaux = std::distance(idxs_buses_nonaux.begin(), it);
       }
 
-      const double& theta0_ref = data_sc.N_theta0[RefBusIdx];
+      const double& theta0_ref = data_sc_.N_theta0[RefBusIdx];
       if(theta0_ref!=0.) {
 	//check indexing again
 	assert(theta_n->x[RefBusIdx_nonaux] == theta0_ref);
@@ -551,19 +555,19 @@ namespace gollnlp {
 
     if(true){ //b_s
 
-      // vector<int> count_SSh_at_nonaux_buses(data_sc.SSh_SShunt.size(), 0);
+      // vector<int> count_SSh_at_nonaux_buses(data_sc_.SSh_SShunt.size(), 0);
       // for(int bus_nonaux : idxs_buses_nonaux) {
-      //	for(int idx_ssh : data_sc.SShn[bus_nonaux])
+      //	for(int idx_ssh : data_sc_.SShn[bus_nonaux])
       //	  count_SSh_at_nonaux_buses[idx_ssh]++;
       // }
       // printvec(count_SSh_at_nonaux_buses);
       
-      auto b_s = new OptVariablesBlock(data_sc.SSh_Blb.size(),
+      auto b_s = new OptVariablesBlock(data_sc_.SSh_Blb.size(),
 				       var_name("b_s",d),
-				       data_sc.SSh_Blb.data(),
-				       data_sc.SSh_Bub.data());
+				       data_sc_.SSh_Blb.data(),
+				       data_sc_.SSh_Bub.data());
       b_s->sparseBlock = false;
-      b_s->set_start_to(data_sc.SSh_B0.data());
+      b_s->set_start_to(data_sc_.SSh_B0.data());
 
       append_varsblock(b_s);
     }
@@ -572,6 +576,7 @@ namespace gollnlp {
   void ACOPFProblemKronRed::add_cons_pf(SCACOPFData& d)
   {
     assert(useQPen==true);
+
     
     auto p_g = vars_block(var_name("p_g",d)), 
       v_n = vars_block(var_name("v_n",d)), 
@@ -579,11 +584,12 @@ namespace gollnlp {
 
     if(true) {
       //active power balance
+
       auto pf_p_bal = new PFActiveBalanceKron(con_name("p_balance_kron",d), 
 					      idxs_buses_nonaux.size(),
 					      p_g, v_n, theta_n,
 					      idxs_buses_nonaux,
-					      d.Gn, *Ybus_red_, data_sc.N_Pd);
+					      d.Gn, *Ybus_red_, data_sc_.N_Pd);
       append_constraints(pf_p_bal);
 
       OptVariablesBlock* pslacks_n = pf_p_bal->slacks();
@@ -596,7 +602,7 @@ namespace gollnlp {
 						      d.P_Quantities[SCACOPFData::pP], 
 						      d.PenaltyWeight, slacks_scale) );
     }
-    
+
     auto b_s = vars_block(var_name("b_s", d));
     auto q_g = vars_block(var_name("q_g",d));
     if(true) { 
@@ -605,7 +611,7 @@ namespace gollnlp {
 						q_g, v_n, theta_n, b_s,
 						idxs_buses_nonaux,
 						d.Gn, d.SShn,
-						*Ybus_red_, data_sc.N_Qd);
+						*Ybus_red_, data_sc_.N_Qd);
       append_constraints(pf_q_bal);
 
       OptVariablesBlock* qslacks_n = pf_q_bal->slacks();
@@ -622,6 +628,7 @@ namespace gollnlp {
     
   void ACOPFProblemKronRed::add_obj_prod_cost(SCACOPFData& d)
   {
+    //assert(d == data_K());
     vector<int> gens(d.G_Generator.size()); iota(gens.begin(), gens.end(), 0);
     auto p_g = vars_block(var_name("p_g", d));
     
@@ -646,10 +653,10 @@ namespace gollnlp {
 
     idxs_nonaux.clear(); idxs_aux.clear();
 
-    for(int n=0; n<data_sc.N_Pd.size(); n++) {
+    for(int n=0; n<data_sc_.N_Pd.size(); n++) {
       
-      if(data_sc.Gn[n].size()>0 || data_sc.SShn[n].size()>0 || 
-	 magnitude(data_sc.N_Pd[n], data_sc.N_Qd[n])>SMALL) {
+      if(data_sc_.Gn[n].size()>0 || data_sc_.SShn[n].size()>0 || 
+	 magnitude(data_sc_.N_Pd[n], data_sc_.N_Qd[n])>SMALL) {
 
 	idxs_nonaux.push_back(n);
       } else {
@@ -657,7 +664,7 @@ namespace gollnlp {
       }
     }
 
-    assert(data_sc.Gn.size() == idxs_nonaux.size()+idxs_aux.size());
+    assert(data_sc_.Gn.size() == idxs_nonaux.size()+idxs_aux.size());
   }
 
   hiopMatrixComplexSparseTriplet* ACOPFProblemKronRed::construct_YBus_matrix()
@@ -667,21 +674,21 @@ namespace gollnlp {
     //  https://gitlab.pnnl.gov/exasgd/frameworks/hiop-framework/blob/master/modules/DenseACOPF.jl
     //
 
-    const int& N = data_sc.N_Bus.size();
-
-    assert(data_sc.L_Nidx.size() == 2);
+    const int& N = data_sc_.N_Bus.size();
+    
+    assert(data_sc_.L_Nidx.size() == 2);
 
     int nnz=N;
     // go over (L_Nidx1, L_Nidx2) and count nnz 
-    assert(data_sc.L_Nidx[0].size() == data_sc.L_Nidx[1].size());
-    for(int it=0; it<data_sc.L_Nidx[0].size(); it++) {
-      if(data_sc.L_Nidx[0][it]!=data_sc.L_Nidx[1][it]) 
+    assert(data_sc_.L_Nidx[0].size() == data_sc_.L_Nidx[1].size());
+    for(int it=0; it<data_sc_.L_Nidx[0].size(); it++) {
+      if(data_sc_.L_Nidx[0][it]!=data_sc_.L_Nidx[1][it]) 
 	nnz+=2;
     }
     //same for transformers
-    assert(data_sc.T_Nidx[0].size() == data_sc.T_Nidx[1].size());
-    for(int it=0; it<data_sc.T_Nidx[0].size(); it++) {
-      if(data_sc.T_Nidx[0][it]!=data_sc.T_Nidx[1][it]) 
+    assert(data_sc_.T_Nidx[0].size() == data_sc_.T_Nidx[1].size());
+    for(int it=0; it<data_sc_.T_Nidx[0].size(); it++) {
+      if(data_sc_.T_Nidx[0][it]!=data_sc_.T_Nidx[1][it]) 
 	nnz+=2;
     }
 
@@ -694,20 +701,21 @@ namespace gollnlp {
       Ii[busidx] = Ji[busidx] = busidx;
 
       // shunt contribution to Ybus
-      M[busidx] = complex<double>(data_sc.N_Gsh[busidx], data_sc.N_Bsh[busidx]);
+      M[busidx] = complex<double>(data_sc_.N_Gsh[busidx], data_sc_.N_Bsh[busidx]);
     }
 
     int nnz_count = N;
     //
     // go over (L_Nidx1, L_Nidx2) and populate the matrix
     //
-    for(int l=0; l<data_sc.L_Nidx[0].size(); l++) {
-      const int& Nidxfrom=data_sc.L_Nidx[0][l], Nidxto=data_sc.L_Nidx[1][l];
+    for(int l=0; l<data_sc_.L_Nidx[0].size(); l++) {
+      const int& Nidxfrom=data_sc_.L_Nidx[0][l];
+      const int& Nidxto=data_sc_.L_Nidx[1][l];
 
-      complex<double> ye(data_sc.L_G[l], data_sc.L_B[l]);
+      complex<double> ye(data_sc_.L_G[l], data_sc_.L_B[l]);
       {
 	//yCHe = L[:Bch][l]*im;
-	complex<double> res(0.0, data_sc.L_Bch[l]/2); //this is yCHe/2
+	complex<double> res(0.0, data_sc_.L_Bch[l]/2); //this is yCHe/2
 	res += ye; 
 
 	//Ybus(Nidxfrom,Nidxfrom) = ye + yCHe/2
@@ -738,11 +746,12 @@ namespace gollnlp {
     //
     //same as above but for (T_Nidx1, T_Nidx2)
     //
-    for(int t=0; t<data_sc.T_Nidx[0].size(); t++) {
-      const int& Nidxfrom=data_sc.T_Nidx[0][t], Nidxto=data_sc.T_Nidx[1][t];
-      complex<double> yf(data_sc.T_G[t], data_sc.T_B[t]);
-      complex<double> yMf(data_sc.T_Gm[t], data_sc.T_Bm[t]);
-      const double& tauf = data_sc.T_Tau[t];
+    for(int t=0; t<data_sc_.T_Nidx[0].size(); t++) {
+      const int& Nidxfrom=data_sc_.T_Nidx[0][t];
+      const int& Nidxto=data_sc_.T_Nidx[1][t];
+      complex<double> yf(data_sc_.T_G[t], data_sc_.T_B[t]);
+      complex<double> yMf(data_sc_.T_Gm[t], data_sc_.T_Bm[t]);
+      const double& tauf = data_sc_.T_Tau[t];
       
       M[Nidxfrom] += yf/(tauf*tauf) + yMf;
       M[Nidxto]   += yf;
@@ -781,7 +790,6 @@ namespace gollnlp {
     //vector<double> a(v_nonaux->x, v_nonaux->x+v_nonaux->n);
     //printvec(a, "v_nonaux->x");
 
-
     std::vector<std::complex<double> > v_complex_nonaux(v_nonaux->n);
 
     assert(v_nonaux->n == idxs_buses_nonaux.size());
@@ -815,19 +823,19 @@ namespace gollnlp {
 						std::vector<std::vector<std::complex<double> > >& pti)
   {
     pli.clear();
-    pli.push_back(vector<complex<double> >(data_sc.L_Line.size()));
-    pli.push_back(vector<complex<double> >(data_sc.L_Line.size()));
-    for(int l=0; l<data_sc.L_Line.size(); ++l) {
+    pli.push_back(vector<complex<double> >(data_sc_.L_Line.size()));
+    pli.push_back(vector<complex<double> >(data_sc_.L_Line.size()));
+    for(int l=0; l<data_sc_.L_Line.size(); ++l) {
       // ye = L[:G][l] + L[:B][l]*im;
-      complex<double> ye(data_sc.L_G[l], data_sc.L_B[l]); 
+      complex<double> ye(data_sc_.L_G[l], data_sc_.L_B[l]); 
       // yCHe = L[:Bch][l]*im;
-      complex<double> yCHe(0., data_sc.L_Bch[l]);
+      complex<double> yCHe(0., data_sc_.L_Bch[l]);
       for(int i=0; i<2; i++) {
 	// v_i = v_n[L_Nidx[l,i]]
-	auto v_i = v_complex_all[data_sc.L_Nidx[i][l]];
+	auto v_i = v_complex_all[data_sc_.L_Nidx[i][l]];
 	
 	// v_j = v_n[L_Nidx[l,3-i]]
-	auto v_j = v_complex_all[data_sc.L_Nidx[1-i][l]];
+	auto v_j = v_complex_all[data_sc_.L_Nidx[1-i][l]];
 				 
 	// s_li[l, i] = v_i*conj(yCHe/2*v_i) + v_i*conj(ye*(v_j - v_i))
 	pli[i][l] = v_i * std::conj(yCHe/2.0*v_i) + v_i * std::conj(ye*(v_j-v_i));
@@ -835,20 +843,20 @@ namespace gollnlp {
     }
 
     pti.clear();
-    pti.push_back(vector<complex<double> >(data_sc.T_Transformer.size()));
-    pti.push_back(vector<complex<double> >(data_sc.T_Transformer.size()));
+    pti.push_back(vector<complex<double> >(data_sc_.T_Transformer.size()));
+    pti.push_back(vector<complex<double> >(data_sc_.T_Transformer.size()));
 
-    for(int t=0; t<data_sc.T_Transformer.size(); ++t) {
+    for(int t=0; t<data_sc_.T_Transformer.size(); ++t) {
       //yf = T[:G][t] + T[:B][t]*im;
-      complex<double> yf(data_sc.T_G[t], data_sc.T_B[t]);
+      complex<double> yf(data_sc_.T_G[t], data_sc_.T_B[t]);
       //yMf = T[:Gm][t] + T[:Bm][t]*im;
-      complex<double> yMf(data_sc.T_Gm[t], data_sc.T_Bm[t]);
+      complex<double> yMf(data_sc_.T_Gm[t], data_sc_.T_Bm[t]);
       //tauf = T[:Tau][t];
-      double tauf = data_sc.T_Tau[t];
+      double tauf = data_sc_.T_Tau[t];
       //v_1 = v_n[T_Nidx[t,1]]
-      auto v_1 = v_complex_all[data_sc.T_Nidx[0][t]];
+      auto v_1 = v_complex_all[data_sc_.T_Nidx[0][t]];
       //v_2 = v_n[T_Nidx[t,2]]
-      auto v_2 = v_complex_all[data_sc.T_Nidx[1][t]];
+      auto v_2 = v_complex_all[data_sc_.T_Nidx[1][t]];
 	    
       //s_ti[t, 1] = v_1*conj(yMf*v_1) + v_1/tauf*conj(yf*(v_2 - v_1/tauf))
       pti[0][t] = v_1 * std::conj(yMf*v_1) + v_1/tauf*std::conj(yf*(v_2-v_1/tauf));
@@ -864,9 +872,9 @@ namespace gollnlp {
     Nidx_voltoutofbnds.clear();
     for(auto n : idxs_buses_aux) {
       const double v_abs = std::abs(v_complex_all[n]);
-      if(data_sc.N_Vlb[n] > v_abs + EPSILON || v_abs > data_sc.N_Vub[n] + EPSILON) {
+      if(data_sc_.N_Vlb[n] > v_abs + EPSILON || v_abs > data_sc_.N_Vub[n] + EPSILON) {
 	//printf("!!!!! viol bus %d -> [%20.14f, %20.14f] val %20.14f\n",
-	//       n, data_sc.N_Vlb[n], data_sc.N_Vub[n], v_abs);
+	//       n, data_sc_.N_Vlb[n], data_sc_.N_Vub[n], v_abs);
 	Nidx_voltoutofbnds.push_back(n);	
       }
     }
@@ -887,10 +895,10 @@ namespace gollnlp {
     Lidx_overload.clear();
     Lin_overload.clear();
 
-    for(int l=0; l<data_sc.L_Line.size(); l++) {
+    for(int l=0; l<data_sc_.L_Line.size(); l++) {
       for(int i=0; i<2; i++) {
 	const double viol = std::abs(pli[i][l]) -
-	  data_sc.L_RateBase[l] * std::abs(v_complex_all[data_sc.L_Nidx[i][l]]);
+	  data_sc_.L_RateBase[l] * std::abs(v_complex_all[data_sc_.L_Nidx[i][l]]);
 	if(viol>EPSILON) {
 	  Lidx_overload.push_back(l);
 	  Lin_overload.push_back(i);
@@ -899,8 +907,8 @@ namespace gollnlp {
     }
 
     //!
-    Lidx_overload.push_back(0);
-    Lin_overload.push_back(0);
+    //Lidx_overload.push_back(0);
+    //Lin_overload.push_back(0);
     
     //Lidx_overload.push_back(0);
     //Lin_overload.push_back(1);
@@ -908,9 +916,9 @@ namespace gollnlp {
     Tidx_overload.clear();
     Tin_overload.clear();
 
-    for(int t=0; t<data_sc.T_Transformer.size(); t++) {
+    for(int t=0; t<data_sc_.T_Transformer.size(); t++) {
       for(int i=0; i<2; i++) {
-	const double viol = std::abs(pti[i][t]) - data_sc.T_RateEmer[t];
+	const double viol = std::abs(pti[i][t]) - data_sc_.T_RateEmer[t];
 	if(viol>EPSILON) {
 	  Tidx_overload.push_back(t);
 	  Tin_overload.push_back(i);
@@ -926,7 +934,8 @@ namespace gollnlp {
 					  int& nPVPQGens, int &num_qgens_fixed, 
 					  int& num_N_PVPQ, int& num_buses_all_qgen_fixed)
   {
-    auto G_Nidx_Gk = selectfrom(data_sc.G_Nidx, Gk);
+    auto G_Nidx_Gk = selectfrom(data_sc_.G_Nidx, Gk);
+
     //extra check
     assert(G_Nidx_Gk == dB.G_Nidx);
     
@@ -950,12 +959,12 @@ namespace gollnlp {
 	assert(dB.K_Contingency.size()==1);
 	assert(dB.K_outidx.size()==1);
 	if(dB.K_ConType[0]==SCACOPFData::kGenerator) 
-	  assert(data_sc.G_Generator[dB.K_outidx[0]]!=dB.G_Generator[g]);
+	  assert(data_sc_.G_Generator[dB.K_outidx[0]]!=dB.G_Generator[g]);
 #endif
 	if(abs(dB.G_Qub[g]-dB.G_Qlb[g])<=1e-8) {
 	  numfixed++; num_qgens_fixed++;
 	  //printf("PVPQ: gen ID=%d p_q at bus idx %d id %d is fixed; will not add PVPQ constraint\n",
-	  //       dB.G_Generator[g], dB.G_Nidx[g], data_sc.N_Bus[dB.G_Nidx[g]]);
+	  //       dB.G_Generator[g], dB.G_Nidx[g], data_sc_.N_Bus[dB.G_Nidx[g]]);
 	  continue;
 	}
 	idxs_gen_agg.back().push_back(g);

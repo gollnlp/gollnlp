@@ -21,19 +21,19 @@ namespace gollnlp {
   {
     int numK = 1; //!
 
-    assert(0==data_K.size());
-    //data_sc = d_in (member of the parent)
-    data_K.push_back(new SCACOPFData(data_sc)); 
-    data_K[0]->rebuild_for_conting(K_idx, numK);
-    //data_K[0].PenaltyWeight = (1-d.DELTA);
+    assert(0==data_K_.size());
+    //data_sc_ = d_in (member of the parent)
+    data_K_.push_back(new SCACOPFData(data_sc_)); 
+    data_K_[0]->rebuild_for_conting(K_idx, numK);
+    //data_K_[0].PenaltyWeight = (1-d.DELTA);
 
     v_n0=NULL; theta_n0=NULL; b_s0=NULL; p_g0=NULL; q_g0=NULL;
   }
 
   ContingencyProblemKronRed::~ContingencyProblemKronRed()
   {
-    assert(data_K.size() == 1);
-    for(auto p : data_K)
+    assert(data_K_.size() == 1);
+    for(auto p : data_K_)
       delete p;
   }
 
@@ -41,8 +41,8 @@ namespace gollnlp {
   {
     assert(false && "this method has not been tested");
 
-    assert(data_K.size() == 1);
-    SCACOPFData& dK = *data_K[0];
+    assert(data_K_.size() == 1);
+    SCACOPFData& dK = *data_K_[0];
     
     add_variables(dK);
     add_cons_pf(dK);
@@ -72,8 +72,8 @@ namespace gollnlp {
 
 //     p_g0=pg0; v_n0=vn0;
 
-//     assert(data_K.size()==1);
-//     SCACOPFData& dK = *data_K[0];
+//     assert(data_K_.size()==1);
+//     SCACOPFData& dK = *data_K_[0];
 
 //     useQPen = true;
 //     //slacks_scale = 1.;
@@ -91,36 +91,36 @@ namespace gollnlp {
 //     //
 //     // setup for indexes used in non-anticip and AGC coupling 
 //     //
-//     //indexes in data_sc.G_Generator; exclude 'outidx' if K_idx is a generator contingency
-//     data_sc.get_AGC_participation(K_idx, Gk_, pg0_partic_idxs, pg0_nonpartic_idxs);
+//     //indexes in data_sc_.G_Generator; exclude 'outidx' if K_idx is a generator contingency
+//     data_sc_.get_AGC_participation(K_idx, Gk_, pg0_partic_idxs, pg0_nonpartic_idxs);
 //     assert(pg0->n == Gk_.size() || pg0->n == 1+Gk_.size());
 
 //     //pg0_nonpartic_idxs=Gk;
 //     //pg0_partic_idxs={};
 
-//     // indexes in data_K (for the recourse's contingency)
-//     auto ids_no_AGC = selectfrom(data_sc.G_Generator, pg0_nonpartic_idxs);
+//     // indexes in data_K_ (for the recourse's contingency)
+//     auto ids_no_AGC = selectfrom(data_sc_.G_Generator, pg0_nonpartic_idxs);
 //     pgK_nonpartic_idxs = indexin(dK.G_Generator, ids_no_AGC);
 //     pgK_nonpartic_idxs = findall(pgK_nonpartic_idxs, [](int val) {return val!=-1;});
 
-//     auto ids_AGC = selectfrom(data_sc.G_Generator, pg0_partic_idxs);
+//     auto ids_AGC = selectfrom(data_sc_.G_Generator, pg0_partic_idxs);
 //     pgK_partic_idxs = indexin(dK.G_Generator, ids_AGC);
 //     pgK_partic_idxs = findall(pgK_partic_idxs, [](int val) {return val!=-1;});
 // #ifdef DEBUG
 //     assert(pg0_nonpartic_idxs.size() == pgK_nonpartic_idxs.size());
 //     for(int i0=0, iK=0; i0<pg0_nonpartic_idxs.size(); i0++, iK++) {
-//       //all dB.G_Generator should be in data_sc.G_Generator
+//       //all dB.G_Generator should be in data_sc_.G_Generator
 //       assert(pgK_nonpartic_idxs[iK]>=0); 
 //       //all ids should match in order
 //       assert(dK.G_Generator[pgK_nonpartic_idxs[iK]] ==
-// 	     data_sc.G_Generator[pg0_nonpartic_idxs[i0]]);
+// 	     data_sc_.G_Generator[pg0_nonpartic_idxs[i0]]);
 //     }
 //     assert(pg0_partic_idxs.size() == pgK_partic_idxs.size());
 //     for(int i=0; i<pg0_partic_idxs.size(); i++) {
 //       assert(pgK_partic_idxs[i]>=0); 
 //       //all ids should match in order
 //       assert(dK.G_Generator[pgK_partic_idxs[i]] ==
-// 	     data_sc.G_Generator[pg0_partic_idxs[i]]);
+// 	     data_sc_.G_Generator[pg0_partic_idxs[i]]);
 //     }
       
 // #endif
@@ -132,38 +132,40 @@ namespace gollnlp {
     
     return true;
   }
-  bool ContingencyProblemKronRed::optimize(OptVariablesBlock* pg0, OptVariablesBlock* vn0, double& f)
-  {
-    goTimer tmrec; tmrec.start();
+//   bool ContingencyProblemKronRed::optimize(OptVariablesBlock* pg0, OptVariablesBlock* vn0, double& f)
+//   {
+//     assert(false && "not yet supported");
+//     goTimer tmrec; tmrec.start();
 
-    assert(p_g0 == pg0); assert(v_n0 == vn0);
-    p_g0 = pg0; v_n0=vn0;
+//     assert(p_g0 == pg0); assert(v_n0 == vn0);
+//     p_g0 = pg0; v_n0=vn0;
 
-    update_cons_nonanticip_using(pg0);
-    update_cons_AGC_using(pg0);
+//     update_cons_nonanticip_using(pg0);
+//     update_cons_AGC_using(pg0);
 
-    f = -1e+20;
-    if(!OptProblem::optimize("ipopt")) {
-      return false;
-    }
+//     f = -1e+20;
+//     if(!OptProblem::optimize("ipopt")) {
+//       return false;
+//     }
 
-    // objective value
-    f = this->obj_value;
+//     // objective value
+//     f = this->obj_value;
 
-    tmrec.stop();
-#ifdef BE_VERBOSE
-    printf("ContProbKron K_idx=%d: optimize took %g sec  %d iterations on rank=%d\n", 
-	   K_idx, tmrec.getElapsedTime(), number_of_iterations(), my_rank);
-    fflush(stdout);
-#endif
+//     tmrec.stop();
+// #ifdef BE_VERBOSE
+//     printf("ContProbKron K_idx=%d: optimize took %g sec  %d iterations on rank=%d\n", 
+// 	   K_idx, tmrec.getElapsedTime(), number_of_iterations(), my_rank);
+//     fflush(stdout);
+// #endif
 
-    return true;
+//     return true;
 
-  }
+//   }
   bool ContingencyProblemKronRed::eval_obj(OptVariablesBlock* pg0, OptVariablesBlock* vn0, double& f)
   {
     goTimer tmrec; tmrec.start();
 
+    assert(false && "not tested");
     assert(p_g0 == pg0); assert(v_n0 == vn0);
     p_g0 = pg0; v_n0=vn0;
 
@@ -198,7 +200,7 @@ namespace gollnlp {
 
   void ContingencyProblemKronRed::get_solution_simplicial_vectorized(std::vector<double>& vsln)
   {
-    SCACOPFData& dK = *data_K[0];
+    SCACOPFData& dK = *data_K_[0];
     
     assert(v_n0);
     //assert(theta_n0);
@@ -209,17 +211,22 @@ namespace gollnlp {
     int n_sln = v_n0->n + theta_n0->n + b_s0->n + p_g0->n + q_g0->n + 1;
     vsln = vector<double>(n_sln);
 
-    auto v_nk = variable("v_n", dK);
-    assert(v_nk->n == v_n0->n);
-    memcpy(&vsln[0], v_nk->x, v_nk->n*sizeof(double));
-
-    auto theta_nk = variable("theta_n", dK);
-    assert(theta_nk->n == theta_n0->n);
-    memcpy(&vsln[v_nk->n], theta_nk->x, theta_nk->n*sizeof(double));
+    //auto v_nk = variable("v_n", dK);
+    vector<double> v_nk, theta_nk;
+    compute_v_and_theta_from_v_complex(v_n_all_complex_, v_nk, theta_nk);
+    //
+    assert(v_nk.size() == v_n0->n);
+    //memcpy(&vsln[0], v_nk->x, v_nk->n*sizeof(double));
+    std::copy(v_nk.begin(), v_nk.end(), vsln.begin());
+    
+    //auto theta_nk = variable("theta_n", dK);
+    assert(theta_nk.size() == theta_n0->n);
+    //memcpy(&vsln[v_nk->n], theta_nk->x, theta_nk->n*sizeof(double));
+    std::copy(theta_nk.begin(), theta_nk.end(), vsln.begin()+v_n0->n);
 
     auto b_sk = variable("b_s", dK);
     assert(b_sk->n == b_s0->n);
-    memcpy(&vsln[v_nk->n + theta_nk->n], b_sk->x, b_sk->n*sizeof(double));
+    memcpy(&vsln[v_nk.size() + theta_nk.size()], b_sk->x, b_sk->n*sizeof(double));
 
     auto p_gk = variable("p_g", dK);
     auto q_gk = variable("q_g", dK);
@@ -228,7 +235,7 @@ namespace gollnlp {
     assert(dK.K_ConType.size()==1);
     
     if(dK.K_ConType[0] == SCACOPFData::kGenerator) {
-      int offset = v_nk->n + theta_nk->n + b_sk->n;
+      int offset = v_nk.size() + theta_nk.size() + b_sk->n;
 #ifdef DEBUG
       for(int i=0; i<p_g0->n + q_g0->n; i++) vsln[offset+i]= -10117.;
 #endif
@@ -254,8 +261,8 @@ namespace gollnlp {
     } else {
       assert(p_gk->n == p_g0->n);
       assert(q_gk->n == q_g0->n);
-      memcpy(&vsln[v_nk->n + theta_nk->n + b_sk->n], p_gk->x, p_gk->n*sizeof(double));
-      memcpy(&vsln[v_nk->n + theta_nk->n + b_sk->n + p_gk->n], q_gk->x, q_gk->n*sizeof(double));
+      memcpy(&vsln[v_nk.size() + theta_nk.size() + b_sk->n], p_gk->x, p_gk->n*sizeof(double));
+      memcpy(&vsln[v_nk.size() + theta_nk.size() + b_sk->n + p_gk->n], q_gk->x, q_gk->n*sizeof(double));
     }
 
     auto delta_k = variable("delta", dK);
@@ -271,9 +278,9 @@ namespace gollnlp {
 								 const vector<int>& Gk) 
   {
     assert(Gk_ == Gk);
-    assert(data_K.size()==1);
-    SCACOPFData& dB = *data_K[0];
-    auto G_Nidx_Gk = selectfrom(data_sc.G_Nidx, Gk);
+    assert(data_K_.size()==1);
+    SCACOPFData& dB = *data_K_[0];
+    auto G_Nidx_Gk = selectfrom(data_sc_.G_Nidx, Gk);
     //extra check
     assert(G_Nidx_Gk == dB.G_Nidx);
 
@@ -305,13 +312,13 @@ namespace gollnlp {
 	assert(dB.K_Contingency.size()==1);
 	assert(dB.K_outidx.size()==1);
 	if(dB.K_ConType[0]==SCACOPFData::kGenerator) 
-	  assert(data_sc.G_Generator[dB.K_outidx[0]]!=dB.G_Generator[g]);
+	  assert(data_sc_.G_Generator[dB.K_outidx[0]]!=dB.G_Generator[g]);
 #endif
 	if(abs(dB.G_Qub[g]-dB.G_Qlb[g])<=1e-8) {
 	  numfixed++; num_qgens_fixed++;
 #ifdef BE_VERBOSE
 	  //printf("PVPQ: gen ID=%d p_q at bus idx %d id %d is fixed; will not enforce voltage nonanticip constraint\n",
-	  //	 dB.G_Generator[g], dB.G_Nidx[g], data_sc.N_Bus[dB.G_Nidx[g]]);
+	  //	 dB.G_Generator[g], dB.G_Nidx[g], data_sc_.N_Bus[dB.G_Nidx[g]]);
 #endif
 	  continue;
 	}
@@ -378,9 +385,9 @@ namespace gollnlp {
 						      const vector<int>& Gk) 
   {
     assert(Gk_ == Gk);
-    assert(data_K.size()==1);
+    assert(data_K_.size()==1);
     assert(v_n0 == vn0);
-    SCACOPFData& dB = *data_K[0];
+    SCACOPFData& dB = *data_K_[0];
 
     //(aggregated) non-fixed q_g generator ids at each node/bus
     // with PVPQ generators that have at least one non-fixed q_g 
@@ -451,8 +458,8 @@ namespace gollnlp {
   }
   void ContingencyProblemKronRed::bodyof_cons_nonanticip_using(OptVariablesBlock* pg0)
   {
-    assert(1==data_K.size());
-    SCACOPFData& dK = *data_K[0]; assert(dK.id-1 == K_idx);
+    assert(1==data_K_.size());
+    SCACOPFData& dK = *data_K_[0]; assert(dK.id-1 == K_idx);
     OptVariablesBlock* pgK = variable("p_g", dK);
     if(NULL==pgK) {
       printf("[warning] ContingencyProblemKron K_idx=%d: p_g var not found in contingency  "
@@ -489,7 +496,7 @@ namespace gollnlp {
       return;
     }
 
-    SCACOPFData& dK = *data_K[0];
+    SCACOPFData& dK = *data_K_[0];
     OptVariablesBlock* pgK = variable("p_g", dK);
     if(NULL==pgK) {
       printf("[warning] ContingencyProblemKron K_idx=%d: p_g var not found in contingency  "
@@ -505,9 +512,9 @@ namespace gollnlp {
     auto cons = new AGCComplementarityCons(con_name("AGC", dK), 3*pgK_partic_idxs.size(),
 					   pg0, pgK, deltaK, 
 					   pg0_partic_idxs, pgK_partic_idxs, 
-					   selectfrom(data_sc.G_Plb, pg0_partic_idxs), 
-					   selectfrom(data_sc.G_Pub, pg0_partic_idxs),
-					   data_sc.G_alpha, AGCSmoothing,
+					   selectfrom(data_sc_.G_Plb, pg0_partic_idxs), 
+					   selectfrom(data_sc_.G_Pub, pg0_partic_idxs),
+					   data_sc_.G_alpha, AGCSmoothing,
 					   false, 0., //no internal penalty
 					   true); //fixed p_g0 
     append_constraints(cons);
@@ -535,7 +542,7 @@ namespace gollnlp {
     }
     //pg0 pointer that AGCComplementarityCons should not change
 #ifdef DEBUG
-    SCACOPFData& dK = *data_K[0];
+    SCACOPFData& dK = *data_K_[0];
     auto cons_AGC = dynamic_cast<AGCComplementarityCons*>(constraint("AGC", dK));
     assert(cons_AGC);
     if(pg0 != cons_AGC->get_p_g0()) {
@@ -547,9 +554,9 @@ namespace gollnlp {
   void ContingencyProblemKronRed::regularize_vn(const double& gamma)
   {
     assert(false);
-    assert(data_K.size()==1);
+    assert(data_K_.size()==1);
 
-    SCACOPFData& dK = *data_K[0];
+    SCACOPFData& dK = *data_K_[0];
     assert(dK.id==K_idx+1);
 
     assert(variable("v_n", dK));
@@ -570,8 +577,8 @@ namespace gollnlp {
   void ContingencyProblemKronRed::regularize_thetan(const double& gamma)
   {
     assert(false);
-    assert(data_K.size()==1);
-    SCACOPFData& dK = *data_K[0]; assert(dK.id==K_idx+1);
+    assert(data_K_.size()==1);
+    SCACOPFData& dK = *data_K_[0]; assert(dK.id==K_idx+1);
     assert(variable("theta_n", dK)->n <= v_n0->n);
     
     //! todo: map theta_n0 into theta_n nonaux
@@ -587,8 +594,8 @@ namespace gollnlp {
   }
   void ContingencyProblemKronRed::regularize_bs(const double& gamma)
   {
-    assert(data_K.size()==1);
-    SCACOPFData& dK = *data_K[0]; assert(dK.id==K_idx+1);
+    assert(data_K_.size()==1);
+    SCACOPFData& dK = *data_K_[0]; assert(dK.id==K_idx+1);
 
     OptObjectiveTerm* ot = obj->objterm("regul_bs");
     if(NULL==ot) {
@@ -603,8 +610,8 @@ namespace gollnlp {
   }
   void ContingencyProblemKronRed::regularize_pg(const double& gamma)
   {
-    assert(data_K.size()==1);
-    SCACOPFData& dK = *data_K[0]; assert(dK.id==K_idx+1);
+    assert(data_K_.size()==1);
+    SCACOPFData& dK = *data_K_[0]; assert(dK.id==K_idx+1);
 
     OptObjectiveTerm* ot = obj->objterm("regul_pg");
     if(NULL==ot) {
@@ -619,8 +626,8 @@ namespace gollnlp {
   }
   void ContingencyProblemKronRed::regularize_qg(const double& gamma)
   {
-    assert(data_K.size()==1);
-    SCACOPFData& dK = *data_K[0]; assert(dK.id==K_idx+1);
+    assert(data_K_.size()==1);
+    SCACOPFData& dK = *data_K_[0]; assert(dK.id==K_idx+1);
 
     OptObjectiveTerm* ot = obj->objterm("regul_qg");
     if(NULL==ot) {
@@ -678,19 +685,19 @@ namespace gollnlp {
 
   bool ContingencyProblemKronRed::set_warm_start_from_base_of(SCACOPFProblem& srcProb)
   {
-    assert(data_K.size()==1);
-    SCACOPFData& dK = *data_K[0]; assert(dK.id==K_idx+1);
+    assert(data_K_.size()==1);
+    SCACOPFData& dK = *data_K_[0]; assert(dK.id==K_idx+1);
 
     // contingency indexes of lines, generators, or transformers (i.e., contingency type)
     vector<int> idxs_of_K_in_0; 
 
     assert(useQPen==true); assert(srcProb.useQPen==true);
-    variable("v_n", dK)->set_start_to(*srcProb.variable("v_n", data_sc));
-    variable("theta_n", dK)->set_start_to(*srcProb.variable("theta_n", data_sc));
-    variable("b_s", dK)->set_start_to(*srcProb.variable("b_s", data_sc));
+    variable("v_n", dK)->set_start_to(*srcProb.variable("v_n", data_sc_));
+    variable("theta_n", dK)->set_start_to(*srcProb.variable("theta_n", data_sc_));
+    variable("b_s", dK)->set_start_to(*srcProb.variable("b_s", data_sc_));
 
     if(dK.K_ConType[0] == SCACOPFData::kGenerator) {
-      auto p_gK = variable("p_g", dK), p_g0 = srcProb.variable("p_g", data_sc);
+      auto p_gK = variable("p_g", dK), p_g0 = srcProb.variable("p_g", data_sc_);
       for(int i=0; i<pg0_nonpartic_idxs.size(); i++) {
 	p_gK->x[pgK_nonpartic_idxs[i]] = p_g0->x[pg0_nonpartic_idxs[i]];
       }
@@ -699,7 +706,7 @@ namespace gollnlp {
       }
       p_gK->providesStartingPoint = true;
 
-      auto q_gK = variable("q_g", dK), q_g0 = srcProb.variable("q_g", data_sc);
+      auto q_gK = variable("q_g", dK), q_g0 = srcProb.variable("q_g", data_sc_);
       for(int i=0; i<pg0_nonpartic_idxs.size(); i++) {
 	q_gK->x[pgK_nonpartic_idxs[i]] = q_g0->x[pg0_nonpartic_idxs[i]];
       }
@@ -710,18 +717,18 @@ namespace gollnlp {
       
     } else {
 #ifdef DEBUG
-      assert(variable("p_g", dK)->n == srcProb.variable("p_g", data_sc)->n);
-      assert(variable("q_g", dK)->n == srcProb.variable("q_g", data_sc)->n);
+      assert(variable("p_g", dK)->n == srcProb.variable("p_g", data_sc_)->n);
+      assert(variable("q_g", dK)->n == srcProb.variable("q_g", data_sc_)->n);
 #endif
-      variable("p_g", dK)->set_start_to(*srcProb.variable("p_g", data_sc));
-      variable("q_g", dK)->set_start_to(*srcProb.variable("q_g", data_sc));
+      variable("p_g", dK)->set_start_to(*srcProb.variable("p_g", data_sc_));
+      variable("q_g", dK)->set_start_to(*srcProb.variable("q_g", data_sc_));
     }
     
     if(dK.K_ConType[0] == SCACOPFData::kLine) {
-      idxs_of_K_in_0 = indexin(dK.L_Line, data_sc.L_Line);
+      idxs_of_K_in_0 = indexin(dK.L_Line, data_sc_.L_Line);
       size_t sz = idxs_of_K_in_0.size(); int i, *idxs_in_0 = idxs_of_K_in_0.data();
 
-      auto var_K = variable("p_li1", dK), var_0 = srcProb.variable("p_li1", data_sc);
+      auto var_K = variable("p_li1", dK), var_0 = srcProb.variable("p_li1", data_sc_);
       assert(var_K->n+1 == var_0->n);
       assert(sz == var_K->n);
       for(i=0; i<sz; i++) {
@@ -730,7 +737,7 @@ namespace gollnlp {
       }
       var_K->providesStartingPoint = true;
 
-      var_K = variable("p_li2", dK); var_0 = srcProb.variable("p_li2", data_sc);
+      var_K = variable("p_li2", dK); var_0 = srcProb.variable("p_li2", data_sc_);
       assert(var_K->n+1 == var_0->n);
       assert(sz == var_K->n);
       for(i=0; i<sz; i++) {
@@ -739,7 +746,7 @@ namespace gollnlp {
       }
       var_K->providesStartingPoint = true;
 
-      var_K = variable("q_li1", dK); var_0 = srcProb.variable("q_li1", data_sc);
+      var_K = variable("q_li1", dK); var_0 = srcProb.variable("q_li1", data_sc_);
       assert(var_K->n+1 == var_0->n);
       assert(sz == var_K->n);
       for(i=0; i<sz; i++) {
@@ -748,7 +755,7 @@ namespace gollnlp {
       }
       var_K->providesStartingPoint = true;
 
-      var_K = variable("q_li2", dK); var_0 = srcProb.variable("q_li2", data_sc);
+      var_K = variable("q_li2", dK); var_0 = srcProb.variable("q_li2", data_sc_);
       assert(var_K->n+1 == var_0->n);
       assert(sz == var_K->n);
       for(i=0; i<sz; i++) {
@@ -758,22 +765,22 @@ namespace gollnlp {
       var_K->providesStartingPoint = true;
 
     } else {
-      assert(variable("p_li1", dK)->n == srcProb.variable("p_li1", data_sc)->n);
-      assert(variable("p_li2", dK)->n == srcProb.variable("p_li2", data_sc)->n);
-      assert(variable("q_li1", dK)->n == srcProb.variable("q_li1", data_sc)->n);
-      assert(variable("q_li2", dK)->n == srcProb.variable("q_li2", data_sc)->n);
+      assert(variable("p_li1", dK)->n == srcProb.variable("p_li1", data_sc_)->n);
+      assert(variable("p_li2", dK)->n == srcProb.variable("p_li2", data_sc_)->n);
+      assert(variable("q_li1", dK)->n == srcProb.variable("q_li1", data_sc_)->n);
+      assert(variable("q_li2", dK)->n == srcProb.variable("q_li2", data_sc_)->n);
 
-      variable("p_li1", dK)->set_start_to(*srcProb.variable("p_li1", data_sc));
-      variable("p_li2", dK)->set_start_to(*srcProb.variable("p_li2", data_sc));
-      variable("q_li1", dK)->set_start_to(*srcProb.variable("q_li1", data_sc));
-      variable("q_li2", dK)->set_start_to(*srcProb.variable("q_li2", data_sc));
+      variable("p_li1", dK)->set_start_to(*srcProb.variable("p_li1", data_sc_));
+      variable("p_li2", dK)->set_start_to(*srcProb.variable("p_li2", data_sc_));
+      variable("q_li1", dK)->set_start_to(*srcProb.variable("q_li1", data_sc_));
+      variable("q_li2", dK)->set_start_to(*srcProb.variable("q_li2", data_sc_));
     }
 
     if(dK.K_ConType[0] == SCACOPFData::kTransformer) {
-      idxs_of_K_in_0 = indexin(dK.T_Transformer, data_sc.T_Transformer);
+      idxs_of_K_in_0 = indexin(dK.T_Transformer, data_sc_.T_Transformer);
       size_t sz = idxs_of_K_in_0.size(); int i, *idxs_in_0 = idxs_of_K_in_0.data();
 
-      auto var_K = variable("p_ti1", dK), var_0 = srcProb.variable("p_ti1", data_sc);
+      auto var_K = variable("p_ti1", dK), var_0 = srcProb.variable("p_ti1", data_sc_);
       assert(var_K->n+1 == var_0->n);
       assert(sz == var_K->n);
       for(i=0; i<sz; i++) {
@@ -782,7 +789,7 @@ namespace gollnlp {
       }
       var_K->providesStartingPoint = true;
 
-      var_K = variable("p_ti2", dK); var_0 = srcProb.variable("p_ti2", data_sc);
+      var_K = variable("p_ti2", dK); var_0 = srcProb.variable("p_ti2", data_sc_);
       assert(var_K->n+1 == var_0->n);
       assert(sz == var_K->n);
       for(i=0; i<sz; i++) {
@@ -791,7 +798,7 @@ namespace gollnlp {
       }
       var_K->providesStartingPoint = true;
 
-      var_K = variable("q_ti1", dK); var_0 = srcProb.variable("q_ti1", data_sc);
+      var_K = variable("q_ti1", dK); var_0 = srcProb.variable("q_ti1", data_sc_);
       assert(var_K->n+1 == var_0->n);
       assert(sz == var_K->n);
       for(i=0; i<sz; i++) {
@@ -800,7 +807,7 @@ namespace gollnlp {
       }
       var_K->providesStartingPoint = true;
 
-      var_K = variable("q_ti2", dK); var_0 = srcProb.variable("q_ti2", data_sc);
+      var_K = variable("q_ti2", dK); var_0 = srcProb.variable("q_ti2", data_sc_);
       assert(var_K->n+1 == var_0->n);
       assert(sz == var_K->n);
       for(i=0; i<sz; i++) {
@@ -811,15 +818,15 @@ namespace gollnlp {
 
 
     } else {
-      assert(variable("p_ti1", dK)->n == srcProb.variable("p_ti1", data_sc)->n);
-      assert(variable("p_ti2", dK)->n == srcProb.variable("p_ti2", data_sc)->n);
-      assert(variable("q_ti1", dK)->n == srcProb.variable("q_ti1", data_sc)->n);
-      assert(variable("q_ti2", dK)->n == srcProb.variable("q_ti2", data_sc)->n);
+      assert(variable("p_ti1", dK)->n == srcProb.variable("p_ti1", data_sc_)->n);
+      assert(variable("p_ti2", dK)->n == srcProb.variable("p_ti2", data_sc_)->n);
+      assert(variable("q_ti1", dK)->n == srcProb.variable("q_ti1", data_sc_)->n);
+      assert(variable("q_ti2", dK)->n == srcProb.variable("q_ti2", data_sc_)->n);
 
-      variable("p_ti1", dK)->set_start_to(*srcProb.variable("p_ti1", data_sc));
-      variable("p_ti2", dK)->set_start_to(*srcProb.variable("p_ti2", data_sc));
-      variable("q_ti1", dK)->set_start_to(*srcProb.variable("q_ti1", data_sc));
-      variable("q_ti2", dK)->set_start_to(*srcProb.variable("q_ti2", data_sc));
+      variable("p_ti1", dK)->set_start_to(*srcProb.variable("p_ti1", data_sc_));
+      variable("p_ti2", dK)->set_start_to(*srcProb.variable("p_ti2", data_sc_));
+      variable("q_ti1", dK)->set_start_to(*srcProb.variable("q_ti1", data_sc_));
+      variable("q_ti2", dK)->set_start_to(*srcProb.variable("q_ti2", data_sc_));
     }
 
     //    
@@ -897,15 +904,15 @@ namespace gollnlp {
       
       //lower bounds duals
       prefix = "duals_bndL_v_n";
-      variable_duals_lower(prefix, dK)->set_start_to(*srcProb.variable_duals_lower(prefix, data_sc));
+      variable_duals_lower(prefix, dK)->set_start_to(*srcProb.variable_duals_lower(prefix, data_sc_));
       prefix = "duals_bndL_theta_n";
-      variable_duals_lower(prefix, dK)->set_start_to(*srcProb.variable_duals_lower(prefix, data_sc));
+      variable_duals_lower(prefix, dK)->set_start_to(*srcProb.variable_duals_lower(prefix, data_sc_));
 
       prefix = "duals_bndL_p_li1";
       if(dK.K_ConType[0] == SCACOPFData::kLine) {
 	assert(idxs_of_K_in_0.size() == dK.L_Line.size());
 	size_t sz = idxs_of_K_in_0.size(); int i, *idxs_in_0 = idxs_of_K_in_0.data();
-	auto var_K = variable_duals_lower(prefix, dK), var_0 = srcProb.variable_duals_lower(prefix, data_sc);
+	auto var_K = variable_duals_lower(prefix, dK), var_0 = srcProb.variable_duals_lower(prefix, data_sc_);
 	assert(var_K->n+1 == var_0->n);
 	assert(sz == var_K->n);
 	for(i=0; i<sz; i++) {
@@ -914,14 +921,14 @@ namespace gollnlp {
 	}
 	var_K->providesStartingPoint = true;
       } else {
-	variable_duals_lower(prefix, dK)->set_start_to(*srcProb.variable_duals_lower(prefix, data_sc));
+	variable_duals_lower(prefix, dK)->set_start_to(*srcProb.variable_duals_lower(prefix, data_sc_));
       }
 
       prefix = "duals_bndL_p_li2";
       if(dK.K_ConType[0] == SCACOPFData::kLine) {
 	assert(idxs_of_K_in_0.size() == dK.L_Line.size());
 	size_t sz = idxs_of_K_in_0.size(); int i, *idxs_in_0 = idxs_of_K_in_0.data();
-	auto var_K = variable_duals_lower(prefix, dK), var_0 = srcProb.variable_duals_lower(prefix, data_sc);
+	auto var_K = variable_duals_lower(prefix, dK), var_0 = srcProb.variable_duals_lower(prefix, data_sc_);
 	assert(var_K->n+1 == var_0->n);
 	assert(sz == var_K->n);
 	for(i=0; i<sz; i++) {
@@ -930,14 +937,14 @@ namespace gollnlp {
 	}
 	var_K->providesStartingPoint = true;
       } else {
-	variable_duals_lower(prefix, dK)->set_start_to(*srcProb.variable_duals_lower(prefix, data_sc));
+	variable_duals_lower(prefix, dK)->set_start_to(*srcProb.variable_duals_lower(prefix, data_sc_));
       }
 
       prefix = "duals_bndL_q_li1";
       if(dK.K_ConType[0] == SCACOPFData::kLine) {
 	assert(idxs_of_K_in_0.size() == dK.L_Line.size());
 	size_t sz = idxs_of_K_in_0.size(); int i, *idxs_in_0 = idxs_of_K_in_0.data();
-	auto var_K = variable_duals_lower(prefix, dK), var_0 = srcProb.variable_duals_lower(prefix, data_sc);
+	auto var_K = variable_duals_lower(prefix, dK), var_0 = srcProb.variable_duals_lower(prefix, data_sc_);
 	assert(var_K->n+1 == var_0->n);
 	assert(sz == var_K->n);
 	for(i=0; i<sz; i++) {
@@ -946,14 +953,14 @@ namespace gollnlp {
 	}
 	var_K->providesStartingPoint = true;
       } else {
-	variable_duals_lower(prefix, dK)->set_start_to(*srcProb.variable_duals_lower(prefix, data_sc));
+	variable_duals_lower(prefix, dK)->set_start_to(*srcProb.variable_duals_lower(prefix, data_sc_));
       }
 
       prefix = "duals_bndL_q_li2";
       if(dK.K_ConType[0] == SCACOPFData::kLine) {
 	assert(idxs_of_K_in_0.size() == dK.L_Line.size());
 	size_t sz = idxs_of_K_in_0.size(); int i, *idxs_in_0 = idxs_of_K_in_0.data();
-	auto var_K = variable_duals_lower(prefix, dK), var_0 = srcProb.variable_duals_lower(prefix, data_sc);
+	auto var_K = variable_duals_lower(prefix, dK), var_0 = srcProb.variable_duals_lower(prefix, data_sc_);
 	assert(var_K->n+1 == var_0->n);
 	assert(sz == var_K->n);
 	for(i=0; i<sz; i++) {
@@ -962,14 +969,14 @@ namespace gollnlp {
 	}
 	var_K->providesStartingPoint = true;
       } else {
-	variable_duals_lower(prefix, dK)->set_start_to(*srcProb.variable_duals_lower(prefix, data_sc));
+	variable_duals_lower(prefix, dK)->set_start_to(*srcProb.variable_duals_lower(prefix, data_sc_));
       }
 
       prefix = "duals_bndL_p_ti1";
       if(dK.K_ConType[0] == SCACOPFData::kTransformer) {
 	assert(idxs_of_K_in_0.size() == dK.T_Transformer.size());
 	size_t sz = idxs_of_K_in_0.size(); int i, *idxs_in_0 = idxs_of_K_in_0.data();
-	auto var_K = variable_duals_lower(prefix, dK), var_0 = srcProb.variable_duals_lower(prefix, data_sc);
+	auto var_K = variable_duals_lower(prefix, dK), var_0 = srcProb.variable_duals_lower(prefix, data_sc_);
 	assert(var_K->n+1 == var_0->n);
 	assert(sz == var_K->n);
 	for(i=0; i<sz; i++) {
@@ -978,14 +985,14 @@ namespace gollnlp {
 	}
 	var_K->providesStartingPoint = true;
       } else {
-	variable_duals_lower(prefix, dK)->set_start_to(*srcProb.variable_duals_lower(prefix, data_sc));
+	variable_duals_lower(prefix, dK)->set_start_to(*srcProb.variable_duals_lower(prefix, data_sc_));
       }
 
       prefix = "duals_bndL_p_ti2";
       if(dK.K_ConType[0] == SCACOPFData::kTransformer) {
 	assert(idxs_of_K_in_0.size() == dK.T_Transformer.size());
 	size_t sz = idxs_of_K_in_0.size(); int i, *idxs_in_0 = idxs_of_K_in_0.data();
-	auto var_K = variable_duals_lower(prefix, dK), var_0 = srcProb.variable_duals_lower(prefix, data_sc);
+	auto var_K = variable_duals_lower(prefix, dK), var_0 = srcProb.variable_duals_lower(prefix, data_sc_);
 	assert(var_K->n+1 == var_0->n);
 	assert(sz == var_K->n);
 	for(i=0; i<sz; i++) {
@@ -994,14 +1001,14 @@ namespace gollnlp {
 	}
 	var_K->providesStartingPoint = true;
       } else {
-	variable_duals_lower(prefix, dK)->set_start_to(*srcProb.variable_duals_lower(prefix, data_sc));
+	variable_duals_lower(prefix, dK)->set_start_to(*srcProb.variable_duals_lower(prefix, data_sc_));
       }
 
       prefix = "duals_bndL_q_ti1";
       if(dK.K_ConType[0] == SCACOPFData::kTransformer) {
 	assert(idxs_of_K_in_0.size() == dK.T_Transformer.size());
 	size_t sz = idxs_of_K_in_0.size(); int i, *idxs_in_0 = idxs_of_K_in_0.data();
-	auto var_K = variable_duals_lower(prefix, dK), var_0 = srcProb.variable_duals_lower(prefix, data_sc);
+	auto var_K = variable_duals_lower(prefix, dK), var_0 = srcProb.variable_duals_lower(prefix, data_sc_);
 	assert(var_K->n+1 == var_0->n);
 	assert(sz == var_K->n);
 	for(i=0; i<sz; i++) {
@@ -1010,14 +1017,14 @@ namespace gollnlp {
 	}
 	var_K->providesStartingPoint = true;
       } else {
-	variable_duals_lower(prefix, dK)->set_start_to(*srcProb.variable_duals_lower(prefix, data_sc));
+	variable_duals_lower(prefix, dK)->set_start_to(*srcProb.variable_duals_lower(prefix, data_sc_));
       }
 
       prefix = "duals_bndL_q_ti2";
       if(dK.K_ConType[0] == SCACOPFData::kTransformer) {
 	assert(idxs_of_K_in_0.size() == dK.T_Transformer.size());
 	size_t sz = idxs_of_K_in_0.size(); int i, *idxs_in_0 = idxs_of_K_in_0.data();
-	auto var_K = variable_duals_lower(prefix, dK), var_0 = srcProb.variable_duals_lower(prefix, data_sc);
+	auto var_K = variable_duals_lower(prefix, dK), var_0 = srcProb.variable_duals_lower(prefix, data_sc_);
 	assert(var_K->n+1 == var_0->n);
 	assert(sz == var_K->n);
 	for(i=0; i<sz; i++) {
@@ -1026,16 +1033,16 @@ namespace gollnlp {
 	}
 	var_K->providesStartingPoint = true;
       } else {
-	variable_duals_lower(prefix, dK)->set_start_to(*srcProb.variable_duals_lower(prefix, data_sc));
+	variable_duals_lower(prefix, dK)->set_start_to(*srcProb.variable_duals_lower(prefix, data_sc_));
       }
 
       prefix = "duals_bndL_b_s";
-      variable_duals_lower(prefix, dK)->set_start_to(*srcProb.variable_duals_lower(prefix, data_sc));
+      variable_duals_lower(prefix, dK)->set_start_to(*srcProb.variable_duals_lower(prefix, data_sc_));
 
       prefix = "duals_bndL_p_g";
       if(dK.K_ConType[0] == SCACOPFData::kGenerator) {
-	//variable_duals_lower(prefix, dK)->set_start_to(*srcProb.variable_duals_lower(prefix, data_sc));
-	auto p_gK = variable_duals_lower(prefix, dK), p_g0 = srcProb.variable_duals_lower(prefix, data_sc);
+	//variable_duals_lower(prefix, dK)->set_start_to(*srcProb.variable_duals_lower(prefix, data_sc_));
+	auto p_gK = variable_duals_lower(prefix, dK), p_g0 = srcProb.variable_duals_lower(prefix, data_sc_);
 	assert(p_gK->n == p_g0->n - 1);
 	assert(p_g0->n == 1+pg0_nonpartic_idxs.size()+pg0_partic_idxs.size());
 	assert(p_gK->n == pgK_nonpartic_idxs.size()+pgK_partic_idxs.size());
@@ -1048,12 +1055,12 @@ namespace gollnlp {
 	}
 	p_gK->providesStartingPoint = true;
       } else {
-	variable_duals_lower(prefix, dK)->set_start_to(*srcProb.variable_duals_lower(prefix, data_sc));
+	variable_duals_lower(prefix, dK)->set_start_to(*srcProb.variable_duals_lower(prefix, data_sc_));
       }
 
       prefix = "duals_bndL_q_g";
       if(dK.K_ConType[0] == SCACOPFData::kGenerator) {
-	auto q_gK = variable_duals_lower(prefix, dK), q_g0 = srcProb.variable_duals_lower(prefix, data_sc);
+	auto q_gK = variable_duals_lower(prefix, dK), q_g0 = srcProb.variable_duals_lower(prefix, data_sc_);
 	assert(q_gK->n == q_g0->n -1);
 	for(int i=0; i<pg0_nonpartic_idxs.size(); i++) {
 	  q_gK->x[pgK_nonpartic_idxs[i]] = q_g0->x[pg0_nonpartic_idxs[i]];
@@ -1063,19 +1070,19 @@ namespace gollnlp {
 	}
 	q_gK->providesStartingPoint = true;
       } else {
-	variable_duals_lower(prefix, dK)->set_start_to(*srcProb.variable_duals_lower(prefix, data_sc));
+	variable_duals_lower(prefix, dK)->set_start_to(*srcProb.variable_duals_lower(prefix, data_sc_));
       }
 
       prefix = "duals_bndL_pslack_n_p_balance";
-      variable_duals_lower(prefix, dK)->set_start_to(*srcProb.variable_duals_lower(prefix, data_sc));
+      variable_duals_lower(prefix, dK)->set_start_to(*srcProb.variable_duals_lower(prefix, data_sc_));
       prefix = "duals_bndL_qslack_n_q_balance";
-      variable_duals_lower(prefix, dK)->set_start_to(*srcProb.variable_duals_lower(prefix, data_sc));
+      variable_duals_lower(prefix, dK)->set_start_to(*srcProb.variable_duals_lower(prefix, data_sc_));
 
       prefix = "duals_bndL_sslack_li_line_limits1";
       if(dK.K_ConType[0] == SCACOPFData::kLine) {
 	assert(idxs_of_K_in_0.size() == dK.L_Line.size());
 	size_t sz = idxs_of_K_in_0.size(); int i, *idxs_in_0 = idxs_of_K_in_0.data();
-	auto var_K = variable_duals_lower(prefix, dK), var_0 = srcProb.variable_duals_lower(prefix, data_sc);
+	auto var_K = variable_duals_lower(prefix, dK), var_0 = srcProb.variable_duals_lower(prefix, data_sc_);
 	assert(var_K->n+1 == var_0->n);
 	assert(sz == var_K->n);
 	for(i=0; i<sz; i++) {
@@ -1085,14 +1092,14 @@ namespace gollnlp {
 	var_K->providesStartingPoint = true;
 
       } else {
-	variable_duals_lower(prefix, dK)->set_start_to(*srcProb.variable_duals_lower(prefix, data_sc));
+	variable_duals_lower(prefix, dK)->set_start_to(*srcProb.variable_duals_lower(prefix, data_sc_));
       }
       
       prefix = "duals_bndL_sslack_li_line_limits2";
       if(dK.K_ConType[0] == SCACOPFData::kLine) {
 	assert(idxs_of_K_in_0.size() == dK.L_Line.size());
 	size_t sz = idxs_of_K_in_0.size(); int i, *idxs_in_0 = idxs_of_K_in_0.data();
-	auto var_K = variable_duals_lower(prefix, dK), var_0 = srcProb.variable_duals_lower(prefix, data_sc);
+	auto var_K = variable_duals_lower(prefix, dK), var_0 = srcProb.variable_duals_lower(prefix, data_sc_);
 	assert(var_K->n+1 == var_0->n);
 	assert(sz == var_K->n);
 	for(i=0; i<sz; i++) {
@@ -1101,14 +1108,14 @@ namespace gollnlp {
 	}
 	var_K->providesStartingPoint = true;
       } else {
-	variable_duals_lower(prefix, dK)->set_start_to(*srcProb.variable_duals_lower(prefix, data_sc));	
+	variable_duals_lower(prefix, dK)->set_start_to(*srcProb.variable_duals_lower(prefix, data_sc_));	
       }
       
       prefix = "duals_bndL_sslack_ti_trans_limits1";
       if(dK.K_ConType[0] == SCACOPFData::kTransformer) {
 	assert(idxs_of_K_in_0.size() == dK.T_Transformer.size());
 	size_t sz = idxs_of_K_in_0.size(); int i, *idxs_in_0 = idxs_of_K_in_0.data();
-	auto var_K = variable_duals_lower(prefix, dK), var_0 = srcProb.variable_duals_lower(prefix, data_sc);
+	auto var_K = variable_duals_lower(prefix, dK), var_0 = srcProb.variable_duals_lower(prefix, data_sc_);
 	assert(var_K->n+1 == var_0->n);
 	assert(sz == var_K->n);
 	for(i=0; i<sz; i++) {
@@ -1117,14 +1124,14 @@ namespace gollnlp {
 	}
 	var_K->providesStartingPoint = true;
       } else {
-	variable_duals_lower(prefix, dK)->set_start_to(*srcProb.variable_duals_lower(prefix, data_sc));
+	variable_duals_lower(prefix, dK)->set_start_to(*srcProb.variable_duals_lower(prefix, data_sc_));
       }
 
       prefix = "duals_bndL_sslack_ti_trans_limits2";
       if(dK.K_ConType[0] == SCACOPFData::kTransformer) {
 	assert(idxs_of_K_in_0.size() == dK.T_Transformer.size());
 	size_t sz = idxs_of_K_in_0.size(); int i, *idxs_in_0 = idxs_of_K_in_0.data();
-	auto var_K = variable_duals_lower(prefix, dK), var_0 = srcProb.variable_duals_lower(prefix, data_sc);
+	auto var_K = variable_duals_lower(prefix, dK), var_0 = srcProb.variable_duals_lower(prefix, data_sc_);
 	assert(var_K->n+1 == var_0->n);
 	assert(sz == var_K->n);
 	for(i=0; i<sz; i++) {
@@ -1133,7 +1140,7 @@ namespace gollnlp {
 	}
 	var_K->providesStartingPoint = true;
       } else {
-	variable_duals_lower(prefix, dK)->set_start_to(*srcProb.variable_duals_lower(prefix, data_sc));
+	variable_duals_lower(prefix, dK)->set_start_to(*srcProb.variable_duals_lower(prefix, data_sc_));
       }
       
 
@@ -1162,15 +1169,15 @@ namespace gollnlp {
       if(NULL == vars_duals_bounds_U)
 	vars_duals_bounds_U = new_duals_upper_bounds();
       prefix = "duals_bndU_v_n";
-      variable_duals_upper(prefix, dK)->set_start_to(*srcProb.variable_duals_upper(prefix, data_sc));
+      variable_duals_upper(prefix, dK)->set_start_to(*srcProb.variable_duals_upper(prefix, data_sc_));
       prefix = "duals_bndU_theta_n";
-      variable_duals_upper(prefix, dK)->set_start_to(*srcProb.variable_duals_upper(prefix, data_sc));
+      variable_duals_upper(prefix, dK)->set_start_to(*srcProb.variable_duals_upper(prefix, data_sc_));
 
       prefix = "duals_bndU_p_li1";
       if(dK.K_ConType[0] == SCACOPFData::kLine) {
 	assert(idxs_of_K_in_0.size() == dK.L_Line.size());
 	size_t sz = idxs_of_K_in_0.size(); int i, *idxs_in_0 = idxs_of_K_in_0.data();
-	auto var_K = variable_duals_upper(prefix, dK), var_0 = srcProb.variable_duals_upper(prefix, data_sc);
+	auto var_K = variable_duals_upper(prefix, dK), var_0 = srcProb.variable_duals_upper(prefix, data_sc_);
 	assert(var_K->n+1 == var_0->n);
 	assert(sz == var_K->n);
 	for(i=0; i<sz; i++) {
@@ -1179,13 +1186,13 @@ namespace gollnlp {
 	}
 	var_K->providesStartingPoint = true;
       } else {
-	variable_duals_upper(prefix, dK)->set_start_to(*srcProb.variable_duals_upper(prefix, data_sc));
+	variable_duals_upper(prefix, dK)->set_start_to(*srcProb.variable_duals_upper(prefix, data_sc_));
       }
       prefix = "duals_bndU_p_li2";
       if(dK.K_ConType[0] == SCACOPFData::kLine) {
 	assert(idxs_of_K_in_0.size() == dK.L_Line.size());
 	size_t sz = idxs_of_K_in_0.size(); int i, *idxs_in_0 = idxs_of_K_in_0.data();
-	auto var_K = variable_duals_upper(prefix, dK), var_0 = srcProb.variable_duals_upper(prefix, data_sc);
+	auto var_K = variable_duals_upper(prefix, dK), var_0 = srcProb.variable_duals_upper(prefix, data_sc_);
 	assert(var_K->n+1 == var_0->n);
 	assert(sz == var_K->n);
 	for(i=0; i<sz; i++) {
@@ -1194,14 +1201,14 @@ namespace gollnlp {
 	}
 	var_K->providesStartingPoint = true;	
       } else {
-	variable_duals_upper(prefix, dK)->set_start_to(*srcProb.variable_duals_upper(prefix, data_sc));
+	variable_duals_upper(prefix, dK)->set_start_to(*srcProb.variable_duals_upper(prefix, data_sc_));
       }
 
       prefix = "duals_bndU_q_li1";
       if(dK.K_ConType[0] == SCACOPFData::kLine) {
 	assert(idxs_of_K_in_0.size() == dK.L_Line.size());
 	size_t sz = idxs_of_K_in_0.size(); int i, *idxs_in_0 = idxs_of_K_in_0.data();
-	auto var_K = variable_duals_upper(prefix, dK), var_0 = srcProb.variable_duals_upper(prefix, data_sc);
+	auto var_K = variable_duals_upper(prefix, dK), var_0 = srcProb.variable_duals_upper(prefix, data_sc_);
 	assert(var_K->n+1 == var_0->n);
 	assert(sz == var_K->n);
 	for(i=0; i<sz; i++) {
@@ -1210,13 +1217,13 @@ namespace gollnlp {
 	}
 	var_K->providesStartingPoint = true;	
       } else {
-	variable_duals_upper(prefix, dK)->set_start_to(*srcProb.variable_duals_upper(prefix, data_sc));
+	variable_duals_upper(prefix, dK)->set_start_to(*srcProb.variable_duals_upper(prefix, data_sc_));
       }
       prefix = "duals_bndU_q_li2";
       if(dK.K_ConType[0] == SCACOPFData::kLine) {
 	assert(idxs_of_K_in_0.size() == dK.L_Line.size());
 	size_t sz = idxs_of_K_in_0.size(); int i, *idxs_in_0 = idxs_of_K_in_0.data();
-	auto var_K = variable_duals_upper(prefix, dK), var_0 = srcProb.variable_duals_upper(prefix, data_sc);
+	auto var_K = variable_duals_upper(prefix, dK), var_0 = srcProb.variable_duals_upper(prefix, data_sc_);
 	assert(var_K->n+1 == var_0->n);
 	assert(sz == var_K->n);
 	for(i=0; i<sz; i++) {
@@ -1225,14 +1232,14 @@ namespace gollnlp {
 	}
 	var_K->providesStartingPoint = true;	
       } else {
-	variable_duals_upper(prefix, dK)->set_start_to(*srcProb.variable_duals_upper(prefix, data_sc));
+	variable_duals_upper(prefix, dK)->set_start_to(*srcProb.variable_duals_upper(prefix, data_sc_));
       }
 
       prefix = "duals_bndU_p_ti1";
       if(dK.K_ConType[0] == SCACOPFData::kTransformer) {
 	assert(idxs_of_K_in_0.size() == dK.T_Transformer.size());
 	size_t sz = idxs_of_K_in_0.size(); int i, *idxs_in_0 = idxs_of_K_in_0.data();
-	auto var_K = variable_duals_upper(prefix, dK), var_0 = srcProb.variable_duals_upper(prefix, data_sc);
+	auto var_K = variable_duals_upper(prefix, dK), var_0 = srcProb.variable_duals_upper(prefix, data_sc_);
 	assert(var_K->n+1 == var_0->n);
 	assert(sz == var_K->n);
 	for(i=0; i<sz; i++) {
@@ -1241,14 +1248,14 @@ namespace gollnlp {
 	}
 	var_K->providesStartingPoint = true;	
       } else {
-	variable_duals_upper(prefix, dK)->set_start_to(*srcProb.variable_duals_upper(prefix, data_sc));
+	variable_duals_upper(prefix, dK)->set_start_to(*srcProb.variable_duals_upper(prefix, data_sc_));
       }
 
       prefix = "duals_bndU_p_ti2";
       if(dK.K_ConType[0] == SCACOPFData::kTransformer) {
 	assert(idxs_of_K_in_0.size() == dK.T_Transformer.size());
 	size_t sz = idxs_of_K_in_0.size(); int i, *idxs_in_0 = idxs_of_K_in_0.data();
-	auto var_K = variable_duals_upper(prefix, dK), var_0 = srcProb.variable_duals_upper(prefix, data_sc);
+	auto var_K = variable_duals_upper(prefix, dK), var_0 = srcProb.variable_duals_upper(prefix, data_sc_);
 	assert(var_K->n+1 == var_0->n);
 	assert(sz == var_K->n);
 	for(i=0; i<sz; i++) {
@@ -1257,14 +1264,14 @@ namespace gollnlp {
 	}
 	var_K->providesStartingPoint = true;	
       } else {
-	variable_duals_upper(prefix, dK)->set_start_to(*srcProb.variable_duals_upper(prefix, data_sc));
+	variable_duals_upper(prefix, dK)->set_start_to(*srcProb.variable_duals_upper(prefix, data_sc_));
       }
 
       prefix = "duals_bndU_q_ti1";
       if(dK.K_ConType[0] == SCACOPFData::kTransformer) {
 	assert(idxs_of_K_in_0.size() == dK.T_Transformer.size());
 	size_t sz = idxs_of_K_in_0.size(); int i, *idxs_in_0 = idxs_of_K_in_0.data();
-	auto var_K = variable_duals_upper(prefix, dK), var_0 = srcProb.variable_duals_upper(prefix, data_sc);
+	auto var_K = variable_duals_upper(prefix, dK), var_0 = srcProb.variable_duals_upper(prefix, data_sc_);
 	assert(var_K->n+1 == var_0->n);
 	assert(sz == var_K->n);
 	for(i=0; i<sz; i++) {
@@ -1273,14 +1280,14 @@ namespace gollnlp {
 	}
 	var_K->providesStartingPoint = true;	
       } else {
-	variable_duals_upper(prefix, dK)->set_start_to(*srcProb.variable_duals_upper(prefix, data_sc));
+	variable_duals_upper(prefix, dK)->set_start_to(*srcProb.variable_duals_upper(prefix, data_sc_));
       }
 
       prefix = "duals_bndU_q_ti2";
       if(dK.K_ConType[0] == SCACOPFData::kTransformer) {
 	assert(idxs_of_K_in_0.size() == dK.T_Transformer.size());
 	size_t sz = idxs_of_K_in_0.size(); int i, *idxs_in_0 = idxs_of_K_in_0.data();
-	auto var_K = variable_duals_upper(prefix, dK), var_0 = srcProb.variable_duals_upper(prefix, data_sc);
+	auto var_K = variable_duals_upper(prefix, dK), var_0 = srcProb.variable_duals_upper(prefix, data_sc_);
 	assert(var_K->n+1 == var_0->n);
 	assert(sz == var_K->n);
 	for(i=0; i<sz; i++) {
@@ -1289,16 +1296,16 @@ namespace gollnlp {
 	}
 	var_K->providesStartingPoint = true;	
       } else {
-	variable_duals_upper(prefix, dK)->set_start_to(*srcProb.variable_duals_upper(prefix, data_sc));
+	variable_duals_upper(prefix, dK)->set_start_to(*srcProb.variable_duals_upper(prefix, data_sc_));
       }
 
       prefix = "duals_bndU_b_s";
-      variable_duals_upper(prefix, dK)->set_start_to(*srcProb.variable_duals_upper(prefix, data_sc));
+      variable_duals_upper(prefix, dK)->set_start_to(*srcProb.variable_duals_upper(prefix, data_sc_));
 
       prefix = "duals_bndU_p_g";
       if(dK.K_ConType[0] == SCACOPFData::kGenerator) {
-	//variable_duals_upper(prefix, dK)->set_start_to(*srcProb.variable_duals_upper(prefix, data_sc));
-	auto p_gK = variable_duals_upper(prefix, dK), p_g0 = srcProb.variable_duals_upper(prefix, data_sc);
+	//variable_duals_upper(prefix, dK)->set_start_to(*srcProb.variable_duals_upper(prefix, data_sc_));
+	auto p_gK = variable_duals_upper(prefix, dK), p_g0 = srcProb.variable_duals_upper(prefix, data_sc_);
 	assert(p_gK->n == p_g0->n - 1);
 	assert(p_g0->n == 1+pg0_nonpartic_idxs.size()+pg0_partic_idxs.size());
 	assert(p_gK->n == pgK_nonpartic_idxs.size()+pgK_partic_idxs.size());
@@ -1311,12 +1318,12 @@ namespace gollnlp {
 	}
 	p_gK->providesStartingPoint = true;
       } else {
-	variable_duals_upper(prefix, dK)->set_start_to(*srcProb.variable_duals_upper(prefix, data_sc));
+	variable_duals_upper(prefix, dK)->set_start_to(*srcProb.variable_duals_upper(prefix, data_sc_));
       }
 
       prefix = "duals_bndU_q_g";
       if(dK.K_ConType[0] == SCACOPFData::kGenerator) {
-	auto q_gK = variable_duals_upper(prefix, dK), q_g0 = srcProb.variable_duals_upper(prefix, data_sc);
+	auto q_gK = variable_duals_upper(prefix, dK), q_g0 = srcProb.variable_duals_upper(prefix, data_sc_);
 	assert(q_gK->n == q_g0->n -1);
 	for(int i=0; i<pg0_nonpartic_idxs.size(); i++) {
 	  q_gK->x[pgK_nonpartic_idxs[i]] = q_g0->x[pg0_nonpartic_idxs[i]];
@@ -1326,19 +1333,19 @@ namespace gollnlp {
 	}
 	q_gK->providesStartingPoint = true;
       } else {
-	variable_duals_upper(prefix, dK)->set_start_to(*srcProb.variable_duals_upper(prefix, data_sc));
+	variable_duals_upper(prefix, dK)->set_start_to(*srcProb.variable_duals_upper(prefix, data_sc_));
       }
 
       prefix = "duals_bndU_pslack_n_p_balance";
-      variable_duals_upper(prefix, dK)->set_start_to(*srcProb.variable_duals_upper(prefix, data_sc));
+      variable_duals_upper(prefix, dK)->set_start_to(*srcProb.variable_duals_upper(prefix, data_sc_));
       prefix = "duals_bndU_qslack_n_q_balance";
-      variable_duals_upper(prefix, dK)->set_start_to(*srcProb.variable_duals_upper(prefix, data_sc));
+      variable_duals_upper(prefix, dK)->set_start_to(*srcProb.variable_duals_upper(prefix, data_sc_));
       
       prefix = "duals_bndU_sslack_li_line_limits1";
       if(dK.K_ConType[0] == SCACOPFData::kLine) {
 	assert(idxs_of_K_in_0.size() == dK.L_Line.size());
 	size_t sz = idxs_of_K_in_0.size(); int i, *idxs_in_0 = idxs_of_K_in_0.data();
-	auto var_K = variable_duals_upper(prefix, dK), var_0 = srcProb.variable_duals_upper(prefix, data_sc);
+	auto var_K = variable_duals_upper(prefix, dK), var_0 = srcProb.variable_duals_upper(prefix, data_sc_);
 	assert(var_K->n+1 == var_0->n);
 	assert(sz == var_K->n);
 	for(i=0; i<sz; i++) {
@@ -1347,14 +1354,14 @@ namespace gollnlp {
 	}
 	var_K->providesStartingPoint = true;
       } else {
-	variable_duals_upper(prefix, dK)->set_start_to(*srcProb.variable_duals_upper(prefix, data_sc));
+	variable_duals_upper(prefix, dK)->set_start_to(*srcProb.variable_duals_upper(prefix, data_sc_));
       }
 
       prefix = "duals_bndU_sslack_li_line_limits2";
       if(dK.K_ConType[0] == SCACOPFData::kLine) {
 	assert(idxs_of_K_in_0.size() == dK.L_Line.size());
 	size_t sz = idxs_of_K_in_0.size(); int i, *idxs_in_0 = idxs_of_K_in_0.data();
-	auto var_K = variable_duals_upper(prefix, dK), var_0 = srcProb.variable_duals_upper(prefix, data_sc);
+	auto var_K = variable_duals_upper(prefix, dK), var_0 = srcProb.variable_duals_upper(prefix, data_sc_);
 	assert(var_K->n+1 == var_0->n);
 	assert(sz == var_K->n);
 	for(i=0; i<sz; i++) {
@@ -1363,14 +1370,14 @@ namespace gollnlp {
 	}
 	var_K->providesStartingPoint = true;
       } else {
-	variable_duals_upper(prefix, dK)->set_start_to(*srcProb.variable_duals_upper(prefix, data_sc));
+	variable_duals_upper(prefix, dK)->set_start_to(*srcProb.variable_duals_upper(prefix, data_sc_));
       }
 
       prefix = "duals_bndU_sslack_ti_trans_limits1";
       if(dK.K_ConType[0] == SCACOPFData::kTransformer) {
 	assert(idxs_of_K_in_0.size() == dK.T_Transformer.size());
 	size_t sz = idxs_of_K_in_0.size(); int i, *idxs_in_0 = idxs_of_K_in_0.data();
-	auto var_K = variable_duals_upper(prefix, dK), var_0 = srcProb.variable_duals_upper(prefix, data_sc);
+	auto var_K = variable_duals_upper(prefix, dK), var_0 = srcProb.variable_duals_upper(prefix, data_sc_);
 	assert(var_K->n+1 == var_0->n);
 	assert(sz == var_K->n);
 	for(i=0; i<sz; i++) {
@@ -1379,14 +1386,14 @@ namespace gollnlp {
 	}
 	var_K->providesStartingPoint = true;
       } else {
-	variable_duals_upper(prefix, dK)->set_start_to(*srcProb.variable_duals_upper(prefix, data_sc));
+	variable_duals_upper(prefix, dK)->set_start_to(*srcProb.variable_duals_upper(prefix, data_sc_));
       }
 
       prefix = "duals_bndU_sslack_ti_trans_limits2";
       if(dK.K_ConType[0] == SCACOPFData::kTransformer) {
 	assert(idxs_of_K_in_0.size() == dK.T_Transformer.size());
 	size_t sz = idxs_of_K_in_0.size(); int i, *idxs_in_0 = idxs_of_K_in_0.data();
-	auto var_K = variable_duals_upper(prefix, dK), var_0 = srcProb.variable_duals_upper(prefix, data_sc);
+	auto var_K = variable_duals_upper(prefix, dK), var_0 = srcProb.variable_duals_upper(prefix, data_sc_);
 	assert(var_K->n+1 == var_0->n);
 	assert(sz == var_K->n);
 	for(i=0; i<sz; i++) {
@@ -1395,7 +1402,7 @@ namespace gollnlp {
 	}
 	var_K->providesStartingPoint = true;	
       } else {
-	variable_duals_upper(prefix, dK)->set_start_to(*srcProb.variable_duals_upper(prefix, data_sc));
+	variable_duals_upper(prefix, dK)->set_start_to(*srcProb.variable_duals_upper(prefix, data_sc_));
       }
       
       if(pgK_partic_idxs.size()>0) {
@@ -1427,7 +1434,7 @@ namespace gollnlp {
       if(dK.K_ConType[0] == SCACOPFData::kLine) {
 	assert(idxs_of_K_in_0.size() == dK.L_Line.size());
 	size_t sz = idxs_of_K_in_0.size(); int i, *idxs_in_0 = idxs_of_K_in_0.data();
-	auto var_K = variable_duals_cons(prefix, dK), var_0 = srcProb.variable_duals_cons(prefix, data_sc);
+	auto var_K = variable_duals_cons(prefix, dK), var_0 = srcProb.variable_duals_cons(prefix, data_sc_);
 	assert(var_K->n+1 == var_0->n);
 	assert(sz == var_K->n);
 	for(i=0; i<sz; i++) {
@@ -1436,14 +1443,14 @@ namespace gollnlp {
 	}
 	var_K->providesStartingPoint = true;
       } else {
-	variable_duals_cons(prefix, dK)->set_start_to(*srcProb.variable_duals_cons(prefix, data_sc));
+	variable_duals_cons(prefix, dK)->set_start_to(*srcProb.variable_duals_cons(prefix, data_sc_));
       }
 
       prefix = "duals_p_li2_powerflow";
       if(dK.K_ConType[0] == SCACOPFData::kLine) {
 	assert(idxs_of_K_in_0.size() == dK.L_Line.size());
 	size_t sz = idxs_of_K_in_0.size(); int i, *idxs_in_0 = idxs_of_K_in_0.data();
-	auto var_K = variable_duals_cons(prefix, dK), var_0 = srcProb.variable_duals_cons(prefix, data_sc);
+	auto var_K = variable_duals_cons(prefix, dK), var_0 = srcProb.variable_duals_cons(prefix, data_sc_);
 	assert(var_K->n+1 == var_0->n);
 	assert(sz == var_K->n);
 	for(i=0; i<sz; i++) {
@@ -1452,14 +1459,14 @@ namespace gollnlp {
 	}
 	var_K->providesStartingPoint = true;
       } else {
-	variable_duals_cons(prefix, dK)->set_start_to(*srcProb.variable_duals_cons(prefix, data_sc));
+	variable_duals_cons(prefix, dK)->set_start_to(*srcProb.variable_duals_cons(prefix, data_sc_));
       }
 
       prefix = "duals_q_li1_powerflow";
       if(dK.K_ConType[0] == SCACOPFData::kLine) {
 	assert(idxs_of_K_in_0.size() == dK.L_Line.size());
 	size_t sz = idxs_of_K_in_0.size(); int i, *idxs_in_0 = idxs_of_K_in_0.data();
-	auto var_K = variable_duals_cons(prefix, dK), var_0 = srcProb.variable_duals_cons(prefix, data_sc);
+	auto var_K = variable_duals_cons(prefix, dK), var_0 = srcProb.variable_duals_cons(prefix, data_sc_);
 	assert(var_K->n+1 == var_0->n);
 	assert(sz == var_K->n);
 	for(i=0; i<sz; i++) {
@@ -1468,14 +1475,14 @@ namespace gollnlp {
 	}
 	var_K->providesStartingPoint = true;
       } else {
-	variable_duals_cons(prefix, dK)->set_start_to(*srcProb.variable_duals_cons(prefix, data_sc));
+	variable_duals_cons(prefix, dK)->set_start_to(*srcProb.variable_duals_cons(prefix, data_sc_));
       }
 
       prefix = "duals_q_li2_powerflow";
       if(dK.K_ConType[0] == SCACOPFData::kLine) {
 	assert(idxs_of_K_in_0.size() == dK.L_Line.size());
 	size_t sz = idxs_of_K_in_0.size(); int i, *idxs_in_0 = idxs_of_K_in_0.data();
-	auto var_K = variable_duals_cons(prefix, dK), var_0 = srcProb.variable_duals_cons(prefix, data_sc);
+	auto var_K = variable_duals_cons(prefix, dK), var_0 = srcProb.variable_duals_cons(prefix, data_sc_);
 	assert(var_K->n+1 == var_0->n);
 	assert(sz == var_K->n);
 	for(i=0; i<sz; i++) {
@@ -1484,14 +1491,14 @@ namespace gollnlp {
 	}
 	var_K->providesStartingPoint = true;
       } else {
-	variable_duals_cons(prefix, dK)->set_start_to(*srcProb.variable_duals_cons(prefix, data_sc));
+	variable_duals_cons(prefix, dK)->set_start_to(*srcProb.variable_duals_cons(prefix, data_sc_));
       }
 
       prefix = "duals_p_ti1_powerflow";
       if(dK.K_ConType[0] == SCACOPFData::kTransformer) {
 	assert(idxs_of_K_in_0.size() == dK.T_Transformer.size());
 	size_t sz = idxs_of_K_in_0.size(); int i, *idxs_in_0 = idxs_of_K_in_0.data();
-	auto var_K = variable_duals_cons(prefix, dK), var_0 = srcProb.variable_duals_cons(prefix, data_sc);
+	auto var_K = variable_duals_cons(prefix, dK), var_0 = srcProb.variable_duals_cons(prefix, data_sc_);
 	assert(var_K->n+1 == var_0->n);
 	assert(sz == var_K->n);
 	for(i=0; i<sz; i++) {
@@ -1500,14 +1507,14 @@ namespace gollnlp {
 	}
 	var_K->providesStartingPoint = true;
       } else {
-	variable_duals_cons(prefix, dK)->set_start_to(*srcProb.variable_duals_cons(prefix, data_sc));
+	variable_duals_cons(prefix, dK)->set_start_to(*srcProb.variable_duals_cons(prefix, data_sc_));
       }
 
       prefix = "duals_p_ti2_powerflow";
       if(dK.K_ConType[0] == SCACOPFData::kTransformer) {
 	assert(idxs_of_K_in_0.size() == dK.T_Transformer.size());
 	size_t sz = idxs_of_K_in_0.size(); int i, *idxs_in_0 = idxs_of_K_in_0.data();
-	auto var_K = variable_duals_cons(prefix, dK), var_0 = srcProb.variable_duals_cons(prefix, data_sc);
+	auto var_K = variable_duals_cons(prefix, dK), var_0 = srcProb.variable_duals_cons(prefix, data_sc_);
 	assert(var_K->n+1 == var_0->n);
 	assert(sz == var_K->n);
 	for(i=0; i<sz; i++) {
@@ -1516,14 +1523,14 @@ namespace gollnlp {
 	}
 	var_K->providesStartingPoint = true;
       } else {
-	variable_duals_cons(prefix, dK)->set_start_to(*srcProb.variable_duals_cons(prefix, data_sc));
+	variable_duals_cons(prefix, dK)->set_start_to(*srcProb.variable_duals_cons(prefix, data_sc_));
       }
 
       prefix = "duals_q_ti1_powerflow";
       if(dK.K_ConType[0] == SCACOPFData::kTransformer) {
 	assert(idxs_of_K_in_0.size() == dK.T_Transformer.size());
 	size_t sz = idxs_of_K_in_0.size(); int i, *idxs_in_0 = idxs_of_K_in_0.data();
-	auto var_K = variable_duals_cons(prefix, dK), var_0 = srcProb.variable_duals_cons(prefix, data_sc);
+	auto var_K = variable_duals_cons(prefix, dK), var_0 = srcProb.variable_duals_cons(prefix, data_sc_);
 	assert(var_K->n+1 == var_0->n);
 	assert(sz == var_K->n);
 	for(i=0; i<sz; i++) {
@@ -1532,14 +1539,14 @@ namespace gollnlp {
 	}
 	var_K->providesStartingPoint = true;
       } else {
-	variable_duals_cons(prefix, dK)->set_start_to(*srcProb.variable_duals_cons(prefix, data_sc));
+	variable_duals_cons(prefix, dK)->set_start_to(*srcProb.variable_duals_cons(prefix, data_sc_));
       }
 
       prefix = "duals_q_ti2_powerflow";
       if(dK.K_ConType[0] == SCACOPFData::kTransformer) {
 	assert(idxs_of_K_in_0.size() == dK.T_Transformer.size());
 	size_t sz = idxs_of_K_in_0.size(); int i, *idxs_in_0 = idxs_of_K_in_0.data();
-	auto var_K = variable_duals_cons(prefix, dK), var_0 = srcProb.variable_duals_cons(prefix, data_sc);
+	auto var_K = variable_duals_cons(prefix, dK), var_0 = srcProb.variable_duals_cons(prefix, data_sc_);
 	assert(var_K->n+1 == var_0->n);
 	assert(sz == var_K->n);
 	for(i=0; i<sz; i++) {
@@ -1548,19 +1555,19 @@ namespace gollnlp {
 	}
 	var_K->providesStartingPoint = true;
       } else {
-	variable_duals_cons(prefix, dK)->set_start_to(*srcProb.variable_duals_cons(prefix, data_sc));
+	variable_duals_cons(prefix, dK)->set_start_to(*srcProb.variable_duals_cons(prefix, data_sc_));
       }
 
       prefix = "duals_p_balance";
-      variable_duals_cons(prefix, dK)->set_start_to(*srcProb.variable_duals_cons(prefix, data_sc));
+      variable_duals_cons(prefix, dK)->set_start_to(*srcProb.variable_duals_cons(prefix, data_sc_));
       prefix = "duals_q_balance";
-      variable_duals_cons(prefix, dK)->set_start_to(*srcProb.variable_duals_cons(prefix, data_sc));
+      variable_duals_cons(prefix, dK)->set_start_to(*srcProb.variable_duals_cons(prefix, data_sc_));
 
       prefix = "duals_line_limits1";
       if(dK.K_ConType[0] == SCACOPFData::kLine) {
 	assert(idxs_of_K_in_0.size() == dK.L_Line.size());
 	size_t sz = idxs_of_K_in_0.size(); int i, *idxs_in_0 = idxs_of_K_in_0.data();
-	auto var_K = variable_duals_cons(prefix, dK), var_0 = srcProb.variable_duals_cons(prefix, data_sc);
+	auto var_K = variable_duals_cons(prefix, dK), var_0 = srcProb.variable_duals_cons(prefix, data_sc_);
 	assert(var_K->n+1 == var_0->n);
 	assert(sz == var_K->n);
 	for(i=0; i<sz; i++) {
@@ -1569,14 +1576,14 @@ namespace gollnlp {
 	}
 	var_K->providesStartingPoint = true;
       } else {
-	variable_duals_cons(prefix, dK)->set_start_to(*srcProb.variable_duals_cons(prefix, data_sc));
+	variable_duals_cons(prefix, dK)->set_start_to(*srcProb.variable_duals_cons(prefix, data_sc_));
       }
 
       prefix = "duals_line_limits2";
       if(dK.K_ConType[0] == SCACOPFData::kLine) {
 	assert(idxs_of_K_in_0.size() == dK.L_Line.size());
 	size_t sz = idxs_of_K_in_0.size(); int i, *idxs_in_0 = idxs_of_K_in_0.data();
-	auto var_K = variable_duals_cons(prefix, dK), var_0 = srcProb.variable_duals_cons(prefix, data_sc);
+	auto var_K = variable_duals_cons(prefix, dK), var_0 = srcProb.variable_duals_cons(prefix, data_sc_);
 	assert(var_K->n+1 == var_0->n);
 	assert(sz == var_K->n);
 	for(i=0; i<sz; i++) {
@@ -1585,14 +1592,14 @@ namespace gollnlp {
 	}
 	var_K->providesStartingPoint = true;
       } else {
-	variable_duals_cons(prefix, dK)->set_start_to(*srcProb.variable_duals_cons(prefix, data_sc));
+	variable_duals_cons(prefix, dK)->set_start_to(*srcProb.variable_duals_cons(prefix, data_sc_));
       }
 
       prefix = "duals_trans_limits1";
       if(dK.K_ConType[0] == SCACOPFData::kTransformer) {
 	assert(idxs_of_K_in_0.size() == dK.T_Transformer.size());
 	size_t sz = idxs_of_K_in_0.size(); int i, *idxs_in_0 = idxs_of_K_in_0.data();
-	auto var_K = variable_duals_cons(prefix, dK), var_0 = srcProb.variable_duals_cons(prefix, data_sc);
+	auto var_K = variable_duals_cons(prefix, dK), var_0 = srcProb.variable_duals_cons(prefix, data_sc_);
 	assert(var_K->n+1 == var_0->n);
 	assert(sz == var_K->n);
 	for(i=0; i<sz; i++) {
@@ -1601,7 +1608,7 @@ namespace gollnlp {
 	}
 	var_K->providesStartingPoint = true;
       } else {
-	variable_duals_cons(prefix, dK)->set_start_to(*srcProb.variable_duals_cons(prefix, data_sc));
+	variable_duals_cons(prefix, dK)->set_start_to(*srcProb.variable_duals_cons(prefix, data_sc_));
       }
 
 
@@ -1609,7 +1616,7 @@ namespace gollnlp {
       if(dK.K_ConType[0] == SCACOPFData::kTransformer) {
 	assert(idxs_of_K_in_0.size() == dK.T_Transformer.size());
 	size_t sz = idxs_of_K_in_0.size(); int i, *idxs_in_0 = idxs_of_K_in_0.data();
-	auto var_K = variable_duals_cons(prefix, dK), var_0 = srcProb.variable_duals_cons(prefix, data_sc);
+	auto var_K = variable_duals_cons(prefix, dK), var_0 = srcProb.variable_duals_cons(prefix, data_sc_);
 	assert(var_K->n+1 == var_0->n);
 	assert(sz == var_K->n);
 	for(i=0; i<sz; i++) {
@@ -1618,7 +1625,7 @@ namespace gollnlp {
 	}
 	var_K->providesStartingPoint = true;
       } else {
-	variable_duals_cons(prefix, dK)->set_start_to(*srcProb.variable_duals_cons(prefix, data_sc));
+	variable_duals_cons(prefix, dK)->set_start_to(*srcProb.variable_duals_cons(prefix, data_sc_));
       }
 
       if(pgK_partic_idxs.size()>0) {
@@ -1643,8 +1650,8 @@ namespace gollnlp {
   bool ContingencyProblemKronRed::
   set_warm_start_from_contingency_of(SCACOPFProblem& srcProb)
   {
-    assert(data_K.size()==1); 
-    SCACOPFData& dK = *data_K[0]; assert(dK.id==K_idx+1);
+    assert(data_K_.size()==1); 
+    SCACOPFData& dK = *data_K_[0]; assert(dK.id==K_idx+1);
     bool bfound = false;
     for(auto d : srcProb.data_K) if(d->id == dK.id) bfound=true;
     if(!bfound) {

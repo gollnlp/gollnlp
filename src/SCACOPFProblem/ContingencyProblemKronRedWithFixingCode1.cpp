@@ -99,7 +99,7 @@ namespace gollnlp {
     prob_mds_->initialize(false);
     
     prob_mds_->add_variables(dK, false);
-
+ 
     if(!warm_start_variable_from_basecase_dict(*prob_mds_->vars_primal)) {
       assert(false);
       return false;
@@ -150,7 +150,6 @@ namespace gollnlp {
     //! replaced prob_mds_->add_cons_active_powbal(dK);
     //! replaced prob_mds_->add_cons_reactive_powbal(dK);
     prob_mds_->add_cons_pf(dK);
-    
     //! removed bool SysCond_BaseCase = false;
     //! removed prob_mds_->add_cons_thermal_li_lims(dK,SysCond_BaseCase);
     //! removed prob_mds_->add_cons_thermal_ti_lims(dK,SysCond_BaseCase);
@@ -294,7 +293,12 @@ namespace gollnlp {
     best_known_iter.set_objective(1e+10);
     
     printf("!!!!!!!!!!!!!!!!!!!!   DO SOLVE 1 !!!!!!!!!!!!\n");
-    
+
+    //
+    //
+    // do_solve 1
+    //
+    //
     bool bFirstSolveOK = do_solve1();
 
     printf("!!!!!!!!!!!!!!!!!!!!   DO SOLVE 1 DONE !!!!!!!!!!!!\n");

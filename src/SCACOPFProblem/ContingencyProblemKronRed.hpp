@@ -37,7 +37,7 @@ namespace gollnlp {
     virtual bool eval_obj(OptVariablesBlock* pg0, OptVariablesBlock* vn0, double& f);
     
     //similar to the above, but may use a different warm-starting procedure
-    virtual bool optimize(OptVariablesBlock* pg0, OptVariablesBlock* vn0, double& f);
+    //virtual bool optimize(OptVariablesBlock* pg0, OptVariablesBlock* vn0, double& f);
 
     virtual void get_solution_simplicial_vectorized(std::vector<double>& vsln);
 
@@ -67,6 +67,9 @@ namespace gollnlp {
       bodyof_cons_nonanticip_using(pg0);
     }
   protected:
+
+    virtual SCACOPFData& data_K() { assert(data_K_.size()==1); return *data_K_[0]; }
+    
     //
     // AGC
     //
@@ -130,10 +133,6 @@ namespace gollnlp {
 				  const double* duals_con=NULL,
 				  const double* duals_lb=NULL, const double* duals_ub=NULL);
     /** methods from SCACOPFProblem */
-    
-  public:
-    //contingencies' SCACOPFData
-    std::vector<SCACOPFData*> data_K;
   };
 
 } //end namespace

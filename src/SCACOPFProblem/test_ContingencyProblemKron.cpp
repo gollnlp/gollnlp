@@ -118,11 +118,11 @@ int main(int argc, char *argv[])
   // ========================================================
   //
   //100 works after it enters restauration phase
-  int K_idx = 60;
+  int K_idx = 100;
   int comm_size=1;
   double data_for_master[111];
   double pen_threshold = 1e+5;
-  bool run_full_prob = true;
+  bool run_full_prob = false;
   bool run_kron_prob = true;
 
   if(run_full_prob) {
