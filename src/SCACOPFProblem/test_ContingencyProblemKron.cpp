@@ -118,11 +118,11 @@ int main(int argc, char *argv[])
   // ========================================================
   //
   //100 works after it enters restauration phase
-  int K_idx = 100;
+  int K_idx = 1000;
   int comm_size=1;
   double data_for_master[111];
   double pen_threshold = 1e+5;
-  bool run_full_prob = false;
+  bool run_full_prob = true;
   bool run_kron_prob = true;
 
   if(run_full_prob) {
@@ -188,9 +188,9 @@ int main(int argc, char *argv[])
     prob.pen_accept_emer= 0.99*pen_threshold;
     prob.pen_accept_safemode= 0.99*pen_threshold;
     
-    //prob.use_nlp_solver("hiop");
+    prob.use_nlp_solver("hiop");
     
-    prob.use_nlp_solver("ipopt");
+    //prob.use_nlp_solver("ipopt");
 
     if(!prob.default_assembly(v_n0, theta_n0, b_s0, p_g0, q_g0,
 			      p_li1, q_li1, p_li2, q_li2, p_ti1, q_ti1, p_ti2, q_ti2)) {

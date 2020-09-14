@@ -594,6 +594,7 @@ namespace gollnlp {
   }
   void ContingencyProblemKronRed::regularize_bs(const double& gamma)
   {
+    assert(false);
     assert(data_K_.size()==1);
     SCACOPFData& dK = *data_K_[0]; assert(dK.id==K_idx+1);
 
@@ -646,7 +647,7 @@ namespace gollnlp {
     assert(false);
     //regularize_vn(gamma);
     //regularize_thetan(gamma);
-    regularize_bs(gamma);
+    //regularize_bs(gamma);
     regularize_pg(gamma);
     regularize_qg(gamma);
   }

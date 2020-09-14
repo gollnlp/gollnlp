@@ -146,7 +146,9 @@ namespace gollnlp {
 #endif
     
     if(iJacS && jJacS) {
-      itnz = J_nz_idxs; row=this->index;
+      itnz = J_nz_idxs;
+
+      row=this->index;
       for(int it=0; it<n; it++) {
 	const int idxBusNonAux = bus_nonaux_idxs[it];
 	const size_t sz = Gn_fs[idxBusNonAux].size();
@@ -161,9 +163,9 @@ namespace gollnlp {
 	jJacS[*itnz++]=pslack_n_->indexSparse+it;
 	iJacS[*itnz]=row; 
 	jJacS[*itnz++]=pslack_n_->indexSparse+it+n;
-	
 	++row;
       }
+
 #ifdef DEBUG
       assert(J_nz_idxs + nnz_loc == itnz);
 #endif
@@ -310,15 +312,19 @@ namespace gollnlp {
     int n_vij_in = vij.size();
 #endif
     
-    int row=this->index, *itnz=J_nz_idxs;
+    int row=this->index;
+    int *itnz=J_nz_idxs;
     for(int it=0; it<n; it++) {      
       //p_g
-      for(auto g: Gn_fs[bus_nonaux_idxs[it]]) 
+      
+      for(auto g: Gn_fs[bus_nonaux_idxs[it]]) {
 	vij.push_back(OptSparseEntry(row, p_g->indexSparse+g, itnz++));
-
+	assert(p_g->indexSparse+g < pslack_n_->indexSparse+it && "these need to be ordered");
+      }
+ 
       //pslack_n
-      vij.push_back(OptSparseEntry(row, p_g->indexSparse+it, itnz++));
-      vij.push_back(OptSparseEntry(row, p_g->indexSparse+it+n, itnz++));
+      vij.push_back(OptSparseEntry(row, pslack_n_->indexSparse+it, itnz++));
+      vij.push_back(OptSparseEntry(row, pslack_n_->indexSparse+it+n, itnz++));
 
       ++row;
     }
@@ -783,7 +789,9 @@ namespace gollnlp {
 #endif
     if(iJacS && jJacS) {
       assert(qslack_n_->indexSparse>=0);
-      itnz = J_nz_idxs; row=this->index;
+      itnz = J_nz_idxs;
+
+      row=this->index;
       for(int it=0; it<n; it++) {
 	const int idxBusNonAux = bus_nonaux_idxs[it];
 	const size_t sz = Gn_fs[idxBusNonAux].size();
@@ -792,6 +800,7 @@ namespace gollnlp {
 	  iJacS[*itnz]=row; 
 	  jJacS[*itnz++]=q_g->indexSparse+Gn_fs[idxBusNonAux][ig]; 
 	}
+
 	//qslack_n_
 	assert(q_g->indexSparse+it<nxsparse);
 	iJacS[*itnz]=row;
@@ -972,11 +981,13 @@ namespace gollnlp {
     int n_vij_in = vij.size();
 #endif
     
-    int row=this->index, *itnz=J_nz_idxs;
+    int *itnz=J_nz_idxs;
+    int row=this->index;
     for(int it=0; it<n; it++) {      
       //q_g
       for(auto g: Gn_fs[bus_nonaux_idxs[it]]) {
 	vij.push_back(OptSparseEntry(row, q_g->indexSparse+g, itnz++));
+	assert(q_g->indexSparse+g < qslack_n_->indexSparse+it && "these need to be ordered");
       }
 
       //qslack_n_
@@ -2107,8 +2118,9 @@ namespace gollnlp {
     if(n<=0) return true;
 
     int nnz = get_spJacob_ineq_nnz();
-    if(NULL == J_nz_idxs_) 
+    if(NULL == J_nz_idxs_) {
       J_nz_idxs_ = new int[nnz];
+    }
     
 #ifdef DEBUG
     int n_vij_in = vij.size();

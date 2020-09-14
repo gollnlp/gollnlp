@@ -182,7 +182,7 @@ namespace gollnlp {
     const double gamma = 1e-6;
     //prob_mds_->regularize_vn(gamma);
     //prob_mds_->regularize_thetan(gamma);
-    prob_mds_->regularize_bs(gamma);
+    //prob_mds_->regularize_bs(gamma);
     prob_mds_->regularize_pg(gamma);
     prob_mds_->regularize_qg(gamma);
     
@@ -650,7 +650,7 @@ namespace gollnlp {
 	  const double gamma = 1e-3;
 	  //prob_mds_->regularize_vn(gamma);
 	  //prob_mds_->regularize_thetan(gamma);
-	  prob_mds_->regularize_bs(gamma);
+	  //prob_mds_->regularize_bs(gamma);
 	  prob_mds_->regularize_pg(gamma);
 	  prob_mds_->regularize_qg(gamma);
 	}
@@ -682,7 +682,7 @@ namespace gollnlp {
 	  const double gamma = 1e-3;
 	  //prob_mds_->regularize_vn(gamma);
 	  //prob_mds_->regularize_thetan(gamma);
-	  prob_mds_->regularize_bs(gamma);
+	  //prob_mds_->regularize_bs(gamma);
 	  prob_mds_->regularize_pg(gamma);
 	  prob_mds_->regularize_qg(gamma);
 
@@ -976,7 +976,7 @@ namespace gollnlp {
 	  const double gamma = 1e-3;
 	  //prob_mds_->regularize_vn(gamma);
 	  //prob_mds_->regularize_thetan(gamma);
-	  prob_mds_->regularize_bs(gamma);
+	  //prob_mds_->regularize_bs(gamma);
 	  prob_mds_->regularize_pg(gamma);
 	  prob_mds_->regularize_qg(gamma);
 	}
@@ -1008,7 +1008,7 @@ namespace gollnlp {
 	  const double gamma = 1e-3;
 	  //prob_mds_->regularize_vn(gamma);
 	  //prob_mds_->regularize_thetan(gamma);
-	  prob_mds_->regularize_bs(gamma);
+	  //prob_mds_->regularize_bs(gamma);
 	  prob_mds_->regularize_pg(gamma);
 	  prob_mds_->regularize_qg(gamma);
 

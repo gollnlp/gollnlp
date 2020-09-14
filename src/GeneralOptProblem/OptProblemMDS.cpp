@@ -22,26 +22,29 @@ namespace gollnlp {
       for(int i=0; i<nxdense*cons->m(); ++i) JacD[0][i]=0.;
   
     for(auto& con_gen: cons->vblocks) {
-      
+      //printf("CONGEN='%s'\n", con_gen->id.c_str());
+      //if(con_gen->id == "p_balance_kron_101") continue;
       OptConstraintsBlockMDS* con = dynamic_cast<OptConstraintsBlockMDS*>(con_gen);
 
       if(!con) {
 
 	//!it's a general OptConstraintsBlock -
 	//this means it involves only sparse variables and it is of equality type
+	
 	if(!con_gen->eval_Jac(*vars_primal, new_x, nnzJacS, iJacS, jJacS, MJacS)) {
 	    return false;
-	  }
+	}
 
       } else {
-	
+	//if(false)
 	if(!con->eval_Jac_eq(*vars_primal, new_x,
 			     nxsparse, nxdense,
 			     nnzJacS, iJacS, jJacS, MJacS,
 			     JacD)) {
 	  return false;
 	}
-	
+
+	if(false)
 	if(!con->eval_Jac_ineq(*vars_primal, new_x,
 			       nxsparse, nxdense,
 			       nnzJacS, iJacS, jJacS, MJacS,
@@ -49,8 +52,9 @@ namespace gollnlp {
 	  return false;
 	}
       }
-      //print_spmat_triplet(nnzJacS, cons->m(), nxsparse, iJacS, jJacS, MJacS, "Jac_eq");
+      
     }
+    //print_spmat_triplet(nnzJacS, cons->m(), nxsparse, iJacS, jJacS, MJacS, "Jac_eq");
     //printf("!!!!!! OptProblemMDS::eval_Jac_cons \n");
     return true;
   }
@@ -94,7 +98,9 @@ namespace gollnlp {
 	    assert(false && "eval_HessLagr should be called after get_nnzHessLagr");
 	  }
 	}
+	//printf("--- HessLagr[1] eval obj '%s' DONE\n", ot_gen->id.c_str());
       }
+      //print_summary();
       //
       // constraints
       //
@@ -123,6 +129,7 @@ namespace gollnlp {
 	}
 	//printf("--- HessLagr[1] eval con '%s' DONE\n", con_gen->id.c_str());
       }
+      //print_spmat_triplet(nnzHSS, nxsparse, nxsparse, iHSS, jHSS, NULL, "Hessian");
     }
 
     if(NULL != MHSS) {

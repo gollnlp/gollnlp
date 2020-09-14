@@ -194,6 +194,7 @@ bool OptProblem::eval_Jaccons(const double* x, bool new_x, const int& nnz, int* 
 	assert(false && "eval_Jaccons should be called after compute_nnzJaccons");
       }
     }
+
     return true;
   }
 
