@@ -29,7 +29,7 @@ if(GOLLNLP_WITH_KRON_REDUCTION)
   add_executable(test_cont_kron_driver.exe test_ContingencyProblemKron.cpp)
   target_link_libraries(test_cont_kron_driver.exe 
                         goKronRed gollnlp ipopt coinhsl coinmetis 
-			hiop ${UMFPACK_LIB} ${LAPACK_LIBRARIES} ${OpenMP_CXX_LIBRARIES}
+			hiop hiop_cuda ${UMFPACK_LIB} ${LAPACK_LIBRARIES} ${OpenMP_CXX_LIBRARIES}
 			${GOLLNLP_LIBS_EXTRA} )
 
   if(GOLLNLP_USE_GPU)
