@@ -1,5 +1,6 @@
 #include "OptProblem.hpp"
 #include "IpoptSolver.hpp"
+#include "HiopSolverSparse.hpp"
 #include <iostream>
 
 #include "blasdefs.hpp"
@@ -165,6 +166,44 @@ int OptProblem::uniquely_indexise_spTripletIdxs(std::vector<OptSparseEntry>& ij)
   return nnz_unique+1;
 }
 
+void OptProblem::compute_nnzJac_eq_ineq(const int& n, const int& m,
+                                        const double* clow, const double* cupp,
+                                        int& nnz_sparse_Jaceq, int& nnz_sparse_Jacineq)
+{
+  nnz_sparse_Jaceq = nnz_sparse_Jacineq = 0;
+
+  assert(m == get_num_constraints());
+  assert(n == get_num_variables());
+  
+  if(nnz_Jac<0) {
+    compute_nnzJaccons();
+  }
+
+  int it_ij_Jac = 0;
+  for(int i=0; i<m; i++) {
+    if(clow[i]==cupp[i]) {
+      while(ij_Jac[it_ij_Jac].i == i) {
+        nnz_sparse_Jaceq++;
+        it_ij_Jac++;
+      }
+    } else {
+      assert(clow[i]<cupp[i]);
+      while(ij_Jac[it_ij_Jac].i == i) {
+        nnz_sparse_Jacineq++;
+        it_ij_Jac++;
+      }
+    }
+    assert(it_ij_Jac <= nnz_Jac);
+#ifdef DEBUG
+    if(it_ij_Jac<nnz_Jac && it_ij_Jac>0) {
+      assert(ij_Jac[it_ij_Jac-1].i==i);
+    }
+#endif
+  }
+  assert(it_ij_Jac == nnz_Jac);
+}
+
+  
 int OptProblem::compute_nnzJaccons()
 {
   if(nnz_Jac<0) {
@@ -188,24 +227,25 @@ bool OptProblem::eval_Jaccons(const double* x, bool new_x, const int& nnz, int* 
     new_x_fgradf=true;
     vars_primal->attach_to(x);
   }
-  if(M==NULL) {
+  if(i!=NULL) {
+    assert(j!=NULL);
     for(auto& con: cons->vblocks) {
-      if(!con->eval_Jac(*vars_primal, new_x, nnz, i,j,M)) {
+      if(!con->eval_Jac(*vars_primal, new_x, nnz, i, j, NULL)) {
 	assert(false && "eval_Jaccons should be called after compute_nnzJaccons");
       }
     }
-
     return true;
   }
 
-  // case of M!=NULL > just fill in the values
-  for(int i=0; i<nnz; i++) M[i]=0.;
-
-  for(auto& con: cons->vblocks) {
-    if(!con->eval_Jac(*vars_primal, new_x, nnz, i,j,M))
-      return false;
+  if(M!=NULL) {
+    // case of M!=NULL > just fill in the values
+    for(int i=0; i<nnz; i++) M[i]=0.;
+    
+    for(auto& con: cons->vblocks) {
+      if(!con->eval_Jac(*vars_primal, new_x, nnz, i,j,M))
+        return false;
+    }
   }
-
   return true;
 }
 
@@ -471,9 +511,9 @@ void OptProblem::use_nlp_solver(const std::string& name)
       nlp_solver->initialize();
     } else {
       assert(gollnlp::tolower(name) == "hiop");
-      assert(false && "no HiOp solver class for general OptProblem(s) is available");
-      //nlp_solver = new HiopSolver(this);
-      //nlp_solver->initialize();
+      
+      nlp_solver = new HiopSolverSparse(this);
+      nlp_solver->initialize();
     }
   }
 }

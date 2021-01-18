@@ -150,14 +150,14 @@ namespace gollnlp {
     bool eval_Jac_cons(const double* x, bool new_x, 
 		       const int& nxsparse, const int& nxdense,
 		       const int& nnzJacS, int* iJacS, int* jJacS, double* MJacS, 
-		       double** JacD);
+		       double* JacD);
     
     bool eval_HessLagr(const double* x, bool new_x, 
 		       const double& obj_factor, 
 		       const double* lambda, bool new_lambda, 
 		       const int& nxsparse, const int& nxdense, 
 		       const int& nnzHSS, int* iHSS, int* jHSS, double* MHSS, 
-		       double** HDD,
+		       double* HDD,
 		       const int& nnzHSD, int* iHSD, int* jHSD, double* MHSD);
 
     int compute_num_variables_sparse() const;

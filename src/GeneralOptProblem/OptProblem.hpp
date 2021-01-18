@@ -459,6 +459,11 @@ public:
   inline int get_num_variables() const { return vars_primal->n(); }
   
   virtual int compute_nnzJaccons();
+  
+  virtual void compute_nnzJac_eq_ineq(const int& n, const int& m,
+                                      const double* clow, const double* cupp,
+                                      int& nnz_sparse_Jaceq, int& nnz_sparse_Jacineq);
+  
   virtual int compute_nnzHessLagr();
 public:
   inline OptVariables* primal_variables() { return vars_primal; }

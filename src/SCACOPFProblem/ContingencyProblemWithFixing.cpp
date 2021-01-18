@@ -25,7 +25,7 @@ const int max_mem_ma27_safem = 1500; //MB
 const int alarm_ma27_normal = 45; //seconds
 const int alarm_ma27_safem = 45; //MB
 
-
+#ifdef GOLLNLP_FAULT_HANDLING
 extern volatile sig_atomic_t g_solve_watch_ma57;
 extern volatile sig_atomic_t g_alarm_duration_ma57;
 extern volatile sig_atomic_t g_max_memory_ma57;
@@ -39,6 +39,10 @@ extern volatile sig_atomic_t g_max_memory_ma27;
 extern volatile int g_my_rank_ma27;
 extern volatile int g_my_K_idx_ma27;
 void set_timer_message_ma27(const char* msg);
+#else 
+static int g_solve_watch_ma57=0, g_alarm_duration_ma57=0, g_max_memory_ma57=0, g_my_rank_ma57=0, g_my_K_idx_ma57=0;
+static int g_solve_watch_ma27=0, g_alarm_duration_ma27=0, g_max_memory_ma27=0, g_my_rank_ma27=0, g_my_K_idx_ma27=0;
+#endif
 
 #define BE_VERBOSE 1
 

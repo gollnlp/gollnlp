@@ -60,8 +60,11 @@ int main(int argc, char *argv[])
     vector<int> K_idxs = {};
     scacopf_prob->assembly(K_idxs);
 
-
-    scacopf_prob->use_nlp_solver("ipopt"); 
+    //toogle between hiop and ipopt
+    //const char solver_name[] = "hiop";
+    const char solver_name[] = "ipopt";
+    
+    scacopf_prob->use_nlp_solver(solver_name); 
     // scacopf_prob->set_solver_option("linear_solver", "ma57"); 
     // scacopf_prob->set_solver_option("mu_init", 1e-4);
     // scacopf_prob->set_solver_option("print_frequency_iter", 1);
@@ -80,7 +83,7 @@ int main(int argc, char *argv[])
     
     // scacopf_prob->set_solver_option("print_level", 5);
   
-    bool bret = scacopf_prob->optimize("ipopt");
+    bool bret = scacopf_prob->optimize(solver_name);
 
     double cost = scacopf_prob->objective_value();
   

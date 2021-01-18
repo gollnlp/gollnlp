@@ -1,7 +1,7 @@
-#ifndef GOLLNLP_HIOPSOLVER
-#define GOLLNLP_HIOPSOLVER
+#ifndef GOLLNLP_HIOPSOLVER_SPARSE
+#define GOLLNLP_HIOPSOLVER_SPARSE
 
-#include "OptProblemMDS.hpp"
+#include "OptProblem.hpp"
 #include "NlpSolver.hpp"
 
 #include "hiopNlpFormulation.hpp"
@@ -10,26 +10,25 @@
 
 #include "goTimer.hpp"
 
-#include "IpoptSolver.hpp" //for IpoptSolver_HiopMDS
+#include "IpoptSolver.hpp" 
 
-#include "IpoptAdapter.hpp" //for hiopMDS2Ipopt, part of Hiop
+#include "IpoptAdapter.hpp"
 
 #include <iostream>
 
 namespace gollnlp {
 
-  class HiopNlpMDS : public hiop::hiopInterfaceMDS
+  class HiopNlp : public hiop::hiopInterfaceSparse
   {
   public:
     /**constructor */
-    HiopNlpMDS(OptProblemMDS* p)
-      : prob(p),
-	warm_start_type_(OptProblem::primalRestart)
+    HiopNlp(OptProblem* p)
+      : prob(p)
     { 
     } 
 
     /** default destructor */
-    virtual ~HiopNlpMDS()
+    virtual ~HiopNlp()
     {
     }
     
@@ -58,29 +57,28 @@ namespace gollnlp {
       return true;
     }
 
-    bool get_sparse_dense_blocks_info(int& nx_sparse, int& nx_dense,
-				      int& nnz_sparse_Jace, int& nnz_sparse_Jaci,
-				      int& nnz_sparse_Hess_Lagr_SS, int& nnz_sparse_Hess_Lagr_SD)
+    bool get_sparse_blocks_info(int& nx,
+                                int& nnz_sparse_Jaceq, int& nnz_sparse_Jacineq,
+                                int& nnz_sparse_Hess_Lagr)
     {
-      int n = prob->get_num_variables();
+      nx = prob->get_num_variables();
       int m = prob->get_num_constraints();
-    
-      prob->compute_num_variables_dense_sparse(nx_dense, nx_sparse);
-      assert(n == nx_dense+nx_sparse);
 
-      int nnz_Jac;
-
-      if(!prob->compute_nnzJaccons(nnz_Jac, nnz_sparse_Jace, nnz_sparse_Jaci)) {
-	return false;
-      }
+      int nnz_Jac = prob->compute_nnzJaccons();
+      double clow[m];
+      double cupp[m];
+      prob->fill_cons_lower_bounds(clow);
+      prob->fill_cons_upper_bounds(cupp);
+      
+      prob->compute_nnzJac_eq_ineq(nx, m, clow, cupp, nnz_sparse_Jaceq, nnz_sparse_Jacineq);
       assert(nnz_Jac == nnz_sparse_Jace+nnz_sparse_Jaci);
       
-      nnz_sparse_Hess_Lagr_SS = prob->compute_nnzHessLagr_SSblock();
-      nnz_sparse_Hess_Lagr_SD = 0;
-
-       printf("nx_sparse=%d  nx_dense=%d  nnz_Jaceq=%d nnz_Jacineq=%d\n",
-	      nx_sparse, nx_dense, nnz_sparse_Jace, nnz_sparse_Jaci);
+      nnz_sparse_Hess_Lagr = prob->compute_nnzHessLagr();
+      
+      printf("n=%d  m=%d  nnz_Jaceq=%d nnz_Jacineq=%d  nnz_Hess=%d\n",
+             nx, m, nnz_sparse_Jaceq, nnz_sparse_Jacineq, nnz_sparse_Hess_Lagr);
       fflush(stdout);
+      
       return true;
     }
 
@@ -110,48 +108,28 @@ namespace gollnlp {
       return true;
     }
 
-    bool eval_Jac_cons(const long long& n, const long long& m, 
-		       const long long& num_cons, const long long* idx_cons,
-		       const double* x, bool new_x,
-		       const long long& nsparse, const long long& ndense, 
-		       const int& nnzJacS, int* iJacS, int* jJacS, double* MJacS, 
-		       double* JacD)
+    bool eval_Jac_cons(const long long& n, const long long& m,
+                       const long long& num_cons, const long long* idx_cons,
+                       const double* x, bool new_x,
+                       const int& nnzJacS, int* iJacS, int* jJacS, double* MJacS)
     {
+      //force hiop to use the one-call method below
       return false;
     }
-    bool eval_Jac_cons(const long long& n, const long long& m, 
-		       const double* x, bool new_x,
-		       const long long& nsparse, const long long& ndense, 
-		       const int& nnzJacS, int* iJacS, int* jJacS, double* MJacS, 
-		       double* JacD)
+    
+    bool eval_Jac_cons(const long long& n, const long long& m,
+                       const double* x, bool new_x,
+                       const int& nnzJacS, int* iJacS, int* jJacS, double* MJacS)
     {
-#ifdef DEBUG
-      int nnzJ, nnzeq, nnzineq;
-      if(!prob->compute_nnzJaccons(nnzJ, nnzeq, nnzineq)) {
-	return false;
-      }
-      assert(nnzeq+nnzineq == nnzJ);
-      assert(nnzJ == nnzJacS);
-#endif
-      bool bret = prob->eval_Jac_cons(x, new_x, nsparse, ndense,
-				      nnzJacS, iJacS, jJacS, MJacS,
-				      JacD);
-      return bret;
+      return prob->eval_Jaccons(x, new_x, nnzJacS, iJacS, jJacS, MJacS);
     }
-
-    bool eval_Hess_Lagr(const long long& n, const long long& m, 
-			const double* x, bool new_x, const double& obj_factor,
-			const double* lambda, bool new_lambda,
-			const long long& nsparse, const long long& ndense, 
-			const int& nnzHSS, int* iHSS, int* jHSS, double* MHSS, 
-			double* HDD,
-			int& nnzHSD, int* iHSD, int* jHSD, double* MHSD)
+    
+    bool eval_Hess_Lagr(const long long& n, const long long& m,
+                        const double* x, bool new_x, const double& obj_factor,
+                        const double* lambda, bool new_lambda,
+                        const int& nnzHSS, int* iHSS, int* jHSS, double* MHSS)
     {
-      return prob->eval_HessLagr(x, new_x, obj_factor, lambda, new_lambda,
-				 nsparse, ndense,
-				 nnzHSS, iHSS, jHSS, MHSS,
-				 HDD,
-				 nnzHSD, iHSD, jHSD, MHSD);
+      return prob->eval_HessLagr(x, new_x, obj_factor, lambda, new_lambda, nnzHSS, iHSS, jHSS, MHSS);
     }
 
     bool get_starting_point(const long long& global_n, double* x0)
@@ -220,38 +198,33 @@ namespace gollnlp {
       prob->iterate_finalize();
     }
 
-    /** Methods not part of hiopInterfaceMDS */
+    /** Methods not part of hiopInterfaceSparse */
     void set_warm_start_type(OptProblem::RestartType t)
     {
       warm_start_type_ = t;
     }
   private:
-    OptProblemMDS* prob;
+    OptProblem* prob;
     OptProblem::RestartType warm_start_type_;
     /** Block default compiler methods.
      */
-    HiopNlpMDS();
-    HiopNlpMDS(const HiopNlpMDS&);
-    HiopNlpMDS& operator=(const HiopNlpMDS&);
+    HiopNlp();
+    HiopNlp(const HiopNlp&);
+    HiopNlp& operator=(const HiopNlp&);
   };
 
   /** 
-   *Wrapper class to feed OptProblemMDS into a hiopInterfaceMDS nlp object
+   *Wrapper class to feed OptProblem into a hiopInterfaceSparse nlp object
    */
   
-  class HiopSolverMDS : public NlpSolver {
+  class HiopSolverSparse : public NlpSolver {
   public:
-    HiopSolverMDS(OptProblemMDS* p_)
-      : NlpSolver(p_), hiop_nlp_spec(NULL), app_status(OptProblem::Invalid_Option)
-    {
-    }
-  private:
-    HiopSolverMDS(OptProblem* p_)
+    HiopSolverSparse(OptProblem* p_)
       : NlpSolver(p_), hiop_nlp_spec(NULL), app_status(OptProblem::Invalid_Option)
     {
     }
   public:
-    virtual ~HiopSolverMDS()
+    virtual ~HiopSolverSparse()
     {
       delete hiop_nlp_spec;
     }
@@ -277,14 +250,7 @@ namespace gollnlp {
 
     virtual bool initialize() {
 
-      //this->prob is inherited from base NlpSolver and has the base type, OptProblem
-      OptProblemMDS* probMDS = dynamic_cast<OptProblemMDS*>(this->prob);
-      if(probMDS==NULL) {
-	printf("HiopSolver did not received an MDS OptProblem and cannot initialize\n");
-	return false;
-      }
-    
-      hiop_nlp_spec = new gollnlp::HiopNlpMDS(probMDS);
+      hiop_nlp_spec = new gollnlp::HiopNlp(this->prob);
       return true;
     }
 
@@ -293,7 +259,7 @@ namespace gollnlp {
     }
 
     virtual int optimize() {
-      hiop::hiopNlpMDS nlp(*hiop_nlp_spec);
+      hiop::hiopNlpSparse nlp(*hiop_nlp_spec);
       hiop::hiopAlgFilterIPMNewton solver(&nlp);
 
       printf("[55555] hiop optimize\n");
@@ -317,6 +283,7 @@ namespace gollnlp {
     }
 
     virtual int reoptimize() {
+      assert(false);
       if(warm_start_type_==OptProblem::primalRestart) {
 
       } else if(warm_start_type_==OptProblem::primalRestart) {
@@ -348,7 +315,7 @@ namespace gollnlp {
     };
 
   private:
-    gollnlp::HiopNlpMDS* hiop_nlp_spec;
+    gollnlp::HiopNlp* hiop_nlp_spec;
     OptimizationStatus app_status;
 
     /**
@@ -362,18 +329,11 @@ namespace gollnlp {
     gollnlp::OptProblem::RestartType warm_start_type_;
   };
 
-  /** IpoptSolver_HiopMDS class to be used for testing only since it is not optimized
-   * for performance (and really Ipopt cannot solve MDS/Kron reduction problems 
-   * very efficiently).
-   *
-   *  Takes a OptProblemMDS as input, constructs the HiopNlpMDS, and then uses 
-   *  Hiop's Ipopt MDS adapter to solve the input MDS problem.
-   */
 
-  class IpoptSolver_HiopMDS : public IpoptSolver {
+  class IpoptSolver_HiopSparse : public IpoptSolver {
   public:
-    IpoptSolver_HiopMDS(OptProblem* p_) : IpoptSolver(p_), hiop_nlp_spec(NULL) {}
-    virtual ~IpoptSolver_HiopMDS()
+    IpoptSolver_HiopSparse(OptProblem* p_) : IpoptSolver(p_), hiop_nlp_spec(NULL) {}
+    virtual ~IpoptSolver_HiopSparse()
     {
       delete hiop_nlp_spec;
     }
@@ -388,20 +348,15 @@ namespace gollnlp {
 	return false;
       }
       //first allocate the Hiop specification class
-      
-      //this->prob is inherited from base NlpSolver and has the base type, OptProblem
-      OptProblemMDS* probMDS = dynamic_cast<OptProblemMDS*>(this->prob);
-      if(probMDS==NULL) {
-	printf("IpoptSolver_HiopMDS did not received an MDS OptProblem and cannot initialize\n");
-	return false;
-      }
-      hiop_nlp_spec = new gollnlp::HiopNlpMDS(probMDS);
-      
-      ipopt_nlp_spec = new hiop::hiopMDS2IpoptTNLP(hiop_nlp_spec);
+
+      hiop_nlp_spec = new gollnlp::HiopNlp(this->prob);
+
+      assert(false);
+      //ipopt_nlp_spec = new hiop::hiopMDS2IpoptTNLP(hiop_nlp_spec);
       return true;
     }
   protected:
-    gollnlp::HiopNlpMDS* hiop_nlp_spec;
+    gollnlp::HiopNlp* hiop_nlp_spec;
   };
 } //end namespace
 #endif

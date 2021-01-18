@@ -8,7 +8,7 @@ namespace gollnlp {
   bool OptProblemMDS::eval_Jac_cons(const double* x, bool new_x, 
 				    const int& nxsparse, const int& nxdense,
 				    const int& nnzJacS, int* iJacS, int* jJacS, double* MJacS, 
-				    double** JacD)
+				    double* JacD)
   {
     if(new_x) {
       new_x_fgradf=true;
@@ -19,7 +19,7 @@ namespace gollnlp {
     if(MJacS)
       for(int i=0; i<nnzJacS; ++i) MJacS[i]=0.;
     if(JacD)
-      for(int i=0; i<nxdense*cons->m(); ++i) JacD[0][i]=0.;
+      for(int i=0; i<nxdense*cons->m(); ++i) JacD[i]=0.;
   
     for(auto& con_gen: cons->vblocks) {
       //printf("CONGEN='%s'\n", con_gen->id.c_str());
@@ -40,7 +40,7 @@ namespace gollnlp {
 	if(!con->eval_Jac_eq(*vars_primal, new_x,
 			     nxsparse, nxdense,
 			     nnzJacS, iJacS, jJacS, MJacS,
-			     JacD)) {
+			     &JacD)) {
 	  return false;
 	}
 
@@ -48,7 +48,7 @@ namespace gollnlp {
 	if(!con->eval_Jac_ineq(*vars_primal, new_x,
 			       nxsparse, nxdense,
 			       nnzJacS, iJacS, jJacS, MJacS,
-			       JacD)) {
+			       &JacD)) {
 	  return false;
 	}
       }
@@ -64,7 +64,7 @@ namespace gollnlp {
 				    const double* lambda, bool new_lambda, 
 				    const int& nxsparse, const int& nxdense, 
 				    const int& nnzHSS, int* iHSS, int* jHSS, double* MHSS, 
-				    double** HDD,
+				    double* HDD,
 				    const int& nnzHSD, int* iHSD, int* jHSD, double* MHSD)
   {
     if(new_x) {
@@ -135,7 +135,7 @@ namespace gollnlp {
     if(NULL != MHSS) {
       // case of M!=NULL > just fill in the values
       for(int it=0; it<nnzHSS; ++it) MHSS[it]=0.;
-      for(int it=0; it<nxdense*nxdense; ++it) HDD[0][it] = 0.;
+      for(int it=0; it<nxdense*nxdense; ++it) HDD[it] = 0.;
       assert(nnzHSD==0);
 	
       for(auto& ot_gen: obj->vterms) {
@@ -154,7 +154,7 @@ namespace gollnlp {
 	  if(!ot->eval_HessLagr(*vars_primal, new_x, obj_factor, 
 				nxsparse, nxdense,
 				nnzHSS, iHSS, jHSS, MHSS,
-				HDD,
+				&HDD,
 				nnzHSD, iHSD, jHSD, MHSD))
 	    return false;
 	}
@@ -180,7 +180,7 @@ namespace gollnlp {
 	  if(!con->eval_HessLagr(*vars_primal, new_x, *vars_duals_cons, new_lambda, 
 				 nxsparse, nxdense,
 				 nnzHSS, iHSS, jHSS, MHSS,
-				 HDD,
+				 &HDD,
 				 nnzHSD, iHSD, jHSD, MHSD))
 	    return false;
 	}

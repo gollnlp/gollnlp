@@ -37,5 +37,10 @@ if(GOLLNLP_WITH_KRON_REDUCTION)
   endif(GOLLNLP_USE_GPU)
 endif(GOLLNLP_WITH_KRON_REDUCTION)
 
-#add_executable(acopf_driver.exe ACOPFDriver.cpp)
-#target_link_libraries(acopf_driver.exe gollnlp "-lgfortran" ipopt coinhsl coinmetis ${LAPACK_LIBRARIES})
+add_executable(acopf_driver.exe ACOPFDriver.cpp)
+target_link_libraries(acopf_driver.exe gollnlp ipopt coinhsl coinmetis 
+                      hiop ${GOLLNLP_LIBS_EXTRA} 
+		      ${OpenMP_CXX_LIBRARIES} ${LAPACK_LIBRARIES})
+if(GOLLNLP_WITH_KRON_REDUCTION)
+  target_link_libraries(acopf_driver.exe goKronRed)
+endif(GOLLNLP_WITH_KRON_REDUCTION)
