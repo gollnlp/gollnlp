@@ -71,7 +71,7 @@ namespace gollnlp {
       prob->fill_cons_upper_bounds(cupp);
       
       prob->compute_nnzJac_eq_ineq(nx, m, clow, cupp, nnz_sparse_Jaceq, nnz_sparse_Jacineq);
-      assert(nnz_Jac == nnz_sparse_Jace+nnz_sparse_Jaci);
+      assert(nnz_Jac == nnz_sparse_Jaceq+nnz_sparse_Jacineq);
       
       nnz_sparse_Hess_Lagr = prob->compute_nnzHessLagr();
       
@@ -171,9 +171,10 @@ namespace gollnlp {
 	duals_avail = false;
 	return prob->fill_primal_start(x0);
       } else {
-	duals_avail = true;
-	assert(false && "not yet implemented");
-	return false;
+	//duals_avail = true;
+	//assert(false && "not yet implemented");
+	      duals_avail = false;
+        return false;
       }
       return true;
     }
