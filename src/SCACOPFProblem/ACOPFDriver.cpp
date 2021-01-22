@@ -18,6 +18,9 @@ using namespace gollnlp;
 
 // usage example
 //
+// tiny 14 bus problem, but hard!
+// ./src/SCACOPFProblem/acopf_driver.exe ../../goinstances/hiop_gollnlp/hardcase/case.con ../../goinstances/hiop_gollnlp/hardcase/case.inl ../../goinstances/hiop_gollnlp/hardcase/case.raw ../../goinstances/hiop_gollnlp/hardcase/case.rop 600 1 Network07R
+//
 // small problem
 // ./src/SCACOPFProblem/acopf_driver.exe ../../goinstances/trial1/T1S3_Real-Time/Network_01R-3/scenario_1/case.con ../../goinstances/trial1/T1S3_Real-Time/Network_01R-3/case.inl ../../goinstances/trial1/T1S3_Real-Time/Network_01R-3/scenario_1/case.raw ../../goinstances/trial1/T1S3_Real-Time/Network_01R-3/case.rop 600 1 Network07R
 //
@@ -69,8 +72,8 @@ int main(int argc, char *argv[])
     scacopf_prob->assembly(K_idxs);
 
     //toogle between hiop and ipopt
-    //const char solver_name[] = "hiop";
-    const char solver_name[] = "ipopt";
+    const char solver_name[] = "hiop";
+    //const char solver_name[] = "ipopt";
     
     scacopf_prob->use_nlp_solver(solver_name); 
     // scacopf_prob->set_solver_option("linear_solver", "ma57"); 
