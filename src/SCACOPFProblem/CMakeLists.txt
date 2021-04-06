@@ -38,8 +38,8 @@ if(GOLLNLP_WITH_KRON_REDUCTION)
 endif(GOLLNLP_WITH_KRON_REDUCTION)
 
 add_executable(acopf_driver.exe ACOPFDriver.cpp)
-target_link_libraries(acopf_driver.exe gollnlp ipopt coinhsl coinmetis 
-                      hiop ${GOLLNLP_LIBS_EXTRA} 
+target_link_libraries(acopf_driver.exe gollnlp ipopt coinhsl #coinmetis 
+                      hiop ${GOLLNLP_LIBS_EXTRA} hiop_math_libs
 		      ${OpenMP_CXX_LIBRARIES} ${LAPACK_LIBRARIES})
 if(GOLLNLP_WITH_KRON_REDUCTION)
   target_link_libraries(acopf_driver.exe goKronRed)

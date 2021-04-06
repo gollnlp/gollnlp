@@ -35,8 +35,10 @@ option(GOLLNLP_FAULT_HANDLING "Using handlers for select signals" ON)
 option(GOLLNLP_WITH_MAKETEST "Enable 'make test'" ON)
 
 option(GOLLNLP_WITH_KRON_REDUCTION "Building Kron Reduction code (requires addtl. dependencies)" OFF)
-
+option(GOLLNLP_USE_STRUMPACK "Build with STRUMPACK backend for sparse linear algebra" OFF)
 option(GOLLNLP_USE_GPU "Use CUDA and Magma linear algebra with HiOp to enable GPU computations" OFF)
+
+add_library(hiop_math_libs INTERFACE)
 
 if(GOLLNLP_USE_MPI)
   if(NOT DEFINED MPI_CXX_COMPILER)
@@ -45,6 +47,22 @@ if(GOLLNLP_USE_MPI)
     set(CMAKE_CXX_COMPILER ${MPI_CXX_COMPILER})
   endif(NOT DEFINED MPI_CXX_COMPILER)
 endif(GOLLNLP_USE_MPI)
+
+if(GOLLNLP_USE_STRUMPACK)
+  set(GOLLNLP_STRUMPACK_DIR CACHE PATH "Path to STRUMPACK directory")
+  include(FindGollnlpSTRUMPACK)
+  target_link_libraries(hiop_math_libs INTERFACE STRUMPACK)
+
+  #if(STRUMPACK_LIBRARIES AND METIS_LIBRARY)
+  #  target_link_libraries(hiop_math_libs INTERFACE METIS)
+  target_link_libraries(hiop_math_libs INTERFACE ${STRUMPACK_LIBRARIES})  
+  #else()
+  #  if(STRUMPACK_LIBRARIES)
+  #    message(STATUS "Cannot find METIS, which is required by STRUMPACK.")
+  #  endif()
+  #  set(GOLLNLP_USE_STRUMPACK OFF CACHE BOOL "Build without STRUMPACK" FORCE)
+  #endif()  
+endif(GOLLNLP_USE_STRUMPACK)
 
 # libdl not found on Ubuntu (?!?)
 #! set(GOLLNLP_LIBS_EXTRA "-l${CMAKE_DL_LIBS} ")
@@ -59,7 +77,10 @@ if(${CMAKE_Fortran_COMPILER_ID} STREQUAL "Intel")
     set(FORTRAN_LIB "-L/usr/local/gfortran/lib -lgfortran")
 endif(${CMAKE_Fortran_COMPILER_ID} STREQUAL "Intel")
 message("Using Fortran library flag ${FORTRAN_LIB}")
+
+#manual fix for missing fortran and 'dl' libraries' (todo: need to better handle this)
 set(GOLLNLP_LIBS_EXTRA "${GOLLNLP_LIBS_EXTRA}${FORTRAN_LIB} -ldl")
+#set(GOLLNLP_LIBS_EXTRA "${GOLLNLP_LIBS_EXTRA} /home/petra1/work/installs/STRUMPACK/_install/lib/libstrumpack.a /home/petra1/work/installs/zfp-0.5.5/build/lib/libzfp.so.0.5.5 /home/petra1/work/projects/gocompet/Ipopt-gollnlp/lib/libcoinmetis.a")
 
 if(GOLLNLP_FAULT_HANDLING)
   add_definitions(-DGOLLNLP_FAULT_HANDLING)
@@ -83,8 +104,8 @@ link_directories("${IPOPT_DIR}/lib")
 set (CMAKE_SHARED_LINKER_FLAGS "${CMAKE_SHARED_LINKER_FLAGS} -ldl")
 #set(IPOPT_LIBS "-lgfortran -lipopt -lm  -ldl")
 
-add_library(coinmetis STATIC IMPORTED GLOBAL)
-set_target_properties(coinmetis PROPERTIES IMPORTED_LOCATION "${IPOPT_DIR}/lib/libcoinmetis.a")
+#add_library(coinmetis STATIC IMPORTED GLOBAL)
+#set_target_properties(coinmetis PROPERTIES IMPORTED_LOCATION "${IPOPT_DIR}/lib/libcoinmetis.a")
 
 add_library(coinhsl STATIC IMPORTED GLOBAL)
 set_target_properties(coinhsl PROPERTIES IMPORTED_LOCATION "${IPOPT_DIR}/lib/libcoinhsl.a")
@@ -100,7 +121,7 @@ if(HIOP_LIB)
   add_library(hiop STATIC IMPORTED GLOBAL)
   set_target_properties(hiop PROPERTIES IMPORTED_LOCATION "${HIOP_LIB}")
 else()
-  message(FATAL_ERROR "Could not find HiOp library needed by kron reduction. Please cmake with '-DHIOP_DIR=/path/to/hiop_dist_dir'; currently HIOP_DIR='${HIOP_DIR}'")
+  message(FATAL_ERROR "Could not find HiOp library. Please cmake with '-DHIOP_DIR=/path/to/hiop_dist_dir'; currently HIOP_DIR='${HIOP_DIR}'")
 endif(HIOP_LIB)
 
 if(GOLLNLP_WITH_KRON_REDUCTION)
@@ -153,8 +174,9 @@ if(GOLLNLP_USE_GPU)
   set(HIOP_MAGMA_DIR CACHE PATH "Path to Magma directory")
 
   include(FindHiopCudaLibraries)
-
 endif(GOLLNLP_USE_GPU)
+
+
 
 # include build directory for Fortran name mangling header
 include_directories(${CMAKE_BINARY_DIR})
@@ -174,15 +196,15 @@ add_library(gollnlp STATIC $<TARGET_OBJECTS:goSCACOPF> $<TARGET_OBJECTS:goUtils>
 
 #set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${CMAKE_HOME_DIRECTORY})
 
-
 #########################################################
 # competition executables
 #########################################################
 
-#message(${GOLLNLP_LIBS_EXTRA})
+
+message(${GOLLNLP_LIBS_EXTRA})
 add_executable(MyExe1 MyCpp1.cpp)
-target_link_libraries(MyExe1 gollnlp ipopt coinhsl coinmetis 
-                      hiop ${GOLLNLP_LIBS_EXTRA} 
+target_link_libraries(MyExe1 gollnlp ipopt coinhsl #coinmetis 
+                      hiop ${GOLLNLP_LIBS_EXTRA} hiop_math_libs 
 		      ${OpenMP_CXX_LIBRARIES} ${LAPACK_LIBRARIES})
 if(GOLLNLP_WITH_KRON_REDUCTION)
   target_link_libraries(MyExe1 goKronRed)
@@ -190,14 +212,14 @@ endif(GOLLNLP_WITH_KRON_REDUCTION)
 		      
 		   
 add_executable(MyExe2 MyCpp2.cpp)
-target_link_libraries(MyExe2 gollnlp ipopt coinhsl coinmetis 
-                      hiop ${GOLLNLP_LIBS_EXTRA} 
+target_link_libraries(MyExe2 gollnlp ipopt coinhsl #coinmetis 
+                      hiop ${GOLLNLP_LIBS_EXTRA} hiop_math_libs 
 		      ${OpenMP_CXX_LIBRARIES} ${LAPACK_LIBRARIES})
 
 if(GOLLNLP_WITH_KRON_REDUCTION)
 add_executable(MyExe1Kron.exe MyCpp1Kron.cpp)
-target_link_libraries(MyExe1Kron.exe goKronRed gollnlp ipopt coinhsl coinmetis 
-                      hiop hiop_cuda ${UMFPACK_LIB} ${GOLLNLP_LIBS_EXTRA} 
+target_link_libraries(MyExe1Kron.exe goKronRed gollnlp ipopt coinhsl #coinmetis 
+                      hiop hiop_cuda ${UMFPACK_LIB} ${GOLLNLP_LIBS_EXTRA}  hiop_math_libs 
 		      ${OpenMP_CXX_LIBRARIES} ${LAPACK_LIBRARIES})
 endif(GOLLNLP_WITH_KRON_REDUCTION)
 ##########################################################
