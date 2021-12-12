@@ -8,5 +8,5 @@ add_library(goSCACOPF OBJECT SCACOPFData.cpp go_code1.cpp go_code2.cpp OPFConstr
 #SCMasterProblem.cpp SCRecourseProblem.cpp 
 
 
-#add_executable(acopf_driver.exe ACOPFDriver.cpp)
-#target_link_libraries(acopf_driver.exe gollnlp "-lgfortran" ipopt coinhsl coinmetis ${LAPACK_LIBRARIES})
+add_executable(acopf_driver.exe ACOPFDriver.cpp)
+target_link_libraries(acopf_driver.exe gollnlp ${FORTRAN_LIB} ipopt coinhsl coinmetis ${LAPACK_LIBRARIES})

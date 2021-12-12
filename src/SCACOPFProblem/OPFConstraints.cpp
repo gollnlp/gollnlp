@@ -6,6 +6,8 @@ using namespace std;
 
 namespace gollnlp {
 
+  static bool enforce_ineq = true;
+  static bool tol_ineq = 1e-6;
 //////////////////////////////////////////////////////////////////
 // Power flows in rectangular form
 // pq == A*vi^2 + B*vi*vj*cos(thetai - thetaj + Theta) + 
@@ -37,6 +39,11 @@ PFConRectangular::PFConRectangular(const std::string& id_, int numcons,
   //rhs
   for(int i=0; i<n; i++) lb[i]=0.;
   DCOPY(&n, lb, &ione, ub, &ione);
+
+  if(enforce_ineq) {
+    for(int i=0; i<n; i++) lb[i] = -tol_ineq;
+    for(int i=0; i<n; i++) ub[i] = +tol_ineq;
+  }
 }
 
 PFConRectangular::~PFConRectangular() 
@@ -343,6 +350,14 @@ PFActiveBalance::PFActiveBalance(const std::string& id_, int numcons,
   for(int i=0; i<n; i++) lb[i]=0.;
   DCOPY(&n, lb, &ione, ub, &ione);
 
+  for(int i=0; i<n; i++) lb[i]=0.;
+  DCOPY(&n, lb, &ione, ub, &ione);
+
+  if(enforce_ineq) {
+    for(int i=0; i<n; i++) lb[i] = -tol_ineq;
+    for(int i=0; i<n; i++) ub[i] = +tol_ineq;
+  }
+      
   r = slacks_rescale>0 ? 1/slacks_rescale : 1.;
 
   J_nz_idxs = NULL;
@@ -705,6 +720,13 @@ PFReactiveBalance(const std::string& id_, int numcons,
   //!memcpy(lb, d.N_Qd.data(), n*sizeof(double));
   for(int i=0; i<n; i++) lb[i]=0.;
   DCOPY(&n, lb, &ione, ub, &ione);
+
+  if(enforce_ineq) {
+    for(int i=0; i<n; i++) lb[i] = -tol_ineq;
+    for(int i=0; i<n; i++) ub[i] = +tol_ineq;
+  }
+   
+  
   J_nz_idxs = NULL;
   H_nz_idxs = NULL;
 }
@@ -1584,6 +1606,11 @@ PFProdCostAffineCons(const std::string& id_, int numcons,
   //ub = new double[n];
   DCOPY(&n, lb, &ione, ub, &ione);
 
+  if(enforce_ineq) {
+    for(int i=0; i<n; i++) lb[i] = lb[i]-tol_ineq;
+    for(int i=0; i<n; i++) ub[i] = lb[i]+tol_ineq;
+  }
+  
   int sz_t_h = 0;
   //we create here the extra variables and the objective term
   for(auto idx: G_idx_) 

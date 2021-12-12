@@ -584,8 +584,21 @@ void  OptProblem::print_summary() const
 	   it->id.c_str(), it->n, it->index, it->providesStartingPoint);
 
   printf("Constraints blocks: \n");
-  for(auto it : cons->vblocks) 
-    printf("\t'%s' size %d  startsAt %d\n", it->id.c_str(), it->n, it->index);
+  for(auto it : cons->vblocks) {
+    bool only_ineq = true;
+    bool only_eq = true;
+    for(int i=0; i<it->n; i++) {
+      if(fabs(it->lb[i] - it->ub[i])<1e-10) {
+        only_ineq = false;
+      } else {
+        only_eq = false;
+      }
+    }
+    string type = "mixed eq and ineq";
+    if(only_eq) type = "equalities only";
+    if(only_ineq) type = "inequalities only";
+    printf("\t'%s' size %d  startsAt %d  type %s\n", it->id.c_str(), it->n, it->index, type.c_str());
+  }
   
   printf("Objective terms: \n");
   for(auto it: obj->vterms) printf("\t'%s' \n", it->id.c_str());

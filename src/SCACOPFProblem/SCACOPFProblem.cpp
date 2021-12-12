@@ -110,7 +110,7 @@ bool SCACOPFProblem::assembly(const std::vector<int>& K_Cont)
   for(auto K : K_Cont) {
     add_contingency_block(K);
   }
-  //print_summary();
+  print_summary();
   //printf("\n!!![best_known] initialize111 rank=%d\n\n", my_rank);
   best_known_iter.initialize(vars_primal, vars_duals_cons, vars_duals_bounds_L, vars_duals_bounds_U);
 
