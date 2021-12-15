@@ -79,7 +79,7 @@ int main(int argc, char *argv[])
     // In order to access scopf_prob.nlp_solver.ipopt_nlp_spec
     // we need some additional getters
     /********************************************************/
-
+    if(true) {
     IpoptSolver *nlp_solver = (IpoptSolver*)scacopf_prob->getNlpSolver();
     //nlp_solver->initialize(); //or call scacopf_prob->use_nlp_solver("ipopt") before
     
@@ -90,7 +90,11 @@ int main(int argc, char *argv[])
     solver.run();
     //solver.getSolution();
     //solver.getObjective();
-    assert(0);
+    //assert(0);
+    delete scacopf_prob;
+    return 0;
+    }
+    
     /********************************************************/
 
     scacopf_prob->use_nlp_solver("ipopt"); 

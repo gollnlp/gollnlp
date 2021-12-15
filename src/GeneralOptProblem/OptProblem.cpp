@@ -252,13 +252,24 @@ bool OptProblem::eval_HessLagr(const double* x, bool new_x,
     new_x_fgradf=true; 
     vars_primal->attach_to(x);
   }
-  if(new_lambda) vars_duals_cons->attach_to(lambda);
+
+  if(new_lambda) {
+
+    if(nullptr == vars_duals_cons) {
+      vars_duals_cons = new_duals_cons();
+    }
+    
+    assert(nullptr != vars_duals_cons);
+    vars_duals_cons->attach_to(lambda);
+  }
+
   if(M==NULL) {
     for(auto& ot: obj->vterms) {
       if(!ot->eval_HessLagr(*vars_primal, new_x, obj_factor, nnz,i,j,M)) {
 	assert(false && "eval_HessLagr should be called after get_nnzHessLagr");
       }
     }
+
     for(auto& con: cons->vblocks) {
       if(!con->eval_HessLagr(*vars_primal, new_x, *vars_duals_cons, new_lambda, nnz,i,j,M)) {
 	assert(false && "eval_HessLagr should be called after get_nnzHessLagr");
@@ -438,6 +449,7 @@ bool OptProblem::fill_dual_bounds_start(double* zL, double* zU)
 OptVariables* OptProblem::new_duals_cons()
 {
   OptVariables* duals = new OptVariables();
+  assert(cons);
   for(auto b: cons->vblocks) {
     duals->append_varsblock(new OptVariablesBlock(b->n, string("duals_") + b->id));
   }
