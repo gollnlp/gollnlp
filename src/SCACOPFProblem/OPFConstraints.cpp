@@ -6,6 +6,8 @@ using namespace std;
 
 namespace gollnlp {
 
+bool g_thermal_lims_simple = false;
+  
 //////////////////////////////////////////////////////////////////
 // Power flows in rectangular form
 // pq == A*vi^2 + B*vi*vj*cos(thetai - thetaj + Theta) + 
@@ -1136,7 +1138,11 @@ bool PFLineLimits::eval_body (const OptVariables& vars_primal, bool new_x, doubl
   double aux;
   for(int i=0; i<n; i++) {
     aux = Rate[i]*v_n->xref[L_Nidx[i]] + r*sslack_li->xref[i];
-    *body++ -= aux*aux;
+    if(g_thermal_lims_simple) {
+      *body++ -= aux;
+    } else {
+      *body++ -= aux*aux;
+    }
   }
   return true;
 }
@@ -1160,13 +1166,21 @@ void PFLineLimits::compute_slacks(OptVariablesBlock* sslacks)
   double aux;
   for(int i=0; i<n; i++) {
     aux = Rate[i]*v_n->x[L_Nidx[i]];
-    *body++ -= aux*aux;
+    if(g_thermal_lims_simple) {
+      *body++ -= aux;
+    } else {
+      *body++ -= aux*aux;
+    }
   }
   body -= n;
 
   for(int i=0; i<n; i++) {
     //if(body[i]>0) printf(" [%3d] = %g\n", i, body[i]);
-    body[i] = body[i]>=0 ? sqrt(body[i])/r : 0.;
+    if(g_thermal_lims_simple) {
+      body[i] = body[i]>=0 ? body[i]/r : 0.;
+    } else {
+      body[i] = body[i]>=0 ? sqrt(body[i])/r : 0.;
+    }
   }
 }
 
@@ -1196,11 +1210,18 @@ bool PFLineLimits::eval_Jac(const OptVariables& primal_vars, bool new_x,
       R=Rate[it];
       cc = R * v_n->xref[L_Nidx[it]] + r*sslack_li->xref[it];
       cc *= 2;
-
-      M[*itnz] -= R*cc;              itnz++; //vn
+      if(g_thermal_lims_simple) {
+        M[*itnz] -= R;                 itnz++; //vn
+      } else {
+        M[*itnz] -= R*cc;              itnz++; //vn
+      }
       M[*itnz] += 2*p_li->xref[it];  itnz++; //p_li
       M[*itnz] += 2*q_li->xref[it];  itnz++; //q_li
-      M[*itnz] -= r*cc;              itnz++; //sslack_li
+      if(g_thermal_lims_simple) {
+        M[*itnz] -= r;              itnz++; //sslack_li
+      } else {
+        M[*itnz] -= r*cc;              itnz++; //sslack_li
+      }
     }
   }
   return true;
@@ -1270,11 +1291,21 @@ bool PFLineLimits::eval_HessLagr(const OptVariables& vars_primal, bool new_x,
     for(int it=0; it<n; it++) {
       lam=lambda->xref[it]; lam *= 2;
       R=Rate[it]; aux = R*lam*r; //aux = 2*R*lam*r
-      M[*itnz++] -= aux*R; //w.r.t. (v_n, v_n)
-      M[*itnz++] -= aux;   //w.r.t. (v_n, sslack_li)
+      if(g_thermal_lims_simple) {
+        M[*itnz++] -= 0.;    //w.r.t. (v_n, v_n)
+        M[*itnz++] -= 0;   //w.r.t. (v_n, sslack_li)
+      } else {
+        M[*itnz++] -= aux*R; //w.r.t. (v_n, v_n)
+        M[*itnz++] -= aux;   //w.r.t. (v_n, sslack_li)
+      }
+      
       M[*itnz++] += lam;   //w.r.t. (p_li...
       M[*itnz++] += lam;   //w.r.t. (q_li...
-      M[*itnz++] -= lam*r; //w.r.t. (sslack_li...
+      if(g_thermal_lims_simple) {
+        M[*itnz++] -= 0.; //w.r.t. (sslack_li...
+      } else {
+        M[*itnz++] -= lam*r; //w.r.t. (sslack_li...
+      }
     }
   }
 #ifdef DEBUG
