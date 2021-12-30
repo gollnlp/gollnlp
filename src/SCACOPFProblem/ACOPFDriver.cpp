@@ -27,10 +27,14 @@ using namespace gollnlp;
 // medium-to-small problems
 // ./src/SCACOPFProblem/acopf_driver.exe ../../goinstances/trial1/T1S3_Real-Time/Network_07R-3/scenario_3/case.con ../../goinstances/trial1/T1S3_Real-Time/Network_07R-3/case.inl ../../goinstances/trial1/T1S3_Real-Time/Network_07R-3/scenario_3/case.raw ../../goinstances/trial1/T1S3_Real-Time/Network_07R-3/case.rop 600 1 Network07R
 // ./src/SCACOPFProblem/acopf_driver.exe ../../goinstances/trial1/T1S3_Offline/Network_07O-3/scenario_3/case.con ../../goinstances/trial1/T1S3_Offline/Network_07O-3/case.inl ../../goinstances/trial1/T1S3_Offline/Network_07O-3/scenario_3/case.raw ../../goinstances/trial1/T1S3_Offline/Network_07O-3/case.rop 600 1 Network07
+// net11
+// ./src/SCACOPFProblem/acopf_driver.exe ../../goinstances/trial3/Trial_3_Offline/Network_11O-056-2/scenario_22/case.con ../../goinstances/trial3/Trial_3_Offline/Network_11O-056-2/scenario_22/case.inl ../../goinstances/trial3/Trial_3_Offline/Network_11O-056-2/scenario_22/case.raw ../../goinstances/trial3/Trial_3_Offline/Network_11O-056-2/scenario_22/case.rop 600 1 net11
 //
 // medium problem
 // ./src/SCACOPFProblem/acopf_driver.exe ../../goinstances/trial3/Trial_3_Offline/Network_20O-100/scenario_97/case.con ../../goinstances/trial3/Trial_3_Offline/Network_20O-100/scenario_97/case.inl ../../goinstances/trial3/Trial_3_Offline/Network_20O-100/scenario_97/case.raw ../../goinstances/trial3/Trial_3_Offline/Network_20O-100/scenario_97/case.rop 600 1 Net20
 //
+// large
+// ./src/SCACOPFProblem/acopf_driver.exe ../../goinstances/trial3/Trial_3_Offline/Network_30O-044/scenario_10/case.con ../../goinstances/trial3/Trial_3_Offline/Network_30O-044/scenario_10/case.inl ../../goinstances/trial3/Trial_3_Offline/Network_30O-044/scenario_10/case.raw ../../goinstances/trial3/Trial_3_Offline/Network_30O-044/scenario_10/case.rop 600 1 net30
 
 int main(int argc, char *argv[])
 {

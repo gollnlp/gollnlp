@@ -1,4 +1,4 @@
-cmake_minimum_required (VERSION 2.8)
+cmake_minimum_required (VERSION 3.0)
 
 if (POLICY CMP0074)
   cmake_policy(SET CMP0074 NEW)
@@ -53,15 +53,7 @@ if(GOLLNLP_USE_STRUMPACK)
   include(FindGollnlpSTRUMPACK)
   target_link_libraries(hiop_math_libs INTERFACE STRUMPACK)
 
-  #if(STRUMPACK_LIBRARIES AND METIS_LIBRARY)
-  #  target_link_libraries(hiop_math_libs INTERFACE METIS)
   target_link_libraries(hiop_math_libs INTERFACE ${STRUMPACK_LIBRARIES})  
-  #else()
-  #  if(STRUMPACK_LIBRARIES)
-  #    message(STATUS "Cannot find METIS, which is required by STRUMPACK.")
-  #  endif()
-  #  set(GOLLNLP_USE_STRUMPACK OFF CACHE BOOL "Build without STRUMPACK" FORCE)
-  #endif()  
 endif(GOLLNLP_USE_STRUMPACK)
 
 # libdl not found on Ubuntu (?!?)
@@ -141,39 +133,34 @@ if(GOLLNLP_WITH_KRON_REDUCTION)
   endif(UMFPACK_LIB)
 
   add_definitions(-DGOLLNLP_WITH_KRON_REDUCTION)
-  
-  # metis needed (5.x needed by umfpack)
-  #find_library(METIS_LIB NAMES metis HINTS ${METIS_DIR} "${METIS_DIR}/lib" "${METIS_DIR}/src/")
-  #if(METIS_LIB)
-  #  message("Using METIS lib '${METIS_LIB}'")
-  #else()
-  #  message(FATAL_ERROR "Could not find METIS lib needed by UMFPACK. Please cmake with '-DMETIS_DIR=/path/to/metis/lib'; currently, METIS_DIR='${METIS_DIR}'")
-  #endif(METIS_LIB)
-endif(GOLLNLP_WITH_KRON_REDUCTION)
+  endif(GOLLNLP_WITH_KRON_REDUCTION)
 
 if(GOLLNLP_USE_GPU)
-  include(CheckLanguage)
-  enable_language(CUDA)
-  check_language(CUDA)
+  # include(CheckLanguage)
+  # enable_language(CUDA)
+  # check_language(CUDA)
 
-  if(NOT DEFINED CMAKE_CUDA_STANDARD)
-    set(CMAKE_CUDA_STANDARD 11)
-    set(CMAKE_CUDA_STANDARD_REQUIRED ON)
-  endif()
+  # if(NOT DEFINED CMAKE_CUDA_STANDARD)
+  #   set(CMAKE_CUDA_STANDARD 11)
+  #   set(CMAKE_CUDA_STANDARD_REQUIRED ON)
+  # endif()
 
-  if(HIOP_NVCC_ARCH)
-    set(CMAKE_CUDA_FLAGS "-arch=${HIOP_NVCC_ARCH}")
-    message(STATUS "Using CUDA arch ${HIOP_NVCC_ARCH}")
-  else()
-    set(CMAKE_CUDA_FLAGS "-arch=sm_35")
-    message(STATUS "Using CUDA arch sm_35")
-  endif()
+  # if(HIOP_NVCC_ARCH)
+  #   set(CMAKE_CUDA_FLAGS "-arch=${HIOP_NVCC_ARCH}")
+  #   message(STATUS "Using CUDA arch ${HIOP_NVCC_ARCH}")
+  # else()
+  #   set(CMAKE_CUDA_FLAGS "-arch=sm_70")
+  #   message(STATUS "Using CUDA arch sm_70")
+  # endif()
 
-  set(CMAKE_CUDA_FLAGS "${CMAKE_CUDA_FLAGS} --expt-extended-lambda")
+  # set(CMAKE_CUDA_FLAGS "${CMAKE_CUDA_FLAGS} --expt-extended-lambda")
 
-  set(HIOP_MAGMA_DIR CACHE PATH "Path to Magma directory")
-
+  # set(HIOP_MAGMA_DIR CACHE PATH "Path to Magma directory")
+  include(FindHiopMagma)
   include(FindHiopCudaLibraries)
+  target_link_libraries(hiop_cuda INTERFACE Magma)
+  include(FindHiopMETIS)
+  target_link_libraries(hiop_cuda INTERFACE METIS)
 endif(GOLLNLP_USE_GPU)
 
 
@@ -204,7 +191,7 @@ add_library(gollnlp STATIC $<TARGET_OBJECTS:goSCACOPF> $<TARGET_OBJECTS:goUtils>
 message(${GOLLNLP_LIBS_EXTRA})
 add_executable(MyExe1 MyCpp1.cpp)
 target_link_libraries(MyExe1 gollnlp ipopt coinhsl #coinmetis 
-                      hiop ${GOLLNLP_LIBS_EXTRA} hiop_math_libs 
+                      hiop hiop_cuda ${GOLLNLP_LIBS_EXTRA} hiop_math_libs 
 		      ${OpenMP_CXX_LIBRARIES} ${LAPACK_LIBRARIES})
 if(GOLLNLP_WITH_KRON_REDUCTION)
   target_link_libraries(MyExe1 goKronRed)
@@ -213,7 +200,7 @@ endif(GOLLNLP_WITH_KRON_REDUCTION)
 		   
 add_executable(MyExe2 MyCpp2.cpp)
 target_link_libraries(MyExe2 gollnlp ipopt coinhsl #coinmetis 
-                      hiop ${GOLLNLP_LIBS_EXTRA} hiop_math_libs 
+                      hiop hiop_cuda ${GOLLNLP_LIBS_EXTRA} hiop_math_libs 
 		      ${OpenMP_CXX_LIBRARIES} ${LAPACK_LIBRARIES})
 
 if(GOLLNLP_WITH_KRON_REDUCTION)
