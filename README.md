@@ -7,7 +7,23 @@ The gollnlp code solves security-constrained AC optimal flow (SC-ACOPF) problems
 
 The repository you are seeing here contains the competition submission only and it is not actively maintained. Please check the gollnlp project's [webpage](https://computing.llnl.gov/projects/gollnlp) for the latest capabilities and contact information. 
 
-## Build/install instructions
+The computational approach implemented here is described in detail in [this](https://pubsonline.informs.org/doi/10.1287/opre.2022.0229) paper by Petra and Aravena. If you are refering to gollnlp, do not forget to cite the paper:
+```
+@article{petra23,
+author = {Petra, Cosmin G. and Aravena, Ignacio},
+title = {A Surrogate-Based Asynchronous Decomposition Technique for Realistic Security-Constrained Optimal Power Flow Problems},
+journal = {Operations Research},
+volume = {71},
+number = {6},
+pages = {2015-2030},
+year = {2023},
+doi = {10.1287/opre.2022.0229},
+URL = {https://doi.org/10.1287/opre.2022.0229},
+eprint = { https://doi.org/10.1287/opre.2022.0229 }
+}
+```
+
+## Getting started
 
 A standard build can be done by invoking the following in the 'build' directory 
 ```shell 
@@ -17,5 +33,7 @@ $> make
 $> make test
 $> make install
 ```
+
+
 
 NOTE: requires that Ipopt was previously compiled as a static library
